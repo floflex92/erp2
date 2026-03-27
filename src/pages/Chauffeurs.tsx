@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Tables, TablesInsert } from '@/lib/database.types'
 
-type Chauffeur = Tables<'chauffeurs'>
+type Conducteur = Tables<'conducteurs'>
 
 const STATUT_COLORS: Record<string, string> = {
   actif:          'bg-green-100 text-green-700',
@@ -20,7 +20,7 @@ function expColor(date: string | null) {
   return d < 0 ? 'text-red-600 font-semibold' : d < 60 ? 'text-orange-500 font-semibold' : 'text-slate-600'
 }
 
-const EMPTY: TablesInsert<'chauffeurs'> = {
+const EMPTY: TablesInsert<'conducteurs'> = {
   nom: '', prenom: '', telephone: null, email: null, adresse: null,
   date_naissance: null, numero_permis: null, permis_categories: [],
   permis_expiration: null, fimo_date: null, fco_date: null, fco_expiration: null,
@@ -28,16 +28,16 @@ const EMPTY: TablesInsert<'chauffeurs'> = {
 }
 
 export default function Chauffeurs() {
-  const [list, setList] = useState<Chauffeur[]>([])
+  const [list, setList] = useState<Conducteur[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState<TablesInsert<'chauffeurs'>>(EMPTY)
+  const [form, setForm] = useState<TablesInsert<'conducteurs'>>(EMPTY)
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
 
   async function load() {
     setLoading(true)
-    const { data } = await supabase.from('chauffeurs').select('*').order('nom')
+    const { data } = await supabase.from('conducteurs').select('*').order('nom')
     setList(data ?? [])
     setLoading(false)
   }
@@ -48,14 +48,14 @@ export default function Chauffeurs() {
     `${c.nom} ${c.prenom}`.toLowerCase().includes(search.toLowerCase())
   )
 
-  function set<K extends keyof TablesInsert<'chauffeurs'>>(k: K, v: TablesInsert<'chauffeurs'>[K]) {
+  function set<K extends keyof TablesInsert<'conducteurs'>>(k: K, v: TablesInsert<'conducteurs'>[K]) {
     setForm(f => ({ ...f, [k]: v }))
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
-    await supabase.from('chauffeurs').insert(form)
+    await supabase.from('conducteurs').insert(form)
     setSaving(false)
     setShowForm(false)
     setForm(EMPTY)
@@ -63,8 +63,8 @@ export default function Chauffeurs() {
   }
 
   async function del(id: string) {
-    if (!confirm('Supprimer ce chauffeur ?')) return
-    await supabase.from('chauffeurs').delete().eq('id', id)
+    if (!confirm('Supprimer ce conducteur ?')) return
+    await supabase.from('conducteurs').delete().eq('id', id)
     load()
   }
 
@@ -73,8 +73,8 @@ export default function Chauffeurs() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Chauffeurs</h2>
-          <p className="text-slate-500 text-sm">{list.length} chauffeur{list.length !== 1 ? 's' : ''}</p>
+          <h2 className="text-2xl font-bold text-slate-800">Conducteurs</h2>
+          <p className="text-slate-500 text-sm">{list.length} conducteur{list.length !== 1 ? 's' : ''}</p>
         </div>
         <button
           onClick={() => setShowForm(true)}
@@ -99,13 +99,13 @@ export default function Chauffeurs() {
           <div className="p-8 text-center text-slate-400 text-sm">Chargement...</div>
         ) : filtered.length === 0 ? (
           <div className="p-8 text-center text-slate-400 text-sm">
-            {search ? 'Aucun résultat' : 'Aucun chauffeur enregistré'}
+            {search ? 'Aucun résultat' : 'Aucun conducteur enregistré'}
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                {['Chauffeur', 'Contact', 'Permis', 'FCO exp.', 'Carte tachy', 'Statut', ''].map(h => (
+                {['Conducteur', 'Contact', 'Permis', 'FCO exp.', 'Carte tachy', 'Statut', ''].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -165,7 +165,7 @@ export default function Chauffeurs() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b">
-              <h3 className="text-lg font-semibold">Ajouter un chauffeur</h3>
+              <h3 className="text-lg font-semibold">Ajouter un conducteur</h3>
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
             <form onSubmit={submit} className="p-6">

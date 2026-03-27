@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom'
 
 const NAV = [
   { to: '/dashboard',    label: 'Tableau de bord',     icon: '📊' },
-  { to: '/chauffeurs',   label: 'Chauffeurs',           icon: '👤' },
+  { to: '/chauffeurs',   label: 'Conducteurs',           icon: '👤' },
   { to: '/vehicules',    label: 'Véhicules',            icon: '🚛' },
   { to: '/transports',   label: 'Ordres de transport',  icon: '📋' },
   { to: '/clients',      label: 'Clients',              icon: '🏢' },
