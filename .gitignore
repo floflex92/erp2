@@ -12,8 +12,9 @@ dist
 dist-ssr
 *.local
 .next
-.env
-.env.*
+# .env intentionally committed
+# .env
+# .env.*
 
 # Editor directories and files
 .vscode/*
