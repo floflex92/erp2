@@ -2,24 +2,27 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 
+const SESSION_TIMEOUT_MS = 8000
+const PROFILE_TIMEOUT_MS = 8000
+
 export type Role = 'admin' | 'dirigeant' | 'exploitant' | 'mecanicien' | 'commercial' | 'comptable'
 
 export const ROLE_LABELS: Record<Role, string> = {
-  admin:      'Administrateur',
-  dirigeant:  'Dirigeant',
+  admin: 'Administrateur',
+  dirigeant: 'Dirigeant',
   exploitant: 'Exploitant',
-  mecanicien: 'Mécanicien',
+  mecanicien: 'Mecanicien',
   commercial: 'Commercial',
-  comptable:  'Comptable',
+  comptable: 'Comptable',
 }
 
 export const ROLE_ACCESS: Record<Role, string[]> = {
-  admin:      ['dashboard', 'chauffeurs', 'vehicules', 'transports', 'clients', 'facturation', 'tachygraphe', 'planning', 'utilisateurs'],
-  dirigeant:  ['dashboard', 'chauffeurs', 'vehicules', 'transports', 'clients', 'facturation', 'tachygraphe', 'planning', 'utilisateurs'],
+  admin: ['dashboard', 'chauffeurs', 'vehicules', 'transports', 'clients', 'facturation', 'tachygraphe', 'planning', 'utilisateurs'],
+  dirigeant: ['dashboard', 'chauffeurs', 'vehicules', 'transports', 'clients', 'facturation', 'tachygraphe', 'planning', 'utilisateurs'],
   exploitant: ['dashboard', 'chauffeurs', 'vehicules', 'transports', 'tachygraphe', 'planning'],
   mecanicien: ['vehicules', 'tachygraphe'],
   commercial: ['dashboard', 'transports', 'clients', 'facturation'],
-  comptable:  ['dashboard', 'facturation'],
+  comptable: ['dashboard', 'facturation'],
 }
 
 export function canAccess(role: Role | null, page: string): boolean {
@@ -38,6 +41,23 @@ export interface Profil {
   prenom: string | null
 }
 
+function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(`${label} timed out`)), timeoutMs)
+
+    Promise.resolve(promise).then(
+      value => {
+        window.clearTimeout(timer)
+        resolve(value)
+      },
+      error => {
+        window.clearTimeout(timer)
+        reject(error)
+      },
+    )
+  })
+}
+
 interface AuthContextType {
   session: Session | null
   user: User | null
@@ -46,6 +66,8 @@ interface AuthContextType {
   sessionRole: Role | null
   isAdmin: boolean
   loading: boolean
+  profilLoading: boolean
+  authError: string | null
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   reloadProfil: () => Promise<void>
@@ -60,20 +82,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profil, setProfil] = useState<Profil | null>(null)
   const [sessionRole, setSessionRoleState] = useState<Role | null>(null)
   const [loading, setLoading] = useState(true)
+  const [profilLoading, setProfilLoading] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
 
   async function loadProfil(userId: string) {
+    setProfilLoading(true)
+
     try {
-      const { data } = await supabase
-        .from('profils')
-        .select('id, role, nom, prenom')
-        .eq('user_id', userId)
-        .maybeSingle()
+      const { data, error } = await withTimeout(
+        supabase
+          .from('profils')
+          .select('id, role, nom, prenom')
+          .eq('user_id', userId)
+          .maybeSingle(),
+        PROFILE_TIMEOUT_MS,
+        'profile load',
+      )
+
+      if (error) throw error
+
       const p = data as Profil | null
       setProfil(p)
       if (p?.role !== 'admin') setSessionRoleState(p?.role ?? null)
       else setSessionRoleState(null)
+      setAuthError(null)
     } catch {
-      // En cas d'erreur réseau, on laisse profil à null
+      setProfil(null)
+      setSessionRoleState(null)
+      setAuthError("Impossible de charger le profil utilisateur.")
+    } finally {
+      setProfilLoading(false)
     }
   }
 
@@ -82,33 +120,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    ;(async () => {
+    let active = true
+
+    void (async () => {
       try {
-        const { data } = await supabase.auth.getSession()
+        const { data } = await withTimeout(supabase.auth.getSession(), SESSION_TIMEOUT_MS, 'session load')
+        if (!active) return
+
         setSession(data.session)
-        if (data.session?.user) await loadProfil(data.session.user.id)
+
+        if (data.session?.user) {
+          void loadProfil(data.session.user.id)
+        } else {
+          setProfil(null)
+          setSessionRoleState(null)
+          setProfilLoading(false)
+        }
+
+        setAuthError(null)
+      } catch {
+        if (!active) return
+        setSession(null)
+        setProfil(null)
+        setSessionRoleState(null)
+        setProfilLoading(false)
+        setAuthError("Impossible d'initialiser la session.")
       } finally {
-        setLoading(false)
+        if (active) setLoading(false)
       }
     })()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+      if (!active) return
+
       setSession(s)
+      setAuthError(null)
+
       if (s?.user) {
-        await loadProfil(s.user.id)
+        void loadProfil(s.user.id)
       } else {
         setProfil(null)
         setSessionRoleState(null)
+        setProfilLoading(false)
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      active = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   function setSessionRole(r: Role) { setSessionRoleState(r) }
   function resetSessionRole() { setSessionRoleState(null) }
 
   async function signIn(email: string, password: string) {
+    setAuthError(null)
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     return { error: error?.message ?? null }
   }
@@ -116,6 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signOut() {
     await supabase.auth.signOut()
     setSessionRoleState(null)
+    setAuthError(null)
   }
 
   const isAdmin = profil?.role === 'admin'
@@ -130,6 +198,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sessionRole,
       isAdmin,
       loading,
+      profilLoading,
+      authError,
       signIn,
       signOut,
       reloadProfil,
