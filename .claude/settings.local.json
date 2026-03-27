@@ -12,7 +12,11 @@
       "Bash(npx shadcn@latest init)",
       "Bash(npx shadcn@latest init -d --force)",
       "Bash(rm components.json)",
-      "Bash(npx shadcn@latest init -d)"
+      "Bash(npx shadcn@latest init -d)",
+      "mcp__claude_ai_Supabase__list_projects",
+      "mcp__claude_ai_Supabase__list_tables",
+      "mcp__claude_ai_Supabase__generate_typescript_types",
+      "Bash(npx shadcn@latest add badge dialog input label select textarea --yes)"
     ]
   }
 }
