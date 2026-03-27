@@ -2,9 +2,10 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 
-export type Role = 'dirigeant' | 'exploitant' | 'mecanicien' | 'commercial' | 'comptable'
+export type Role = 'admin' | 'dirigeant' | 'exploitant' | 'mecanicien' | 'commercial' | 'comptable'
 
 export const ROLE_LABELS: Record<Role, string> = {
+  admin:      'Administrateur',
   dirigeant:  'Dirigeant',
   exploitant: 'Exploitant',
   mecanicien: 'Mécanicien',
@@ -12,8 +13,8 @@ export const ROLE_LABELS: Record<Role, string> = {
   comptable:  'Comptable',
 }
 
-// Pages accessibles par rôle
 export const ROLE_ACCESS: Record<Role, string[]> = {
+  admin:      ['dashboard', 'chauffeurs', 'vehicules', 'transports', 'clients', 'facturation', 'tachygraphe', 'planning', 'utilisateurs'],
   dirigeant:  ['dashboard', 'chauffeurs', 'vehicules', 'transports', 'clients', 'facturation', 'tachygraphe', 'planning', 'utilisateurs'],
   exploitant: ['dashboard', 'chauffeurs', 'vehicules', 'transports', 'tachygraphe', 'planning'],
   mecanicien: ['vehicules', 'tachygraphe'],
@@ -26,7 +27,7 @@ export function canAccess(role: Role | null, page: string): boolean {
   return ROLE_ACCESS[role]?.includes(page) ?? false
 }
 
-interface Profil {
+export interface Profil {
   id: string
   role: Role
   nom: string | null
@@ -37,11 +38,15 @@ interface AuthContextType {
   session: Session | null
   user: User | null
   profil: Profil | null
-  role: Role | null
+  role: Role | null          // rôle réel en base
+  sessionRole: Role | null   // rôle actif (admin peut simuler un autre rôle)
+  isAdmin: boolean
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   reloadProfil: () => Promise<void>
+  setSessionRole: (r: Role) => void
+  resetSessionRole: () => void  // revient au rôle réel
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -49,6 +54,7 @@ const AuthContext = createContext<AuthContextType | null>(null)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profil, setProfil] = useState<Profil | null>(null)
+  const [sessionRole, setSessionRoleState] = useState<Role | null>(null)
   const [loading, setLoading] = useState(true)
 
   async function loadProfil(userId: string) {
@@ -57,7 +63,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .select('id, role, nom, prenom')
       .eq('user_id', userId)
       .maybeSingle()
-    setProfil(data as Profil | null)
+    const p = data as Profil | null
+    setProfil(p)
+    // Un admin démarre sans sessionRole → déclenche le sélecteur
+    if (p?.role !== 'admin') setSessionRoleState(p?.role ?? null)
+    else setSessionRoleState(null)
   }
 
   async function reloadProfil() {
@@ -73,15 +83,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
       setSession(s)
-      if (s?.user) {
-        await loadProfil(s.user.id)
-      } else {
-        setProfil(null)
-      }
+      if (s?.user) await loadProfil(s.user.id)
+      else { setProfil(null); setSessionRoleState(null) }
     })
 
     return () => subscription.unsubscribe()
   }, [])
+
+  function setSessionRole(r: Role) { setSessionRoleState(r) }
+  function resetSessionRole() { setSessionRoleState(null) } // repasse au sélecteur
 
   async function signIn(email: string, password: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -90,18 +100,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signOut() {
     await supabase.auth.signOut()
+    setSessionRoleState(null)
   }
+
+  const isAdmin = profil?.role === 'admin'
+  // Le rôle effectif : pour un admin qui simule, c'est sessionRole ; sinon le rôle réel
+  const role = isAdmin ? sessionRole : (profil?.role ?? null)
 
   return (
     <AuthContext.Provider value={{
       session,
       user: session?.user ?? null,
       profil,
-      role: profil?.role ?? null,
+      role,
+      sessionRole,
+      isAdmin,
       loading,
       signIn,
       signOut,
       reloadProfil,
+      setSessionRole,
+      resetSessionRole,
     }}>
       {children}
     </AuthContext.Provider>

@@ -6,6 +6,7 @@ import type { Tables } from '@/lib/database.types'
 type Profil = Tables<'profils'>
 
 const ROLE_BADGE: Record<string, string> = {
+  admin:      'bg-yellow-100 text-yellow-700',
   dirigeant:  'bg-violet-100 text-violet-700',
   exploitant: 'bg-blue-100 text-blue-700',
   mecanicien: 'bg-orange-100 text-orange-700',
@@ -64,13 +65,14 @@ export default function Utilisateurs() {
       </div>
 
       {/* Légende des rôles */}
-      <div className="grid grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-6 gap-3 mb-6">
         {(Object.entries(ROLE_LABELS) as [Role, string][]).map(([role, label]) => (
           <div key={role} className="bg-white rounded-xl border border-slate-200 p-4 text-center">
             <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${ROLE_BADGE[role]}`}>
               {label}
             </span>
             <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">
+              {role === 'admin'      && 'Super administrateur'}
               {role === 'dirigeant'  && 'Accès complet'}
               {role === 'exploitant' && 'Planning, OT, Flotte'}
               {role === 'mecanicien' && 'Véhicules, Tachy'}

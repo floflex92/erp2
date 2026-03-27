@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { useAuth, canAccess, ROLE_LABELS } from '@/lib/auth'
+import { useAuth, canAccess, ROLE_LABELS, type Role } from '@/lib/auth'
 
 const NAV = [
   { to: '/dashboard',     page: 'dashboard',     label: 'Tableau de bord',    icon: '📊' },
@@ -14,6 +14,7 @@ const NAV = [
 ]
 
 const ROLE_BADGE: Record<string, string> = {
+  admin:      'bg-yellow-500/20 text-yellow-400',
   dirigeant:  'bg-violet-900/60 text-violet-300',
   exploitant: 'bg-blue-900/60 text-blue-300',
   mecanicien: 'bg-orange-900/60 text-orange-300',
@@ -22,11 +23,15 @@ const ROLE_BADGE: Record<string, string> = {
 }
 
 export default function Sidebar() {
-  const { user, role, profil, signOut } = useAuth()
+  const { user, role, profil, isAdmin, sessionRole, resetSessionRole, signOut } = useAuth()
 
   const displayName = profil?.prenom || profil?.nom
     ? `${profil.prenom ?? ''} ${profil.nom ?? ''}`.trim()
     : user?.email ?? ''
+
+  // Le rôle affiché dans la sidebar (si admin simule, on montre le rôle simulé)
+  const displayRole = role
+  const isSimulating = isAdmin && sessionRole !== null && sessionRole !== 'admin'
 
   return (
     <aside className="w-64 min-h-screen bg-slate-900 text-white flex flex-col shrink-0">
@@ -40,8 +45,31 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-        {NAV.filter(item => canAccess(role, item.page)).map(item => (
+      {/* Bandeau admin mode */}
+      {isAdmin && (
+        <div className="mx-3 mt-3 px-3 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full" />
+            <span className="text-yellow-400 text-[10px] font-bold uppercase tracking-widest">Mode Admin</span>
+          </div>
+          {isSimulating ? (
+            <p className="text-yellow-200/60 text-[10px]">
+              Session : <span className="text-yellow-300 font-semibold">{ROLE_LABELS[sessionRole as Role]}</span>
+            </p>
+          ) : (
+            <p className="text-yellow-200/60 text-[10px]">Accès complet</p>
+          )}
+          <button
+            onClick={resetSessionRole}
+            className="mt-1.5 text-[10px] text-yellow-400/70 hover:text-yellow-300 underline transition-colors"
+          >
+            Changer de session →
+          </button>
+        </div>
+      )}
+
+      <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto mt-1">
+        {NAV.filter(item => canAccess(displayRole, item.page)).map(item => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -64,9 +92,9 @@ export default function Sidebar() {
           <div className="px-1 space-y-1">
             <p className="text-slate-300 text-sm font-medium truncate">{displayName}</p>
             <p className="text-slate-500 text-xs truncate">{user.email}</p>
-            {role && (
-              <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${ROLE_BADGE[role] ?? 'bg-slate-700 text-slate-400'}`}>
-                {ROLE_LABELS[role]}
+            {displayRole && (
+              <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${ROLE_BADGE[displayRole] ?? 'bg-slate-700 text-slate-400'}`}>
+                {ROLE_LABELS[displayRole]}
               </span>
             )}
           </div>

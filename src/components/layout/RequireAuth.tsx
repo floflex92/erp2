@@ -2,18 +2,19 @@ import { useEffect } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
+import SessionPicker from '@/pages/SessionPicker'
 
 export default function RequireAuth() {
-  const { session, loading, role, reloadProfil } = useAuth()
+  const { session, loading, role, profil, isAdmin, sessionRole, reloadProfil } = useAuth()
 
-  // Crée le profil automatiquement à la première connexion
+  // Crée le profil automatiquement à la première connexion (rôle exploitant par défaut)
   useEffect(() => {
-    if (!session?.user || role !== null) return
+    if (!session?.user || profil !== null) return
     supabase
       .from('profils')
       .insert({ user_id: session.user.id, role: 'exploitant' })
       .then(() => reloadProfil())
-  }, [session, role])
+  }, [session, profil])
 
   if (loading) {
     return (
@@ -24,6 +25,9 @@ export default function RequireAuth() {
   }
 
   if (!session) return <Navigate to="/login" replace />
+
+  // Admin sans session choisie → affiche le sélecteur
+  if (isAdmin && !sessionRole) return <SessionPicker />
 
   return <Outlet />
 }
