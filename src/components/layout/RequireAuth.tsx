@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import SessionPicker from '@/pages/SessionPicker'
 
 export default function RequireAuth() {
-  const { session, loading, role, profil, isAdmin, sessionRole, reloadProfil } = useAuth()
+  const { session, loading, profil, isAdmin, sessionRole, reloadProfil } = useAuth()
 
   // Crée le profil automatiquement à la première connexion (rôle exploitant par défaut)
   useEffect(() => {

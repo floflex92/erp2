@@ -12,7 +12,7 @@ const ROLE_META: Record<Role, { icon: string; color: string; border: string; des
 }
 
 export default function SessionPicker() {
-  const { user, profil, setSessionRole, signOut } = useAuth()
+  const { user, setSessionRole, signOut } = useAuth()
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-8">
