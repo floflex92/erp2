@@ -17,12 +17,12 @@ export const ROLE_LABELS: Record<Role, string> = {
 }
 
 export const ROLE_ACCESS: Record<Role, string[]> = {
-  admin: ['dashboard', 'chauffeurs', 'vehicules', 'transports', 'clients', 'facturation', 'tachygraphe', 'planning', 'utilisateurs'],
-  dirigeant: ['dashboard', 'chauffeurs', 'vehicules', 'transports', 'clients', 'facturation', 'tachygraphe', 'planning', 'utilisateurs'],
-  exploitant: ['dashboard', 'chauffeurs', 'vehicules', 'transports', 'tachygraphe', 'planning'],
-  mecanicien: ['vehicules', 'tachygraphe'],
-  commercial: ['dashboard', 'transports', 'clients', 'facturation'],
-  comptable: ['dashboard', 'facturation'],
+  admin: ['dashboard', 'chauffeurs', 'vehicules', 'transports', 'clients', 'facturation', 'tachygraphe', 'planning', 'parametres', 'utilisateurs'],
+  dirigeant: ['dashboard', 'chauffeurs', 'vehicules', 'transports', 'clients', 'facturation', 'tachygraphe', 'planning', 'parametres', 'utilisateurs'],
+  exploitant: ['dashboard', 'chauffeurs', 'vehicules', 'transports', 'tachygraphe', 'planning', 'parametres'],
+  mecanicien: ['vehicules', 'tachygraphe', 'parametres'],
+  commercial: ['dashboard', 'transports', 'clients', 'facturation', 'parametres'],
+  comptable: ['dashboard', 'facturation', 'parametres'],
 }
 
 export function canAccess(role: Role | null, page: string): boolean {

@@ -12,6 +12,7 @@ import Facturation from '@/pages/Facturation'
 import Tachygraphe from '@/pages/Tachygraphe'
 import Planning from '@/pages/Planning'
 import Utilisateurs from '@/pages/Utilisateurs'
+import Parametres from '@/pages/Parametres'
 
 function RequireRole({ page, children }: { page: string; children: React.ReactNode }) {
   const { role, loading } = useAuth()
@@ -41,6 +42,7 @@ export default function App() {
               <Route path="tachygraphe"  element={<RequireRole page="tachygraphe"><Tachygraphe /></RequireRole>} />
               <Route path="planning"     element={<RequireRole page="planning"><Planning /></RequireRole>} />
               <Route path="utilisateurs" element={<RequireRole page="utilisateurs"><Utilisateurs /></RequireRole>} />
+              <Route path="parametres"   element={<RequireRole page="parametres"><Parametres /></RequireRole>} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
