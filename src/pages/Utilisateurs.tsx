@@ -121,7 +121,7 @@ export default function Utilisateurs() {
     setNotice(null)
 
     try {
-      const payload = await adminRequest<{ user: { email: string; role: Role } }>(session.access_token, 'POST', {
+      const payload = await adminRequest<{ user: { email: string; role: Role; requires_email_confirmation?: boolean } }>(session.access_token, 'POST', {
         email: createEmail,
         password: createPassword,
         role: createRole,
@@ -134,7 +134,11 @@ export default function Utilisateurs() {
       setCreateRole(DEFAULT_ROLE)
       setCreateNom('')
       setCreatePrenom('')
-      setNotice(`Compte cree pour ${payload.user.email} (${ROLE_LABELS[payload.user.role]}).`)
+      setNotice(
+        payload.user.requires_email_confirmation
+          ? `Compte cree pour ${payload.user.email}. Une confirmation email Supabase peut etre necessaire avant la premiere connexion.`
+          : `Compte cree pour ${payload.user.email} (${ROLE_LABELS[payload.user.role]}).`,
+      )
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Creation impossible.')
