@@ -14,7 +14,8 @@ export default function RequireAuth() {
       .from('profils')
       .insert({ user_id: session.user.id, role: 'exploitant' })
       .then(() => reloadProfil())
-  }, [session, profil])
+      .catch(() => reloadProfil()) // même en cas de conflit (profil déjà existant)
+  }, [session?.user?.id])        // dépend uniquement de l'id user, pas de profil
 
   if (loading) {
     return (

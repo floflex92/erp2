@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider, canAccess, useAuth, type Role } from '@/lib/auth'
+import { AuthProvider, canAccess, firstPage, useAuth, type Role } from '@/lib/auth'
 import RequireAuth from '@/components/layout/RequireAuth'
 import AppLayout from '@/components/layout/AppLayout'
 import Login from '@/pages/Login'
@@ -16,7 +16,10 @@ import Utilisateurs from '@/pages/Utilisateurs'
 function RequireRole({ page, children }: { page: string; children: React.ReactNode }) {
   const { role, loading } = useAuth()
   if (loading) return null
-  if (!canAccess(role as Role, page)) return <Navigate to="/dashboard" replace />
+  // Pas encore de rôle (profil en cours de chargement) → on attend sans rediriger
+  if (!role) return null
+  // Rôle chargé mais pas accès à cette page → rediriger vers la première page accessible
+  if (!canAccess(role as Role, page)) return <Navigate to={firstPage(role as Role)} replace />
   return <>{children}</>
 }
 

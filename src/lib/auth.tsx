@@ -27,6 +27,10 @@ export function canAccess(role: Role | null, page: string): boolean {
   return ROLE_ACCESS[role]?.includes(page) ?? false
 }
 
+export function firstPage(role: Role): string {
+  return '/' + (ROLE_ACCESS[role]?.[0] ?? 'dashboard')
+}
+
 export interface Profil {
   id: string
   role: Role
@@ -38,15 +42,15 @@ interface AuthContextType {
   session: Session | null
   user: User | null
   profil: Profil | null
-  role: Role | null          // rôle réel en base
-  sessionRole: Role | null   // rôle actif (admin peut simuler un autre rôle)
+  role: Role | null
+  sessionRole: Role | null
   isAdmin: boolean
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   reloadProfil: () => Promise<void>
   setSessionRole: (r: Role) => void
-  resetSessionRole: () => void  // revient au rôle réel
+  resetSessionRole: () => void
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -58,16 +62,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   async function loadProfil(userId: string) {
-    const { data } = await supabase
-      .from('profils')
-      .select('id, role, nom, prenom')
-      .eq('user_id', userId)
-      .maybeSingle()
-    const p = data as Profil | null
-    setProfil(p)
-    // Un admin démarre sans sessionRole → déclenche le sélecteur
-    if (p?.role !== 'admin') setSessionRoleState(p?.role ?? null)
-    else setSessionRoleState(null)
+    try {
+      const { data } = await supabase
+        .from('profils')
+        .select('id, role, nom, prenom')
+        .eq('user_id', userId)
+        .maybeSingle()
+      const p = data as Profil | null
+      setProfil(p)
+      if (p?.role !== 'admin') setSessionRoleState(p?.role ?? null)
+      else setSessionRoleState(null)
+    } catch {
+      // En cas d'erreur réseau, on laisse profil à null
+    }
   }
 
   async function reloadProfil() {
@@ -75,26 +82,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
-      setSession(data.session)
+    ;(async () => {
       try {
+        const { data } = await supabase.auth.getSession()
+        setSession(data.session)
         if (data.session?.user) await loadProfil(data.session.user.id)
       } finally {
         setLoading(false)
       }
-    })
+    })()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
       setSession(s)
-      if (s?.user) await loadProfil(s.user.id)
-      else { setProfil(null); setSessionRoleState(null) }
+      if (s?.user) {
+        await loadProfil(s.user.id)
+      } else {
+        setProfil(null)
+        setSessionRoleState(null)
+      }
     })
 
     return () => subscription.unsubscribe()
   }, [])
 
   function setSessionRole(r: Role) { setSessionRoleState(r) }
-  function resetSessionRole() { setSessionRoleState(null) } // repasse au sélecteur
+  function resetSessionRole() { setSessionRoleState(null) }
 
   async function signIn(email: string, password: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -107,7 +119,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const isAdmin = profil?.role === 'admin'
-  // Le rôle effectif : pour un admin qui simule, c'est sessionRole ; sinon le rôle réel
   const role = isAdmin ? sessionRole : (profil?.role ?? null)
 
   return (
