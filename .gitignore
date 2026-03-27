@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 .next
+.netlify
 # .env intentionally committed
 # .env
 # .env.*
