@@ -1,8 +1,19 @@
+import { useEffect } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
 
 export default function RequireAuth() {
-  const { session, loading } = useAuth()
+  const { session, loading, role, reloadProfil } = useAuth()
+
+  // Crée le profil automatiquement à la première connexion
+  useEffect(() => {
+    if (!session?.user || role !== null) return
+    supabase
+      .from('profils')
+      .insert({ user_id: session.user.id, role: 'exploitant' })
+      .then(() => reloadProfil())
+  }, [session, role])
 
   if (loading) {
     return (

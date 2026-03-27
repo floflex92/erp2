@@ -1,19 +1,33 @@
 import { NavLink } from 'react-router-dom'
-import { useAuth } from '@/lib/auth'
+import { useAuth, canAccess, ROLE_LABELS } from '@/lib/auth'
 
 const NAV = [
-  { to: '/dashboard',    label: 'Tableau de bord',     icon: '📊' },
-  { to: '/chauffeurs',   label: 'Conducteurs',           icon: '👤' },
-  { to: '/vehicules',    label: 'Véhicules',            icon: '🚛' },
-  { to: '/transports',   label: 'Ordres de transport',  icon: '📋' },
-  { to: '/clients',      label: 'Clients',              icon: '🏢' },
-  { to: '/facturation',  label: 'Facturation',          icon: '💶' },
-  { to: '/tachygraphe',  label: 'Tachygraphe',          icon: '⏱️' },
-  { to: '/planning',    label: 'Planning',             icon: '📅' },
+  { to: '/dashboard',     page: 'dashboard',     label: 'Tableau de bord',    icon: '📊' },
+  { to: '/planning',      page: 'planning',      label: 'Planning',           icon: '📅' },
+  { to: '/transports',    page: 'transports',    label: 'Ordres de transport', icon: '📋' },
+  { to: '/chauffeurs',    page: 'chauffeurs',    label: 'Conducteurs',         icon: '👤' },
+  { to: '/vehicules',     page: 'vehicules',     label: 'Véhicules',          icon: '🚛' },
+  { to: '/clients',       page: 'clients',       label: 'Clients',            icon: '🏢' },
+  { to: '/facturation',   page: 'facturation',   label: 'Facturation',        icon: '💶' },
+  { to: '/tachygraphe',   page: 'tachygraphe',   label: 'Tachygraphe',        icon: '⏱️' },
+  { to: '/utilisateurs',  page: 'utilisateurs',  label: 'Utilisateurs',       icon: '🔐' },
 ]
 
+const ROLE_BADGE: Record<string, string> = {
+  dirigeant:  'bg-violet-900/60 text-violet-300',
+  exploitant: 'bg-blue-900/60 text-blue-300',
+  mecanicien: 'bg-orange-900/60 text-orange-300',
+  commercial: 'bg-emerald-900/60 text-emerald-300',
+  comptable:  'bg-slate-700 text-slate-300',
+}
+
 export default function Sidebar() {
-  const { user, signOut } = useAuth()
+  const { user, role, profil, signOut } = useAuth()
+
+  const displayName = profil?.prenom || profil?.nom
+    ? `${profil.prenom ?? ''} ${profil.nom ?? ''}`.trim()
+    : user?.email ?? ''
+
   return (
     <aside className="w-64 min-h-screen bg-slate-900 text-white flex flex-col shrink-0">
       <div className="p-6 border-b border-slate-700">
@@ -26,8 +40,8 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 p-3 space-y-0.5">
-        {NAV.map(item => (
+      <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+        {NAV.filter(item => canAccess(role, item.page)).map(item => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -47,9 +61,14 @@ export default function Sidebar() {
 
       <div className="p-4 border-t border-slate-700 space-y-3">
         {user && (
-          <div className="px-1">
-            <p className="text-slate-400 text-xs truncate">{user.email}</p>
-            <span className="text-xs text-slate-600">Administrateur</span>
+          <div className="px-1 space-y-1">
+            <p className="text-slate-300 text-sm font-medium truncate">{displayName}</p>
+            <p className="text-slate-500 text-xs truncate">{user.email}</p>
+            {role && (
+              <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${ROLE_BADGE[role] ?? 'bg-slate-700 text-slate-400'}`}>
+                {ROLE_LABELS[role]}
+              </span>
+            )}
           </div>
         )}
         <button

@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      profils: {
+        Row: {
+          id: string
+          user_id: string
+          role: string
+          nom: string | null
+          prenom: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          role?: string
+          nom?: string | null
+          prenom?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          role?: string
+          nom?: string | null
+          prenom?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       affectations: {
         Row: {
           id: string
