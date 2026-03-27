@@ -14,6 +14,70 @@ export type Database = {
   }
   public: {
     Tables: {
+      affectations: {
+        Row: {
+          id: string
+          conducteur_id: string
+          vehicule_id: string | null
+          remorque_id: string | null
+          type_affectation: string
+          date_debut: string | null
+          date_fin: string | null
+          actif: boolean
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          conducteur_id: string
+          vehicule_id?: string | null
+          remorque_id?: string | null
+          type_affectation?: string
+          date_debut?: string | null
+          date_fin?: string | null
+          actif?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          conducteur_id?: string
+          vehicule_id?: string | null
+          remorque_id?: string | null
+          type_affectation?: string
+          date_debut?: string | null
+          date_fin?: string | null
+          actif?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "affectations_conducteur_id_fkey"
+            columns: ["conducteur_id"]
+            isOneToOne: false
+            referencedRelation: "conducteurs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "affectations_vehicule_id_fkey"
+            columns: ["vehicule_id"]
+            isOneToOne: false
+            referencedRelation: "vehicules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "affectations_remorque_id_fkey"
+            columns: ["remorque_id"]
+            isOneToOne: false
+            referencedRelation: "remorques"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       adresses: {
         Row: {
           actif: boolean
@@ -165,6 +229,7 @@ export type Database = {
           numero_permis: string | null
           permis_categories: string[] | null
           permis_expiration: string | null
+          preferences: string | null
           prenom: string
           statut: string
           telephone: string | null
@@ -186,6 +251,7 @@ export type Database = {
           numero_permis?: string | null
           permis_categories?: string[] | null
           permis_expiration?: string | null
+          preferences?: string | null
           prenom: string
           statut?: string
           telephone?: string | null
@@ -207,6 +273,7 @@ export type Database = {
           numero_permis?: string | null
           permis_categories?: string[] | null
           permis_expiration?: string | null
+          preferences?: string | null
           prenom?: string
           statut?: string
           telephone?: string | null
@@ -647,6 +714,7 @@ export type Database = {
           reference: string
           remorque_id: string | null
           statut: string
+          statut_operationnel: string | null
           taux_tva: number | null
           temperature_requise: string | null
           type_transport: string
@@ -675,6 +743,7 @@ export type Database = {
           reference?: string
           remorque_id?: string | null
           statut?: string
+          statut_operationnel?: string | null
           taux_tva?: number | null
           temperature_requise?: string | null
           type_transport?: string
@@ -703,6 +772,7 @@ export type Database = {
           reference?: string
           remorque_id?: string | null
           statut?: string
+          statut_operationnel?: string | null
           taux_tva?: number | null
           temperature_requise?: string | null
           type_transport?: string
@@ -759,6 +829,7 @@ export type Database = {
           longueur_m: number | null
           marque: string | null
           notes: string | null
+          preferences: string | null
           statut: string
           type_remorque: string
           updated_at: string
@@ -773,6 +844,7 @@ export type Database = {
           longueur_m?: number | null
           marque?: string | null
           notes?: string | null
+          preferences?: string | null
           statut?: string
           type_remorque?: string
           updated_at?: string
@@ -787,6 +859,7 @@ export type Database = {
           longueur_m?: number | null
           marque?: string | null
           notes?: string | null
+          preferences?: string | null
           statut?: string
           type_remorque?: string
           updated_at?: string
@@ -876,6 +949,7 @@ export type Database = {
           marque: string | null
           modele: string | null
           notes: string | null
+          preferences: string | null
           ptac_kg: number | null
           statut: string
           tachy_etalonnage_prochain: string | null
@@ -895,6 +969,7 @@ export type Database = {
           marque?: string | null
           modele?: string | null
           notes?: string | null
+          preferences?: string | null
           ptac_kg?: number | null
           statut?: string
           tachy_etalonnage_prochain?: string | null
@@ -914,6 +989,7 @@ export type Database = {
           marque?: string | null
           modele?: string | null
           notes?: string | null
+          preferences?: string | null
           ptac_kg?: number | null
           statut?: string
           tachy_etalonnage_prochain?: string | null

@@ -32,7 +32,7 @@ const EMPTY: TablesInsert<'vehicules'> = {
   assurance_expiration: null, vignette_expiration: null, tachy_serie: null,
   tachy_etalonnage_prochain: null,
   km_actuel: 0,
-  statut: 'disponible', notes: null,
+  statut: 'disponible', notes: null, preferences: null,
 }
 
 export default function Vehicules() {
@@ -105,7 +105,7 @@ export default function Vehicules() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                {['Véhicule', 'Type', 'CT', 'Assurance', 'Tachygraphe', 'Km', 'Statut', ''].map(h => (
+                {['Véhicule', 'Type', 'CT', 'Assurance', 'Tachygraphe', 'Km', 'Préférences', 'Statut', ''].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -135,6 +135,11 @@ export default function Vehicules() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-slate-600">{v.km_actuel ? v.km_actuel.toLocaleString('fr-FR') : '—'}</td>
+                  <td className="px-4 py-3 max-w-[160px]">
+                    {v.preferences
+                      ? <p className="text-xs text-slate-500 leading-relaxed line-clamp-3 whitespace-pre-line">{v.preferences}</p>
+                      : <span className="text-xs text-slate-300">—</span>}
+                  </td>
                   <td className="px-4 py-3">
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUT_COLORS[v.statut] ?? 'bg-slate-100 text-slate-600'}`}>
                       {STATUT_LABELS[v.statut] ?? v.statut}
@@ -191,6 +196,18 @@ export default function Vehicules() {
                     <Field label="N° série"><input className={inp} value={form.tachy_serie ?? ''} onChange={e => set('tachy_serie', e.target.value || null)} /></Field>
                     <Field label="Prochain étalonnage"><input className={inp} type="date" value={form.tachy_etalonnage_prochain ?? ''} onChange={e => set('tachy_etalonnage_prochain', e.target.value || null)} /></Field>
                   </div>
+                </div>
+
+                <div className="col-span-2 border-t pt-4">
+                  <p className="text-sm font-semibold text-slate-700 mb-1">Préférences / Habitudes</p>
+                  <p className="text-xs text-slate-400 mb-3">Types de fret habituels, itinéraires récurrents, contraintes particulières…</p>
+                  <textarea
+                    className={`${inp} resize-none`}
+                    rows={3}
+                    value={form.preferences ?? ''}
+                    onChange={e => set('preferences', e.target.value || null)}
+                    placeholder="Ex : frigorifique uniquement, axe Paris-Lyon habituel, surbaissé pour charges lourdes"
+                  />
                 </div>
               </div>
 

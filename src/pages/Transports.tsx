@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Tables, TablesInsert } from '@/lib/database.types'
+import { STATUT_OPS, StatutOpsDot, type StatutOps } from '@/lib/statut-ops'
 
 type OT = Tables<'ordres_transport'>
 type EtapeMission = Tables<'etapes_mission'>
@@ -197,7 +198,12 @@ export default function Transports() {
                       selected?.id === ot.id ? 'bg-blue-50' : i % 2 !== 0 ? 'bg-slate-50' : ''
                     }`}
                   >
-                    <td className="px-4 py-3 font-medium text-slate-800 font-mono text-xs">{ot.reference}</td>
+                    <td className="px-4 py-3 font-medium text-slate-800 font-mono text-xs">
+                      <span className="flex items-center gap-1.5">
+                        <StatutOpsDot statut={ot.statut_operationnel} size="sm" />
+                        {ot.reference}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-slate-700">{clientMap[ot.client_id] ?? '—'}</td>
                     <td className="px-4 py-3 text-slate-600">{TYPE_TRANSPORT_LABELS[ot.type_transport] ?? ot.type_transport}</td>
                     <td className="px-4 py-3 text-slate-600">
@@ -264,6 +270,32 @@ export default function Transports() {
                     }`}
                   >
                     {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Statut opérationnel */}
+            <div className="px-5 py-3 border-b bg-slate-50/50">
+              <p className="text-xs font-medium text-slate-500 mb-2">Statut opérationnel</p>
+              <div className="flex gap-1.5 flex-wrap">
+                {(Object.entries(STATUT_OPS) as [StatutOps, typeof STATUT_OPS[StatutOps]][]).map(([k, cfg]) => (
+                  <button
+                    key={k}
+                    onClick={async () => {
+                      const newVal = selected.statut_operationnel === k ? null : k
+                      await supabase.from('ordres_transport').update({ statut_operationnel: newVal }).eq('id', selected.id)
+                      setSelected(s => s ? { ...s, statut_operationnel: newVal } : s)
+                      setList(l => l.map(o => o.id === selected.id ? { ...o, statut_operationnel: newVal } : o))
+                    }}
+                    className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium transition-all border ${
+                      selected.statut_operationnel === k
+                        ? `${cfg.dot} text-white border-transparent`
+                        : 'border-slate-200 text-slate-600 hover:bg-white hover:shadow-sm'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
+                    {cfg.label}
                   </button>
                 ))}
               </div>
