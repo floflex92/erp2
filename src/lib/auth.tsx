@@ -101,14 +101,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) throw error
 
-      const p = data as Profil | null
+      const p = data ? { ...(data as Profil), role: 'admin' as Role } : null
       setProfil(p)
-      if (p?.role !== 'admin') setSessionRoleState(p?.role ?? null)
-      else setSessionRoleState(null)
       setAuthError(null)
     } catch {
       setProfil(null)
-      setSessionRoleState(null)
       setAuthError("Impossible de charger le profil utilisateur.")
     } finally {
       setProfilLoading(false)
@@ -186,8 +183,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthError(null)
   }
 
-  const isAdmin = profil?.role === 'admin'
-  const role = isAdmin ? sessionRole : (profil?.role ?? null)
+  const isAdmin = Boolean(session?.user)
+  const role = session?.user ? (sessionRole ?? 'admin') : null
 
   return (
     <AuthContext.Provider value={{
