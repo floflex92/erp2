@@ -3,10 +3,10 @@ import { supabase } from '@/lib/supabase'
 import type { Tables, TablesInsert } from '@/lib/database.types'
 
 type OT = Tables<'ordres_transport'>
-type Client = Tables<'clients'>
-type Conducteur = Tables<'conducteurs'>
-type Vehicule = Tables<'vehicules'>
 type EtapeMission = Tables<'etapes_mission'>
+type ClientLookup = { id: string; nom: string }
+type ConducteurLookup = { id: string; nom: string; prenom: string }
+type VehiculeLookup = { id: string; immatriculation: string; marque: string | null }
 
 const STATUT_COLORS: Record<string, string> = {
   brouillon:   'bg-slate-100 text-slate-600',
@@ -47,9 +47,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export default function Transports() {
   const [list, setList] = useState<OT[]>([])
-  const [clients, setClients] = useState<Client[]>([])
-  const [conducteurs, setConducteurs] = useState<Conducteur[]>([])
-  const [vehicules, setVehicules] = useState<Vehicule[]>([])
+  const [clients, setClients] = useState<ClientLookup[]>([])
+  const [conducteurs, setConducteurs] = useState<ConducteurLookup[]>([])
+  const [vehicules, setVehicules] = useState<VehiculeLookup[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterStatut, setFilterStatut] = useState<string>('tous')

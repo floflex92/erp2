@@ -28,10 +28,10 @@ function expColor(date: string | null) {
 
 const EMPTY: TablesInsert<'vehicules'> = {
   immatriculation: '', marque: null, modele: null, annee: null,
-  type_vehicule: 'tracteur', ptac_kg: null, ct_date: null, ct_expiration: null,
+  type_vehicule: 'tracteur', ptac_kg: null, ct_expiration: null,
   assurance_expiration: null, vignette_expiration: null, tachy_serie: null,
-  tachy_etalonnage: null, tachy_etalonnage_prochain: null,
-  km_actuel: 0, km_dernier_entretien: null, km_prochain_entretien: null,
+  tachy_etalonnage_prochain: null,
+  km_actuel: 0,
   statut: 'disponible', notes: null,
 }
 
@@ -179,7 +179,6 @@ export default function Vehicules() {
                 <div className="col-span-2 border-t pt-4 mt-2">
                   <p className="text-sm font-semibold text-slate-700 mb-3">Documents</p>
                   <div className="grid grid-cols-2 gap-4">
-                    <Field label="Date CT"><input className={inp} type="date" value={form.ct_date ?? ''} onChange={e => set('ct_date', e.target.value || null)} /></Field>
                     <Field label="Expiration CT"><input className={inp} type="date" value={form.ct_expiration ?? ''} onChange={e => set('ct_expiration', e.target.value || null)} /></Field>
                     <Field label="Expiration assurance"><input className={inp} type="date" value={form.assurance_expiration ?? ''} onChange={e => set('assurance_expiration', e.target.value || null)} /></Field>
                     <Field label="Expiration vignette"><input className={inp} type="date" value={form.vignette_expiration ?? ''} onChange={e => set('vignette_expiration', e.target.value || null)} /></Field>
@@ -190,7 +189,6 @@ export default function Vehicules() {
                   <p className="text-sm font-semibold text-slate-700 mb-3">Tachygraphe</p>
                   <div className="grid grid-cols-2 gap-4">
                     <Field label="N° série"><input className={inp} value={form.tachy_serie ?? ''} onChange={e => set('tachy_serie', e.target.value || null)} /></Field>
-                    <Field label="Dernier étalonnage"><input className={inp} type="date" value={form.tachy_etalonnage ?? ''} onChange={e => set('tachy_etalonnage', e.target.value || null)} /></Field>
                     <Field label="Prochain étalonnage"><input className={inp} type="date" value={form.tachy_etalonnage_prochain ?? ''} onChange={e => set('tachy_etalonnage_prochain', e.target.value || null)} /></Field>
                   </div>
                 </div>

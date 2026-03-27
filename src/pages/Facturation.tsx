@@ -3,8 +3,8 @@ import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
 
 type Facture = Tables<'factures'>
-type Client = Tables<'clients'>
-type OT = Tables<'ordres_transport'>
+type ClientLookup = { id: string; nom: string }
+type OTLookup = { id: string; reference: string; client_id: string }
 
 const STATUT_COLORS: Record<string, string> = {
   brouillon:  'bg-slate-100 text-slate-600',
@@ -33,8 +33,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export default function Facturation() {
   const [list, setList] = useState<Facture[]>([])
-  const [clients, setClients] = useState<Client[]>([])
-  const [ots, setOts] = useState<OT[]>([])
+  const [clients, setClients] = useState<ClientLookup[]>([])
+  const [ots, setOts] = useState<OTLookup[]>([])
   const [loading, setLoading] = useState(true)
   const [filterStatut, setFilterStatut] = useState('tous')
   const [search, setSearch] = useState('')
