@@ -4,6 +4,7 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  VITE_APP_VERSION = "1.2.0"
 
 [[redirects]]
   from = "/*"

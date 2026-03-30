@@ -1,0 +1,189 @@
+import { useEffect, useRef, useState } from 'react'
+import { supabase } from '@/lib/supabase'
+
+interface Mission {
+  reference: string
+  conducteurName: string
+  lat: number
+  lng: number
+  statut: string
+}
+
+type MissionAddressRow = {
+  latitude: number | null
+  longitude: number | null
+  ville: string | null
+}
+
+type MissionStepRow = {
+  ordre: number
+  ville: string | null
+  adresses: MissionAddressRow | MissionAddressRow[] | null
+}
+
+type MissionOrderRow = {
+  reference: string
+  statut_operationnel: string | null
+  conducteurs: { nom: string | null; prenom: string | null } | { nom: string | null; prenom: string | null }[] | null
+  etapes_mission: MissionStepRow[] | null
+}
+
+// Coordonnées hardcodées par ville pour les missions actives (fallback si pas de coords en DB)
+const CITY_COORDS: Record<string, [number, number]> = {
+  paris: [48.8566, 2.3522], lyon: [45.7640, 4.8357], marseille: [43.2965, 5.3698],
+  toulouse: [43.6047, 1.4442], bordeaux: [44.8378, -0.5792], lille: [50.6292, 3.0573],
+  nantes: [47.2184, -1.5536], strasbourg: [48.5734, 7.7521], rennes: [48.1173, -1.6778],
+  grenoble: [45.1885, 5.7245], montpellier: [43.6117, 3.8777], nice: [43.7102, 7.2620],
+  rouen: [49.4432, 1.0993], metz: [49.1193, 6.1757], nancy: [48.6921, 6.1844],
+  dijon: [47.3220, 5.0415], reims: [49.2583, 4.0317], le_havre: [49.4938, 0.1079],
+  caen: [49.1829, -0.3707], clermont: [45.7794, 3.0870],
+}
+
+function cityToCoords(ville: string | null | undefined): [number, number] | null {
+  if (!ville) return null
+  const key = ville.toLowerCase().replace(/[^a-z]/g, '_').replace(/_+/g, '_')
+  for (const [city, coords] of Object.entries(CITY_COORDS)) {
+    if (key.includes(city)) return coords
+  }
+  return null
+}
+
+export function WidgetMiniCarteVehicules() {
+  const mapRef = useRef<HTMLDivElement>(null)
+  const mapInstanceRef = useRef<{ remove: () => void } | null>(null)
+  const [missions, setMissions] = useState<Mission[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    supabase
+      .from('ordres_transport')
+      .select('id, reference, statut_operationnel, conducteurs(nom, prenom), etapes_mission(ordre, ville, adresses(latitude, longitude, ville))')
+      .eq('statut', 'en_cours')
+      .limit(20)
+      .then(({ data }) => {
+        const rows = (data ?? []) as MissionOrderRow[]
+        const result: Mission[] = []
+
+        for (const ot of rows) {
+          const conducteur = Array.isArray(ot.conducteurs) ? ot.conducteurs[0] : ot.conducteurs
+          const conducteurName = conducteur
+            ? [conducteur.prenom, conducteur.nom].filter(Boolean).join(' ')
+            : 'Conducteur inconnu'
+
+          // Trouver la dernière étape en cours
+          const steps = (ot.etapes_mission ?? []).sort((a, b) => a.ordre - b.ordre)
+          let coords: [number, number] | null = null
+
+          for (const step of steps) {
+            const addr = Array.isArray(step.adresses) ? step.adresses[0] : step.adresses
+            if (addr?.latitude && addr?.longitude) {
+              coords = [addr.latitude, addr.longitude]
+              break
+            }
+            const cityCoords = cityToCoords(step.ville ?? addr?.ville)
+            if (cityCoords) { coords = cityCoords; break }
+          }
+
+          if (!coords) {
+            // Position aléatoire en France si pas de données
+            coords = [46.5 + Math.random() * 4 - 2, 2 + Math.random() * 6 - 3]
+          }
+
+          result.push({
+            reference: ot.reference,
+            conducteurName,
+            lat: coords[0],
+            lng: coords[1],
+            statut: ot.statut_operationnel ?? 'en_cours',
+          })
+        }
+
+        setMissions(result)
+        setLoading(false)
+      })
+  }, [])
+
+  useEffect(() => {
+    if (loading || !mapRef.current) return
+
+    async function initMap() {
+      const L = (await import('leaflet')).default
+      await import('leaflet/dist/leaflet.css')
+
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove()
+        mapInstanceRef.current = null
+      }
+
+      if (!mapRef.current) return
+
+      const map = L.map(mapRef.current, {
+        center: [46.5, 2.5],
+        zoom: 5,
+        zoomControl: false,
+        attributionControl: false,
+        dragging: true,
+        scrollWheelZoom: false,
+      })
+      mapInstanceRef.current = map
+
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 18,
+      }).addTo(map)
+
+      // Marqueurs pour chaque mission
+      missions.forEach(m => {
+        const color = m.statut === 'en_retard' ? '#ef4444' : '#3b82f6'
+        const icon = L.divIcon({
+          html: `<div style="background:${color};width:10px;height:10px;border-radius:50%;border:2px solid rgba(255,255,255,0.6);box-shadow:0 0 6px ${color}80"></div>`,
+          iconSize: [10, 10],
+          iconAnchor: [5, 5],
+          className: '',
+        })
+        L.marker([m.lat, m.lng], { icon })
+          .addTo(map)
+          .bindPopup(`<b>${m.reference}</b><br>${m.conducteurName}`)
+      })
+    }
+
+    void initMap()
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove()
+        mapInstanceRef.current = null
+      }
+    }
+  }, [loading, missions])
+
+  if (loading) return (
+    <div className="flex items-center justify-center" style={{ height: 280 }}>
+      <div className="h-5 w-5 animate-spin rounded-full border-2 border-[color:var(--primary)] border-t-transparent" />
+    </div>
+  )
+
+  if (missions.length === 0) return (
+    <div className="flex flex-col items-center justify-center" style={{ height: 280 }}>
+      <div className="text-4xl opacity-20 mb-2">🗺️</div>
+      <p className="text-sm text-slate-500">Aucune mission en cours</p>
+    </div>
+  )
+
+  return (
+    <div className="relative">
+      <div ref={mapRef} style={{ height: 280, width: '100%' }} />
+      <div className="absolute bottom-2 left-2 flex items-center gap-3 rounded-lg px-3 py-1.5 text-xs text-white/70"
+        style={{ background: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(8px)' }}>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-blue-500" />
+          En cours
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-red-500" />
+          Retard
+        </span>
+        <span className="font-medium text-white">{missions.length} mission{missions.length > 1 ? 's' : ''}</span>
+      </div>
+    </div>
+  )
+}
+

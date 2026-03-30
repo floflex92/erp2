@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAuth, ROLE_LABELS, type Role } from '@/lib/auth'
 import type { Tables } from '@/lib/database.types'
+import { generateProfessionalEmail, generateProvisionalCode } from '@/lib/employeeRecords'
+import { provisionEmployeeOnboarding } from '@/lib/onboarding'
 
 type Profil = Tables<'profils'>
 type ManagedUser = Profil & {
@@ -16,6 +18,10 @@ const ROLE_BADGE: Record<string, string> = {
   mecanicien: 'bg-orange-100 text-orange-700',
   commercial: 'bg-emerald-100 text-emerald-700',
   comptable: 'bg-slate-100 text-slate-600',
+  rh: 'bg-rose-100 text-rose-700',
+  conducteur_affreteur: 'bg-orange-100 text-orange-700',
+  client: 'bg-cyan-100 text-cyan-700',
+  affreteur: 'bg-teal-100 text-teal-700',
 }
 
 const inp = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-300'
@@ -31,16 +37,28 @@ async function adminRequest<T>(accessToken: string, method: 'GET' | 'POST' | 'PA
     body: body ? JSON.stringify(body) : undefined,
   })
 
-  const payload = await response.json().catch(() => ({}))
+  const contentType = response.headers.get('content-type') ?? ''
+  const payload = contentType.includes('application/json')
+    ? await response.json().catch(() => null)
+    : null
+
   if (!response.ok) {
-    throw new Error(typeof payload.error === 'string' ? payload.error : 'Operation impossible.')
+    throw new Error(
+      payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string'
+        ? payload.error
+        : 'Operation impossible.',
+    )
+  }
+
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Service admin indisponible. En local, lance Netlify Dev pour servir les fonctions `/.netlify/functions/*`.')
   }
 
   return payload as T
 }
 
 export default function Utilisateurs() {
-  const { session } = useAuth()
+  const { session, profil } = useAuth()
   const [users, setUsers] = useState<ManagedUser[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -59,7 +77,7 @@ export default function Utilisateurs() {
   const [createPrenom, setCreatePrenom] = useState('')
   const [creating, setCreating] = useState(false)
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!session?.access_token) return
 
     setLoading(true)
@@ -67,19 +85,27 @@ export default function Utilisateurs() {
 
     try {
       const data = await adminRequest<{ users: ManagedUser[] }>(session.access_token, 'GET')
+      if (!Array.isArray(data.users)) {
+        throw new Error('Format de reponse invalide pour la liste des utilisateurs.')
+      }
       setUsers(data.users)
     } catch (err) {
+      setUsers([])
       setError(err instanceof Error ? err.message : 'Chargement impossible.')
     } finally {
       setLoading(false)
     }
-  }
+  }, [session?.access_token])
 
   useEffect(() => {
     void load()
-  }, [session?.access_token])
+  }, [load])
 
   function startEdit(user: ManagedUser) {
+    if (session?.user?.id === user.user_id) {
+      setNotice('Le type de session du compte actuellement connecte ne peut pas etre modifie ici.')
+      return
+    }
     setEditId(user.id)
     setEditRole(user.role as Role)
     setEditNom(user.nom ?? '')
@@ -121,13 +147,27 @@ export default function Utilisateurs() {
     setNotice(null)
 
     try {
-      const payload = await adminRequest<{ user: { email: string; role: Role; requires_email_confirmation?: boolean } }>(session.access_token, 'POST', {
+      const provisionalCode = createPassword.trim() || generateProvisionalCode()
+      const payload = await adminRequest<{ user: { id: string; profile_id: string | null; email: string; role: Role; requires_email_confirmation?: boolean } }>(session.access_token, 'POST', {
         email: createEmail,
-        password: createPassword,
+        password: provisionalCode,
         role: createRole,
         nom: createNom,
         prenom: createPrenom,
       })
+
+      if (profil && payload.user.profile_id) {
+        const professionalEmail = generateProfessionalEmail(createPrenom || createRole, createNom || 'employee')
+        provisionEmployeeOnboarding({
+          profileId: payload.user.profile_id,
+          role: createRole,
+          firstName: createPrenom || createRole,
+          lastName: createNom || 'Employe',
+          loginEmail: createEmail,
+          professionalEmail,
+          provisionalCode,
+        }, profil)
+      }
 
       setCreateEmail('')
       setCreatePassword('')
@@ -136,8 +176,8 @@ export default function Utilisateurs() {
       setCreatePrenom('')
       setNotice(
         payload.user.requires_email_confirmation
-          ? `Compte cree pour ${payload.user.email}. Une confirmation email Supabase peut etre necessaire avant la premiere connexion.`
-          : `Compte cree pour ${payload.user.email} (${ROLE_LABELS[payload.user.role]}).`,
+          ? `Compte cree pour ${payload.user.email}. Code provisoire ${provisionalCode}. Un livret d integration a ete genere.`
+          : `Compte cree pour ${payload.user.email} (${ROLE_LABELS[payload.user.role]}). Code provisoire ${provisionalCode}.`,
       )
       await load()
     } catch (err) {
@@ -171,14 +211,22 @@ export default function Utilisateurs() {
             </div>
           </div>
 
+          <div className="mb-5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Profils demo locaux</p>
+            <p className="mt-1 text-sm text-slate-600">
+              Pour tester la messagerie entre faux utilisateurs, ouvre le menu de session admin puis choisis un profil demo.
+              Aucun compte Supabase supplementaire n&apos;est necessaire.
+            </p>
+          </div>
+
           <form onSubmit={createUser} className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <Field label="Email">
                 <input className={inp} type="email" value={createEmail} onChange={e => setCreateEmail(e.target.value)} required />
               </Field>
             </div>
-            <Field label="Mot de passe provisoire">
-              <input className={inp} type="password" value={createPassword} onChange={e => setCreatePassword(e.target.value)} minLength={8} required />
+              <Field label="Mot de passe provisoire">
+              <input className={inp} type="text" value={createPassword} onChange={e => setCreatePassword(e.target.value)} minLength={8} placeholder="Laisser vide pour generation automatique" />
             </Field>
             <Field label="Type de session">
               <select className={inp} value={createRole} onChange={e => setCreateRole(e.target.value as Role)}>
@@ -196,7 +244,7 @@ export default function Utilisateurs() {
 
             <div className="col-span-2 flex items-center justify-between border-t border-slate-100 pt-4">
               <p className="text-xs text-slate-500">
-                Le role choisi devient le type de session attribue au compte.
+                Le role choisi devient le type de session attribue au compte. Un mail professionnel, un code provisoire et un livret d integration seront generes.
               </p>
               <button
                 type="submit"
@@ -222,6 +270,10 @@ export default function Utilisateurs() {
                 {role === 'mecanicien' && 'Vehicules, tachy'}
                 {role === 'commercial' && 'Clients, OT, facturation'}
                 {role === 'comptable' && 'Dashboard, facturation'}
+                {role === 'rh' && 'Dossiers chauffeurs, alertes RH'}
+                {role === 'conducteur_affreteur' && 'Feuille de route affretee, sans frais'}
+                {role === 'client' && 'Portail client et demandes transport'}
+                {role === 'affreteur' && 'Portail affretement et ressources externes'}
               </p>
             </div>
           ))}
@@ -245,7 +297,9 @@ export default function Utilisateurs() {
               </tr>
             </thead>
             <tbody>
-              {users.map((user, index) => (
+              {users.map((user, index) => {
+                const isCurrentUser = session?.user?.id === user.user_id
+                return (
                 <tr key={user.id} className={`border-t border-slate-100 ${index % 2 !== 0 ? 'bg-slate-50' : ''}`}>
                   <td className="px-4 py-3">
                     {editId === user.id ? (
@@ -270,7 +324,12 @@ export default function Utilisateurs() {
                   </td>
                   <td className="px-4 py-3">
                     {editId === user.id ? (
-                      <select className={inp} value={editRole} onChange={e => setEditRole(e.target.value as Role)}>
+                      <select
+                        className={inp}
+                        value={editRole}
+                        onChange={e => setEditRole(e.target.value as Role)}
+                        disabled={isCurrentUser}
+                      >
                         {(Object.entries(ROLE_LABELS) as [Role, string][]).map(([role, label]) => (
                           <option key={role} value={role}>{label}</option>
                         ))}
@@ -300,13 +359,18 @@ export default function Utilisateurs() {
                         </button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => startEdit(user)} className="text-xs text-slate-400 hover:text-slate-700">
-                        Modifier
-                      </button>
+                      isCurrentUser ? (
+                        <span className="text-xs text-slate-400">Compte actif</span>
+                      ) : (
+                        <button type="button" onClick={() => startEdit(user)} className="text-xs text-slate-400 hover:text-slate-700">
+                          Modifier
+                        </button>
+                      )
                     )}
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         )}

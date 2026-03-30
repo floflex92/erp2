@@ -1,6 +1,32 @@
 import { createClient } from '@supabase/supabase-js'
 
-const ROLE_VALUES = ['admin', 'dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable']
+const ROLE_VALUES = ['admin', 'dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable', 'rh', 'conducteur', 'conducteur_affreteur', 'client', 'affreteur']
+const ROLE_SET = new Set(ROLE_VALUES)
+const ADMIN_ROLES = new Set(['admin', 'dirigeant'])
+const ROLE_ALIASES = {
+  administrateur: 'admin',
+  administrator: 'admin',
+  direction: 'dirigeant',
+  exploitation: 'exploitant',
+  atelier: 'mecanicien',
+  mecanicienne: 'mecanicien',
+  mecaniciene: 'mecanicien',
+  resources_humaines: 'rh',
+  ressources_humaines: 'rh',
+  chauffeur: 'conducteur',
+  driver: 'conducteur',
+  conducteuraffreteur: 'conducteur_affreteur',
+  driver_affreteur: 'conducteur_affreteur',
+  subcontractor_driver: 'conducteur_affreteur',
+  customer: 'client',
+  subcontractor: 'affreteur',
+  affretement: 'affreteur',
+}
+const RESERVED_ADMIN_EMAIL_ROLE = {
+  'admin@erp-demo.fr': 'admin',
+  'direction@erp-demo.fr': 'dirigeant',
+  'chabre.florent@gmail.com': 'admin',
+}
 
 function json(statusCode, body) {
   return {
@@ -38,6 +64,33 @@ function createServerClient(url, key, accessToken) {
   })
 }
 
+function normalizeRoleToken(value) {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\s-]+/g, '_')
+}
+
+function normalizeRole(value) {
+  if (typeof value !== 'string') return null
+  const token = normalizeRoleToken(value)
+  if (ROLE_SET.has(token)) return token
+  return ROLE_ALIASES[token] ?? null
+}
+
+function fallbackRoleFromEmail(email) {
+  if (typeof email !== 'string') return null
+  const normalized = email.trim().toLowerCase()
+  const role = (
+    RESERVED_ADMIN_EMAIL_ROLE[normalized]
+    ?? ((normalized.split('@')[0] ?? '') === 'admin' ? 'admin' : null)
+    ?? (((normalized.split('@')[0] ?? '') === 'direction' || (normalized.split('@')[0] ?? '') === 'dirigeant') ? 'dirigeant' : null)
+  )
+  return role && ADMIN_ROLES.has(role) ? role : null
+}
+
 async function authorize(event) {
   const authHeader = event.headers.authorization || event.headers.Authorization
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
@@ -61,7 +114,44 @@ async function authorize(event) {
     return { error: json(401, { error: 'Invalid session token.' }) }
   }
 
-  return { env, admin, sessionClient, publicClient, currentUser: data.user }
+  const profileClient = admin ?? sessionClient
+  const { data: profile, error: profileError } = await profileClient
+    .from('profils')
+    .select('id, user_id, role')
+    .eq('user_id', data.user.id)
+    .maybeSingle()
+
+  if (profileError) {
+    return { error: json(500, { error: profileError.message }) }
+  }
+
+  const normalizedRole = normalizeRole(profile?.role)
+  const metadataRole = normalizeRole(data.user?.app_metadata?.role ?? data.user?.user_metadata?.role ?? null)
+  const metadataPrivilegedRole = metadataRole && ADMIN_ROLES.has(metadataRole) ? metadataRole : null
+  const emailPrivilegedRole = fallbackRoleFromEmail(data.user?.email)
+  const effectiveRole = (
+    normalizedRole && ADMIN_ROLES.has(normalizedRole)
+      ? normalizedRole
+      : (emailPrivilegedRole ?? metadataPrivilegedRole)
+  )
+
+  if (!profile || !effectiveRole) {
+    return { error: json(403, { error: 'Forbidden: insufficient role.' }) }
+  }
+
+  if (profile.role !== effectiveRole) {
+    const writer = admin ?? sessionClient
+    await writer.from('profils').update({ role: effectiveRole }).eq('id', profile.id)
+  }
+
+  return {
+    env,
+    admin,
+    sessionClient,
+    publicClient,
+    currentUser: data.user,
+    currentProfile: { ...profile, role: effectiveRole },
+  }
 }
 
 async function listAdminUsers({ admin, sessionClient }) {
@@ -80,6 +170,7 @@ async function listAdminUsers({ admin, sessionClient }) {
 
       return {
         ...profile,
+        role: normalizeRole(profile.role) ?? profile.role,
         email: authUser?.email ?? null,
         email_confirmed_at: authUser?.email_confirmed_at ?? null,
         last_sign_in_at: authUser?.last_sign_in_at ?? null,
@@ -94,6 +185,7 @@ async function listAdminUsers({ admin, sessionClient }) {
 
   const users = (data ?? []).map(profile => ({
     ...profile,
+    role: normalizeRole(profile.role) ?? profile.role,
     email: null,
     email_confirmed_at: null,
     last_sign_in_at: null,
@@ -106,13 +198,13 @@ async function createAdminUser(clients, rawBody) {
   const body = typeof rawBody === 'string' && rawBody.length > 0 ? JSON.parse(rawBody) : {}
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
   const password = typeof body.password === 'string' ? body.password : ''
-  const role = typeof body.role === 'string' ? body.role : ''
+  const role = normalizeRole(body.role)
   const nom = typeof body.nom === 'string' ? body.nom.trim() : ''
   const prenom = typeof body.prenom === 'string' ? body.prenom.trim() : ''
 
   if (!email) return json(400, { error: 'Email is required.' })
   if (!password || password.length < 8) return json(400, { error: 'Password must be at least 8 characters.' })
-  if (!ROLE_VALUES.includes(role)) return json(400, { error: 'Invalid role.' })
+  if (!role) return json(400, { error: 'Invalid role.' })
 
   let createdUser = null
 
@@ -152,14 +244,14 @@ async function createAdminUser(clients, rawBody) {
   }
 
   const dbClient = clients.admin ?? clients.sessionClient
-  const { error: profileError } = await dbClient.from('profils').upsert({
+  const { data: profileRow, error: profileError } = await dbClient.from('profils').upsert({
     user_id: createdUser.id,
     role,
     nom: nom || null,
     prenom: prenom || null,
   }, {
     onConflict: 'user_id',
-  })
+  }).select('id,user_id').single()
 
   if (profileError) {
     return json(500, { error: profileError.message })
@@ -168,6 +260,7 @@ async function createAdminUser(clients, rawBody) {
   return json(201, {
     user: {
       id: createdUser.id,
+      profile_id: profileRow?.id ?? null,
       email: createdUser.email ?? email,
       role,
       nom: nom || null,
@@ -177,17 +270,49 @@ async function createAdminUser(clients, rawBody) {
   })
 }
 
-async function updateAdminUser({ admin, sessionClient }, rawBody) {
+async function updateAdminUser({ admin, sessionClient, currentUser }, rawBody) {
   const body = typeof rawBody === 'string' && rawBody.length > 0 ? JSON.parse(rawBody) : {}
   const id = typeof body.id === 'string' ? body.id : ''
-  const role = typeof body.role === 'string' ? body.role : ''
+  const role = normalizeRole(body.role)
   const nom = typeof body.nom === 'string' ? body.nom.trim() : null
   const prenom = typeof body.prenom === 'string' ? body.prenom.trim() : null
 
   if (!id) return json(400, { error: 'Profile id is required.' })
-  if (!ROLE_VALUES.includes(role)) return json(400, { error: 'Invalid role.' })
+  if (!role) return json(400, { error: 'Invalid role.' })
 
   const dbClient = admin ?? sessionClient
+  const { data: targetProfile, error: targetProfileError } = await dbClient
+    .from('profils')
+    .select('id, user_id, role')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (targetProfileError) return json(400, { error: targetProfileError.message })
+  if (!targetProfile) return json(404, { error: 'Profile not found.' })
+
+  const targetRole = normalizeRole(targetProfile.role)
+
+  if (targetProfile.user_id === currentUser.id && !ADMIN_ROLES.has(role)) {
+    return json(400, { error: 'You cannot remove your own admin/dirigeant access.' })
+  }
+
+  if (targetRole && ADMIN_ROLES.has(targetRole) && !ADMIN_ROLES.has(role)) {
+    const { data: privilegedProfiles, error: privilegedProfilesError } = await dbClient
+      .from('profils')
+      .select('id, role')
+
+    if (privilegedProfilesError) return json(400, { error: privilegedProfilesError.message })
+
+    const privilegedCount = (privilegedProfiles ?? []).reduce((count, profile) => {
+      const profileRole = normalizeRole(profile.role)
+      return profileRole && ADMIN_ROLES.has(profileRole) ? count + 1 : count
+    }, 0)
+
+    if (privilegedCount <= 1) {
+      return json(400, { error: 'At least one admin or dirigeant account is required.' })
+    }
+  }
+
   const { error } = await dbClient.from('profils').update({
     role,
     nom: nom || null,

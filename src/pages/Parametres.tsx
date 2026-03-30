@@ -1,167 +1,634 @@
-import { Link } from 'react-router-dom'
-import { useAuth, ROLE_LABELS, canAccess, type Role } from '@/lib/auth'
+import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import { canAccess, ROLE_LABELS, useAuth } from '@/lib/auth'
+import { DEFAULT_COMPANY_NAME, readCompanySettings, subscribeCompanySettings, updateCompanySettings } from '@/lib/companySettings'
+import { getDigitalSignature, subscribeDigitalSignatures, upsertDigitalSignature } from '@/lib/signatureStore'
+import { ErpV11Settings } from '@/components/settings/ErpV11Settings'
 
-type SettingSection = {
-  id: string
-  title: string
-  description: string
-  roles: Role[]
-  accent: string
-  actions: Array<{
-    label: string
-    detail: string
-    to?: string
-  }>
+// ── Menu items ────────────────────────────────────────────────────────────────
+type MenuId = 'compte' | 'entreprise' | 'signature' | 'rgpd' | 'utilisateurs' | 'aide' | 'modules' | 'developpement'
+
+type MenuItem = {
+  id: MenuId
+  label: string
+  icon: ReactNode
+  adminOnly?: boolean
+  roleRequired?: string
 }
 
-const SECTIONS: SettingSection[] = [
-  {
-    id: 'session',
-    title: 'Compte et session',
-    description: "Reglages visibles par tous les profils pour suivre la session ouverte dans l'ERP.",
-    roles: ['admin', 'dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable'],
-    accent: 'from-slate-900 to-slate-800',
-    actions: [
-      { label: 'Type de session actif', detail: "Verifier le profil actuellement utilise dans l'application." },
-      { label: 'Informations personnelles', detail: 'Nom, prenom et acces associes au compte courant.' },
-    ],
-  },
-  {
-    id: 'exploitation',
-    title: 'Exploitation',
-    description: "Parametres pour piloter le planning, les OT et la disponibilite des ressources d'exploitation.",
-    roles: ['admin', 'dirigeant', 'exploitant'],
-    accent: 'from-blue-900 to-blue-700',
-    actions: [
-      { label: 'Planning et affectations', detail: 'Reglages des flux de travail, affectations et priorites terrain.' },
-      { label: 'Ordres de transport', detail: 'Standards de saisie, statuts et suivi operationnel.' },
-    ],
-  },
-  {
-    id: 'flotte',
-    title: 'Flotte et maintenance',
-    description: 'Reglages lies aux vehicules, remorques, tachygraphe et maintenance.',
-    roles: ['admin', 'dirigeant', 'exploitant', 'mecanicien'],
-    accent: 'from-orange-900 to-orange-700',
-    actions: [
-      { label: 'Suivi vehicules', detail: 'Visibilite sur disponibilite, entretien et documents techniques.' },
-      { label: 'Tachygraphe', detail: 'Regles de suivi et controle des activites conducteurs.' },
-    ],
-  },
-  {
-    id: 'commercial',
-    title: 'Commercial et clients',
-    description: 'Reglages concernant la relation client, les donnees commerciales et les offres.',
-    roles: ['admin', 'dirigeant', 'commercial'],
-    accent: 'from-emerald-900 to-emerald-700',
-    actions: [
-      { label: 'Base clients', detail: 'Organisation des comptes clients, contacts et informations de facturation.' },
-      { label: 'Flux commercial', detail: 'Suivi des opportunites, informations de vente et priorites commerciales.' },
-    ],
-  },
-  {
-    id: 'finance',
-    title: 'Facturation et finance',
-    description: 'Reglages utiles a la facturation, aux echeances et au suivi des paiements.',
-    roles: ['admin', 'dirigeant', 'commercial', 'comptable'],
-    accent: 'from-violet-900 to-violet-700',
-    actions: [
-      { label: 'Factures et echeances', detail: 'Controle des statuts de facture et des delais de paiement.' },
-      { label: 'Suivi financier', detail: 'Visibilite sur les montants, encours et relances.' },
-    ],
-  },
-  {
-    id: 'users',
-    title: 'Utilisateurs et droits',
-    description: "Section reservee aux roles qui peuvent gerer les comptes et attribuer les types de session.",
-    roles: ['admin', 'dirigeant'],
-    accent: 'from-yellow-700 to-amber-500',
-    actions: [
-      { label: 'Creer un compte', detail: "Ajouter un nouvel utilisateur et definir son type de session.", to: '/utilisateurs' },
-      { label: 'Attribuer les droits', detail: 'Modifier le type de session et les informations de profil.', to: '/utilisateurs' },
-    ],
-  },
-]
-
-function canSeeSection(role: Role | null, section: SettingSection) {
-  return role ? section.roles.includes(role) : false
+function IconCompte() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
 }
+function IconEntreprise() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M12 12v4m-4-2h8"/></svg>
+}
+function IconSignature() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><path d="M3 17c3-3 5-7 5-7s1 3 2 4 3-4 3-4 1 4 4 4"/><path d="M4 20h16"/></svg>
+}
+function IconRGPD() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><path d="M12 2L4 6v6c0 5.5 3.5 9.7 8 11 4.5-1.3 8-5.5 8-11V6L12 2z"/></svg>
+}
+function IconUtilisateurs() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a5 5 0 0 1 5-5h4"/><path d="M19 16v6m-3-3h6"/></svg>
+}
+function IconAide() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><circle cx="12" cy="12" r="9"/><path d="M12 17v.5M9.5 9.5a2.5 2.5 0 0 1 5 0c0 2.5-2.5 2.5-2.5 4.5"/></svg>
+}
+function IconModules() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+}
+
+const inp = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-slate-400'
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-sm font-medium text-slate-700">{label}</span>
+      {children}
+    </label>
+  )
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error(`Lecture impossible pour ${file.name}.`))
+    reader.onerror = () => reject(new Error(`Lecture impossible pour ${file.name}.`))
+    reader.readAsDataURL(file)
+  })
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+const DEPLOYED_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.2.0'
 
 export default function Parametres() {
-  const { role, sessionRole, isAdmin, profil } = useAuth()
+  const { role, sessionRole, isAdmin, isDemoSession, profil, accountProfil } = useAuth()
+  const location = useLocation()
+  const logoInputRef = useRef<HTMLInputElement | null>(null)
+  const signatureInputRef = useRef<HTMLInputElement | null>(null)
 
-  const visibleSections = SECTIONS.filter(section => canSeeSection(role, section))
-  const assignedRole = profil?.role ?? null
+  const [company, setCompany] = useState(readCompanySettings())
+  const [signature, setSignature] = useState(profil ? getDigitalSignature(profil.id) : null)
+  const [signatureText, setSignatureText] = useState('')
+  const [devTab, setDevTab] = useState<'developpe'|'en-cours'|'features'>('features')
+  const [notice, setNotice] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [activeMenu, setActiveMenu] = useState<MenuId>('compte')
+
   const modeLabel = role ? ROLE_LABELS[role] : 'Session inconnue'
+  const assignedRole = profil?.role ?? null
   const assignedLabel = assignedRole ? ROLE_LABELS[assignedRole] : 'Non defini'
+  const accountLabel = accountProfil?.role ? ROLE_LABELS[accountProfil.role] : 'Non defini'
+  const isCompanyManager = role === 'admin' || role === 'dirigeant'
+
+  useEffect(() => {
+    function refreshCompany() { setCompany(readCompanySettings()) }
+    refreshCompany()
+    return subscribeCompanySettings(refreshCompany)
+  }, [])
+
+  useEffect(() => {
+    if (!profil) return
+    const currentProfil = profil
+    function refreshSignature() {
+      const next = getDigitalSignature(currentProfil.id)
+      setSignature(next)
+      setSignatureText(next?.signatureText ?? ([currentProfil.prenom, currentProfil.nom].filter(Boolean).join(' ') || ''))
+    }
+    refreshSignature()
+    return subscribeDigitalSignatures(refreshSignature)
+  }, [profil?.id])
+
+  useEffect(() => {
+    if (location.hash === '#rgpd') setActiveMenu('rgpd')
+    else if (location.hash === '#aide') setActiveMenu('aide')
+  }, [location.hash])
+
+  async function handleLogoFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    const logoDataUrl = await readFileAsDataUrl(file)
+    const next = updateCompanySettings({ logoDataUrl, logoFileName: file.name })
+    setCompany(next)
+    setNotice('Logo entreprise enregistre.')
+    setError(null)
+    event.target.value = ''
+  }
+
+  async function handleSignatureFile(event: ChangeEvent<HTMLInputElement>) {
+    if (!profil) return
+    const file = event.target.files?.[0]
+    if (!file) return
+    const signatureImageUrl = await readFileAsDataUrl(file)
+    upsertDigitalSignature({
+      ownerId: profil.id,
+      ownerName: [profil.prenom, profil.nom].filter(Boolean).join(' ') || profil.role,
+      role: profil.role,
+      signatureText: signatureText.trim() || [profil.prenom, profil.nom].filter(Boolean).join(' ') || profil.role,
+      signatureImageUrl,
+      isActive: signature?.isActive ?? true,
+      updatedAt: new Date().toISOString(),
+    })
+    setNotice('Image de signature mise a jour.')
+    setError(null)
+    event.target.value = ''
+  }
+
+  function saveCompanyName(value: string) {
+    const next = updateCompanySettings({ companyName: value })
+    setCompany(next)
+    setNotice('Nom entreprise mis a jour.')
+    setError(null)
+  }
+
+  function saveCompanyText(field: 'rgpdCharter' | 'internalRules', value: string) {
+    const next = updateCompanySettings({ [field]: value } as Pick<typeof company, typeof field>)
+    setCompany(next)
+    setNotice(field === 'rgpdCharter' ? 'Charte RGPD mise a jour.' : 'Reglement entreprise mis a jour.')
+    setError(null)
+  }
+
+  function saveSignature(active: boolean) {
+    if (!profil) return
+    upsertDigitalSignature({
+      ownerId: profil.id,
+      ownerName: [profil.prenom, profil.nom].filter(Boolean).join(' ') || profil.role,
+      role: profil.role,
+      signatureText: signatureText.trim() || [profil.prenom, profil.nom].filter(Boolean).join(' ') || profil.role,
+      signatureImageUrl: signature?.signatureImageUrl ?? null,
+      isActive: active,
+      updatedAt: new Date().toISOString(),
+    })
+    setNotice(active ? 'Signature numerique activee.' : 'Signature numerique desactivee.')
+    setError(null)
+  }
+
+  const MENU: MenuItem[] = [
+    { id: 'compte',       label: 'Mon compte',       icon: <IconCompte /> },
+    { id: 'entreprise',   label: 'Entreprise',        icon: <IconEntreprise /> },
+    { id: 'signature',    label: 'Signature',         icon: <IconSignature /> },
+    { id: 'rgpd',         label: 'RGPD & Reglement',  icon: <IconRGPD /> },
+    { id: 'utilisateurs', label: 'Utilisateurs',      icon: <IconUtilisateurs />, roleRequired: 'admin' },
+    { id: 'aide',         label: 'Aide',              icon: <IconAide /> },
+    { id: 'developpement', label: 'Developpement',     icon: <IconModules /> },
+    ...(isCompanyManager ? [{ id: 'modules' as MenuId, label: 'Modules ERP', icon: <IconModules /> }] : []),
+  ]
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl bg-slate-950 p-6 text-white shadow-xl">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Parametres</p>
-            <h2 className="mt-2 text-3xl font-bold">Reglages par type de session</h2>
-            <p className="mt-3 max-w-2xl text-sm text-slate-300">
-              Les blocs affiches ici dependent du type de session ouvert dans l&apos;application.
-              Un exploitant ne voit pas les reglages reserves a l&apos;administration des comptes.
-            </p>
+    <div className="flex gap-0 h-full min-h-[calc(100vh-140px)]" style={{ background: 'var(--bg)' }}>
+
+      {/* ── Sidebar menu ─────────────────────────────────────────────────── */}
+      <aside className="w-52 shrink-0 rounded-2xl border mr-4 overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+        <div className="px-4 pt-5 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
+          <p className="text-[10px] font-bold uppercase tracking-[0.3em] nx-muted">Reglages</p>
+        </div>
+
+        {/* Session badge */}
+        <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+          <p className="text-[10px] nx-muted mb-1">Session active</p>
+          <p className="text-sm font-semibold">{modeLabel}</p>
+          {isDemoSession && (
+            <p className="mt-1 text-[11px]" style={{ color: 'var(--primary)' }}>Mode demo</p>
+          )}
+          {isAdmin && sessionRole && (
+            <p className="mt-1 text-[11px] text-amber-500">Simulation admin</p>
+          )}
+        </div>
+
+        <nav className="p-2 space-y-0.5">
+          {MENU.map(item => {
+            if (item.roleRequired && !canAccess(role, item.roleRequired)) return null
+            const active = activeMenu === item.id
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => { setActiveMenu(item.id); setNotice(null); setError(null) }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left ${
+                  active
+                    ? 'text-white'
+                    : 'nx-subtle hover:bg-[color:var(--primary-soft)]'
+                }`}
+                style={active ? { background: 'var(--primary)' } : {}}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            )
+          })}
+        </nav>
+      </aside>
+
+      {/* ── Contenu ──────────────────────────────────────────────────────── */}
+      <div className="flex-1 min-w-0">
+        {(notice || error) && (
+          <div
+            className="mb-4 rounded-2xl border px-4 py-3 text-sm"
+            style={{
+              borderColor: error ? 'rgba(244,114,182,0.25)' : 'rgba(56,189,248,0.25)',
+              background: error ? 'rgba(127,29,29,0.18)' : 'rgba(8,47,73,0.25)',
+              color: error ? '#fecdd3' : '#bae6fd',
+            }}
+          >
+            {error ?? notice}
           </div>
-          <div className="rounded-xl border border-slate-700 bg-white/5 px-4 py-3 text-sm">
-            <div className="text-slate-400">Session active</div>
-            <div className="mt-1 text-lg font-semibold">{modeLabel}</div>
-            <div className="mt-2 text-xs text-slate-400">
-              Profil attribue : <span className="text-slate-200">{assignedLabel}</span>
+        )}
+
+        <div className="mb-4 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+          <p className="text-xs nx-muted">Version deploiement</p>
+          <p className="text-sm font-semibold">{DEPLOYED_VERSION}</p>
+        </div>
+
+        {/* ─ Compte ─────────────────────────────────────────────────────── */}
+        {activeMenu === 'compte' && (
+          <div className="space-y-4">
+            <SectionHeader title="Mon compte" subtitle="Informations de session et de profil" />
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardLabel>Session active</CardLabel>
+                <div className="mt-3 space-y-2 text-sm">
+                  <Row label="Mode">{modeLabel}</Row>
+                  <Row label="Profil attribue">{assignedLabel}</Row>
+                  {isDemoSession && <Row label="Compte source">{accountLabel}</Row>}
+                  {isAdmin && sessionRole && (
+                    <p className="text-amber-500 text-xs mt-2">
+                      {isDemoSession ? 'Mode profil demo actif' : 'Mode simulation admin actif'}
+                    </p>
+                  )}
+                </div>
+              </Card>
+              <Card>
+                <CardLabel>Informations personnelles</CardLabel>
+                <div className="mt-3 space-y-2 text-sm">
+                  {profil?.prenom && <Row label="Prenom">{profil.prenom}</Row>}
+                  {profil?.nom && <Row label="Nom">{profil.nom}</Row>}
+                  {profil?.role && <Row label="Role attribue">{ROLE_LABELS[profil.role] ?? profil.role}</Row>}
+                </div>
+              </Card>
             </div>
-            {isAdmin && sessionRole && (
-              <div className="mt-1 text-xs text-yellow-300">
-                Mode simulation admin actif
+          </div>
+        )}
+
+        {/* ─ Entreprise ─────────────────────────────────────────────────── */}
+        {activeMenu === 'entreprise' && (
+          <div className="space-y-4">
+            <SectionHeader title="Entreprise" subtitle="Branding PDF et informations officielles" />
+            <Card>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <CardLabel>Branding PDF</CardLabel>
+                  <p className="mt-1 text-sm nx-subtle">Le nom et logo seront affiches sur les documents PDF generes.</p>
+                </div>
+                {company.logoDataUrl && (
+                  <img src={company.logoDataUrl} alt="Logo entreprise" className="h-16 rounded-xl border object-contain p-2" style={{ borderColor: 'var(--border)' }} />
+                )}
+              </div>
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <Field label="Nom entreprise">
+                  <input
+                    className={inp}
+                    value={company.companyName}
+                    onChange={event => setCompany(current => ({ ...current, companyName: event.target.value }))}
+                    onBlur={event => saveCompanyName(event.target.value.trim() || DEFAULT_COMPANY_NAME)}
+                    disabled={!isCompanyManager}
+                  />
+                </Field>
+                <Field label="Logo entreprise">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={() => logoInputRef.current?.click()} disabled={!isCompanyManager} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+                      Televerser
+                    </button>
+                    <span className="text-xs nx-subtle">{company.logoFileName ?? 'Aucun logo charge'}</span>
+                    <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={event => void handleLogoFile(event)} />
+                  </div>
+                </Field>
+              </div>
+            </Card>
+            {canAccess(role, 'rh') && (
+              <Card>
+                <CardLabel>Gestion RH</CardLabel>
+                <p className="mt-2 text-sm nx-subtle">Les contrats, onboarding et suivi RH sont dans l onglet dedie.</p>
+                <div className="mt-4">
+                  <Link to="/rh" className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white">Ouvrir RH</Link>
+                </div>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* ─ Signature ─────────────────────────────────────────────────── */}
+        {activeMenu === 'signature' && (
+          <div className="space-y-4">
+            <SectionHeader title="Signature numerique" subtitle="Activez votre signature pour signer les PDF internes" />
+            <Card>
+              <div className="space-y-4">
+                <Field label="Texte de signature">
+                  <input className={inp} value={signatureText} onChange={event => setSignatureText(event.target.value)} placeholder="Nom Prenom" />
+                </Field>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button type="button" onClick={() => saveSignature(true)} className="rounded-xl px-4 py-2 text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
+                    Activer
+                  </button>
+                  <button type="button" onClick={() => saveSignature(false)} className="rounded-xl border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--border)' }}>
+                    Desactiver
+                  </button>
+                  <button type="button" onClick={() => signatureInputRef.current?.click()} className="rounded-xl border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--border)' }}>
+                    Importer image
+                  </button>
+                  <input ref={signatureInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={event => void handleSignatureFile(event)} />
+                </div>
+                <div className="rounded-2xl border border-dashed px-4 py-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-alt, var(--bg))' }}>
+                  <p className="text-xs uppercase tracking-[0.18em] nx-muted">Apercu</p>
+                  <p className="mt-2 text-lg italic">{signatureText || 'Votre signature apparaitra ici'}</p>
+                  <p className="mt-2 text-xs nx-subtle">{signature?.isActive ? 'Signature active' : 'Signature inactive'}</p>
+                  {signature?.signatureImageUrl && <img src={signature.signatureImageUrl} alt="Signature" className="mt-3 h-14 object-contain" />}
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* ─ RGPD ──────────────────────────────────────────────────────── */}
+        {activeMenu === 'rgpd' && (
+          <div className="space-y-4">
+            <SectionHeader title="RGPD & Reglement" subtitle="Charte RGPD et reglement interne de l entreprise" />
+            <div className="grid gap-4 xl:grid-cols-2">
+              <Card>
+                <CardLabel>Charte RGPD</CardLabel>
+                <textarea
+                  className={`${inp} mt-4 min-h-[280px] resize-none`}
+                  value={company.rgpdCharter}
+                  onChange={event => setCompany(current => ({ ...current, rgpdCharter: event.target.value }))}
+                  onBlur={event => saveCompanyText('rgpdCharter', event.target.value)}
+                  disabled={!isCompanyManager}
+                />
+              </Card>
+              <Card>
+                <CardLabel>Reglement interne</CardLabel>
+                <textarea
+                  className={`${inp} mt-4 min-h-[280px] resize-none`}
+                  value={company.internalRules}
+                  onChange={event => setCompany(current => ({ ...current, internalRules: event.target.value }))}
+                  onBlur={event => saveCompanyText('internalRules', event.target.value)}
+                  disabled={!isCompanyManager}
+                />
+              </Card>
+            </div>
+            <div className="flex">
+              <Link to="/mentions-legales" className="text-sm nx-subtle hover:underline">
+                Consulter les mentions legales →
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* ─ Utilisateurs ──────────────────────────────────────────────── */}
+        {activeMenu === 'utilisateurs' && (
+          <div className="space-y-4">
+            <SectionHeader title="Utilisateurs & droits" subtitle="Creer des comptes et attribuer les roles d acces" />
+            <Card>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardLabel>Gestion des comptes</CardLabel>
+                  <p className="mt-1 text-sm nx-subtle">Ajouter des utilisateurs, modifier leurs roles et droits d acces.</p>
+                </div>
+                <Link to="/utilisateurs" className="shrink-0 rounded-xl px-4 py-2 text-sm font-medium text-white" style={{ background: 'var(--primary)' }}>
+                  Ouvrir Utilisateurs
+                </Link>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* ─ Aide ──────────────────────────────────────────────────────── */}
+        {activeMenu === 'aide' && (
+          <div className="space-y-4">
+            <SectionHeader title="Aide & tutoriels" subtitle="Guides d utilisation selon vos droits d acces" />
+            <TutorialList role={role} />
+          </div>
+        )}
+
+        {activeMenu === 'developpement' && (
+          <div className="space-y-4">
+            <SectionHeader title="Developpement" subtitle="Cartographie des fonctionnalites selon leur statut" />
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setDevTab('developpe')}
+                className={`rounded-xl px-3 py-1.5 text-sm font-medium ${devTab === 'developpe' ? 'bg-blue-600 text-white' : 'bg-white text-slate-700 border border-slate-200'}`}
+              >
+                Developpe
+              </button>
+              <button
+                type="button"
+                onClick={() => setDevTab('en-cours')}
+                className={`rounded-xl px-3 py-1.5 text-sm font-medium ${devTab === 'en-cours' ? 'bg-blue-600 text-white' : 'bg-white text-slate-700 border border-slate-200'}`}
+              >
+                En cours de developpement
+              </button>
+              <button
+                type="button"
+                onClick={() => setDevTab('features')}
+                className={`rounded-xl px-3 py-1.5 text-sm font-medium ${devTab === 'features' ? 'bg-blue-600 text-white' : 'bg-white text-slate-700 border border-slate-200'}`}
+              >
+                Features
+              </button>
+            </div>
+
+            {devTab === 'developpe' && (
+              <Card>
+                <CardLabel>Statut OK DEV</CardLabel>
+                <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
+                  <li>Dashboard (widgets role et personnalisation)</li>
+                  <li>Tasks (CRUD, tri et filtres)</li>
+                  <li>Transports (OT, statuts transport, affretement, reference auto, sites logistiques, historique)</li>
+                  <li>Planning (vues jour/semaine, drag-and-drop, filtre affretement)</li>
+                  <li>Feuille de route</li>
+                  <li>Map live</li>
+                  <li>Chauffeurs</li>
+                  <li>Remorques</li>
+                  <li>Maintenance</li>
+                  <li>Demandes clients (workflow de validation)</li>
+                  <li>Login / Auth / roles (5 roles metier, session admin, profils)</li>
+                  <li>Parametres (menus par role, entreprise, juridique, aide, modules, developpement)</li>
+                </ul>
+              </Card>
+            )}
+
+            {devTab === 'en-cours' && (
+              <div className="space-y-4">
+                <Card>
+                  <CardLabel>Statut PARTIEL (fonctionnel mais incomplet)</CardLabel>
+                  <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
+                    <li>Clients (mix reel et injection demo)</li>
+                    <li>Facturation (briques avancees en maturation)</li>
+                    <li>Paie et RH (flux utiles, chainage et persistance a renforcer)</li>
+                    <li>Frais</li>
+                    <li>Prospection</li>
+                    <li>Tachygraphe (extension v1.1 posee, activite conducteur)</li>
+                    <li>Amendes</li>
+                    <li>Espace client (portail tokenise v1.1 en place)</li>
+                    <li>Espace affreteur</li>
+                    <li>Tchat / Communication (canal exploitation/conducteur v1.1)</li>
+                    <li>Coffre numerique</li>
+                    <li>Utilisateurs (administration basique, workflow complet a finaliser)</li>
+                  </ul>
+                </Card>
+                <Card>
+                  <CardLabel>Statut NON FINI</CardLabel>
+                  <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
+                    <li>Equipements (page encore surtout statique)</li>
+                    <li>Mail (encore majoritairement demo/local)</li>
+                  </ul>
+                </Card>
+              </div>
+            )}
+
+            {devTab === 'features' && (
+              <div className="space-y-4">
+                <Card>
+                  <CardLabel>Features a ajouter</CardLabel>
+                  <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
+                    <li>Connectivite et discussion entre les differents ERP</li>
+                    <li>Planning affreteur dans un onglet specifique</li>
+                    <li>Possibilite de mettre plusieurs courses ensemble pour creer un groupage, le figer et le delier, tout en gardant les courses independantes</li>
+                  </ul>
+                </Card>
+                <Card>
+                  <CardLabel>Ce qui manque au logiciel (prioritaire)</CardLabel>
+                  <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
+                    <li>Messagerie et mail 100% persistes en base (multi appareils)</li>
+                    <li>Couverture de tests end-to-end multi roles</li>
+                    <li>Finalisation Tachygraphe et Amendes en mode production</li>
+                    <li>Durcissement securite et cloisonnement RLS sur modules sensibles</li>
+                    <li>Observabilite (erreurs, journaux, traces)</li>
+                    <li>Workflow admin complet de gestion des utilisateurs</li>
+                    <li>Migration progressive statut_transport sur tous les ecrans (vagues 2 a 4)</li>
+                  </ul>
+                </Card>
+                <Card>
+                  <CardLabel>Ajouts hype possibles</CardLabel>
+                  <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
+                    <li>Assistant IA exploitation (suggestion affectations et priorites)</li>
+                    <li>Notifications push intelligentes (retards, incidents, validation)</li>
+                    <li>Scoring automatique des demandes clients</li>
+                    <li>Cockpit KPI ultra visuel par role</li>
+                    <li>Application mobile conducteur avec mode degrade</li>
+                    <li>Automatisation proactive des alertes transport/facturation</li>
+                    <li>Detection et parsing intelligent des emails transport</li>
+                    <li>Integration API bourse de fret</li>
+                    <li>Tracking temps reel via API externes</li>
+                  </ul>
+                </Card>
               </div>
             )}
           </div>
-        </div>
-      </div>
+        )}
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        {visibleSections.map(section => (
-          <section key={section.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className={`bg-gradient-to-r ${section.accent} px-5 py-4 text-white`}>
-              <h3 className="text-lg font-semibold">{section.title}</h3>
-              <p className="mt-1 text-sm text-white/80">{section.description}</p>
-            </div>
-            <div className="space-y-3 p-5">
-              {section.actions.map(action => (
-                <div key={action.label} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">{action.label}</p>
-                      <p className="mt-1 text-sm text-slate-500">{action.detail}</p>
-                    </div>
-                    {action.to && canAccess(role, action.to.replace('/', '')) && (
-                      <Link
-                        to={action.to}
-                        className="shrink-0 rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium text-white hover:bg-slate-700"
-                      >
-                        Ouvrir
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        ))}
+        {/* ─ Modules ERP ───────────────────────────────────────────────── */}
+        {activeMenu === 'modules' && isCompanyManager && (
+          <div className="space-y-4">
+            <SectionHeader title="Modules ERP" subtitle="Configuration des modules et fournisseurs de services" />
+            <ErpV11Settings />
+          </div>
+        )}
       </div>
+    </div>
+  )
+}
 
-      {!canAccess(role, 'utilisateurs') && (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-          <h3 className="text-base font-semibold text-slate-800">Acces restreints</h3>
-          <p className="mt-2 text-sm text-slate-500">
-            Ce type de session ne donne pas acces a la gestion des comptes, a la creation de nouveaux utilisateurs
-            ni aux reglages reserves a l&apos;administration.
-          </p>
+// ── Composants utilitaires ────────────────────────────────────────────────────
+function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div className="pb-2 border-b mb-2" style={{ borderColor: 'var(--border)' }}>
+      <h2 className="text-xl font-semibold">{title}</h2>
+      <p className="mt-1 text-sm nx-subtle">{subtitle}</p>
+    </div>
+  )
+}
+
+function Card({ children }: { children: ReactNode }) {
+  return (
+    <div className="rounded-2xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+      {children}
+    </div>
+  )
+}
+
+function CardLabel({ children }: { children: ReactNode }) {
+  return <p className="text-xs font-bold uppercase tracking-[0.22em] nx-muted">{children}</p>
+}
+
+function Row({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="nx-subtle text-xs">{label}</span>
+      <span className="font-medium text-sm">{children}</span>
+    </div>
+  )
+}
+
+const TUTORIALS = [
+  {
+    id: 'planning', page: 'planning',
+    title: 'Suivre une journee conducteur',
+    summary: 'Ouvrir le planning, verifier les missions puis basculer vers Tachygraphe ou PV si besoin.',
+    steps: ['Ouvrir Planning', 'Filtrer par conducteur', 'Cliquer la mission pour verifier les details', 'Enchainer vers Tachygraphe ou PV & Amendes'],
+  },
+  {
+    id: 'tchat', page: 'tchat',
+    title: 'Envoyer un message ou un document',
+    summary: 'La messagerie interne permet envoi groupe, pieces jointes et sauvegarde au coffre.',
+    steps: ['Ouvrir Messagerie', 'Choisir une conversation ou un groupe', 'Ajouter photo ou document', 'Enregistrer dans le coffre si besoin'],
+  },
+  {
+    id: 'mail', page: 'mail',
+    title: 'Ne pas oublier ses mails',
+    summary: 'Le module Mail reste separe de la messagerie interne.',
+    steps: ['Ouvrir Mail', 'Traiter les non lus', 'Ouvrir une piece jointe', 'Sauvegarder au coffre si necessaire'],
+  },
+  {
+    id: 'coffre', page: 'coffre',
+    title: 'Retrouver ses documents personnels',
+    summary: 'Le coffre centralise les pieces jointes et documents collaborateur.',
+    steps: ['Ouvrir Coffre', 'Lire la section Dossier collaborateur', 'Signer les documents si signature active', 'Telecharger le PDF si necessaire'],
+  },
+  {
+    id: 'amendes', page: 'amendes',
+    title: 'Traiter une amende recue',
+    summary: 'Importer le PDF, verifier le rapprochement vehicule/conducteur puis notifier.',
+    steps: ['Ouvrir PV & Amendes', 'Importer le PDF', 'Verifier le conducteur detecte', 'Archiver et notifier'],
+  },
+]
+
+function TutorialList({ role }: { role: ReturnType<typeof useAuth>['role'] }) {
+  const tutorials = TUTORIALS.filter(t => canAccess(role, t.page))
+  if (tutorials.length === 0) {
+    return <p className="text-sm nx-subtle">Aucun tutoriel disponible pour votre acces.</p>
+  }
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      {tutorials.map(tutorial => (
+        <div key={tutorial.id} className="rounded-2xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold">{tutorial.title}</p>
+              <p className="mt-1 text-sm nx-subtle">{tutorial.summary}</p>
+            </div>
+            <span className="shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] nx-muted" style={{ borderColor: 'var(--border)' }}>
+              {tutorial.page}
+            </span>
+          </div>
+          <ol className="mt-4 space-y-2 text-sm nx-subtle">
+            {tutorial.steps.map((step, i) => (
+              <li key={step} className="flex items-start gap-2">
+                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-semibold text-white">{i + 1}</span>
+                {step}
+              </li>
+            ))}
+          </ol>
         </div>
-      )}
+      ))}
     </div>
   )
 }

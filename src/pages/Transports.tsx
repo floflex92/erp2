@@ -1,13 +1,33 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Tables, TablesInsert } from '@/lib/database.types'
 import { STATUT_OPS, StatutOpsDot, type StatutOps } from '@/lib/statut-ops'
+import BourseAffretementPanel from '@/components/transports/BourseAffretementPanel'
+import { useLogisticSites } from '@/hooks/useLogisticSites'
+import { useTransportStatusHistory } from '@/hooks/useTransportStatusHistory'
+import { useAuth } from '@/lib/auth'
+import {
+  evaluateAffretementCompletionReadiness,
+  findAffreteurOnboardingForScope,
+  getAffretementContractByOtId,
+  listAffreteurOnboardings,
+  listAffretementContractsByOnboarding,
+  subscribeAffretementPortalUpdates,
+} from '@/lib/affretementPortal'
+import {
+  setCourseAffretement,
+  TRANSPORT_SOURCES,
+  TRANSPORT_STATUS_FLOW,
+  TRANSPORT_STATUS_LABELS,
+  type TransportStatus,
+} from '@/lib/transportCourses'
 
 type OT = Tables<'ordres_transport'>
 type EtapeMission = Tables<'etapes_mission'>
 type ClientLookup = { id: string; nom: string }
 type ConducteurLookup = { id: string; nom: string; prenom: string }
 type VehiculeLookup = { id: string; immatriculation: string; marque: string | null }
+type AffreteurLookup = { id: string; company_name: string }
 
 const STATUT_COLORS: Record<string, string> = {
   brouillon:   'bg-slate-100 text-slate-600',
@@ -21,12 +41,28 @@ const STATUT_LABELS: Record<string, string> = {
   brouillon: 'Brouillon', confirme: 'Confirmé', en_cours: 'En cours',
   livre: 'Livré', facture: 'Facturé', annule: 'Annulé',
 }
+const TRANSPORT_STATUS_COLORS: Record<TransportStatus, string> = {
+  en_attente_validation: 'bg-slate-100 text-slate-700',
+  valide: 'bg-blue-100 text-blue-700',
+  en_attente_planification: 'bg-indigo-100 text-indigo-700',
+  planifie: 'bg-cyan-100 text-cyan-700',
+  en_cours_approche_chargement: 'bg-amber-100 text-amber-700',
+  en_chargement: 'bg-orange-100 text-orange-700',
+  en_transit: 'bg-purple-100 text-purple-700',
+  en_livraison: 'bg-fuchsia-100 text-fuchsia-700',
+  termine: 'bg-emerald-100 text-emerald-700',
+  annule: 'bg-red-100 text-red-700',
+}
 const TYPE_TRANSPORT_LABELS: Record<string, string> = {
   complet: 'Complet', partiel: 'Partiel', express: 'Express', groupage: 'Groupage',
 }
 
 const EMPTY_OT: TablesInsert<'ordres_transport'> = {
   client_id: '', type_transport: 'complet', statut: 'brouillon',
+  source_course: 'manuel', statut_transport: 'en_attente_validation',
+  donneur_ordre_id: '', est_affretee: false, affreteur_id: null,
+  chargement_site_id: null, livraison_site_id: null,
+  reference_externe: null,
   nature_marchandise: null, poids_kg: null, volume_m3: null, nombre_colis: null,
   date_chargement_prevue: null, date_livraison_prevue: null,
   conducteur_id: null, vehicule_id: null, remorque_id: null,
@@ -47,13 +83,25 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export default function Transports() {
+  const { role, profil, user } = useAuth()
+  const isAffreteurSession = role === 'affreteur'
+  const canCreateOt = !isAffreteurSession
+  const canChangeOtStatus = !isAffreteurSession
+  const canDeleteOt = !isAffreteurSession
+  const canUseBourse = role === 'admin' || role === 'dirigeant' || role === 'exploitant'
+
   const [list, setList] = useState<OT[]>([])
   const [clients, setClients] = useState<ClientLookup[]>([])
   const [conducteurs, setConducteurs] = useState<ConducteurLookup[]>([])
   const [vehicules, setVehicules] = useState<VehiculeLookup[]>([])
+  const [affreteurs, setAffreteurs] = useState<AffreteurLookup[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterStatut, setFilterStatut] = useState<string>('tous')
+  const [listView, setListView] = useState<'principal' | 'affretement'>('principal')
+  const [transportTab, setTransportTab] = useState<'ot' | 'bourse'>('ot')
+  const [statusGuardNotice, setStatusGuardNotice] = useState<string | null>(null)
+  const [affreteurOtIds, setAffreteurOtIds] = useState<string[]>([])
 
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState<TablesInsert<'ordres_transport'>>(EMPTY_OT)
@@ -63,6 +111,8 @@ export default function Transports() {
   const [selected, setSelected] = useState<OT | null>(null)
   const [etapes, setEtapes] = useState<EtapeMission[]>([])
   const [loadingEtapes, setLoadingEtapes] = useState(false)
+  const { sites, addSite } = useLogisticSites()
+  const { history: transportStatusHistory, loading: loadingTransportHistory, updateStatus: updateTransportStatus, load: loadTransportHistory } = useTransportStatusHistory()
 
   async function loadAll() {
     setLoading(true)
@@ -76,10 +126,38 @@ export default function Transports() {
     setClients(cls.data ?? [])
     setConducteurs(conds.data ?? [])
     setVehicules(vehs.data ?? [])
+    const affList = listAffreteurOnboardings()
+      .filter(item => item.status === 'validee')
+      .map(item => ({ id: item.id, company_name: item.companyName }))
+    setAffreteurs(affList)
     setLoading(false)
   }
 
   useEffect(() => { loadAll() }, [])
+
+  useEffect(() => {
+    if (!isAffreteurSession || !profil?.id) {
+      setAffreteurOtIds([])
+      return
+    }
+
+    const reloadAffreteurScope = () => {
+      const onboarding = findAffreteurOnboardingForScope({
+        profileId: profil.id,
+        email: user?.email,
+      })
+      if (!onboarding) {
+        setAffreteurOtIds([])
+        return
+      }
+      const contracts = listAffretementContractsByOnboarding(onboarding.id)
+      setAffreteurOtIds(Array.from(new Set(contracts.map(contract => contract.otId))))
+    }
+
+    reloadAffreteurScope()
+    const unsubscribe = subscribeAffretementPortalUpdates(reloadAffreteurScope)
+    return unsubscribe
+  }, [isAffreteurSession, profil?.id, user?.email])
 
   async function loadEtapes(otId: string) {
     setLoadingEtapes(true)
@@ -90,18 +168,34 @@ export default function Transports() {
 
   function openOT(ot: OT) {
     setSelected(ot)
-    loadEtapes(ot.id)
+    void loadEtapes(ot.id)
+    void loadTransportHistory(ot.id)
   }
+
+  const scopedList = useMemo(
+    () => isAffreteurSession ? list.filter(ot => affreteurOtIds.includes(ot.id)) : list,
+    [affreteurOtIds, isAffreteurSession, list],
+  )
+
+  useEffect(() => {
+    if (selected && !scopedList.some(ot => ot.id === selected.id)) {
+      setSelected(null)
+    }
+  }, [scopedList, selected])
 
   const clientMap = Object.fromEntries(clients.map(c => [c.id, c.nom]))
   const conducteurMap = Object.fromEntries(conducteurs.map(c => [c.id, `${c.prenom} ${c.nom}`]))
   const vehiculeMap = Object.fromEntries(vehicules.map(v => [v.id, `${v.immatriculation}${v.marque ? ` · ${v.marque}` : ''}`]))
+  const siteMap = Object.fromEntries(sites.map(site => [site.id, site]))
+  const affreteurMap = Object.fromEntries(affreteurs.map(item => [item.id, item.company_name]))
 
-  const filtered = list.filter(ot => {
+  const filtered = scopedList.filter(ot => {
     const matchSearch = ot.reference.toLowerCase().includes(search.toLowerCase()) ||
+      (ot.reference_transport ?? '').toLowerCase().includes(search.toLowerCase()) ||
       (clientMap[ot.client_id] ?? '').toLowerCase().includes(search.toLowerCase())
     const matchStatut = filterStatut === 'tous' || ot.statut === filterStatut
-    return matchSearch && matchStatut
+    const matchView = listView === 'principal' ? !ot.est_affretee : ot.est_affretee
+    return matchSearch && matchStatut && matchView
   })
 
   function setF<K extends keyof TablesInsert<'ordres_transport'>>(k: K, v: TablesInsert<'ordres_transport'>[K]) {
@@ -110,43 +204,130 @@ export default function Transports() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    if (!canCreateOt) {
+      setStatusGuardNotice('Creation OT bloquee: un affreteur doit passer par un compte client dedie.')
+      return
+    }
     if (!form.client_id) return
     setSaving(true)
-    await supabase.from('ordres_transport').insert(form)
+    await supabase.from('ordres_transport').insert({
+      ...form,
+      donneur_ordre_id: form.donneur_ordre_id || form.client_id,
+    })
     setSaving(false)
     setShowForm(false)
     setForm(EMPTY_OT)
-    loadAll()
+    void loadAll()
+  }
+
+  async function toggleAffretement(ot: OT, onboardingId: string | null) {
+    await setCourseAffretement(ot.id, onboardingId)
+    if (selected?.id === ot.id) {
+      setSelected({
+        ...selected,
+        est_affretee: Boolean(onboardingId),
+        affreteur_id: onboardingId,
+      })
+    }
+    void loadAll()
+  }
+
+  async function quickCreateSite(kind: 'chargement' | 'livraison') {
+    const nom = window.prompt(`Nom du site ${kind}`)?.trim()
+    if (!nom) return
+    const adresse = window.prompt(`Adresse du site ${kind}`)?.trim()
+    if (!adresse) return
+    try {
+      const created = await addSite({
+        nom,
+        adresse,
+        entreprise_id: form.donneur_ordre_id || form.client_id || null,
+      })
+      if (kind === 'chargement') setF('chargement_site_id', created.id)
+      if (kind === 'livraison') setF('livraison_site_id', created.id)
+    } catch {
+      setStatusGuardNotice('Creation du site logistique impossible pour le moment.')
+    }
   }
 
   async function updateStatut(ot: OT, statut: string) {
-    await supabase.from('ordres_transport').update({ statut }).eq('id', ot.id)
-    if (selected?.id === ot.id) setSelected({ ...ot, statut })
-    loadAll()
+    if (!canChangeOtStatus) return
+
+    let nextStatut = statut
+    const contract = getAffretementContractByOtId(ot.id)
+    if (contract && (statut === 'livre' || statut === 'facture')) {
+      const readiness = evaluateAffretementCompletionReadiness(contract)
+      if (!readiness.readyForCompletion) {
+        nextStatut = 'en_cours'
+        setStatusGuardNotice('Statut force en cours: renseignez tous les statuts de course affretee avant livraison/facturation.')
+      } else {
+        setStatusGuardNotice(null)
+      }
+    }
+
+    await supabase.from('ordres_transport').update({ statut: nextStatut }).eq('id', ot.id)
+    if (selected?.id === ot.id) setSelected({ ...ot, statut: nextStatut })
+    void loadAll()
   }
 
   async function del(id: string) {
+    if (!canDeleteOt) return
     if (!confirm('Supprimer cet ordre de transport ?')) return
     await supabase.from('ordres_transport').delete().eq('id', id)
     if (selected?.id === id) setSelected(null)
-    loadAll()
+    void loadAll()
   }
 
   return (
-    <div className="flex gap-6 h-full">
+    <div className="space-y-4">
+      <div className="nx-panel overflow-hidden">
+        <div className="border-b px-4" style={{ borderColor: 'var(--border)' }}>
+          <div className="flex gap-4">
+            <button type="button" onClick={() => setTransportTab('ot')} className={`px-1 py-3 text-sm font-semibold ${transportTab === 'ot' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-slate-700'}`}>Ordres de transport</button>
+            {canUseBourse && (
+              <button type="button" onClick={() => setTransportTab('bourse')} className={`px-1 py-3 text-sm font-semibold ${transportTab === 'bourse' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-slate-700'}`}>Bourse du fret</button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {statusGuardNotice && <div className="nx-status-warning rounded-xl border border-amber-200 px-3 py-2 text-sm">{statusGuardNotice}</div>}
+
+      {transportTab === 'bourse' && canUseBourse ? (
+        <BourseAffretementPanel orders={list} clientMap={clientMap} onRefresh={() => { void loadAll() }} />
+      ) : (
+        <div className="flex gap-6 h-full">
       {/* Left: list */}
       <div className={`flex-1 min-w-0 ${selected ? 'hidden lg:block lg:max-w-[55%]' : ''}`}>
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-2xl font-bold text-slate-800">Ordres de Transport</h2>
-            <p className="text-slate-500 text-sm">{list.length} OT{list.length !== 1 ? 's' : ''}</p>
+            <p className="text-slate-500 text-sm">{scopedList.length} OT{scopedList.length !== 1 ? 's' : ''}</p>
+            {isAffreteurSession && <p className="text-xs text-slate-500 mt-1">Vue affreteur: exploitation des courses affretees uniquement.</p>}
           </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setListView('principal')}
+              className={`px-3 py-1.5 text-xs rounded-lg border ${listView === 'principal' ? 'bg-slate-800 text-white border-slate-800' : 'border-slate-200 text-slate-600'}`}
+            >
+              Planning principal
+            </button>
+            <button
+              type="button"
+              onClick={() => setListView('affretement')}
+              className={`px-3 py-1.5 text-xs rounded-lg border ${listView === 'affretement' ? 'bg-slate-800 text-white border-slate-800' : 'border-slate-200 text-slate-600'}`}
+            >
+              Suivi affretement
+            </button>
           <button
             onClick={() => setShowForm(true)}
-            className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors"
+            disabled={!canCreateOt}
+            className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors disabled:opacity-50"
           >
-            + Nouvel OT
+            {canCreateOt ? '+ Nouvel OT' : 'Compte client requis'}
           </button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -184,7 +365,7 @@ export default function Transports() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  {['Référence', 'Client', 'Type', 'Livraison prévue', 'Conducteur', 'Prix HT', 'Statut', ''].map(h => (
+                  {['Référence OT', 'Réf. transport', 'Donneur ordre', 'Type', 'Livraison prévue', 'Affrété', 'Statut transport', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -205,28 +386,31 @@ export default function Transports() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-slate-700">{clientMap[ot.client_id] ?? '—'}</td>
+                    <td className="px-4 py-3 text-slate-600 font-mono text-xs">{ot.reference_transport ?? 'Générée à l insertion'}</td>
+                    <td className="px-4 py-3 text-slate-600">{clientMap[ot.donneur_ordre_id] ?? '—'}</td>
                     <td className="px-4 py-3 text-slate-600">{TYPE_TRANSPORT_LABELS[ot.type_transport] ?? ot.type_transport}</td>
                     <td className="px-4 py-3 text-slate-600">
                       {ot.date_livraison_prevue ? new Date(ot.date_livraison_prevue).toLocaleDateString('fr-FR') : '—'}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {ot.conducteur_id ? conducteurMap[ot.conducteur_id] ?? '—' : <span className="text-slate-300">Non affecté</span>}
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">
-                      {ot.prix_ht != null ? `${ot.prix_ht.toLocaleString('fr-FR')} €` : '—'}
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${ot.est_affretee ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                        {ot.est_affretee ? `Oui (${affreteurMap[ot.affreteur_id ?? ''] ?? 'A renseigner'})` : 'Non'}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUT_COLORS[ot.statut] ?? 'bg-slate-100 text-slate-600'}`}>
-                        {STATUT_LABELS[ot.statut] ?? ot.statut}
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${TRANSPORT_STATUS_COLORS[ot.statut_transport as TransportStatus] ?? 'bg-slate-100 text-slate-600'}`}>
+                        {TRANSPORT_STATUS_LABELS[ot.statut_transport as TransportStatus] ?? ot.statut_transport}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={ev => { ev.stopPropagation(); del(ot.id) }}
-                        className="text-xs text-slate-400 hover:text-red-500 transition-colors"
-                      >
-                        Suppr.
-                      </button>
+                      {canDeleteOt && (
+                        <button
+                          onClick={ev => { ev.stopPropagation(); del(ot.id) }}
+                          className="text-xs text-slate-400 hover:text-red-500 transition-colors"
+                        >
+                          Suppr.
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -248,31 +432,92 @@ export default function Transports() {
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUT_COLORS[selected.statut] ?? 'bg-slate-100 text-slate-600'}`}>
                     {STATUT_LABELS[selected.statut] ?? selected.statut}
                   </span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TRANSPORT_STATUS_COLORS[selected.statut_transport as TransportStatus] ?? 'bg-slate-100 text-slate-600'}`}>
+                    {TRANSPORT_STATUS_LABELS[selected.statut_transport as TransportStatus] ?? selected.statut_transport}
+                  </span>
                   <span className="text-xs text-slate-500">{TYPE_TRANSPORT_LABELS[selected.type_transport] ?? selected.type_transport}</span>
                 </div>
               </div>
               <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
             </div>
 
-            {/* Statut actions */}
             <div className="px-5 py-3 border-b bg-slate-50">
-              <p className="text-xs font-medium text-slate-500 mb-2">Changer le statut</p>
+              <p className="text-xs font-medium text-slate-500 mb-2">Affretement</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  className={`${inp} max-w-xs`}
+                  value={selected.affreteur_id ?? ''}
+                  onChange={event => { void toggleAffretement(selected, event.target.value || null) }}
+                >
+                  <option value="">Non affretee</option>
+                  {affreteurs.map(item => <option key={item.id} value={item.id}>{item.company_name}</option>)}
+                </select>
+                <span className="text-xs text-slate-500">
+                  {selected.est_affretee ? 'Course retiree du planning principal et suivie dans la vue affretement.' : 'Course visible dans le planning principal.'}
+                </span>
+              </div>
+            </div>
+
+            <div className="px-5 py-3 border-b bg-slate-50/50">
+              <p className="text-xs font-medium text-slate-500 mb-2">Statut transport</p>
               <div className="flex gap-1.5 flex-wrap">
-                {Object.entries(STATUT_LABELS).map(([k, v]) => (
+                {TRANSPORT_STATUS_FLOW.map(statusKey => (
                   <button
-                    key={k}
-                    onClick={() => updateStatut(selected, k)}
-                    disabled={selected.statut === k}
+                    key={statusKey}
+                    type="button"
+                    onClick={() => { void updateTransportStatus(selected.id, statusKey) }}
+                    disabled={selected.statut_transport === statusKey}
                     className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors ${
-                      selected.statut === k
+                      selected.statut_transport === statusKey
                         ? 'bg-slate-200 text-slate-500 cursor-default'
                         : 'border border-slate-200 text-slate-600 hover:bg-white hover:shadow-sm'
                     }`}
                   >
-                    {v}
+                    {TRANSPORT_STATUS_LABELS[statusKey]}
                   </button>
                 ))}
               </div>
+              <div className="mt-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Historique statut transport</p>
+                {loadingTransportHistory ? (
+                  <p className="text-xs text-slate-400 mt-1">Chargement historique...</p>
+                ) : transportStatusHistory.length === 0 ? (
+                  <p className="text-xs text-slate-400 mt-1">Aucun historique disponible.</p>
+                ) : (
+                  <div className="mt-2 space-y-1.5">
+                    {transportStatusHistory.slice(0, 5).map(entry => (
+                      <p key={entry.id} className="text-xs text-slate-600">
+                        {new Date(entry.changed_at).toLocaleString('fr-FR')} - {TRANSPORT_STATUS_LABELS[entry.statut_nouveau as TransportStatus] ?? entry.statut_nouveau}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Statut actions */}
+            <div className="px-5 py-3 border-b bg-slate-50">
+              <p className="text-xs font-medium text-slate-500 mb-2">Changer le statut</p>
+              {canChangeOtStatus ? (
+                <div className="flex gap-1.5 flex-wrap">
+                  {Object.entries(STATUT_LABELS).map(([k, v]) => (
+                    <button
+                      key={k}
+                      onClick={() => updateStatut(selected, k)}
+                      disabled={selected.statut === k}
+                      className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                        selected.statut === k
+                          ? 'bg-slate-200 text-slate-500 cursor-default'
+                          : 'border border-slate-200 text-slate-600 hover:bg-white hover:shadow-sm'
+                      }`}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">Statut OT gere par la societe mere. Utilisez l espace affreteur pour le suivi operationnel.</p>
+              )}
             </div>
 
             {/* Statut opérationnel */}
@@ -305,6 +550,12 @@ export default function Transports() {
             <div className="p-5 grid grid-cols-2 gap-3 text-sm border-b">
               <Info label="Conducteur" value={selected.conducteur_id ? conducteurMap[selected.conducteur_id] : null} />
               <Info label="Véhicule" value={selected.vehicule_id ? vehiculeMap[selected.vehicule_id] : null} />
+              <Info label="Référence transport" value={selected.reference_transport} />
+              <Info label="Référence externe" value={selected.reference_externe} />
+              <Info label="Source course" value={selected.source_course} />
+              <Info label="Donneur d ordre" value={clientMap[selected.donneur_ordre_id]} />
+              <Info label="Chargement" value={selected.chargement_site_id ? `${siteMap[selected.chargement_site_id]?.nom ?? ''} - ${siteMap[selected.chargement_site_id]?.adresse ?? ''}` : null} />
+              <Info label="Livraison" value={selected.livraison_site_id ? `${siteMap[selected.livraison_site_id]?.nom ?? ''} - ${siteMap[selected.livraison_site_id]?.adresse ?? ''}` : null} />
               <Info label="Chargement prévu" value={selected.date_chargement_prevue ? new Date(selected.date_chargement_prevue).toLocaleDateString('fr-FR') : null} />
               <Info label="Livraison prévue" value={selected.date_livraison_prevue ? new Date(selected.date_livraison_prevue).toLocaleDateString('fr-FR') : null} />
               <Info label="Livraison réelle" value={selected.date_livraison_reelle ? new Date(selected.date_livraison_reelle).toLocaleDateString('fr-FR') : null} />
@@ -392,7 +643,7 @@ export default function Transports() {
       )}
 
       {/* Modal: new OT */}
-      {showForm && (
+      {showForm && canCreateOt && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b">
@@ -403,15 +654,31 @@ export default function Transports() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <Field label="Client *">
-                    <select className={inp} value={form.client_id} onChange={e => setF('client_id', e.target.value)} required>
+                    <select className={inp} value={form.client_id} onChange={e => { setF('client_id', e.target.value); if (!form.donneur_ordre_id) setF('donneur_ordre_id', e.target.value) }} required>
                       <option value="">Sélectionner un client</option>
                       {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
                     </select>
                   </Field>
                 </div>
+                <Field label="Donneur d ordre *">
+                  <select className={inp} value={form.donneur_ordre_id ?? ''} onChange={e => setF('donneur_ordre_id', e.target.value)} required>
+                    <option value="">Sélectionner une entreprise</option>
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                  </select>
+                </Field>
+                <Field label="Source course">
+                  <select className={inp} value={form.source_course ?? 'manuel'} onChange={e => setF('source_course', e.target.value)}>
+                    {TRANSPORT_SOURCES.map(item => <option key={item} value={item}>{item}</option>)}
+                  </select>
+                </Field>
                 <Field label="Type de transport">
                   <select className={inp} value={form.type_transport ?? 'complet'} onChange={e => setF('type_transport', e.target.value)}>
                     {Object.entries(TYPE_TRANSPORT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </Field>
+                <Field label="Statut transport">
+                  <select className={inp} value={form.statut_transport ?? 'en_attente_validation'} onChange={e => setF('statut_transport', e.target.value)}>
+                    {TRANSPORT_STATUS_FLOW.map(item => <option key={item} value={item}>{TRANSPORT_STATUS_LABELS[item]}</option>)}
                   </select>
                 </Field>
                 <Field label="Statut initial">
@@ -419,6 +686,33 @@ export default function Transports() {
                     {Object.entries(STATUT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
                 </Field>
+                <Field label="Référence externe">
+                  <input className={inp} value={form.reference_externe ?? ''} onChange={e => setF('reference_externe', e.target.value || null)} />
+                </Field>
+
+                <div className="col-span-2 border-t pt-4 mt-1">
+                  <p className="text-sm font-semibold text-slate-700 mb-3">Lieux logistiques</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Field label="Site de chargement">
+                        <select className={inp} value={form.chargement_site_id ?? ''} onChange={e => setF('chargement_site_id', e.target.value || null)}>
+                          <option value="">Sélectionner un site</option>
+                          {sites.map(site => <option key={site.id} value={site.id}>{site.nom} - {site.adresse}</option>)}
+                        </select>
+                      </Field>
+                      <button type="button" className="mt-2 text-xs text-blue-700 hover:text-blue-800" onClick={() => { void quickCreateSite('chargement') }}>+ Ajouter un site chargement</button>
+                    </div>
+                    <div>
+                      <Field label="Site de livraison">
+                        <select className={inp} value={form.livraison_site_id ?? ''} onChange={e => setF('livraison_site_id', e.target.value || null)}>
+                          <option value="">Sélectionner un site</option>
+                          {sites.map(site => <option key={site.id} value={site.id}>{site.nom} - {site.adresse}</option>)}
+                        </select>
+                      </Field>
+                      <button type="button" className="mt-2 text-xs text-blue-700 hover:text-blue-800" onClick={() => { void quickCreateSite('livraison') }}>+ Ajouter un site livraison</button>
+                    </div>
+                  </div>
+                </div>
 
                 <div className="col-span-2 border-t pt-4 mt-1">
                   <p className="text-sm font-semibold text-slate-700 mb-3">Planification</p>
@@ -491,6 +785,8 @@ export default function Transports() {
               </div>
             </form>
           </div>
+        </div>
+      )}
         </div>
       )}
     </div>

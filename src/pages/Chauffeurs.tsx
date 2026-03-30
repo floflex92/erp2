@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Tables, TablesInsert } from '@/lib/database.types'
 
@@ -6,6 +6,28 @@ type Conducteur = Tables<'conducteurs'>
 type Vehicule = Tables<'vehicules'>
 type Remorque = Tables<'remorques'>
 type Affectation = Tables<'affectations'>
+type ConducteurDocument = Tables<'conducteur_documents'>
+type ConducteurEvent = Tables<'conducteur_evenements_rh'>
+type RhEventForm = Omit<TablesInsert<'conducteur_evenements_rh'>, 'conducteur_id'>
+
+const LICENSE_CATEGORIES = ['B', 'BE', 'C1', 'C1E', 'C', 'CE', 'D1', 'D1E', 'D', 'DE'] as const
+const RH_EVENT_TYPES = ['arret_maladie', 'avertissement', 'mise_a_pied', 'visite_medicale', 'entretien', 'accident_travail', 'retour_poste', 'autre'] as const
+const RH_DOC_CATEGORIES = ['contrat', 'avenant', 'permis', 'fimo_fco', 'visite_medicale', 'tachygraphe', 'disciplinaire', 'autre'] as const
+const RH_EVENT_TYPE_LABELS: Record<(typeof RH_EVENT_TYPES)[number], string> = {
+  arret_maladie: 'Arret maladie',
+  avertissement: 'Avertissement',
+  mise_a_pied: 'Mise a pied',
+  visite_medicale: 'Visite medicale',
+  entretien: 'Entretien',
+  accident_travail: 'Accident du travail',
+  retour_poste: 'Retour poste',
+  autre: 'Autre',
+}
+const SEVERITY_LABELS: Record<'info' | 'warning' | 'critical', string> = {
+  info: 'Info',
+  warning: 'A surveiller',
+  critical: 'Critique',
+}
 
 const STATUT_COLORS: Record<string, string> = {
   actif:          'bg-green-100 text-green-700',
@@ -23,10 +45,62 @@ function expColor(date: string | null) {
   return d < 0 ? 'text-red-600 font-semibold' : d < 60 ? 'text-orange-500 font-semibold' : 'text-slate-600'
 }
 
+function countExpiringSoon(dates: Array<string | null>) {
+  return dates.filter(date => {
+    if (!date) return false
+    const delta = (new Date(date).getTime() - Date.now()) / 86400000
+    return delta >= 0 && delta < 60
+  }).length
+}
+
+function formatDate(date: string | null) {
+  return date ? new Date(date).toLocaleDateString('fr-FR') : 'Non renseigne'
+}
+
+function sanitizeFilename(name: string) {
+  return name.replace(/[^a-zA-Z0-9._-]/g, '_')
+}
+
+function rhFeatureError(err: unknown, fallback: string) {
+  const message = err instanceof Error ? err.message : fallback
+  if (message.includes('conducteur_evenements_rh') || message.includes('conducteur_documents')) {
+    return 'Le dossier RH necessite la migration Supabase conducteurs RH avant utilisation.'
+  }
+  if (message.includes('Bucket not found')) {
+    return 'Le bucket Supabase `conducteur-documents` est introuvable.'
+  }
+  return message || fallback
+}
+
+function normalizeConducteurPayload(form: TablesInsert<'conducteurs'>): TablesInsert<'conducteurs'> {
+  return {
+    ...form,
+    nom: form.nom.trim(),
+    prenom: form.prenom.trim(),
+    telephone: form.telephone?.trim() || null,
+    email: form.email?.trim().toLowerCase() || null,
+    adresse: form.adresse?.trim() || null,
+    matricule: form.matricule?.trim() || null,
+    poste: form.poste?.trim() || null,
+    type_contrat: form.type_contrat?.trim() || null,
+    motif_sortie: form.motif_sortie?.trim() || null,
+    contact_urgence_nom: form.contact_urgence_nom?.trim() || null,
+    contact_urgence_telephone: form.contact_urgence_telephone?.trim() || null,
+    numero_permis: form.numero_permis?.trim() || null,
+    permis_categories: form.permis_categories ?? [],
+    notes: form.notes?.trim() || null,
+    preferences: form.preferences?.trim() || null,
+  }
+}
+
 const EMPTY: TablesInsert<'conducteurs'> = {
   nom: '', prenom: '', telephone: null, email: null, adresse: null,
+  matricule: null, poste: null, type_contrat: null, date_entree: null, date_sortie: null, motif_sortie: null,
+  contact_urgence_nom: null, contact_urgence_telephone: null,
   date_naissance: null, numero_permis: null, permis_categories: [],
   permis_expiration: null, fimo_date: null, fco_date: null, fco_expiration: null,
+  visite_medicale_date: null, visite_medicale_expiration: null,
+  recyclage_date: null, recyclage_expiration: null,
   carte_tachy_numero: null, carte_tachy_expiration: null, statut: 'actif',
   notes: null, preferences: null,
 }
@@ -41,6 +115,26 @@ const EMPTY_AFF: TablesInsert<'affectations'> & { conducteur_id: string } = {
   notes: null,
 }
 
+const EMPTY_EVENT: RhEventForm = {
+  event_type: 'autre',
+  title: '',
+  description: null,
+  severity: 'info',
+  start_date: new Date().toISOString().slice(0, 10),
+  end_date: null,
+  reminder_at: null,
+  document_id: null,
+}
+
+const EMPTY_DOCUMENT = {
+  category: 'autre',
+  title: '',
+  issued_at: '',
+  expires_at: '',
+  is_mandatory: false,
+  notes: '',
+}
+
 export default function Chauffeurs() {
   const [list, setList] = useState<Conducteur[]>([])
   const [vehicules, setVehicules] = useState<Vehicule[]>([])
@@ -48,9 +142,21 @@ export default function Chauffeurs() {
   const [affectations, setAffectations] = useState<Affectation[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<TablesInsert<'conducteurs'>>(EMPTY)
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [rhEvents, setRhEvents] = useState<ConducteurEvent[]>([])
+  const [rhDocuments, setRhDocuments] = useState<ConducteurDocument[]>([])
+  const [rhLoading, setRhLoading] = useState(false)
+  const [rhError, setRhError] = useState<string | null>(null)
+  const [eventForm, setEventForm] = useState<RhEventForm>(EMPTY_EVENT)
+  const [savingEvent, setSavingEvent] = useState(false)
+  const [documentForm, setDocumentForm] = useState(EMPTY_DOCUMENT)
+  const [documentFile, setDocumentFile] = useState<File | null>(null)
+  const [savingDocument, setSavingDocument] = useState(false)
 
   // Affectation modal state
   const [affModal, setAffModal] = useState<string | null>(null) // conducteur_id
@@ -59,43 +165,226 @@ export default function Chauffeurs() {
 
   async function load() {
     setLoading(true)
-    const [condRes, vehRes, remRes, affRes] = await Promise.all([
-      supabase.from('conducteurs').select('*').order('nom'),
-      supabase.from('vehicules').select('*').order('immatriculation'),
-      supabase.from('remorques').select('*').order('immatriculation'),
-      supabase.from('affectations').select('*').eq('actif', true),
-    ])
-    setList(condRes.data ?? [])
-    setVehicules(vehRes.data ?? [])
-    setRemorques(remRes.data ?? [])
-    setAffectations(affRes.data ?? [])
-    setLoading(false)
+    setError(null)
+
+    try {
+      const [condRes, vehRes, remRes, affRes] = await Promise.all([
+        supabase.from('conducteurs').select('*').order('nom').order('prenom'),
+        supabase.from('vehicules').select('*').order('immatriculation'),
+        supabase.from('remorques').select('*').order('immatriculation'),
+        supabase.from('affectations').select('*').eq('actif', true),
+      ])
+
+      if (condRes.error) throw condRes.error
+      if (vehRes.error) throw vehRes.error
+      if (remRes.error) throw remRes.error
+      if (affRes.error) throw affRes.error
+
+      setList(condRes.data ?? [])
+      setVehicules(vehRes.data ?? [])
+      setRemorques(remRes.data ?? [])
+      setAffectations(affRes.data ?? [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Chargement impossible.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { load() }, [])
 
-  const filtered = list.filter(c =>
-    `${c.nom} ${c.prenom}`.toLowerCase().includes(search.toLowerCase())
+  const conducteurMap = useMemo(
+    () => Object.fromEntries(list.map(conducteur => [conducteur.id, conducteur])),
+    [list],
   )
+
+  const filtered = list.filter(c => {
+    const haystack = [
+      c.nom,
+      c.prenom,
+      c.telephone,
+      c.email,
+      c.matricule,
+      c.poste,
+      c.type_contrat,
+      c.numero_permis,
+      c.preferences,
+      c.notes,
+      ...(c.permis_categories ?? []),
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+
+    return haystack.includes(search.toLowerCase().trim())
+  })
+
+  const stats = {
+    actifs: list.filter(c => c.statut === 'actif').length,
+    permisExpirent: countExpiringSoon(list.map(c => c.permis_expiration)),
+    fcoExpirent: countExpiringSoon(list.map(c => c.fco_expiration)),
+    tachyExpirent: countExpiringSoon(list.map(c => c.carte_tachy_expiration)),
+  }
+
+  function resetFeedback() {
+    setError(null)
+    setNotice(null)
+  }
+
+  function closeForm() {
+    setShowForm(false)
+    setEditingId(null)
+    setForm(EMPTY)
+    setRhEvents([])
+    setRhDocuments([])
+    setRhError(null)
+    setEventForm(EMPTY_EVENT)
+    setDocumentForm(EMPTY_DOCUMENT)
+    setDocumentFile(null)
+  }
+
+  function openCreate() {
+    resetFeedback()
+    setEditingId(null)
+    setForm(EMPTY)
+    setRhEvents([])
+    setRhDocuments([])
+    setRhError(null)
+    setShowForm(true)
+  }
+
+  function openEdit(conducteur: Conducteur) {
+    resetFeedback()
+    setEditingId(conducteur.id)
+    setRhError(null)
+    setEventForm(EMPTY_EVENT)
+    setDocumentForm(EMPTY_DOCUMENT)
+    setDocumentFile(null)
+    setForm({
+      nom: conducteur.nom,
+      prenom: conducteur.prenom,
+      telephone: conducteur.telephone,
+      email: conducteur.email,
+      adresse: conducteur.adresse,
+      matricule: conducteur.matricule,
+      poste: conducteur.poste,
+      type_contrat: conducteur.type_contrat,
+      date_entree: conducteur.date_entree,
+      date_sortie: conducteur.date_sortie,
+      motif_sortie: conducteur.motif_sortie,
+      contact_urgence_nom: conducteur.contact_urgence_nom,
+      contact_urgence_telephone: conducteur.contact_urgence_telephone,
+      date_naissance: conducteur.date_naissance,
+      numero_permis: conducteur.numero_permis,
+      permis_categories: conducteur.permis_categories ?? [],
+      permis_expiration: conducteur.permis_expiration,
+      fimo_date: conducteur.fimo_date,
+      fco_date: conducteur.fco_date,
+      fco_expiration: conducteur.fco_expiration,
+      visite_medicale_date: conducteur.visite_medicale_date,
+      visite_medicale_expiration: conducteur.visite_medicale_expiration,
+      recyclage_date: conducteur.recyclage_date,
+      recyclage_expiration: conducteur.recyclage_expiration,
+      carte_tachy_numero: conducteur.carte_tachy_numero,
+      carte_tachy_expiration: conducteur.carte_tachy_expiration,
+      statut: conducteur.statut,
+      notes: conducteur.notes,
+      preferences: conducteur.preferences,
+    })
+    setShowForm(true)
+    void loadRhDossier(conducteur.id)
+  }
 
   function set<K extends keyof TablesInsert<'conducteurs'>>(k: K, v: TablesInsert<'conducteurs'>[K]) {
     setForm(f => ({ ...f, [k]: v }))
   }
 
+  async function loadRhDossier(conducteurId: string) {
+    setRhLoading(true)
+    setRhError(null)
+
+    try {
+      const [eventsRes, documentsRes] = await Promise.all([
+        supabase
+          .from('conducteur_evenements_rh')
+          .select('*')
+          .eq('conducteur_id', conducteurId)
+          .order('start_date', { ascending: false }),
+        supabase
+          .from('conducteur_documents')
+          .select('*')
+          .eq('conducteur_id', conducteurId)
+          .is('archived_at', null)
+          .order('created_at', { ascending: false }),
+      ])
+
+      if (eventsRes.error) throw eventsRes.error
+      if (documentsRes.error) throw documentsRes.error
+
+      setRhEvents(eventsRes.data ?? [])
+      setRhDocuments(documentsRes.data ?? [])
+    } catch (err) {
+      setRhEvents([])
+      setRhDocuments([])
+      setRhError(rhFeatureError(err, 'Chargement du dossier RH impossible.'))
+    } finally {
+      setRhLoading(false)
+    }
+  }
+
+  function toggleCategory(category: (typeof LICENSE_CATEGORIES)[number]) {
+    const categories = form.permis_categories ?? []
+    set('permis_categories', categories.includes(category)
+      ? categories.filter(current => current !== category)
+      : [...categories, category])
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    resetFeedback()
+
+    const payload = normalizeConducteurPayload(form)
+    if (!payload.nom || !payload.prenom) {
+      setError('Nom et prenom sont obligatoires.')
+      return
+    }
+
     setSaving(true)
-    await supabase.from('conducteurs').insert(form)
-    setSaving(false)
-    setShowForm(false)
-    setForm(EMPTY)
-    load()
+
+    try {
+      const query = editingId
+        ? supabase.from('conducteurs').update(payload).eq('id', editingId)
+        : supabase.from('conducteurs').insert(payload)
+
+      const { error: saveError } = await query
+      if (saveError) throw saveError
+
+      setNotice(editingId ? 'Conducteur mis a jour.' : 'Conducteur ajoute.')
+      closeForm()
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Enregistrement impossible.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function del(id: string) {
+    resetFeedback()
+    if (currentAff(id)) {
+      setError("Retire d'abord l'affectation active avant de supprimer ce conducteur.")
+      return
+    }
     if (!confirm('Supprimer ce conducteur ?')) return
-    await supabase.from('conducteurs').delete().eq('id', id)
-    load()
+
+    try {
+      const { error: deleteError } = await supabase.from('conducteurs').delete().eq('id', id)
+      if (deleteError) throw deleteError
+      setNotice('Conducteur supprime.')
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Suppression impossible.')
+    }
   }
 
   // --- Affectation helpers ---
@@ -104,6 +393,7 @@ export default function Chauffeurs() {
   }
 
   function openAffModal(c: Conducteur) {
+    resetFeedback()
     const existing = currentAff(c.id)
     setAffForm(existing
       ? { conducteur_id: c.id, vehicule_id: existing.vehicule_id, remorque_id: existing.remorque_id, type_affectation: existing.type_affectation, date_debut: existing.date_debut, date_fin: existing.date_fin, notes: existing.notes }
@@ -114,52 +404,275 @@ export default function Chauffeurs() {
 
   async function saveAff(e: React.FormEvent) {
     e.preventDefault()
+    resetFeedback()
     if (!affModal) return
+
+    if (
+      affForm.type_affectation === 'temporaire' &&
+      affForm.date_debut &&
+      affForm.date_fin &&
+      new Date(affForm.date_fin).getTime() < new Date(affForm.date_debut).getTime()
+    ) {
+      setError("La date de fin doit etre posterieure a la date de debut.")
+      return
+    }
+
+    const conflictingVehicule = affectations.find(a =>
+      a.conducteur_id !== affModal &&
+      a.vehicule_id &&
+      a.vehicule_id === affForm.vehicule_id,
+    )
+    if (conflictingVehicule) {
+      const conducteur = conducteurMap[conflictingVehicule.conducteur_id]
+      setError(
+        `Le vehicule est deja affecte a ${conducteur ? `${conducteur.prenom} ${conducteur.nom}` : 'un autre conducteur'}.`,
+      )
+      return
+    }
+
+    const conflictingRemorque = affectations.find(a =>
+      a.conducteur_id !== affModal &&
+      a.remorque_id &&
+      a.remorque_id === affForm.remorque_id,
+    )
+    if (conflictingRemorque) {
+      const conducteur = conducteurMap[conflictingRemorque.conducteur_id]
+      setError(
+        `La remorque est deja affectee a ${conducteur ? `${conducteur.prenom} ${conducteur.nom}` : 'un autre conducteur'}.`,
+      )
+      return
+    }
     setAffSaving(true)
 
     // Désactiver l'affectation précédente si elle existe
-    await supabase.from('affectations').update({ actif: false }).eq('conducteur_id', affModal).eq('actif', true)
+    const { error: disableError } = await supabase
+      .from('affectations')
+      .update({ actif: false })
+      .eq('conducteur_id', affModal)
+      .eq('actif', true)
+
+    if (disableError) {
+      setAffSaving(false)
+      setError(disableError.message)
+      return
+    }
 
     // Si camion ET remorque vides → juste désaffectation
     if (!affForm.vehicule_id && !affForm.remorque_id) {
       setAffSaving(false)
+      setNotice('Affectation retiree.')
       setAffModal(null)
-      load()
+      await load()
       return
     }
 
-    await supabase.from('affectations').insert({ ...affForm, conducteur_id: affModal, actif: true })
+    const { error: insertError } = await supabase
+      .from('affectations')
+      .insert({ ...affForm, conducteur_id: affModal, actif: true })
+
+    if (insertError) {
+      setAffSaving(false)
+      setError(insertError.message)
+      return
+    }
+
     setAffSaving(false)
+    setNotice('Affectation enregistree.')
     setAffModal(null)
-    load()
+    await load()
+  }
+
+  async function saveRhEvent(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingId) return
+
+    setSavingEvent(true)
+    setRhError(null)
+
+    try {
+      const payload: TablesInsert<'conducteur_evenements_rh'> = {
+        conducteur_id: editingId,
+        event_type: eventForm.event_type,
+        title: eventForm.title?.trim() || 'Evenement RH',
+        description: eventForm.description?.trim() || null,
+        severity: eventForm.severity || 'info',
+        start_date: eventForm.start_date,
+        end_date: eventForm.end_date || null,
+        reminder_at: eventForm.reminder_at || null,
+        document_id: eventForm.document_id || null,
+      }
+
+      const { error: insertError } = await supabase.from('conducteur_evenements_rh').insert(payload)
+      if (insertError) throw insertError
+
+      setNotice('Evenement RH enregistre.')
+      setEventForm(EMPTY_EVENT)
+      await loadRhDossier(editingId)
+    } catch (err) {
+      setRhError(rhFeatureError(err, "Enregistrement de l'evenement RH impossible."))
+    } finally {
+      setSavingEvent(false)
+    }
+  }
+
+  async function deleteRhEvent(id: string) {
+    if (!editingId) return
+
+    try {
+      const { error: deleteError } = await supabase.from('conducteur_evenements_rh').delete().eq('id', id)
+      if (deleteError) throw deleteError
+      setNotice('Evenement RH supprime.')
+      await loadRhDossier(editingId)
+    } catch (err) {
+      setRhError(rhFeatureError(err, "Suppression de l'evenement RH impossible."))
+    }
+  }
+
+  async function saveRhDocument(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingId || !documentFile) return
+
+    setSavingDocument(true)
+    setRhError(null)
+
+    const safeName = sanitizeFilename(documentFile.name)
+    const storagePath = `${editingId}/${Date.now()}-${safeName}`
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('conducteur-documents')
+        .upload(storagePath, documentFile, {
+          contentType: documentFile.type || 'application/pdf',
+          upsert: false,
+        })
+
+      if (uploadError) throw uploadError
+
+      const { error: insertError } = await supabase.from('conducteur_documents').insert({
+        conducteur_id: editingId,
+        category: documentForm.category,
+        title: documentForm.title.trim() || documentFile.name,
+        file_name: documentFile.name,
+        mime_type: documentFile.type || 'application/pdf',
+        storage_bucket: 'conducteur-documents',
+        storage_path: storagePath,
+        issued_at: documentForm.issued_at || null,
+        expires_at: documentForm.expires_at || null,
+        is_mandatory: documentForm.is_mandatory,
+        notes: documentForm.notes.trim() || null,
+      })
+
+      if (insertError) throw insertError
+
+      setNotice('Document RH televerse.')
+      setDocumentForm(EMPTY_DOCUMENT)
+      setDocumentFile(null)
+      await loadRhDossier(editingId)
+    } catch (err) {
+      setRhError(rhFeatureError(err, 'Televersement du document RH impossible.'))
+    } finally {
+      setSavingDocument(false)
+    }
+  }
+
+  async function archiveRhDocument(id: string) {
+    if (!editingId) return
+
+    try {
+      const { error: updateError } = await supabase
+        .from('conducteur_documents')
+        .update({ archived_at: new Date().toISOString() })
+        .eq('id', id)
+
+      if (updateError) throw updateError
+
+      setNotice('Document RH archive.')
+      await loadRhDossier(editingId)
+    } catch (err) {
+      setRhError(rhFeatureError(err, "Archivage du document RH impossible."))
+    }
+  }
+
+  async function openRhDocument(doc: ConducteurDocument) {
+    try {
+      const { data, error: urlError } = await supabase.storage
+        .from(doc.storage_bucket)
+        .createSignedUrl(doc.storage_path, 60)
+
+      if (urlError) throw urlError
+      if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      setRhError(rhFeatureError(err, "Ouverture du document RH impossible."))
+    }
   }
 
   const vehMap = Object.fromEntries(vehicules.map(v => [v.id, v]))
   const remMap = Object.fromEntries(remorques.map(r => [r.id, r]))
+  const occupiedVehiculeIds = useMemo(
+    () => new Set(
+      affectations
+        .filter(a => a.conducteur_id !== affModal && a.vehicule_id)
+        .map(a => a.vehicule_id as string),
+    ),
+    [affectations, affModal],
+  )
+  const occupiedRemorqueIds = useMemo(
+    () => new Set(
+      affectations
+        .filter(a => a.conducteur_id !== affModal && a.remorque_id)
+        .map(a => a.remorque_id as string),
+    ),
+    [affectations, affModal],
+  )
+  const availableVehicules = useMemo(
+    () => vehicules.filter(v =>
+      (!occupiedVehiculeIds.has(v.id) || v.id === affForm.vehicule_id),
+    ),
+    [vehicules, affForm.vehicule_id, occupiedVehiculeIds],
+  )
+  const availableRemorques = useMemo(
+    () => remorques.filter(r =>
+      (!occupiedRemorqueIds.has(r.id) || r.id === affForm.remorque_id),
+    ),
+    [remorques, affForm.remorque_id, occupiedRemorqueIds],
+  )
 
   return (
-    <div>
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Conducteurs</h2>
           <p className="text-slate-500 text-sm">{list.length} conducteur{list.length !== 1 ? 's' : ''}</p>
         </div>
         <button
-          onClick={() => setShowForm(true)}
-          className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors"
+          onClick={openCreate}
+          className="w-full rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-700 sm:w-auto"
         >
           + Ajouter
         </button>
       </div>
 
+      {(error || notice) && (
+        <div className={`rounded-xl border px-4 py-3 text-sm ${error ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+          {error ?? notice}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Actifs" value={stats.actifs} tone="emerald" />
+        <StatCard label="Permis < 60 j" value={stats.permisExpirent} tone="amber" />
+        <StatCard label="FCO < 60 j" value={stats.fcoExpirent} tone="amber" />
+        <StatCard label="Tachy < 60 j" value={stats.tachyExpirent} tone="amber" />
+      </div>
+
       {/* Search */}
       <input
         type="text"
-        placeholder="Rechercher..."
+        placeholder="Rechercher par nom, contact, permis ou categorie..."
         value={search}
         onChange={e => setSearch(e.target.value)}
-        className="mb-4 px-3 py-2 border border-slate-200 rounded-lg text-sm w-72 outline-none focus:ring-2 focus:ring-slate-300"
+        className="mb-4 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-300 sm:w-72"
       />
 
       {/* Table */}
@@ -171,7 +684,8 @@ export default function Chauffeurs() {
             {search ? 'Aucun résultat' : 'Aucun conducteur enregistré'}
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1040px] text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 {['Conducteur', 'Contact', 'Permis', 'FCO exp.', 'Carte tachy', 'Préférences', 'Affectation', 'Statut', ''].map(h => (
@@ -188,11 +702,23 @@ export default function Chauffeurs() {
                   <tr key={c.id} className={`border-t border-slate-100 ${i % 2 !== 0 ? 'bg-slate-50' : ''}`}>
                     <td className="px-4 py-3">
                       <div className="font-medium text-slate-800">{c.nom} {c.prenom}</div>
-                      {c.date_naissance && <div className="text-xs text-slate-400">{new Date(c.date_naissance).toLocaleDateString('fr-FR')}</div>}
+                      <div className="text-xs text-slate-400">Ne le {formatDate(c.date_naissance)}</div>
+                      {c.matricule && <div className="text-xs text-slate-400 font-mono mt-0.5">{c.matricule}</div>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="text-slate-700">{c.poste ?? 'Poste non renseigne'}</div>
+                      <div className="text-xs text-slate-400">{c.type_contrat ?? 'Contrat non renseigne'}</div>
+                      <div className="text-xs text-slate-400 mt-1">Entree: {formatDate(c.date_entree)}</div>
+                      {c.date_sortie && <div className="text-xs text-slate-400">Sortie: {formatDate(c.date_sortie)}</div>}
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-slate-600">{c.telephone ?? '—'}</div>
                       <div className="text-xs text-slate-400">{c.email ?? ''}</div>
+                      {c.contact_urgence_nom && (
+                        <div className="text-xs text-slate-400 mt-1">
+                          Urgence: {c.contact_urgence_nom}{c.contact_urgence_telephone ? ` · ${c.contact_urgence_telephone}` : ''}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div>{c.numero_permis ?? '—'}</div>
@@ -251,26 +777,30 @@ export default function Chauffeurs() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button onClick={() => del(c.id)} className="text-xs text-slate-400 hover:text-red-500 transition-colors">Suppr.</button>
+                      <div className="flex justify-end gap-3">
+                        <button onClick={() => openEdit(c)} className="text-xs text-slate-400 hover:text-slate-700 transition-colors">Modifier</button>
+                        <button onClick={() => del(c.id)} className="text-xs text-slate-400 hover:text-red-500 transition-colors">Suppr.</button>
+                      </div>
                     </td>
                   </tr>
                 )
               })}
             </tbody>
-          </table>
+            </table>
+          </div>
         )}
       </div>
 
       {/* Modal ajout conducteur */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b">
-              <h3 className="text-lg font-semibold">Ajouter un conducteur</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 sm:p-6">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-xl sm:max-h-[90vh]">
+            <div className="flex items-center justify-between border-b p-4 sm:p-6">
+              <h3 className="text-lg font-semibold">{editingId ? 'Modifier un conducteur' : 'Ajouter un conducteur'}</h3>
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
-            <form onSubmit={submit} className="p-6">
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={submit} className="p-4 sm:p-6">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Nom *"><input className={inp} value={form.nom} onChange={e => set('nom', e.target.value)} required /></Field>
                 <Field label="Prénom *"><input className={inp} value={form.prenom} onChange={e => set('prenom', e.target.value)} required /></Field>
                 <Field label="Téléphone"><input className={inp} value={form.telephone ?? ''} onChange={e => set('telephone', e.target.value || null)} /></Field>
@@ -281,33 +811,78 @@ export default function Chauffeurs() {
                     {Object.entries(STATUT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
                 </Field>
+                <div className="sm:col-span-2">
+                  <Field label="Adresse"><input className={inp} value={form.adresse ?? ''} onChange={e => set('adresse', e.target.value || null)} /></Field>
+                </div>
 
-                <div className="col-span-2 border-t pt-4 mt-2">
+                <div className="mt-2 border-t pt-4 sm:col-span-2">
+                  <p className="text-sm font-semibold text-slate-700 mb-3">Contrat et dossier RH</p>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Field label="Matricule"><input className={inp} value={form.matricule ?? ''} onChange={e => set('matricule', e.target.value || null)} /></Field>
+                    <Field label="Poste"><input className={inp} value={form.poste ?? ''} onChange={e => set('poste', e.target.value || null)} /></Field>
+                    <Field label="Type de contrat"><input className={inp} value={form.type_contrat ?? ''} onChange={e => set('type_contrat', e.target.value || null)} placeholder="CDI, CDD, interim..." /></Field>
+                    <Field label="Date d'entree"><input className={inp} type="date" value={form.date_entree ?? ''} onChange={e => set('date_entree', e.target.value || null)} /></Field>
+                    <Field label="Date de sortie"><input className={inp} type="date" value={form.date_sortie ?? ''} onChange={e => set('date_sortie', e.target.value || null)} /></Field>
+                    <Field label="Motif de sortie"><input className={inp} value={form.motif_sortie ?? ''} onChange={e => set('motif_sortie', e.target.value || null)} /></Field>
+                    <Field label="Contact urgence"><input className={inp} value={form.contact_urgence_nom ?? ''} onChange={e => set('contact_urgence_nom', e.target.value || null)} /></Field>
+                    <Field label="Tel urgence"><input className={inp} value={form.contact_urgence_telephone ?? ''} onChange={e => set('contact_urgence_telephone', e.target.value || null)} /></Field>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4 sm:col-span-2">
                   <p className="text-sm font-semibold text-slate-700 mb-3">Permis de conduire</p>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field label="Numéro"><input className={inp} value={form.numero_permis ?? ''} onChange={e => set('numero_permis', e.target.value || null)} /></Field>
                     <Field label="Expiration"><input className={inp} type="date" value={form.permis_expiration ?? ''} onChange={e => set('permis_expiration', e.target.value || null)} /></Field>
                   </div>
-                </div>
-
-                <div className="col-span-2 border-t pt-4">
-                  <p className="text-sm font-semibold text-slate-700 mb-3">FCO / FIMO</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="Date FIMO"><input className={inp} type="date" value={form.fimo_date ?? ''} onChange={e => set('fimo_date', e.target.value || null)} /></Field>
-                    <Field label="Date FCO"><input className={inp} type="date" value={form.fco_date ?? ''} onChange={e => set('fco_date', e.target.value || null)} /></Field>
-                    <Field label="Expiration FCO"><input className={inp} type="date" value={form.fco_expiration ?? ''} onChange={e => set('fco_expiration', e.target.value || null)} /></Field>
+                  <div className="mt-4">
+                    <p className="text-xs font-medium text-slate-600 mb-2">Categories</p>
+                    <div className="flex flex-wrap gap-2">
+                      {LICENSE_CATEGORIES.map(category => {
+                        const active = (form.permis_categories ?? []).includes(category)
+                        return (
+                          <button
+                            key={category}
+                            type="button"
+                            onClick={() => toggleCategory(category)}
+                            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${active ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'}`}
+                          >
+                            {category}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
 
-                <div className="col-span-2 border-t pt-4">
+                <div className="border-t pt-4 sm:col-span-2">
+                  <p className="text-sm font-semibold text-slate-700 mb-3">FCO / FIMO</p>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Field label="Date FIMO"><input className={inp} type="date" value={form.fimo_date ?? ''} onChange={e => set('fimo_date', e.target.value || null)} /></Field>
+                    <Field label="Date FCO"><input className={inp} type="date" value={form.fco_date ?? ''} onChange={e => set('fco_date', e.target.value || null)} /></Field>
+                    <Field label="Expiration FCO"><input className={inp} type="date" value={form.fco_expiration ?? ''} onChange={e => set('fco_expiration', e.target.value || null)} /></Field>
+                    <Field label="Date recyclage"><input className={inp} type="date" value={form.recyclage_date ?? ''} onChange={e => set('recyclage_date', e.target.value || null)} /></Field>
+                    <Field label="Expiration recyclage"><input className={inp} type="date" value={form.recyclage_expiration ?? ''} onChange={e => set('recyclage_expiration', e.target.value || null)} /></Field>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4 sm:col-span-2">
+                  <p className="text-sm font-semibold text-slate-700 mb-3">Visite medicale</p>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Field label="Date visite"><input className={inp} type="date" value={form.visite_medicale_date ?? ''} onChange={e => set('visite_medicale_date', e.target.value || null)} /></Field>
+                    <Field label="Expiration visite"><input className={inp} type="date" value={form.visite_medicale_expiration ?? ''} onChange={e => set('visite_medicale_expiration', e.target.value || null)} /></Field>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4 sm:col-span-2">
                   <p className="text-sm font-semibold text-slate-700 mb-3">Carte conducteur tachygraphe</p>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field label="Numéro carte"><input className={inp} value={form.carte_tachy_numero ?? ''} onChange={e => set('carte_tachy_numero', e.target.value || null)} /></Field>
                     <Field label="Expiration"><input className={inp} type="date" value={form.carte_tachy_expiration ?? ''} onChange={e => set('carte_tachy_expiration', e.target.value || null)} /></Field>
                   </div>
                 </div>
 
-                <div className="col-span-2 border-t pt-4">
+                <div className="border-t pt-4 sm:col-span-2">
                   <p className="text-sm font-semibold text-slate-700 mb-1">Préférences / Habitudes</p>
                   <p className="text-xs text-slate-400 mb-3">Zones habituelles, types de fret, horaires préférés, langues parlées…</p>
                   <textarea
@@ -320,10 +895,155 @@ export default function Chauffeurs() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>
-                <button type="submit" disabled={saving} className="px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50">
-                  {saving ? 'Enregistrement...' : 'Enregistrer'}
+              {editingId && (
+                <div className="mt-6 border-t pt-6">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">Dossier RH</p>
+                      <p className="text-xs text-slate-400">Evenements RH, disciplinaire et documents PDF.</p>
+                    </div>
+                    {rhLoading && <span className="text-xs text-slate-400">Chargement...</span>}
+                  </div>
+
+                  {rhError && (
+                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      {rhError}
+                    </div>
+                  )}
+
+                  <div className="mt-4 grid grid-cols-1 gap-6 xl:grid-cols-2">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <h4 className="text-sm font-semibold text-slate-800">Evenements RH / disciplinaire</h4>
+                      <form onSubmit={saveRhEvent} className="mt-4 space-y-3">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <Field label="Type">
+                            <select className={inp} value={eventForm.event_type ?? 'autre'} onChange={e => setEventForm(current => ({ ...current, event_type: e.target.value }))}>
+                              {RH_EVENT_TYPES.map(type => <option key={type} value={type}>{RH_EVENT_TYPE_LABELS[type]}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="Gravite">
+                            <select className={inp} value={eventForm.severity ?? 'info'} onChange={e => setEventForm(current => ({ ...current, severity: e.target.value }))}>
+                              {(['info', 'warning', 'critical'] as const).map(level => <option key={level} value={level}>{SEVERITY_LABELS[level]}</option>)}
+                            </select>
+                          </Field>
+                        </div>
+                        <Field label="Titre">
+                          <input className={inp} value={eventForm.title ?? ''} onChange={e => setEventForm(current => ({ ...current, title: e.target.value }))} required />
+                        </Field>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                          <Field label="Debut">
+                            <input className={inp} type="date" value={eventForm.start_date ?? ''} onChange={e => setEventForm(current => ({ ...current, start_date: e.target.value }))} required />
+                          </Field>
+                          <Field label="Fin">
+                            <input className={inp} type="date" value={eventForm.end_date ?? ''} onChange={e => setEventForm(current => ({ ...current, end_date: e.target.value || null }))} />
+                          </Field>
+                          <Field label="Alerte">
+                            <input className={inp} type="date" value={eventForm.reminder_at ?? ''} onChange={e => setEventForm(current => ({ ...current, reminder_at: e.target.value || null }))} />
+                          </Field>
+                        </div>
+                        <Field label="Description">
+                          <textarea className={`${inp} resize-none`} rows={3} value={eventForm.description ?? ''} onChange={e => setEventForm(current => ({ ...current, description: e.target.value || null }))} />
+                        </Field>
+                        <Field label="Document lie">
+                          <select className={inp} value={eventForm.document_id ?? ''} onChange={e => setEventForm(current => ({ ...current, document_id: e.target.value || null }))}>
+                            <option value="">Aucun document</option>
+                            {rhDocuments.map(doc => (
+                              <option key={doc.id} value={doc.id}>{doc.title}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <div className="flex justify-end">
+                          <button type="submit" disabled={savingEvent} className="rounded-lg bg-slate-800 px-4 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-50">
+                            {savingEvent ? 'Enregistrement...' : 'Ajouter evenement'}
+                          </button>
+                        </div>
+                      </form>
+
+                      <div className="mt-4 space-y-2">
+                        {rhEvents.length === 0 ? (
+                          <p className="text-xs text-slate-400">Aucun evenement RH enregistre.</p>
+                        ) : rhEvents.map(event => (
+                          <div key={event.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="text-sm font-medium text-slate-800">{event.title}</div>
+                                <div className="text-xs text-slate-400">{event.event_type} · {formatDate(event.start_date)}{event.end_date ? ` au ${formatDate(event.end_date)}` : ''}</div>
+                              </div>
+                              <button type="button" onClick={() => void deleteRhEvent(event.id)} className="text-xs text-slate-400 hover:text-red-500">Suppr.</button>
+                            </div>
+                            {event.description && <p className="mt-2 text-xs text-slate-500 whitespace-pre-line">{event.description}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <h4 className="text-sm font-semibold text-slate-800">Documents PDF</h4>
+                      <form onSubmit={saveRhDocument} className="mt-4 space-y-3">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <Field label="Categorie">
+                            <select className={inp} value={documentForm.category} onChange={e => setDocumentForm(current => ({ ...current, category: e.target.value }))}>
+                              {RH_DOC_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="Titre">
+                            <input className={inp} value={documentForm.title} onChange={e => setDocumentForm(current => ({ ...current, title: e.target.value }))} />
+                          </Field>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <Field label="Date emission">
+                            <input className={inp} type="date" value={documentForm.issued_at} onChange={e => setDocumentForm(current => ({ ...current, issued_at: e.target.value }))} />
+                          </Field>
+                          <Field label="Expiration">
+                            <input className={inp} type="date" value={documentForm.expires_at} onChange={e => setDocumentForm(current => ({ ...current, expires_at: e.target.value }))} />
+                          </Field>
+                        </div>
+                        <Field label="Fichier PDF">
+                          <input className={inp} type="file" accept="application/pdf" onChange={e => setDocumentFile(e.target.files?.[0] ?? null)} required />
+                        </Field>
+                        <Field label="Notes">
+                          <textarea className={`${inp} resize-none`} rows={3} value={documentForm.notes} onChange={e => setDocumentForm(current => ({ ...current, notes: e.target.value }))} />
+                        </Field>
+                        <label className="flex items-center gap-2 text-xs text-slate-600">
+                          <input type="checkbox" checked={documentForm.is_mandatory} onChange={e => setDocumentForm(current => ({ ...current, is_mandatory: e.target.checked }))} />
+                          Document obligatoire
+                        </label>
+                        <div className="flex justify-end">
+                          <button type="submit" disabled={savingDocument || !documentFile} className="rounded-lg bg-slate-800 px-4 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-50">
+                            {savingDocument ? 'Televersement...' : 'Ajouter document'}
+                          </button>
+                        </div>
+                      </form>
+
+                      <div className="mt-4 space-y-2">
+                        {rhDocuments.length === 0 ? (
+                          <p className="text-xs text-slate-400">Aucun document RH enregistre.</p>
+                        ) : rhDocuments.map(doc => (
+                          <div key={doc.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="text-sm font-medium text-slate-800">{doc.title}</div>
+                                <div className="text-xs text-slate-400">{doc.category} · {doc.file_name}</div>
+                                {doc.expires_at && <div className={`text-xs ${expColor(doc.expires_at)}`}>Expiration {formatDate(doc.expires_at)}</div>}
+                              </div>
+                              <div className="flex gap-2">
+                                <button type="button" onClick={() => void openRhDocument(doc)} className="text-xs text-slate-400 hover:text-slate-700">Ouvrir</button>
+                                <button type="button" onClick={() => void archiveRhDocument(doc.id)} className="text-xs text-slate-400 hover:text-red-500">Archiver</button>
+                              </div>
+                            </div>
+                            {doc.notes && <p className="mt-2 text-xs text-slate-500 whitespace-pre-line">{doc.notes}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-6 flex flex-col-reverse gap-3 border-t pt-4 sm:flex-row sm:justify-end">
+                <button type="button" onClick={closeForm} className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50 sm:w-auto">Annuler</button>
+                <button type="submit" disabled={saving} className="w-full rounded-lg bg-slate-800 px-4 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-50 sm:w-auto">
+                  {saving ? 'Enregistrement...' : editingId ? 'Sauvegarder' : 'Enregistrer'}
                 </button>
               </div>
             </form>
@@ -333,15 +1053,15 @@ export default function Chauffeurs() {
 
       {/* Modal affectation véhicule/remorque */}
       {affModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-6 border-b">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 sm:p-6">
+          <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-xl bg-white shadow-xl sm:max-h-[90vh]">
+            <div className="flex items-center justify-between border-b p-4 sm:p-6">
               <h3 className="text-lg font-semibold">
                 Affecter un véhicule / remorque
               </h3>
               <button onClick={() => setAffModal(null)} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
-            <form onSubmit={saveAff} className="p-6 space-y-4">
+            <form onSubmit={saveAff} className="space-y-4 p-4 sm:p-6">
               <Field label="Camion">
                 <select
                   className={inp}
@@ -349,7 +1069,7 @@ export default function Chauffeurs() {
                   onChange={e => setAffForm(f => ({ ...f, vehicule_id: e.target.value || null }))}
                 >
                   <option value="">— Aucun —</option>
-                  {vehicules.map(v => (
+                  {availableVehicules.map(v => (
                     <option key={v.id} value={v.id}>{v.immatriculation}{v.marque ? ` — ${v.marque}` : ''}{v.modele ? ` ${v.modele}` : ''}</option>
                   ))}
                 </select>
@@ -362,14 +1082,14 @@ export default function Chauffeurs() {
                   onChange={e => setAffForm(f => ({ ...f, remorque_id: e.target.value || null }))}
                 >
                   <option value="">— Aucune —</option>
-                  {remorques.map(r => (
+                  {availableRemorques.map(r => (
                     <option key={r.id} value={r.id}>{r.immatriculation}{r.type_remorque ? ` — ${r.type_remorque}` : ''}</option>
                   ))}
                 </select>
               </Field>
 
               <Field label="Type d'affectation">
-                <div className="flex gap-3 mt-1">
+                <div className="mt-1 flex flex-wrap gap-3">
                   {(['fixe', 'temporaire'] as const).map(t => (
                     <label key={t} className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -387,7 +1107,7 @@ export default function Chauffeurs() {
               </Field>
 
               {affForm.type_affectation === 'temporaire' && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field label="Du">
                     <input className={inp} type="date" value={affForm.date_debut ?? ''} onChange={e => setAffForm(f => ({ ...f, date_debut: e.target.value || null }))} />
                   </Field>
@@ -401,7 +1121,7 @@ export default function Chauffeurs() {
                 <input className={inp} value={affForm.notes ?? ''} onChange={e => setAffForm(f => ({ ...f, notes: e.target.value || null }))} placeholder="Optionnel" />
               </Field>
 
-              <div className="flex justify-between items-center pt-2 border-t">
+              <div className="flex flex-col items-stretch gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
                 {currentAff(affModal) && (
                   <button
                     type="button"
@@ -415,9 +1135,9 @@ export default function Chauffeurs() {
                     Retirer l'affectation
                   </button>
                 )}
-                <div className="flex gap-3 ml-auto">
-                  <button type="button" onClick={() => setAffModal(null)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>
-                  <button type="submit" disabled={affSaving} className="px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50">
+                <div className="ml-auto flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+                  <button type="button" onClick={() => setAffModal(null)} className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50 sm:w-auto">Annuler</button>
+                  <button type="submit" disabled={affSaving} className="w-full rounded-lg bg-slate-800 px-4 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-50 sm:w-auto">
                     {affSaving ? 'Enregistrement...' : 'Enregistrer'}
                   </button>
                 </div>
@@ -432,6 +1152,19 @@ export default function Chauffeurs() {
 
 const inp = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-300'
 
+function StatCard({ label, value, tone }: { label: string; value: number; tone: 'emerald' | 'amber' }) {
+  const toneClass = tone === 'emerald'
+    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+    : 'border-amber-200 bg-amber-50 text-amber-700'
+
+  return (
+    <div className={`rounded-xl border p-4 ${toneClass}`}>
+      <div className="text-xs font-medium uppercase tracking-wide">{label}</div>
+      <div className="mt-1 text-2xl font-bold">{value}</div>
+    </div>
+  )
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
@@ -440,3 +1173,4 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   )
 }
+

@@ -1,7 +1,53 @@
-# React + TypeScript + Vite
+# NEXORA truck
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
+## ERP v1.1 extension (additive)
+
+This codebase now includes an additive `v1.1` extension layer for transport ERP modules:
+
+- tracking
+- tachy/driver activity
+- routing/traffic
+- internal ETA engine
+- driver session API
+- client portal API
+- operations chat API
+- AI analysis API
+
+Implementation details are documented in [docs/erp-v1.1-extension.md](docs/erp-v1.1-extension.md).
+The data-model foundation and cross-domain views are documented in [docs/logique-base-donnees-socle-metier.md](docs/logique-base-donnees-socle-metier.md).
+
+## OpenRouteService (API gratuite)
+
+Le module `/.netlify/functions/v11-routing` peut maintenant utiliser OpenRouteService en direct (fallback automatique si aucun provider custom n'est configure).
+
+Variables d'environnement serveur a definir:
+
+- `OPENROUTESERVICE_API_KEY` (ou `ORS_API_KEY`) : cle API ORS
+- `OPENROUTESERVICE_PROFILE` (optionnel, defaut `driving-hgv`)
+- `OPENROUTESERVICE_BASE_URL` (optionnel, defaut `https://api.openrouteservice.org`)
+
+Notes:
+
+- La cle doit rester cote serveur (Netlify env / `.env` local pour Netlify Functions), jamais dans `VITE_*`.
+- Profil possible par requete via `options.profile` (ou `profile` en query/body), ex: `driving-hgv`, `driving-car`, `foot-walking`.
+
+## Deployment policy
+
+- Netlify push/deploy is forbidden by default.
+- Only run Netlify push/deploy after an explicit user request in the current session.
+- Git pushes to Netlify remotes are blocked by `.githooks/pre-push` unless `ALLOW_NETLIFY_PUSH=1` is set.
+## Module Tasks et tests
+
+- Nouvelle table `tasks` ajoutée via migration `supabase/migrations/20260330001100_tasks.sql`.
+- Nouvelle page React `src/pages/Tasks.tsx` expose tri/filtre/priority/date d'échéance et CRUD Supabase + fallback localStorage.
+- Tests E2E-type ajoutés avec `vitest` + `@testing-library/react` dans `src/pages/Tasks.test.tsx`.
+
+### Commandes
+
+- `npm run test` (vitest run)
+- `npm run test:watch` (vitest interactive)
 Currently, two official plugins are available:
 
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)

@@ -27,3 +27,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local tooling artifacts
+supabase/.temp/
+supabase/.branches/
+.claude/
