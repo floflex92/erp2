@@ -618,7 +618,8 @@ export default function Planning() {
 
   const loadAll = useCallback(async () => {
     const extendedOtSelect = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, donneur_ordre_id, chargement_site_id, livraison_site_id, est_affretee, clients!ordres_transport_client_id_fkey(nom)'
-    const legacyOtSelect = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, est_affretee, clients!ordres_transport_client_id_fkey(nom)'
+    const legacyOtSelect = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, clients!ordres_transport_client_id_fkey(nom)'
+    const bareMinimumOtSelect = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km'
 
     let otR: {
       data: unknown[] | null
@@ -630,26 +631,22 @@ export default function Planning() {
       .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
 
     if (otR.error) {
-      const message = (otR.error.message ?? '').toLowerCase()
-      const details = (otR.error.details ?? '').toLowerCase()
-      const hint = (otR.error.hint ?? '').toLowerCase()
-      const isSchemaMismatch =
-        message.includes('column') ||
-        message.includes('schema cache') ||
-        details.includes('column') ||
-        hint.includes('column') ||
-        message.includes('donneur_ordre_id') ||
-        message.includes('chargement_site_id') ||
-        message.includes('livraison_site_id') ||
-        message.includes('distance_km')
-
-      if (isSchemaMismatch) {
-        const legacyR = await supabase
+      // Fallback 1 : colonnes originales + FK join
+      const legacyR = await supabase
+        .from('ordres_transport')
+        .select(legacyOtSelect)
+        .neq('statut', 'annule')
+        .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
+      if (!legacyR.error) {
+        otR = legacyR as typeof otR
+      } else {
+        // Fallback 2 : colonnes originales sans FK join
+        const bareR = await supabase
           .from('ordres_transport')
-          .select(legacyOtSelect)
+          .select(bareMinimumOtSelect)
           .neq('statut', 'annule')
           .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
-        if (!legacyR.error) otR = legacyR as typeof otR
+        if (!bareR.error) otR = bareR as typeof otR
       }
     }
 

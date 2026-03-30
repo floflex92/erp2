@@ -583,25 +583,47 @@ export default function MapLive() {
 
   const loadData = useCallback(async () => {
     setRefreshing(true)
-    const [{ data: missionRows, error: missionError }, { data: stepRows, error: stepError }, { data: sessionData }] = await Promise.all([
-      supabase
+
+    let missionRows: unknown[] | null = null
+    let missionError: { message?: string } | null = null
+
+    // Essai avec FK joins
+    const fullR = await supabase
+      .from('ordres_transport')
+      .select(`
+        id,
+        reference,
+        vehicule_id,
+        statut_operationnel,
+        date_livraison_prevue,
+        distance_km,
+        nature_marchandise,
+        clients!ordres_transport_client_id_fkey(nom),
+        conducteurs(prenom, nom),
+        vehicules(immatriculation, marque)
+      `)
+      .in('statut', ['planifie', 'en_cours', 'livre', 'facture'])
+      .neq('statut', 'annule')
+      .order('updated_at', { ascending: false })
+      .limit(28)
+
+    if (fullR.error) {
+      // Fallback sans FK joins
+      const bareR = await supabase
         .from('ordres_transport')
-        .select(`
-          id,
-          reference,
-          vehicule_id,
-          statut_operationnel,
-          date_livraison_prevue,
-          distance_km,
-          nature_marchandise,
-          clients!ordres_transport_client_id_fkey(nom),
-          conducteurs(prenom, nom),
-          vehicules(immatriculation, marque)
-        `)
+        .select('id, reference, vehicule_id, statut_operationnel, date_livraison_prevue, distance_km, nature_marchandise')
         .in('statut', ['planifie', 'en_cours', 'livre', 'facture'])
         .neq('statut', 'annule')
         .order('updated_at', { ascending: false })
-        .limit(28),
+        .limit(28)
+      missionRows = bareR.data as unknown[] | null
+      missionError = bareR.error
+    } else {
+      missionRows = fullR.data as unknown[] | null
+      missionError = fullR.error
+    }
+
+    const [{ data: stepRows, error: stepError }, { data: sessionData }] = await Promise.all([
       supabase
         .from('etapes_mission')
         .select(`
