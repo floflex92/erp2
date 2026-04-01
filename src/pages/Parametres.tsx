@@ -59,7 +59,7 @@ function readFileAsDataUrl(file: File) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-const DEPLOYED_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.2.0'
+const DEPLOYED_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.6.1'
 
 export default function Parametres() {
   const { role, sessionRole, isAdmin, isDemoSession, profil, accountProfil } = useAuth()
@@ -97,7 +97,7 @@ export default function Parametres() {
     }
     refreshSignature()
     return subscribeDigitalSignatures(refreshSignature)
-  }, [profil?.id])
+  }, [profil])
 
   useEffect(() => {
     if (location.hash === '#rgpd') setActiveMenu('rgpd')
@@ -442,15 +442,20 @@ export default function Parametres() {
                   <li>Dashboard (widgets role et personnalisation)</li>
                   <li>Tasks (CRUD, tri et filtres)</li>
                   <li>Transports (OT, statuts transport, affretement, reference auto, sites logistiques, historique)</li>
-                  <li>Planning (vues jour/semaine, drag-and-drop, filtre affretement)</li>
+                  <li>Planning (cockpit exploitation ABC: vues jour/semaine, drag-and-drop, dock operations, urgences priorisees)</li>
                   <li>Feuille de route</li>
                   <li>Map live</li>
                   <li>Chauffeurs</li>
                   <li>Remorques</li>
-                  <li>Maintenance</li>
+                  <li>Maintenance (index constructeur RMI, auto-remontee des periodicites, alertes km/temps et vue mecanicien par vehicule)</li>
                   <li>Demandes clients (workflow de validation)</li>
                   <li>Login / Auth / roles (5 roles metier, session admin, profils)</li>
                   <li>Parametres (menus par role, entreprise, juridique, aide, modules, developpement)</li>
+                  <li>Site vitrine public (accueil, solution, planning intelligent, ROI, secteur transport, a propos, demonstration, contact, SEO ERP)</li>
+                  <li>SEO technique du site public (meta, canonicals, sitemap, robots et FAQ structuree)</li>
+                  <li>Parcours legal public (mentions legales, politique de confidentialite, CGU, bandeau cookies et reouverture des preferences)</li>
+                  <li>Qualite front release (warnings ESLint resolus, socle PWA installable avec manifest/service worker et optimisations de chargement initial)</li>
+                  <li>Normalisation de marque NEXORA Truck sur l ERP et le site public</li>
                 </ul>
               </Card>
             )}
@@ -472,6 +477,7 @@ export default function Parametres() {
                     <li>Tchat / Communication (canal exploitation/conducteur v1.1)</li>
                     <li>Coffre numerique</li>
                     <li>Utilisateurs (administration basique, workflow complet a finaliser)</li>
+                    <li>Site vitrine public (integration future de vraies captures produit, medias et preuves client)</li>
                   </ul>
                 </Card>
                 <Card>
@@ -489,9 +495,9 @@ export default function Parametres() {
                 <Card>
                   <CardLabel>Features a ajouter</CardLabel>
                   <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
-                    <li>Connectivite et discussion entre les differents ERP</li>
-                    <li>Planning affreteur dans un onglet specifique</li>
-                    <li>Possibilite de mettre plusieurs courses ensemble pour creer un groupage, le figer et le delier, tout en gardant les courses independantes</li>
+                    <li>Connectivite et discussion inter-ERP</li>
+                    <li>Planning affreteur dedie dans un onglet specifique</li>
+                    <li>Groupage multi-courses figeable et deliable en gardant les courses independantes</li>
                   </ul>
                 </Card>
                 <Card>

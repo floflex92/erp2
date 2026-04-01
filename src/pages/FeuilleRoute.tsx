@@ -4,11 +4,15 @@ import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import type { Tables, TablesInsert, TablesUpdate } from '@/lib/database.types'
 import { listAffretementContractsForDriverEmail } from '@/lib/affretementPortal'
+import { getDigitalSignature } from '@/lib/signatureStore'
+import { createHrPdfAttachment } from '@/lib/hrDocuments'
+import { saveAttachmentToVault } from '@/lib/vault'
 
 type OT = Tables<'ordres_transport'>
 type EtapeMission = Tables<'etapes_mission'>
 type HistoriqueStatut = Tables<'historique_statuts'>
 type ConducteurLite = { id: string; nom: string; prenom: string; email: string | null; statut: string }
+type ProfilLite = { id: string; role: string; nom: string | null; prenom: string | null }
 type ClientLite = { id: string; nom: string }
 type VehiculeLite = { id: string; immatriculation: string; marque: string | null; modele: string | null }
 
@@ -48,6 +52,12 @@ type DriverEvent = {
   createdAt: string
   note: string | null
   gps: DriverGpsProof | null
+}
+
+type CmrSignatureEvent = {
+  id: string
+  label: string
+  signedAt: string
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -323,14 +333,20 @@ export default function FeuilleRoute() {
   const [orders, setOrders] = useState<OT[]>([])
   const [clientsMap, setClientsMap] = useState<Record<string, string>>({})
   const [vehiculeMap, setVehiculeMap] = useState<Record<string, string>>({})
+  const [conducteurNameById, setConducteurNameById] = useState<Record<string, string>>({})
+  const [conducteurProfileIdByConducteurId, setConducteurProfileIdByConducteurId] = useState<Record<string, string>>({})
   const [stepsByOtId, setStepsByOtId] = useState<Record<string, EtapeMission[]>>({})
   const [historyByOtId, setHistoryByOtId] = useState<Record<string, HistoriqueStatut[]>>({})
   const [crmNotesByOtId, setCrmNotesByOtId] = useState<Record<string, string>>({})
   const [savingProgressByOtId, setSavingProgressByOtId] = useState<Record<string, DriverProgressKey | null>>({})
+  const [signingCmrByOtId, setSigningCmrByOtId] = useState<Record<string, boolean>>({})
   const [toasts, setToasts] = useState<LiveToast[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [bucketFilter, setBucketFilter] = useState<'all' | RouteBucket>('all')
 
   const isConducteurSession = role === 'conducteur' || role === 'conducteur_affreteur'
   const isAffreteurDriverSession = role === 'conducteur_affreteur'
+  const canManageProgress = isConducteurSession || role === 'exploitant' || role === 'dirigeant' || role === 'admin'
   const visibleOrderIdsRef = useRef<Set<string>>(new Set())
 
   function pushToast(message: string) {
@@ -349,19 +365,22 @@ export default function FeuilleRoute() {
     setError(null)
 
     try {
-      const [conducteursRes, clientsRes, vehiculesRes, ordersRes] = await Promise.all([
+      const [conducteursRes, profilsRes, clientsRes, vehiculesRes, ordersRes] = await Promise.all([
         supabase.from('conducteurs').select('id,nom,prenom,email,statut').eq('statut', 'actif').order('nom'),
+        supabase.from('profils').select('id,role,nom,prenom').eq('role', 'conducteur'),
         supabase.from('clients').select('id,nom'),
         supabase.from('vehicules').select('id,immatriculation,marque,modele'),
         supabase.from('ordres_transport').select('*').order('date_chargement_prevue', { ascending: true, nullsFirst: false }),
       ])
 
       if (conducteursRes.error) throw conducteursRes.error
+      if (profilsRes.error) throw profilsRes.error
       if (clientsRes.error) throw clientsRes.error
       if (vehiculesRes.error) throw vehiculesRes.error
       if (ordersRes.error) throw ordersRes.error
 
       const conducteurs = (conducteursRes.data ?? []) as ConducteurLite[]
+      const profilsConducteur = (profilsRes.data ?? []) as ProfilLite[]
       const clientRows = (clientsRes.data ?? []) as ClientLite[]
       const vehicules = (vehiculesRes.data ?? []) as VehiculeLite[]
       const allOrders = (ordersRes.data ?? []) as OT[]
@@ -442,6 +461,24 @@ export default function FeuilleRoute() {
       setHistoryByOtId(groupedHistory)
       setClientsMap(Object.fromEntries(clientRows.map(item => [item.id, item.nom])))
       setVehiculeMap(Object.fromEntries(vehicules.map(item => [item.id, [item.immatriculation, item.marque, item.modele].filter(Boolean).join(' - ')])))
+      setConducteurNameById(Object.fromEntries(conducteurs.map(item => [item.id, [item.prenom, item.nom].filter(Boolean).join(' ')])))
+
+      const profilsByIdentity = profilsConducteur.reduce<Record<string, string[]>>((acc, profilRow) => {
+        const identity = conducteurIdentity({ prenom: profilRow.prenom, nom: profilRow.nom })
+        if (!identity || identity === '-') return acc
+        acc[identity] = [...(acc[identity] ?? []), profilRow.id]
+        return acc
+      }, {})
+
+      const conducteurToProfilMap: Record<string, string> = {}
+      conducteurs.forEach(conducteurRow => {
+        const identity = conducteurIdentity(conducteurRow)
+        const matches = profilsByIdentity[identity] ?? []
+        if (matches.length === 1) {
+          conducteurToProfilMap[conducteurRow.id] = matches[0]
+        }
+      })
+      setConducteurProfileIdByConducteurId(conducteurToProfilMap)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Chargement impossible.')
     } finally {
@@ -528,6 +565,88 @@ export default function FeuilleRoute() {
     }
   }, [clientsMap, crmNotesByOtId, historyByOtId, loadData, profil?.id])
 
+  const signCmr = useCallback(async (order: OT) => {
+    setSigningCmrByOtId(current => ({ ...current, [order.id]: true }))
+    setError(null)
+
+    try {
+      if (!profil?.id || !profil?.role) {
+        throw new Error('Profil introuvable. Reconnectez-vous avant de signer un CMR.')
+      }
+
+      const signature = getDigitalSignature(profil.id)
+      if (!signature || !signature.isActive) {
+        throw new Error('Signature numerique inactive. Activez-la dans Parametres > Signature.')
+      }
+
+      const signedAt = new Date().toISOString()
+      const signedLabel = `${signature.ownerName} - ${signature.signatureText}`
+      const cmrLabel = order.numero_cmr ?? 'CMR non renseigne'
+      const appendedNote = `${formatDateTime(signedAt)} - CMR signe numeriquement (${signedLabel})`
+      const nextNotes = [order.notes_internes?.trim(), appendedNote].filter(Boolean).join('\n')
+
+      const updateRes = await supabase
+        .from('ordres_transport')
+        .update({ notes_internes: nextNotes })
+        .eq('id', order.id)
+
+      if (updateRes.error) throw updateRes.error
+
+      const payload = {
+        source: 'signature_cmr',
+        signed_at: signedAt,
+        signed_by: signedLabel,
+        cmr: cmrLabel,
+        ot_reference: order.reference,
+      }
+
+      const proofTitle = `Preuve signature CMR - ${order.reference}`
+      const proofAttachment = createHrPdfAttachment(
+        proofTitle,
+        `preuve-signature-cmr-${order.reference}.pdf`,
+        [
+          'PREUVE NUMERIQUE DE SIGNATURE CMR',
+          '',
+          `OT: ${order.reference}`,
+          `CMR: ${cmrLabel}`,
+          `Client: ${clientsMap[order.client_id] ?? 'Client non renseigne'}`,
+          `Signataire: ${signedLabel}`,
+          `Date de signature: ${new Date(signedAt).toLocaleString('fr-FR')}`,
+          `Numero BL: ${order.numero_bl ?? 'N/A'}`,
+          `Reference transport: ${order.reference_transport ?? 'N/A'}`,
+        ],
+        {
+          signatures: [{ label: 'CMR signe', value: `${signedLabel} le ${new Date(signedAt).toLocaleString('fr-FR')}` }],
+        },
+      )
+
+      saveAttachmentToVault(
+        profil.id,
+        proofAttachment,
+        'signature',
+        `CMR ${cmrLabel} - ${order.reference}`,
+      )
+
+      const historyInsert: TablesInsert<'historique_statuts'> = {
+        ot_id: order.id,
+        statut_ancien: order.statut_operationnel ?? order.statut,
+        statut_nouveau: 'cmr:signe',
+        commentaire: JSON.stringify(payload),
+        created_by: profil.id,
+      }
+
+      const historyRes = await supabase.from('historique_statuts').insert(historyInsert)
+      if (historyRes.error) throw historyRes.error
+
+      pushToast(`CMR signe: ${cmrLabel} (preuve PDF ajoutee au Coffre).`)
+      void loadData()
+    } catch (signError) {
+      setError(signError instanceof Error ? signError.message : 'Signature CMR impossible.')
+    } finally {
+      setSigningCmrByOtId(current => ({ ...current, [order.id]: false }))
+    }
+  }, [clientsMap, loadData, profil?.id, profil?.role])
+
   useEffect(() => {
     void loadData()
   }, [loadData])
@@ -546,6 +665,7 @@ export default function FeuilleRoute() {
 
     const ordersChannel = db
       .channel(`driver-route-orders-${conducteur?.id ?? 'all'}`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .on('postgres_changes' as any, {
         event: '*',
         schema: 'public',
@@ -565,6 +685,7 @@ export default function FeuilleRoute() {
 
     const stepsChannel = db
       .channel(`driver-route-steps-${conducteur?.id ?? 'all'}`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .on('postgres_changes' as any, {
         event: '*',
         schema: 'public',
@@ -580,6 +701,7 @@ export default function FeuilleRoute() {
 
     const historyChannel = db
       .channel(`driver-route-history-${conducteur?.id ?? 'all'}`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .on('postgres_changes' as any, {
         event: '*',
         schema: 'public',
@@ -600,8 +722,37 @@ export default function FeuilleRoute() {
     }
   }, [conducteur, isAffreteurDriverSession, isConducteurSession, loadData, role])
 
+  const filteredOrders = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return orders
+
+    return orders.filter(order => {
+      const steps = stepsByOtId[order.id] ?? []
+      const loadStep = findStageByType(steps, 'chargement')
+      const unloadStep = findStageByType(steps, 'livraison')
+      const haystack = [
+        order.reference,
+        order.statut,
+        order.statut_operationnel,
+        order.numero_cmr,
+        order.numero_bl,
+        order.reference_transport,
+        order.nature_marchandise,
+        clientsMap[order.client_id],
+        order.vehicule_id ? vehiculeMap[order.vehicule_id] : null,
+        formatAddress(loadStep),
+        formatAddress(unloadStep),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+
+      return haystack.includes(query)
+    })
+  }, [clientsMap, orders, searchQuery, stepsByOtId, vehiculeMap])
+
   const sections = useMemo(() => {
-    const sorted = [...orders]
+    const sorted = [...filteredOrders]
     sorted.sort((left, right) => {
       const leftTs = new Date(left.date_chargement_prevue ?? left.created_at).getTime()
       const rightTs = new Date(right.date_chargement_prevue ?? right.created_at).getTime()
@@ -616,10 +767,10 @@ export default function FeuilleRoute() {
       return bTs - aTs
     })
     return buckets
-  }, [orders])
+  }, [filteredOrders])
 
   const stats = {
-    total: orders.length,
+    total: filteredOrders.length,
     past: sections.past.length,
     current: sections.current.length,
     future: sections.future.length,
@@ -669,54 +820,94 @@ export default function FeuilleRoute() {
         <MetricCard label="A venir" value={String(stats.future)} accent="text-cyan-300" />
       </div>
 
+      <div className="nx-panel border border-slate-700/60 bg-slate-900/70 p-4">
+        <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={event => setSearchQuery(event.target.value)}
+            placeholder="Rechercher: OT, client, CMR, BL, adresse, immatriculation..."
+            className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-cyan-500 focus:outline-none"
+          />
+          <select
+            value={bucketFilter}
+            onChange={event => setBucketFilter(event.target.value as 'all' | RouteBucket)}
+            className="rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-white focus:border-cyan-500 focus:outline-none"
+          >
+            <option value="all">Toutes les sections</option>
+            <option value="current">En cours</option>
+            <option value="future">A venir</option>
+            <option value="past">Passees</option>
+          </select>
+        </div>
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center p-16">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-[color:var(--primary)] border-t-transparent" />
         </div>
       ) : (
         <div className="space-y-6">
-          <RouteSection
-            title="En cours"
-            subtitle="Missions actives et imminentes"
-            orders={sections.current}
-            stepsByOtId={stepsByOtId}
-            historyByOtId={historyByOtId}
-            clientsMap={clientsMap}
-            vehiculeMap={vehiculeMap}
-            isConducteurSession={isConducteurSession}
-            crmNotesByOtId={crmNotesByOtId}
-            savingProgressByOtId={savingProgressByOtId}
-            onCrmNoteChange={(otId, value) => setCrmNotesByOtId(current => ({ ...current, [otId]: value }))}
-            onSaveDriverProgress={saveDriverProgress}
-          />
-          <RouteSection
-            title="A venir"
-            subtitle="Prochaines missions planifiees"
-            orders={sections.future}
-            stepsByOtId={stepsByOtId}
-            historyByOtId={historyByOtId}
-            clientsMap={clientsMap}
-            vehiculeMap={vehiculeMap}
-            isConducteurSession={isConducteurSession}
-            crmNotesByOtId={crmNotesByOtId}
-            savingProgressByOtId={savingProgressByOtId}
-            onCrmNoteChange={(otId, value) => setCrmNotesByOtId(current => ({ ...current, [otId]: value }))}
-            onSaveDriverProgress={saveDriverProgress}
-          />
-          <RouteSection
-            title="Passees"
-            subtitle="Historique recent de vos courses"
-            orders={sections.past}
-            stepsByOtId={stepsByOtId}
-            historyByOtId={historyByOtId}
-            clientsMap={clientsMap}
-            vehiculeMap={vehiculeMap}
-            isConducteurSession={isConducteurSession}
-            crmNotesByOtId={crmNotesByOtId}
-            savingProgressByOtId={savingProgressByOtId}
-            onCrmNoteChange={(otId, value) => setCrmNotesByOtId(current => ({ ...current, [otId]: value }))}
-            onSaveDriverProgress={saveDriverProgress}
-          />
+          {(bucketFilter === 'all' || bucketFilter === 'current') && (
+            <RouteSection
+              title="En cours"
+              subtitle="Missions actives et imminentes"
+              orders={sections.current}
+              stepsByOtId={stepsByOtId}
+              historyByOtId={historyByOtId}
+              clientsMap={clientsMap}
+              vehiculeMap={vehiculeMap}
+              conducteurNameById={conducteurNameById}
+              conducteurProfileIdByConducteurId={conducteurProfileIdByConducteurId}
+              canManageProgress={canManageProgress}
+              crmNotesByOtId={crmNotesByOtId}
+              savingProgressByOtId={savingProgressByOtId}
+              signingCmrByOtId={signingCmrByOtId}
+              onCrmNoteChange={(otId, value) => setCrmNotesByOtId(current => ({ ...current, [otId]: value }))}
+              onSaveDriverProgress={saveDriverProgress}
+              onSignCmr={signCmr}
+            />
+          )}
+          {(bucketFilter === 'all' || bucketFilter === 'future') && (
+            <RouteSection
+              title="A venir"
+              subtitle="Prochaines missions planifiees"
+              orders={sections.future}
+              stepsByOtId={stepsByOtId}
+              historyByOtId={historyByOtId}
+              clientsMap={clientsMap}
+              vehiculeMap={vehiculeMap}
+              conducteurNameById={conducteurNameById}
+              conducteurProfileIdByConducteurId={conducteurProfileIdByConducteurId}
+              canManageProgress={canManageProgress}
+              crmNotesByOtId={crmNotesByOtId}
+              savingProgressByOtId={savingProgressByOtId}
+              signingCmrByOtId={signingCmrByOtId}
+              onCrmNoteChange={(otId, value) => setCrmNotesByOtId(current => ({ ...current, [otId]: value }))}
+              onSaveDriverProgress={saveDriverProgress}
+              onSignCmr={signCmr}
+            />
+          )}
+          {(bucketFilter === 'all' || bucketFilter === 'past') && (
+            <RouteSection
+              title="Passees"
+              subtitle="Historique recent de vos courses"
+              orders={sections.past}
+              stepsByOtId={stepsByOtId}
+              historyByOtId={historyByOtId}
+              clientsMap={clientsMap}
+              vehiculeMap={vehiculeMap}
+              conducteurNameById={conducteurNameById}
+              conducteurProfileIdByConducteurId={conducteurProfileIdByConducteurId}
+              canManageProgress={canManageProgress}
+              crmNotesByOtId={crmNotesByOtId}
+              savingProgressByOtId={savingProgressByOtId}
+              signingCmrByOtId={signingCmrByOtId}
+              onCrmNoteChange={(otId, value) => setCrmNotesByOtId(current => ({ ...current, [otId]: value }))}
+              onSaveDriverProgress={saveDriverProgress}
+              onSignCmr={signCmr}
+            />
+          )}
         </div>
       )}
 
@@ -750,11 +941,15 @@ function RouteSection({
   historyByOtId,
   clientsMap,
   vehiculeMap,
-  isConducteurSession,
+  conducteurNameById,
+  conducteurProfileIdByConducteurId,
+  canManageProgress,
   crmNotesByOtId,
   savingProgressByOtId,
+  signingCmrByOtId,
   onCrmNoteChange,
   onSaveDriverProgress,
+  onSignCmr,
 }: {
   title: string
   subtitle: string
@@ -763,11 +958,15 @@ function RouteSection({
   historyByOtId: Record<string, HistoriqueStatut[]>
   clientsMap: Record<string, string>
   vehiculeMap: Record<string, string>
-  isConducteurSession: boolean
+  conducteurNameById: Record<string, string>
+  conducteurProfileIdByConducteurId: Record<string, string>
+  canManageProgress: boolean
   crmNotesByOtId: Record<string, string>
   savingProgressByOtId: Record<string, DriverProgressKey | null>
+  signingCmrByOtId: Record<string, boolean>
   onCrmNoteChange: (otId: string, value: string) => void
   onSaveDriverProgress: (order: OT, steps: EtapeMission[], progressKey: DriverProgressKey) => Promise<void>
+  onSignCmr: (order: OT) => Promise<void>
 }) {
   return (
     <section className="space-y-3">
@@ -801,8 +1000,26 @@ function RouteSection({
             const driverEvents = (historyByOtId[order.id] ?? [])
               .map(extractDriverEvent)
               .filter((event): event is DriverEvent => event !== null)
+            const cmrEvents = (historyByOtId[order.id] ?? [])
+              .map(entry => {
+                const parsed = safeParseJson(entry.commentaire)
+                const source = typeof parsed?.source === 'string' ? parsed.source : null
+                if (source !== 'signature_cmr') return null
+                const signedBy = typeof parsed?.signed_by === 'string' ? parsed.signed_by : 'Signature numerique'
+                const signedAt = typeof parsed?.signed_at === 'string' ? parsed.signed_at : entry.created_at
+                return {
+                  id: entry.id,
+                  label: signedBy,
+                  signedAt,
+                } satisfies CmrSignatureEvent
+              })
+              .filter((event): event is CmrSignatureEvent => event !== null)
             const activeDriverStep = driverEvents[0]?.key ?? null
             const savingStep = savingProgressByOtId[order.id]
+            const signingCmr = Boolean(signingCmrByOtId[order.id])
+            const conducteurName = order.conducteur_id ? (conducteurNameById[order.conducteur_id] ?? '') : ''
+            const recipientProfileId = order.conducteur_id ? conducteurProfileIdByConducteurId[order.conducteur_id] : undefined
+            const tchatHref = `/tchat?autostart=1${recipientProfileId ? `&recipientId=${encodeURIComponent(recipientProfileId)}` : ''}${conducteurName ? `&recipient=${encodeURIComponent(conducteurName)}` : ''}&ot=${encodeURIComponent(order.reference)}`
 
             return (
               <article key={order.id} className="nx-panel border border-slate-700/60 bg-slate-900/80 p-4">
@@ -849,18 +1066,53 @@ function RouteSection({
                   ) : (
                     <span className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-400">GPS indisponible (adresses manquantes)</span>
                   )}
+                  <a
+                    href={tchatHref}
+                    className="rounded-xl border border-slate-700/80 bg-slate-900/70 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-cyan-500/45 hover:text-cyan-100"
+                  >
+                    Ouvrir messagerie
+                  </a>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const dispatchSummary = [
+                        `OT ${order.reference}`,
+                        `Client: ${clientsMap[order.client_id] ?? 'Client non renseigne'}`,
+                        `Chargement: ${loadAddress}`,
+                        `Livraison: ${unloadAddress}`,
+                        `Contact chargement: ${contactLoad}`,
+                        `Contact livraison: ${contactUnload}`,
+                        `CMR: ${order.numero_cmr ?? 'N/A'} | BL: ${order.numero_bl ?? 'N/A'}`,
+                      ].join('\n')
+
+                      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                        await navigator.clipboard.writeText(dispatchSummary)
+                      }
+                    }}
+                    className="rounded-xl border border-slate-700/80 bg-slate-900/70 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-cyan-500/45 hover:text-cyan-100"
+                  >
+                    Copier briefing mission
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { void onSignCmr(order) }}
+                    disabled={signingCmr}
+                    className="rounded-xl border border-slate-700/80 bg-slate-900/70 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-cyan-500/45 hover:text-cyan-100 disabled:opacity-60"
+                  >
+                    {signingCmr ? 'Signature CMR...' : 'Signer CMR'}
+                  </button>
                 </div>
 
                 <div className="mt-3 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/80">CRM mission pre-rempli</p>
                   <p className="mt-1 text-[11px] text-cyan-100/90">{crmPrefill}</p>
 
-                  {isConducteurSession && (
+                  {canManageProgress && (
                     <>
                       <textarea
                         value={crmNotesByOtId[order.id] ?? ''}
                         onChange={event => onCrmNoteChange(order.id, event.target.value)}
-                        placeholder="Commentaire conducteur (retard, attente quai, reserve, observation)."
+                        placeholder="Commentaire terrain (retard, attente quai, reserve, observation)."
                         className="mt-3 w-full rounded-xl border border-slate-700/80 bg-slate-900/80 px-3 py-2 text-xs text-slate-100 outline-none focus:border-cyan-500/60"
                         rows={3}
                       />
@@ -912,6 +1164,22 @@ function RouteSection({
                             </div>
                           )
                         })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/70">Signatures CMR</p>
+                    {cmrEvents.length === 0 ? (
+                      <p className="text-xs text-slate-400">Aucune signature CMR enregistree.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {cmrEvents.slice(0, 3).map(event => (
+                          <div key={event.id} className="rounded-lg border border-slate-700/70 bg-slate-900/80 px-3 py-2 text-xs text-slate-200">
+                            <p className="font-semibold text-cyan-100">{event.label}</p>
+                            <p className="mt-0.5 text-slate-400">{formatDateTime(event.signedAt)}</p>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>

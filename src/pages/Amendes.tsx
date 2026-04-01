@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'rea
 import { useAuth } from '@/lib/auth'
 import { deliverDemoMailToInbox, ensureDemoMailbox } from '@/lib/demoMail'
 import { DEMO_PROFILES } from '@/lib/demoUsers'
-import { createFineRecord, ensureDemoFineSeeds, extractPdfSearchText, listFineRecords, normalizePlate, parseFineDocument, patchFineRecord, subscribeFineUpdates, type FineConfidence, type FineNature, type FineRecord } from '@/lib/fines'
+import { createFineRecord, extractPdfSearchText, listFineRecords, normalizePlate, parseFineDocument, patchFineRecord, subscribeFineUpdates, type FineConfidence, type FineNature, type FineRecord } from '@/lib/fines'
 import { supabase } from '@/lib/supabase'
 import { serializeTchatPayload } from '@/lib/tchatMessage'
 
@@ -113,26 +113,6 @@ function statusLabel(status: FineRecord['status']) {
 function vehicleLabel(vehicule: VehiculeLite | null | undefined) {
   if (!vehicule) return 'Vehicule non detecte'
   return [vehicule.immatriculation, vehicule.marque, vehicule.modele].filter(Boolean).join(' · ')
-}
-
-function buildFallbackVehicule(): VehiculeLite {
-  return {
-    id: 'demo-fine-vehicule',
-    immatriculation: 'AA-000-AA',
-    marque: 'Demo',
-    modele: 'Conducteur',
-    statut: 'actif',
-  }
-}
-
-function buildSessionConducteur(profil: { id?: string; nom: string | null; prenom: string | null; email?: string | null }): ConducteurLite {
-  return {
-    id: `demo-conducteur-${profil.id ?? 'session'}`,
-    nom: profil.nom ?? 'Conducteur',
-    prenom: profil.prenom ?? 'Session',
-    email: profil.email ?? null,
-    statut: 'actif',
-  }
 }
 
 async function fileToDataUrl(file: File) {
@@ -317,36 +297,13 @@ export default function Amendes() {
       setVehicules(nextVehicules)
       setAffectations(nextAffectations)
 
-      const fallbackVehicule = buildFallbackVehicule()
-      const seedVehicules = nextVehicules.length > 0 ? nextVehicules : [fallbackVehicule]
-      const hasSessionConducteur =
-        Boolean(profil) &&
-        nextConducteurs.some(item =>
-          (profil?.email && normalizeIdentity(item.email) === normalizeIdentity(profil.email))
-          || conducteurIdentity(item) === conducteurIdentity({ prenom: profil?.prenom ?? '', nom: profil?.nom ?? '', email: profil?.email ?? null }),
-        )
-      const sessionConducteur = profil ? buildSessionConducteur({ id: profil.id, nom: profil.nom, prenom: profil.prenom, email: profil.email ?? null }) : null
-      const seedConducteurs = isConducteurSession && sessionConducteur && !hasSessionConducteur
-        ? [sessionConducteur, ...nextConducteurs]
-        : nextConducteurs
-      const seedAffectations = nextAffectations.length > 0
-        ? nextAffectations
-        : (isConducteurSession && sessionConducteur
-          ? [{ conducteur_id: sessionConducteur.id, vehicule_id: seedVehicules[0]?.id ?? null, actif: true, date_debut: new Date().toISOString(), date_fin: null }]
-          : [])
-
-      ensureDemoFineSeeds({
-        conducteurs: seedConducteurs,
-        vehicules: seedVehicules,
-        affectations: seedAffectations,
-      })
       refreshFines()
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Chargement impossible.')
     } finally {
       setLoading(false)
     }
-  }, [isConducteurSession, profil, refreshFines])
+  }, [isConducteurSession, refreshFines])
 
   useEffect(() => {
     void loadContext()

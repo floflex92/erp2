@@ -17,6 +17,7 @@ import {
   setAffreteurEquipmentActive,
   setAffreteurVehicleActive,
   submitAffreteurOnboarding,
+  syncAffreteurOnboardingSharedFlow,
   subscribeAffretementPortalUpdates,
   upsertAffretementOperationalUpdate,
   updateAffretementContractByAffreteur,
@@ -165,6 +166,16 @@ export default function EspaceAffreteur() {
     return unsubscribe
   }, [profil?.id, user?.email])
 
+  const onboardingId = onboarding?.id ?? null
+  const onboardingStatus = onboarding?.status ?? null
+
+  useEffect(() => {
+    if (!onboardingId || onboardingStatus !== 'validee') return
+    void syncAffreteurOnboardingSharedFlow(onboardingId).then(() => {
+      if (profil?.id) reload(profil.id, user?.email)
+    })
+  }, [onboardingId, onboardingStatus, profil?.id, user?.email])
+
   useEffect(() => {
     const ids = Array.from(new Set(contracts.map(item => item.otId)))
     if (ids.length === 0) {
@@ -213,7 +224,7 @@ export default function EspaceAffreteur() {
     }
   }, [contracts])
 
-  const canUsePortal = onboarding?.status === 'validee'
+  const canUsePortal = onboardingStatus === 'validee'
 
   const activeContracts = useMemo(
     () => contracts.filter(item => item.status === 'propose' || item.status === 'accepte' || item.status === 'en_cours').length,

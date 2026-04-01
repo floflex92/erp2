@@ -8,6 +8,10 @@ import { parseTchatPayload } from '@/lib/tchatMessage'
 import { ROLE_LABELS, canChatWith, type Profil, type Role, useAuth } from '@/lib/auth'
 import { looseSupabase } from '@/lib/supabaseLoose'
 
+type ConversationIdRow = { conversation_id: string }
+type ConversationParticipantRow = ConversationIdRow & { profils: Profil }
+type ConversationMessageRow = ConversationIdRow & { content: string; created_at: string }
+
 function displayName(profile: Profil) {
   return profile.prenom || profile.nom ? [profile.prenom, profile.nom].filter(Boolean).join(' ') : ROLE_LABELS[profile.role] ?? profile.role
 }
@@ -29,8 +33,8 @@ export default function Communication() {
       setAllProfils(DEMO_PROFILES.filter(candidate => candidate.id !== profil.id && canChatWith(role as Role, candidate.role)))
       return
     }
-    void looseSupabase.from('profils').select('id, nom, prenom, role').neq('id' as any, profil.id as any).then(({ data }: any) => {
-      setAllProfils((data ?? []).filter((candidate: Profil) => canChatWith(role as Role, candidate.role)))
+    void looseSupabase.from('profils').select('id, nom, prenom, role').neq('id', profil.id).then((result: { data?: unknown[] | null }) => {
+      setAllProfils(((result.data ?? []) as Profil[]).filter(candidate => canChatWith(role as Role, candidate.role)))
     })
   }, [profil, role, demoMode])
 
@@ -87,25 +91,25 @@ export default function Communication() {
       return
     }
 
-    void looseSupabase.from('tchat_participants').select('conversation_id').eq('profil_id' as any, profil.id as any).then(async ({ data: myParts }: any) => {
-      const convIds = ((myParts ?? []) as any[]).map(item => item.conversation_id)
+    void looseSupabase.from('tchat_participants').select('conversation_id').eq('profil_id', profil.id).then(async (result: { data?: unknown[] | null }) => {
+      const convIds = ((result.data ?? []) as ConversationIdRow[]).map(item => item.conversation_id)
       if (convIds.length === 0) {
         setRecentChatItems([])
         setChatUnread(0)
         return
       }
       const [{ data: parts }, { data: unreadData }, { data: lastMsgs }] = await Promise.all([
-        looseSupabase.from('tchat_participants').select('conversation_id, profils(id, nom, prenom, role)').in('conversation_id' as any, convIds as any).neq('profil_id' as any, profil.id as any),
-        looseSupabase.from('tchat_messages').select('conversation_id').in('conversation_id' as any, convIds as any).neq('sender_id' as any, profil.id as any).is('read_at' as any, null as any),
-        looseSupabase.from('tchat_messages').select('conversation_id, content, created_at').in('conversation_id' as any, convIds as any).order('created_at', { ascending: false }),
+        looseSupabase.from('tchat_participants').select('conversation_id, profils(id, nom, prenom, role)').in('conversation_id', convIds).neq('profil_id', profil.id),
+        looseSupabase.from('tchat_messages').select('conversation_id').in('conversation_id', convIds).neq('sender_id', profil.id).is('read_at', null),
+        looseSupabase.from('tchat_messages').select('conversation_id, content, created_at').in('conversation_id', convIds).order('created_at', { ascending: false }),
       ])
       const unreadMap: Record<string, number> = {}
-      for (const item of ((unreadData ?? []) as any[])) unreadMap[item.conversation_id] = (unreadMap[item.conversation_id] ?? 0) + 1
+      for (const item of ((unreadData ?? []) as ConversationIdRow[])) unreadMap[item.conversation_id] = (unreadMap[item.conversation_id] ?? 0) + 1
       const participantsMap: Record<string, Profil[]> = {}
-      for (const item of ((parts ?? []) as any[])) participantsMap[item.conversation_id] = [...(participantsMap[item.conversation_id] ?? []), item.profils]
+      for (const item of ((parts ?? []) as ConversationParticipantRow[])) participantsMap[item.conversation_id] = [...(participantsMap[item.conversation_id] ?? []), item.profils]
       const seen = new Set<string>()
-      const items = []
-      for (const item of ((lastMsgs ?? []) as any[])) {
+      const items: Array<{ id: string; title: string; excerpt: string; unread: number; important: boolean }> = []
+      for (const item of ((lastMsgs ?? []) as ConversationMessageRow[])) {
         if (seen.has(item.conversation_id)) continue
         seen.add(item.conversation_id)
         const participants = participantsMap[item.conversation_id] ?? []

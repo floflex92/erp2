@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Tables, TablesInsert } from '@/lib/database.types'
 import { STATUT_OPS, StatutOpsDot, type StatutOps } from '@/lib/statut-ops'
 import BourseAffretementPanel from '@/components/transports/BourseAffretementPanel'
+import SiteMapPicker from '@/components/transports/SiteMapPicker'
 import { useLogisticSites } from '@/hooks/useLogisticSites'
 import { useTransportStatusHistory } from '@/hooks/useTransportStatusHistory'
 import { useAuth } from '@/lib/auth'
+import { computeTruckRoute } from '@/lib/routing'
 import {
   evaluateAffretementCompletionReadiness,
   findAffreteurOnboardingForScope,
@@ -28,6 +30,21 @@ type ClientLookup = { id: string; nom: string }
 type ConducteurLookup = { id: string; nom: string; prenom: string }
 type VehiculeLookup = { id: string; immatriculation: string; marque: string | null }
 type AffreteurLookup = { id: string; company_name: string }
+type LogisticSite = Tables<'sites_logistiques'>
+type SiteUsageType = 'chargement' | 'livraison' | 'mixte'
+type SiteKind = 'chargement' | 'livraison'
+type SiteDraft = {
+  entreprise_id: string
+  nom: string
+  adresse: string
+  usage_type: SiteUsageType
+  horaires_ouverture: string
+  jours_ouverture: string
+  notes_livraison: string
+  latitude: number | null
+  longitude: number | null
+  showMap: boolean
+}
 
 const STATUT_COLORS: Record<string, string> = {
   brouillon:   'bg-slate-100 text-slate-600',
@@ -56,6 +73,11 @@ const TRANSPORT_STATUS_COLORS: Record<TransportStatus, string> = {
 const TYPE_TRANSPORT_LABELS: Record<string, string> = {
   complet: 'Complet', partiel: 'Partiel', express: 'Express', groupage: 'Groupage',
 }
+const SITE_USAGE_LABELS: Record<SiteUsageType, string> = {
+  chargement: 'Chargement uniquement',
+  livraison: 'Livraison uniquement',
+  mixte: 'Chargement et livraison',
+}
 
 const EMPTY_OT: TablesInsert<'ordres_transport'> = {
   client_id: '', type_transport: 'complet', statut: 'brouillon',
@@ -73,6 +95,44 @@ const EMPTY_OT: TablesInsert<'ordres_transport'> = {
 
 const inp = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-300'
 
+const EMPTY_SITE_DRAFT: SiteDraft = {
+  entreprise_id: '',
+  nom: '',
+  adresse: '',
+  usage_type: 'mixte',
+  horaires_ouverture: '',
+  jours_ouverture: '',
+  notes_livraison: '',
+  latitude: null,
+  longitude: null,
+  showMap: false,
+}
+
+function normalizeAddressValue(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
+function toDateTimeLocalValue(value: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (num: number) => String(num).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function siteSupportsKind(site: LogisticSite, kind: SiteKind) {
+  return site.usage_type === 'mixte' || site.usage_type === kind
+}
+
+function siteUsageLabel(site: LogisticSite) {
+  return SITE_USAGE_LABELS[(site.usage_type as SiteUsageType) ?? 'mixte'] ?? 'Chargement et livraison'
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
@@ -86,9 +146,11 @@ export default function Transports() {
   const { role, profil, user } = useAuth()
   const isAffreteurSession = role === 'affreteur'
   const canCreateOt = !isAffreteurSession
+  const canEditOt = !isAffreteurSession
   const canChangeOtStatus = !isAffreteurSession
   const canDeleteOt = !isAffreteurSession
   const canUseBourse = role === 'admin' || role === 'dirigeant' || role === 'exploitant'
+  const canManageSites = role === 'admin' || role === 'dirigeant' || role === 'exploitant'
 
   const [list, setList] = useState<OT[]>([])
   const [clients, setClients] = useState<ClientLookup[]>([])
@@ -99,19 +161,26 @@ export default function Transports() {
   const [search, setSearch] = useState('')
   const [filterStatut, setFilterStatut] = useState<string>('tous')
   const [listView, setListView] = useState<'principal' | 'affretement'>('principal')
-  const [transportTab, setTransportTab] = useState<'ot' | 'bourse'>('ot')
+  const [transportTab, setTransportTab] = useState<'ot' | 'bourse' | 'fiches'>('ot')
   const [statusGuardNotice, setStatusGuardNotice] = useState<string | null>(null)
   const [affreteurOtIds, setAffreteurOtIds] = useState<string[]>([])
+  const [groupageTargetId, setGroupageTargetId] = useState('')
 
   const [showForm, setShowForm] = useState(false)
+  const [editingOtId, setEditingOtId] = useState<string | null>(null)
   const [form, setForm] = useState<TablesInsert<'ordres_transport'>>(EMPTY_OT)
+  const [calculatingDistance, setCalculatingDistance] = useState(false)
+  const [siteDrafts, setSiteDrafts] = useState<Record<SiteKind, SiteDraft>>({
+    chargement: { ...EMPTY_SITE_DRAFT },
+    livraison: { ...EMPTY_SITE_DRAFT },
+  })
   const [saving, setSaving] = useState(false)
 
   // Detail panel
   const [selected, setSelected] = useState<OT | null>(null)
   const [etapes, setEtapes] = useState<EtapeMission[]>([])
   const [loadingEtapes, setLoadingEtapes] = useState(false)
-  const { sites, addSite } = useLogisticSites()
+  const { sites, addSite, updateSite } = useLogisticSites()
   const { history: transportStatusHistory, loading: loadingTransportHistory, updateStatus: updateTransportStatus, load: loadTransportHistory } = useTransportStatusHistory()
 
   async function loadAll() {
@@ -122,7 +191,9 @@ export default function Transports() {
       supabase.from('conducteurs').select('id, nom, prenom').order('nom'),
       supabase.from('vehicules').select('id, immatriculation, marque').order('immatriculation'),
     ])
-    setList(ots.data ?? [])
+    const nextList = ots.data ?? []
+    setList(nextList)
+    setSelected(current => (current ? (nextList.find(ot => ot.id === current.id) ?? null) : current))
     setClients(cls.data ?? [])
     setConducteurs(conds.data ?? [])
     setVehicules(vehs.data ?? [])
@@ -183,6 +254,10 @@ export default function Transports() {
     }
   }, [scopedList, selected])
 
+  useEffect(() => {
+    setGroupageTargetId('')
+  }, [selected?.id])
+
   const clientMap = Object.fromEntries(clients.map(c => [c.id, c.nom]))
   const conducteurMap = Object.fromEntries(conducteurs.map(c => [c.id, `${c.prenom} ${c.nom}`]))
   const vehiculeMap = Object.fromEntries(vehicules.map(v => [v.id, `${v.immatriculation}${v.marque ? ` · ${v.marque}` : ''}`]))
@@ -198,8 +273,159 @@ export default function Transports() {
     return matchSearch && matchStatut && matchView
   })
 
+  const selectedGroupMembers = useMemo(() => {
+    if (!selected?.groupage_id) return []
+    return scopedList
+      .filter(ot => ot.groupage_id === selected.groupage_id)
+      .sort((left, right) => left.reference.localeCompare(right.reference, 'fr-FR'))
+  }, [scopedList, selected?.groupage_id])
+
+  const groupageCandidates = useMemo(() => {
+    if (!selected) return []
+    return scopedList
+      .filter(ot => ot.id !== selected.id)
+      .filter(ot => !ot.est_affretee)
+      .filter(ot => !ot.groupage_fige)
+      .sort((left, right) => left.reference.localeCompare(right.reference, 'fr-FR'))
+  }, [scopedList, selected])
+
   function setF<K extends keyof TablesInsert<'ordres_transport'>>(k: K, v: TablesInsert<'ordres_transport'>[K]) {
     setForm(f => ({ ...f, [k]: v }))
+  }
+
+  function closeTransportForm() {
+    setShowForm(false)
+    setEditingOtId(null)
+    setForm(EMPTY_OT)
+    setSiteDrafts({
+      chargement: { ...EMPTY_SITE_DRAFT },
+      livraison: { ...EMPTY_SITE_DRAFT },
+    })
+  }
+
+  function openCreateForm() {
+    setEditingOtId(null)
+    setForm(EMPTY_OT)
+    setSiteDrafts({
+      chargement: { ...EMPTY_SITE_DRAFT },
+      livraison: { ...EMPTY_SITE_DRAFT },
+    })
+    setShowForm(true)
+  }
+
+  function openEditForm(ot: OT) {
+    setEditingOtId(ot.id)
+    setForm({
+      client_id: ot.client_id,
+      type_transport: ot.type_transport,
+      statut: ot.statut,
+      source_course: ot.source_course,
+      statut_transport: ot.statut_transport,
+      donneur_ordre_id: ot.donneur_ordre_id,
+      est_affretee: ot.est_affretee,
+      affreteur_id: ot.affreteur_id,
+      chargement_site_id: ot.chargement_site_id,
+      livraison_site_id: ot.livraison_site_id,
+      reference_externe: ot.reference_externe,
+      nature_marchandise: ot.nature_marchandise,
+      poids_kg: ot.poids_kg,
+      volume_m3: ot.volume_m3,
+      nombre_colis: ot.nombre_colis,
+      date_chargement_prevue: toDateTimeLocalValue(ot.date_chargement_prevue),
+      date_livraison_prevue: toDateTimeLocalValue(ot.date_livraison_prevue),
+      conducteur_id: ot.conducteur_id,
+      vehicule_id: ot.vehicule_id,
+      remorque_id: ot.remorque_id,
+      prix_ht: ot.prix_ht,
+      taux_tva: ot.taux_tva,
+      distance_km: ot.distance_km,
+      numero_cmr: ot.numero_cmr,
+      numero_bl: ot.numero_bl,
+      instructions: ot.instructions,
+      notes_internes: ot.notes_internes,
+    })
+    const enterpriseId = (ot.donneur_ordre_id || ot.client_id || '').trim()
+    setSiteDrafts({
+      chargement: { ...EMPTY_SITE_DRAFT, entreprise_id: enterpriseId },
+      livraison: { ...EMPTY_SITE_DRAFT, entreprise_id: enterpriseId },
+    })
+    setShowForm(true)
+  }
+
+  function setSiteDraft<K extends keyof SiteDraft>(kind: SiteKind, key: K, value: SiteDraft[K]) {
+    setSiteDrafts(current => ({
+      ...current,
+      [kind]: {
+        ...current[kind],
+        [key]: value,
+      },
+    }))
+  }
+
+  function resetSiteDraft(kind: SiteKind) {
+    setSiteDrafts(current => ({
+      ...current,
+      [kind]: {
+        ...EMPTY_SITE_DRAFT,
+      },
+    }))
+  }
+
+  async function createOrSelectSite(kind: SiteKind) {
+    const draft = siteDrafts[kind]
+    const entrepriseId = (draft.entreprise_id || form.donneur_ordre_id || form.client_id || '').trim()
+    const adresse = draft.adresse.trim()
+
+    if (!entrepriseId) {
+      setStatusGuardNotice('Impossible d ajouter une adresse: renseignez d abord le nom d entreprise.')
+      return
+    }
+
+    if (!adresse) {
+      setStatusGuardNotice('Adresse manquante: ajoutez une adresse manuelle ou cliquez sur la carte.')
+      return
+    }
+
+    const existing = sites.find(site =>
+      site.entreprise_id === entrepriseId && normalizeAddressValue(site.adresse) === normalizeAddressValue(adresse),
+    )
+
+    if (existing) {
+      const nextUsageType = siteSupportsKind(existing, kind) ? existing.usage_type : 'mixte'
+      if (nextUsageType !== existing.usage_type) {
+        await updateSite(existing.id, { usage_type: nextUsageType })
+      }
+      if (kind === 'chargement') setF('chargement_site_id', existing.id)
+      if (kind === 'livraison') setF('livraison_site_id', existing.id)
+      setStatusGuardNotice('Adresse existante detectee: site deja present en base et selectionne.')
+      resetSiteDraft(kind)
+      return
+    }
+
+    try {
+      const companyName = clientMap[entrepriseId] ?? 'Entreprise'
+      const defaultName = kind === 'chargement'
+        ? `Chargement - ${companyName}`
+        : `Livraison - ${companyName}`
+      const created = await addSite({
+        nom: draft.nom.trim() || defaultName,
+        adresse,
+        entreprise_id: entrepriseId,
+        usage_type: draft.usage_type,
+        horaires_ouverture: draft.horaires_ouverture.trim() || null,
+        jours_ouverture: draft.jours_ouverture.trim() || null,
+        notes_livraison: draft.notes_livraison.trim() || null,
+        latitude: draft.latitude,
+        longitude: draft.longitude,
+      })
+
+      if (kind === 'chargement') setF('chargement_site_id', created.id)
+      if (kind === 'livraison') setF('livraison_site_id', created.id)
+      setStatusGuardNotice('Nouveau lieu cree et rattache a l entreprise.')
+      resetSiteDraft(kind)
+    } catch {
+      setStatusGuardNotice('Creation du site logistique impossible pour le moment.')
+    }
   }
 
   async function submit(e: React.FormEvent) {
@@ -210,13 +436,20 @@ export default function Transports() {
     }
     if (!form.client_id) return
     setSaving(true)
-    await supabase.from('ordres_transport').insert({
+    const payload = {
       ...form,
       donneur_ordre_id: form.donneur_ordre_id || form.client_id,
-    })
+    }
+
+    if (editingOtId) {
+      await supabase.from('ordres_transport').update(payload).eq('id', editingOtId)
+    } else {
+      await supabase.from('ordres_transport').insert(payload)
+    }
+
     setSaving(false)
-    setShowForm(false)
-    setForm(EMPTY_OT)
+    setStatusGuardNotice(editingOtId ? 'OT mis a jour avec succes.' : 'OT cree avec succes.')
+    closeTransportForm()
     void loadAll()
   }
 
@@ -233,22 +466,79 @@ export default function Transports() {
   }
 
   async function quickCreateSite(kind: 'chargement' | 'livraison') {
-    const nom = window.prompt(`Nom du site ${kind}`)?.trim()
-    if (!nom) return
-    const adresse = window.prompt(`Adresse du site ${kind}`)?.trim()
-    if (!adresse) return
-    try {
-      const created = await addSite({
-        nom,
-        adresse,
-        entreprise_id: form.donneur_ordre_id || form.client_id || null,
-      })
-      if (kind === 'chargement') setF('chargement_site_id', created.id)
-      if (kind === 'livraison') setF('livraison_site_id', created.id)
-    } catch {
-      setStatusGuardNotice('Creation du site logistique impossible pour le moment.')
-    }
+    await createOrSelectSite(kind)
   }
+
+  const computeDistanceFromSelectedSites = useCallback(async (options?: { silent?: boolean; onlyIfEmpty?: boolean }) => {
+    if (!showForm) return
+    if (options?.onlyIfEmpty && form.distance_km != null && form.distance_km > 0) return
+
+    if (!form.chargement_site_id || !form.livraison_site_id) {
+      if (!options?.silent) setStatusGuardNotice('Selectionnez un site de chargement et un site de livraison pour calculer la distance.')
+      return
+    }
+
+    const departure = sites.find(site => site.id === form.chargement_site_id)
+    const arrival = sites.find(site => site.id === form.livraison_site_id)
+    if (!departure || !arrival) {
+      if (!options?.silent) setStatusGuardNotice('Les lieux selectionnes sont introuvables.')
+      return
+    }
+
+    if (departure.latitude == null || departure.longitude == null || arrival.latitude == null || arrival.longitude == null) {
+      if (!options?.silent) {
+        setStatusGuardNotice('Coordonnees GPS manquantes sur les lieux. Ouvrez la fiche du lieu et posez un point sur la carte.')
+      }
+      return
+    }
+
+    setCalculatingDistance(true)
+    try {
+      const route = await computeTruckRoute(
+        { latitude: Number(departure.latitude), longitude: Number(departure.longitude) },
+        { latitude: Number(arrival.latitude), longitude: Number(arrival.longitude) },
+      )
+
+      const roundedDistance = Math.round(route.distanceKm * 10) / 10
+      setF('distance_km', roundedDistance)
+
+      if (!options?.silent) {
+        const durationHours = Math.floor(route.durationMinutes / 60)
+        const durationRemainder = Math.round(route.durationMinutes % 60)
+        setStatusGuardNotice(
+          `Itineraire poids lourd calcule: ${roundedDistance} km (${durationHours}h${String(durationRemainder).padStart(2, '0')}).`,
+        )
+      }
+    } catch (error) {
+      if (!options?.silent) {
+        setStatusGuardNotice(error instanceof Error ? error.message : 'Calcul d itineraire indisponible pour le moment.')
+      }
+    } finally {
+      setCalculatingDistance(false)
+    }
+  }, [form.chargement_site_id, form.distance_km, form.livraison_site_id, showForm, sites])
+
+  useEffect(() => {
+    if (!showForm) return
+    if (!form.chargement_site_id || !form.livraison_site_id) return
+    void computeDistanceFromSelectedSites({ silent: true, onlyIfEmpty: true })
+  }, [computeDistanceFromSelectedSites, form.chargement_site_id, form.livraison_site_id, showForm])
+
+  useEffect(() => {
+    const fallback = (form.donneur_ordre_id || form.client_id || '').trim()
+    if (!fallback) return
+
+    setSiteDrafts(current => ({
+      chargement: {
+        ...current.chargement,
+        entreprise_id: current.chargement.entreprise_id || fallback,
+      },
+      livraison: {
+        ...current.livraison,
+        entreprise_id: current.livraison.entreprise_id || fallback,
+      },
+    }))
+  }, [form.client_id, form.donneur_ordre_id])
 
   async function updateStatut(ot: OT, statut: string) {
     if (!canChangeOtStatus) return
@@ -270,6 +560,91 @@ export default function Transports() {
     void loadAll()
   }
 
+  async function normalizeSingletonGroupage(groupId: string) {
+    const membersRes = await supabase
+      .from('ordres_transport')
+      .select('id')
+      .eq('groupage_id', groupId)
+
+    if ((membersRes.data?.length ?? 0) <= 1) {
+      await supabase
+        .from('ordres_transport')
+        .update({ groupage_id: null, groupage_fige: false })
+        .eq('groupage_id', groupId)
+    }
+  }
+
+  async function linkSelectedToGroupage() {
+    if (!selected || !groupageTargetId) return
+    if (!canChangeOtStatus) return
+
+    const target = scopedList.find(ot => ot.id === groupageTargetId)
+    if (!target) {
+      setStatusGuardNotice('Course cible introuvable pour le groupage.')
+      return
+    }
+    if (selected.groupage_fige || target.groupage_fige) {
+      setStatusGuardNotice('Groupage fige: deliez ou defigez avant toute modification.')
+      return
+    }
+
+    const previousSelectedGroupId = selected.groupage_id
+    const previousTargetGroupId = target.groupage_id
+    const nextGroupId = selected.groupage_id ?? target.groupage_id ?? crypto.randomUUID()
+
+    const patch = {
+      groupage_id: nextGroupId,
+      groupage_fige: false,
+      type_transport: 'groupage',
+    }
+
+    await supabase.from('ordres_transport').update(patch).in('id', [selected.id, target.id])
+
+    if (previousSelectedGroupId && previousSelectedGroupId !== nextGroupId) {
+      await normalizeSingletonGroupage(previousSelectedGroupId)
+    }
+    if (previousTargetGroupId && previousTargetGroupId !== nextGroupId) {
+      await normalizeSingletonGroupage(previousTargetGroupId)
+    }
+
+    setStatusGuardNotice('Course liee au groupage avec succes.')
+    setGroupageTargetId('')
+    await loadAll()
+  }
+
+  async function toggleSelectedGroupageFreeze(nextFrozen: boolean) {
+    if (!selected?.groupage_id) return
+    if (!canChangeOtStatus) return
+
+    await supabase
+      .from('ordres_transport')
+      .update({ groupage_fige: nextFrozen })
+      .eq('groupage_id', selected.groupage_id)
+
+    setStatusGuardNotice(nextFrozen ? 'Groupage fige: modifications bloquees.' : 'Groupage degele: modifications autorisees.')
+    await loadAll()
+  }
+
+  async function unlinkSelectedFromGroupage() {
+    if (!selected?.groupage_id) return
+    if (!canChangeOtStatus) return
+    if (selected.groupage_fige) {
+      setStatusGuardNotice('Ce groupage est fige. Defigez-le avant de delier une course.')
+      return
+    }
+
+    const previousGroupId = selected.groupage_id
+
+    await supabase
+      .from('ordres_transport')
+      .update({ groupage_id: null, groupage_fige: false })
+      .eq('id', selected.id)
+
+    await normalizeSingletonGroupage(previousGroupId)
+    setStatusGuardNotice('Course deliee du groupage.')
+    await loadAll()
+  }
+
   async function del(id: string) {
     if (!canDeleteOt) return
     if (!confirm('Supprimer cet ordre de transport ?')) return
@@ -284,6 +659,7 @@ export default function Transports() {
         <div className="border-b px-4" style={{ borderColor: 'var(--border)' }}>
           <div className="flex gap-4">
             <button type="button" onClick={() => setTransportTab('ot')} className={`px-1 py-3 text-sm font-semibold ${transportTab === 'ot' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-slate-700'}`}>Ordres de transport</button>
+            {canManageSites && <button type="button" onClick={() => setTransportTab('fiches')} className={`px-1 py-3 text-sm font-semibold ${transportTab === 'fiches' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-slate-700'}`}>Fiches lieux</button>}
             {canUseBourse && (
               <button type="button" onClick={() => setTransportTab('bourse')} className={`px-1 py-3 text-sm font-semibold ${transportTab === 'bourse' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-slate-700'}`}>Bourse du fret</button>
             )}
@@ -295,6 +671,15 @@ export default function Transports() {
 
       {transportTab === 'bourse' && canUseBourse ? (
         <BourseAffretementPanel orders={list} clientMap={clientMap} onRefresh={() => { void loadAll() }} />
+      ) : transportTab === 'fiches' ? (
+        <LogisticSitesTab
+          sites={sites}
+          clients={clients}
+          clientMap={clientMap}
+          onUpdate={updateSite}
+          onNotice={setStatusGuardNotice}
+          canEdit={canManageSites}
+        />
       ) : (
         <div className="flex gap-6 h-full">
       {/* Left: list */}
@@ -321,7 +706,7 @@ export default function Transports() {
               Suivi affretement
             </button>
           <button
-            onClick={() => setShowForm(true)}
+            onClick={openCreateForm}
             disabled={!canCreateOt}
             className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors disabled:opacity-50"
           >
@@ -365,7 +750,7 @@ export default function Transports() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  {['Référence OT', 'Réf. transport', 'Donneur ordre', 'Type', 'Livraison prévue', 'Affrété', 'Statut transport', ''].map(h => (
+                  {['Référence OT', 'Réf. transport', 'Donneur ordre', 'Type', 'Livraison prévue', 'Affrété', 'Groupage', 'Statut transport', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -398,19 +783,38 @@ export default function Transports() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
+                      {ot.groupage_id ? (
+                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${ot.groupage_fige ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                          {ot.groupage_fige ? 'Fige' : 'Deliable'}
+                        </span>
+                      ) : (
+                        <span className="text-xs px-2 py-1 rounded-full font-medium bg-slate-100 text-slate-500">Aucun</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
                       <span className={`text-xs px-2 py-1 rounded-full font-medium ${TRANSPORT_STATUS_COLORS[ot.statut_transport as TransportStatus] ?? 'bg-slate-100 text-slate-600'}`}>
                         {TRANSPORT_STATUS_LABELS[ot.statut_transport as TransportStatus] ?? ot.statut_transport}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {canDeleteOt && (
-                        <button
-                          onClick={ev => { ev.stopPropagation(); del(ot.id) }}
-                          className="text-xs text-slate-400 hover:text-red-500 transition-colors"
-                        >
-                          Suppr.
-                        </button>
-                      )}
+                      <div className="flex items-center justify-end gap-2">
+                        {canEditOt && (
+                          <button
+                            onClick={ev => { ev.stopPropagation(); openEditForm(ot) }}
+                            className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
+                          >
+                            Modifier
+                          </button>
+                        )}
+                        {canDeleteOt && (
+                          <button
+                            onClick={ev => { ev.stopPropagation(); del(ot.id) }}
+                            className="text-xs text-slate-400 hover:text-red-500 transition-colors"
+                          >
+                            Suppr.
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -438,7 +842,18 @@ export default function Transports() {
                   <span className="text-xs text-slate-500">{TYPE_TRANSPORT_LABELS[selected.type_transport] ?? selected.type_transport}</span>
                 </div>
               </div>
-              <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
+              <div className="flex items-center gap-2">
+                {canEditOt && (
+                  <button
+                    type="button"
+                    onClick={() => openEditForm(selected)}
+                    className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
+                  >
+                    Modifier l OT
+                  </button>
+                )}
+                <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
+              </div>
             </div>
 
             <div className="px-5 py-3 border-b bg-slate-50">
@@ -455,6 +870,73 @@ export default function Transports() {
                 <span className="text-xs text-slate-500">
                   {selected.est_affretee ? 'Course retiree du planning principal et suivie dans la vue affretement.' : 'Course visible dans le planning principal.'}
                 </span>
+              </div>
+            </div>
+
+            <div className="px-5 py-3 border-b bg-slate-50/50">
+              <p className="text-xs font-medium text-slate-500 mb-2">Groupage</p>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${selected.groupage_id ? (selected.groupage_fige ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700') : 'bg-slate-100 text-slate-600'}`}>
+                    {selected.groupage_id ? (selected.groupage_fige ? 'Lot fige' : 'Lot deliable') : 'Hors groupage'}
+                  </span>
+                  {selected.groupage_id && (
+                    <span className="text-xs text-slate-500">{selectedGroupMembers.length} course{selectedGroupMembers.length !== 1 ? 's' : ''} dans le lot</span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    className={`${inp} max-w-xs`}
+                    value={groupageTargetId}
+                    onChange={event => setGroupageTargetId(event.target.value)}
+                    disabled={!canChangeOtStatus || selected.groupage_fige}
+                  >
+                    <option value="">Selectionner une course a lier</option>
+                    {groupageCandidates.map(item => (
+                      <option key={item.id} value={item.id}>
+                        {item.reference} - {clientMap[item.client_id] ?? 'Client inconnu'}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => { void linkSelectedToGroupage() }}
+                    disabled={!groupageTargetId || !canChangeOtStatus || selected.groupage_fige}
+                    className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-white disabled:opacity-50"
+                  >
+                    Lier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { void unlinkSelectedFromGroupage() }}
+                    disabled={!selected.groupage_id || !canChangeOtStatus}
+                    className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-white disabled:opacity-50"
+                  >
+                    Delier cette course
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { void toggleSelectedGroupageFreeze(!selected.groupage_fige) }}
+                    disabled={!selected.groupage_id || !canChangeOtStatus}
+                    className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-white disabled:opacity-50"
+                  >
+                    {selected.groupage_fige ? 'Defiger le lot' : 'Figer le lot'}
+                  </button>
+                </div>
+
+                {selectedGroupMembers.length > 0 && (
+                  <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-600">
+                    <p className="font-medium text-slate-700 mb-1">Courses du lot</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedGroupMembers.map(item => (
+                        <span key={item.id} className={`rounded-full px-2 py-0.5 ${item.id === selected.id ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                          {item.reference}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -647,48 +1129,51 @@ export default function Transports() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b">
-              <h3 className="text-lg font-semibold">Nouvel Ordre de Transport</h3>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+              <h3 className="text-lg font-semibold">{editingOtId ? 'Modifier l ordre de transport' : 'Nouvel Ordre de Transport'}</h3>
+              <button onClick={closeTransportForm} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
             <form onSubmit={submit} className="p-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
+                  <p className="text-sm font-semibold text-slate-700 mb-3">Informations essentielles</p>
+                  <div className="grid grid-cols-2 gap-4">
                   <Field label="Client *">
                     <select className={inp} value={form.client_id} onChange={e => { setF('client_id', e.target.value); if (!form.donneur_ordre_id) setF('donneur_ordre_id', e.target.value) }} required>
                       <option value="">Sélectionner un client</option>
                       {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
                     </select>
                   </Field>
+                    <Field label="Donneur d ordre *">
+                      <select className={inp} value={form.donneur_ordre_id ?? ''} onChange={e => setF('donneur_ordre_id', e.target.value)} required>
+                        <option value="">Sélectionner une entreprise</option>
+                        {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Source course">
+                      <select className={inp} value={form.source_course ?? 'manuel'} onChange={e => setF('source_course', e.target.value)}>
+                        {TRANSPORT_SOURCES.map(item => <option key={item} value={item}>{item}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Type de transport">
+                      <select className={inp} value={form.type_transport ?? 'complet'} onChange={e => setF('type_transport', e.target.value)}>
+                        {Object.entries(TYPE_TRANSPORT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Statut transport">
+                      <select className={inp} value={form.statut_transport ?? 'en_attente_validation'} onChange={e => setF('statut_transport', e.target.value)}>
+                        {TRANSPORT_STATUS_FLOW.map(item => <option key={item} value={item}>{TRANSPORT_STATUS_LABELS[item]}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Statut initial">
+                      <select className={inp} value={form.statut ?? 'brouillon'} onChange={e => setF('statut', e.target.value)}>
+                        {Object.entries(STATUT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Référence externe">
+                      <input className={inp} value={form.reference_externe ?? ''} onChange={e => setF('reference_externe', e.target.value || null)} />
+                    </Field>
+                  </div>
                 </div>
-                <Field label="Donneur d ordre *">
-                  <select className={inp} value={form.donneur_ordre_id ?? ''} onChange={e => setF('donneur_ordre_id', e.target.value)} required>
-                    <option value="">Sélectionner une entreprise</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
-                  </select>
-                </Field>
-                <Field label="Source course">
-                  <select className={inp} value={form.source_course ?? 'manuel'} onChange={e => setF('source_course', e.target.value)}>
-                    {TRANSPORT_SOURCES.map(item => <option key={item} value={item}>{item}</option>)}
-                  </select>
-                </Field>
-                <Field label="Type de transport">
-                  <select className={inp} value={form.type_transport ?? 'complet'} onChange={e => setF('type_transport', e.target.value)}>
-                    {Object.entries(TYPE_TRANSPORT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                </Field>
-                <Field label="Statut transport">
-                  <select className={inp} value={form.statut_transport ?? 'en_attente_validation'} onChange={e => setF('statut_transport', e.target.value)}>
-                    {TRANSPORT_STATUS_FLOW.map(item => <option key={item} value={item}>{TRANSPORT_STATUS_LABELS[item]}</option>)}
-                  </select>
-                </Field>
-                <Field label="Statut initial">
-                  <select className={inp} value={form.statut ?? 'brouillon'} onChange={e => setF('statut', e.target.value)}>
-                    {Object.entries(STATUT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                </Field>
-                <Field label="Référence externe">
-                  <input className={inp} value={form.reference_externe ?? ''} onChange={e => setF('reference_externe', e.target.value || null)} />
-                </Field>
 
                 <div className="col-span-2 border-t pt-4 mt-1">
                   <p className="text-sm font-semibold text-slate-700 mb-3">Lieux logistiques</p>
@@ -697,19 +1182,117 @@ export default function Transports() {
                       <Field label="Site de chargement">
                         <select className={inp} value={form.chargement_site_id ?? ''} onChange={e => setF('chargement_site_id', e.target.value || null)}>
                           <option value="">Sélectionner un site</option>
-                          {sites.map(site => <option key={site.id} value={site.id}>{site.nom} - {site.adresse}</option>)}
+                          {sites.filter(site => siteSupportsKind(site, 'chargement')).map(site => <option key={site.id} value={site.id}>{site.nom} - {site.adresse}</option>)}
                         </select>
                       </Field>
-                      <button type="button" className="mt-2 text-xs text-blue-700 hover:text-blue-800" onClick={() => { void quickCreateSite('chargement') }}>+ Ajouter un site chargement</button>
+                      <details className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <summary className="cursor-pointer text-xs font-semibold text-slate-700">+ Ajouter un nouveau lieu de chargement</summary>
+                        <div className="mt-3 space-y-2">
+                        <Field label="Entreprise rattachee *">
+                          <select className={inp} value={siteDrafts.chargement.entreprise_id} onChange={e => setSiteDraft('chargement', 'entreprise_id', e.target.value)}>
+                            <option value="">Selectionner une entreprise</option>
+                            {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                          </select>
+                        </Field>
+                        <Field label="Nom du lieu">
+                          <input className={inp} value={siteDrafts.chargement.nom} onChange={e => setSiteDraft('chargement', 'nom', e.target.value)} placeholder="Ex: Quai 2 - Entrepot Nord" />
+                        </Field>
+                        <Field label="Adresse manuelle *">
+                          <input className={inp} value={siteDrafts.chargement.adresse} onChange={e => setSiteDraft('chargement', 'adresse', e.target.value)} placeholder="Saisissez une adresse ou detectez-la sur carte" />
+                        </Field>
+                        <Field label="Usage du lieu">
+                          <select className={inp} value={siteDrafts.chargement.usage_type} onChange={e => setSiteDraft('chargement', 'usage_type', e.target.value as SiteUsageType)}>
+                            {Object.entries(SITE_USAGE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                          </select>
+                        </Field>
+                        {(siteDrafts.chargement.usage_type === 'livraison' || siteDrafts.chargement.usage_type === 'mixte') && (
+                          <>
+                            <Field label="Jours d ouverture">
+                              <input className={inp} value={siteDrafts.chargement.jours_ouverture} onChange={e => setSiteDraft('chargement', 'jours_ouverture', e.target.value)} placeholder="Ex: Lun-Ven" />
+                            </Field>
+                            <Field label="Horaires d ouverture">
+                              <input className={inp} value={siteDrafts.chargement.horaires_ouverture} onChange={e => setSiteDraft('chargement', 'horaires_ouverture', e.target.value)} placeholder="Ex: 08:00-12:00 / 14:00-18:00" />
+                            </Field>
+                            <Field label="Specificites du lieu">
+                              <textarea className={`${inp} resize-none h-20`} value={siteDrafts.chargement.notes_livraison} onChange={e => setSiteDraft('chargement', 'notes_livraison', e.target.value)} placeholder="Quai, badge, acces PL, consignes..." />
+                            </Field>
+                          </>
+                        )}
+                        <button type="button" className="text-xs text-blue-700 hover:text-blue-800" onClick={() => setSiteDraft('chargement', 'showMap', !siteDrafts.chargement.showMap)}>
+                          {siteDrafts.chargement.showMap ? 'Masquer la carte' : 'Poser un point sur la carte'}
+                        </button>
+                        {siteDrafts.chargement.showMap && (
+                          <SiteMapPicker
+                            onPick={({ latitude, longitude, adresse }) => {
+                              setSiteDraft('chargement', 'latitude', latitude)
+                              setSiteDraft('chargement', 'longitude', longitude)
+                              setSiteDraft('chargement', 'adresse', adresse)
+                            }}
+                          />
+                        )}
+                        <button type="button" className="text-xs font-medium text-blue-700 hover:text-blue-800" onClick={() => { void quickCreateSite('chargement') }}>
+                          Enregistrer puis selectionner ce lieu
+                        </button>
+                        </div>
+                      </details>
                     </div>
                     <div>
                       <Field label="Site de livraison">
                         <select className={inp} value={form.livraison_site_id ?? ''} onChange={e => setF('livraison_site_id', e.target.value || null)}>
                           <option value="">Sélectionner un site</option>
-                          {sites.map(site => <option key={site.id} value={site.id}>{site.nom} - {site.adresse}</option>)}
+                          {sites.filter(site => siteSupportsKind(site, 'livraison')).map(site => <option key={site.id} value={site.id}>{site.nom} - {site.adresse}</option>)}
                         </select>
                       </Field>
-                      <button type="button" className="mt-2 text-xs text-blue-700 hover:text-blue-800" onClick={() => { void quickCreateSite('livraison') }}>+ Ajouter un site livraison</button>
+                      <details className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <summary className="cursor-pointer text-xs font-semibold text-slate-700">+ Ajouter un nouveau lieu de livraison</summary>
+                        <div className="mt-3 space-y-2">
+                        <Field label="Entreprise rattachee *">
+                          <select className={inp} value={siteDrafts.livraison.entreprise_id} onChange={e => setSiteDraft('livraison', 'entreprise_id', e.target.value)}>
+                            <option value="">Selectionner une entreprise</option>
+                            {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                          </select>
+                        </Field>
+                        <Field label="Nom du lieu">
+                          <input className={inp} value={siteDrafts.livraison.nom} onChange={e => setSiteDraft('livraison', 'nom', e.target.value)} placeholder="Ex: Magasin central" />
+                        </Field>
+                        <Field label="Adresse manuelle *">
+                          <input className={inp} value={siteDrafts.livraison.adresse} onChange={e => setSiteDraft('livraison', 'adresse', e.target.value)} placeholder="Saisissez une adresse ou detectez-la sur carte" />
+                        </Field>
+                        <Field label="Usage du lieu">
+                          <select className={inp} value={siteDrafts.livraison.usage_type} onChange={e => setSiteDraft('livraison', 'usage_type', e.target.value as SiteUsageType)}>
+                            {Object.entries(SITE_USAGE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                          </select>
+                        </Field>
+                        {(siteDrafts.livraison.usage_type === 'livraison' || siteDrafts.livraison.usage_type === 'mixte') && (
+                          <>
+                            <Field label="Jours d ouverture">
+                              <input className={inp} value={siteDrafts.livraison.jours_ouverture} onChange={e => setSiteDraft('livraison', 'jours_ouverture', e.target.value)} placeholder="Ex: Lun-Sam" />
+                            </Field>
+                            <Field label="Horaires d ouverture">
+                              <input className={inp} value={siteDrafts.livraison.horaires_ouverture} onChange={e => setSiteDraft('livraison', 'horaires_ouverture', e.target.value)} placeholder="Ex: 07:00-17:30" />
+                            </Field>
+                            <Field label="Specificites du lieu">
+                              <textarea className={`${inp} resize-none h-20`} value={siteDrafts.livraison.notes_livraison} onChange={e => setSiteDraft('livraison', 'notes_livraison', e.target.value)} placeholder="Quai dechargement, RDV, securite, acces..." />
+                            </Field>
+                          </>
+                        )}
+                        <button type="button" className="text-xs text-blue-700 hover:text-blue-800" onClick={() => setSiteDraft('livraison', 'showMap', !siteDrafts.livraison.showMap)}>
+                          {siteDrafts.livraison.showMap ? 'Masquer la carte' : 'Poser un point sur la carte'}
+                        </button>
+                        {siteDrafts.livraison.showMap && (
+                          <SiteMapPicker
+                            onPick={({ latitude, longitude, adresse }) => {
+                              setSiteDraft('livraison', 'latitude', latitude)
+                              setSiteDraft('livraison', 'longitude', longitude)
+                              setSiteDraft('livraison', 'adresse', adresse)
+                            }}
+                          />
+                        )}
+                        <button type="button" className="text-xs font-medium text-blue-700 hover:text-blue-800" onClick={() => { void quickCreateSite('livraison') }}>
+                          Enregistrer puis selectionner ce lieu
+                        </button>
+                        </div>
+                      </details>
                     </div>
                   </div>
                 </div>
@@ -749,7 +1332,19 @@ export default function Transports() {
                     <Field label="Poids (kg)"><input className={inp} type="number" value={form.poids_kg ?? ''} onChange={e => setF('poids_kg', parseFloat(e.target.value) || null)} /></Field>
                     <Field label="Volume (m³)"><input className={inp} type="number" value={form.volume_m3 ?? ''} onChange={e => setF('volume_m3', parseFloat(e.target.value) || null)} /></Field>
                     <Field label="Nombre de colis"><input className={inp} type="number" value={form.nombre_colis ?? ''} onChange={e => setF('nombre_colis', parseInt(e.target.value) || null)} /></Field>
-                    <Field label="Distance (km)"><input className={inp} type="number" value={form.distance_km ?? ''} onChange={e => setF('distance_km', parseFloat(e.target.value) || null)} /></Field>
+                    <div className="space-y-2">
+                      <Field label="Distance (km)">
+                        <input className={inp} type="number" value={form.distance_km ?? ''} onChange={e => setF('distance_km', parseFloat(e.target.value) || null)} />
+                      </Field>
+                      <button
+                        type="button"
+                        disabled={calculatingDistance || !form.chargement_site_id || !form.livraison_site_id}
+                        onClick={() => { void computeDistanceFromSelectedSites() }}
+                        className="text-xs rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {calculatingDistance ? 'Calcul en cours...' : 'Calculer itineraire poids lourd'}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -778,9 +1373,9 @@ export default function Transports() {
               </div>
 
               <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>
+                <button type="button" onClick={closeTransportForm} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>
                 <button type="submit" disabled={saving} className="px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50">
-                  {saving ? 'Enregistrement...' : "Créer l'OT"}
+                  {saving ? 'Enregistrement...' : editingOtId ? 'Mettre a jour l OT' : "Creer l OT"}
                 </button>
               </div>
             </form>
@@ -788,6 +1383,247 @@ export default function Transports() {
         </div>
       )}
         </div>
+      )}
+    </div>
+  )
+}
+
+type LogisticSitesTabProps = {
+  sites: LogisticSite[]
+  clients: ClientLookup[]
+  clientMap: Record<string, string>
+  onUpdate: (siteId: string, payload: Partial<LogisticSite>) => Promise<LogisticSite>
+  onNotice: (message: string | null) => void
+  canEdit: boolean
+}
+
+type SiteEditForm = {
+  entreprise_id: string
+  nom: string
+  adresse: string
+  usage_type: SiteUsageType
+  horaires_ouverture: string
+  jours_ouverture: string
+  notes_livraison: string
+  latitude: string
+  longitude: string
+}
+
+function LogisticSitesTab({ sites, clients, clientMap, onUpdate, onNotice, canEdit }: LogisticSitesTabProps) {
+  const [search, setSearch] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState<SiteEditForm>({
+    entreprise_id: '',
+    nom: '',
+    adresse: '',
+    usage_type: 'mixte',
+    horaires_ouverture: '',
+    jours_ouverture: '',
+    notes_livraison: '',
+    latitude: '',
+    longitude: '',
+  })
+
+  const filteredSites = useMemo(() => {
+    const keyword = search.trim().toLowerCase()
+    if (!keyword) return sites
+    return sites.filter(site =>
+      [
+        site.nom,
+        site.adresse,
+        clientMap[site.entreprise_id ?? ''] ?? '',
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(keyword),
+    )
+  }, [clientMap, search, sites])
+
+  function startEdit(site: LogisticSite) {
+    setEditingId(site.id)
+    setForm({
+      entreprise_id: site.entreprise_id ?? '',
+      nom: site.nom,
+      adresse: site.adresse,
+      usage_type: (site.usage_type as SiteUsageType) ?? 'mixte',
+      horaires_ouverture: site.horaires_ouverture ?? '',
+      jours_ouverture: site.jours_ouverture ?? '',
+      notes_livraison: site.notes_livraison ?? '',
+      latitude: site.latitude != null ? String(site.latitude) : '',
+      longitude: site.longitude != null ? String(site.longitude) : '',
+    })
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setForm({ entreprise_id: '', nom: '', adresse: '', usage_type: 'mixte', horaires_ouverture: '', jours_ouverture: '', notes_livraison: '', latitude: '', longitude: '' })
+  }
+
+  async function submitSiteEdit(event: React.FormEvent) {
+    event.preventDefault()
+    if (!editingId) return
+
+    const entrepriseId = form.entreprise_id.trim()
+    const nom = form.nom.trim()
+    const adresse = form.adresse.trim()
+
+    if (!entrepriseId) {
+      onNotice('Impossible d enregistrer: chaque adresse doit etre rattachee a une entreprise.')
+      return
+    }
+    if (!nom || !adresse) {
+      onNotice('Nom du lieu et adresse sont obligatoires.')
+      return
+    }
+
+    const latitude = form.latitude.trim() ? Number(form.latitude) : null
+    const longitude = form.longitude.trim() ? Number(form.longitude) : null
+
+    if ((latitude != null && !Number.isFinite(latitude)) || (longitude != null && !Number.isFinite(longitude))) {
+      onNotice('Coordonnees invalides: utilisez des nombres decimaux.')
+      return
+    }
+
+    setSaving(true)
+    try {
+      await onUpdate(editingId, {
+        entreprise_id: entrepriseId,
+        nom,
+        adresse,
+        usage_type: form.usage_type,
+        horaires_ouverture: (form.usage_type === 'livraison' || form.usage_type === 'mixte') ? (form.horaires_ouverture.trim() || null) : null,
+        jours_ouverture: (form.usage_type === 'livraison' || form.usage_type === 'mixte') ? (form.jours_ouverture.trim() || null) : null,
+        notes_livraison: (form.usage_type === 'livraison' || form.usage_type === 'mixte') ? (form.notes_livraison.trim() || null) : null,
+        latitude,
+        longitude,
+      })
+      onNotice('Fiche lieu mise a jour avec succes.')
+      cancelEdit()
+    } catch {
+      onNotice('Mise a jour de la fiche lieu impossible pour le moment.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="nx-panel p-4">
+        <div className="flex items-end justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800">Fiches entreprises chargement/dechargement</h2>
+            <p className="text-sm text-slate-500">{sites.length} lieu{sites.length > 1 ? 'x' : ''} en base</p>
+          </div>
+          <input
+            type="text"
+            value={search}
+            onChange={event => setSearch(event.target.value)}
+            placeholder="Rechercher lieu, adresse ou entreprise..."
+            className="w-full max-w-md px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-300"
+          />
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        {filteredSites.length === 0 ? (
+          <div className="p-8 text-center text-sm text-slate-400">Aucune fiche lieu trouvee.</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                {['Lieu', 'Adresse', 'Entreprise', 'Usage', 'Livraison', 'Coordonnees', 'Action'].map(header => (
+                  <th key={header} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredSites.map((site, index) => (
+                <tr key={site.id} className={`border-t border-slate-100 ${index % 2 !== 0 ? 'bg-slate-50' : ''}`}>
+                  <td className="px-4 py-3 font-medium text-slate-800">{site.nom}</td>
+                  <td className="px-4 py-3 text-slate-700">{site.adresse}</td>
+                  <td className="px-4 py-3 text-slate-600">{clientMap[site.entreprise_id ?? ''] ?? 'Entreprise non renseignee'}</td>
+                  <td className="px-4 py-3 text-slate-600">{siteUsageLabel(site)}</td>
+                  <td className="px-4 py-3 text-slate-500 text-xs">
+                    {site.usage_type === 'livraison' || site.usage_type === 'mixte'
+                      ? [site.jours_ouverture, site.horaires_ouverture].filter(Boolean).join(' | ') || (site.notes_livraison ? 'Note renseignee' : 'Libre')
+                      : 'Non applicable'}
+                  </td>
+                  <td className="px-4 py-3 text-slate-500 text-xs">
+                    {site.latitude != null && site.longitude != null ? `${site.latitude}, ${site.longitude}` : 'Non renseignees'}
+                  </td>
+                  <td className="px-4 py-3">
+                    {canEdit ? (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(site)}
+                        className="text-xs rounded-lg border border-slate-200 px-2.5 py-1 text-slate-700 hover:bg-slate-50"
+                      >
+                        Modifier
+                      </button>
+                    ) : (
+                      <span className="text-xs text-slate-400">Lecture seule</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {editingId && (
+        <form onSubmit={submitSiteEdit} className="nx-panel p-4 space-y-3">
+          <h3 className="text-base font-semibold text-slate-800">Modifier la fiche lieu</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Field label="Entreprise *">
+              <select className={inp} value={form.entreprise_id} onChange={event => setForm(current => ({ ...current, entreprise_id: event.target.value }))}>
+                <option value="">Selectionner une entreprise</option>
+                {clients.map(client => <option key={client.id} value={client.id}>{client.nom}</option>)}
+              </select>
+            </Field>
+            <Field label="Nom du lieu *">
+              <input className={inp} value={form.nom} onChange={event => setForm(current => ({ ...current, nom: event.target.value }))} />
+            </Field>
+            <Field label="Usage du lieu">
+              <select className={inp} value={form.usage_type} onChange={event => setForm(current => ({ ...current, usage_type: event.target.value as SiteUsageType }))}>
+                {Object.entries(SITE_USAGE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </Field>
+            <div className="md:col-span-2">
+              <Field label="Adresse *">
+                <input className={inp} value={form.adresse} onChange={event => setForm(current => ({ ...current, adresse: event.target.value }))} />
+              </Field>
+            </div>
+            {(form.usage_type === 'livraison' || form.usage_type === 'mixte') && (
+              <>
+                <Field label="Jours d ouverture">
+                  <input className={inp} value={form.jours_ouverture} onChange={event => setForm(current => ({ ...current, jours_ouverture: event.target.value }))} placeholder="Ex: Lun-Ven" />
+                </Field>
+                <Field label="Horaires d ouverture">
+                  <input className={inp} value={form.horaires_ouverture} onChange={event => setForm(current => ({ ...current, horaires_ouverture: event.target.value }))} placeholder="Ex: 08:00-12:00 / 14:00-18:00" />
+                </Field>
+                <div className="md:col-span-2">
+                  <Field label="Specificites du lieu">
+                    <textarea className={`${inp} resize-none h-24`} value={form.notes_livraison} onChange={event => setForm(current => ({ ...current, notes_livraison: event.target.value }))} placeholder="Consignes d acces, quai, badge, securite, RDV..." />
+                  </Field>
+                </div>
+              </>
+            )}
+            <Field label="Latitude">
+              <input className={inp} value={form.latitude} onChange={event => setForm(current => ({ ...current, latitude: event.target.value }))} placeholder="Ex: 48.8566" />
+            </Field>
+            <Field label="Longitude">
+              <input className={inp} value={form.longitude} onChange={event => setForm(current => ({ ...current, longitude: event.target.value }))} placeholder="Ex: 2.3522" />
+            </Field>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={cancelEdit} className="px-3 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>
+            <button type="submit" disabled={saving} className="px-3 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50">
+              {saving ? 'Enregistrement...' : 'Enregistrer'}
+            </button>
+          </div>
+        </form>
       )}
     </div>
   )

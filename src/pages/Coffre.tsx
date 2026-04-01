@@ -127,6 +127,7 @@ export default function Coffre() {
   const companyDocs = filteredDocs.filter(item => COMPANY_CATEGORIES.includes(item.category))
   const mailAttachments = filteredAttachments.filter(item => item.source === 'mail')
   const tchatAttachments = filteredAttachments.filter(item => item.source === 'tchat')
+  const signatureAttachments = filteredAttachments.filter(item => item.source === 'signature')
 
   const visibleBlocks =
     activeView === 'signature'
@@ -311,9 +312,10 @@ export default function Coffre() {
         {(activeView === 'all' || activeView === 'pieces') && (
           <AttachmentSection
             title="Pieces jointes sauvegardees"
-            subtitle="Les documents enregistres depuis Mail et Messagerie, regroupes par source."
+            subtitle="Les documents enregistres depuis Mail, Messagerie et signatures CMR, regroupes par source."
             mailAttachments={mailAttachments}
             tchatAttachments={tchatAttachments}
+            signatureAttachments={signatureAttachments}
             onPreview={handlePreview}
           />
         )}
@@ -432,12 +434,14 @@ function AttachmentSection({
   subtitle,
   mailAttachments,
   tchatAttachments,
+  signatureAttachments,
   onPreview,
 }: {
   title: string
   subtitle: string
   mailAttachments: VaultRecord[]
   tchatAttachments: VaultRecord[]
+  signatureAttachments: VaultRecord[]
   onPreview: (name: string, url: string) => void
 }) {
   return (
@@ -448,12 +452,13 @@ function AttachmentSection({
             <p className="text-sm font-semibold text-white">{title}</p>
             <p className="mt-1 text-xs text-slate-400">{subtitle}</p>
           </div>
-          <p className="text-xs text-slate-500">{mailAttachments.length + tchatAttachments.length} piece(s)</p>
+          <p className="text-xs text-slate-500">{mailAttachments.length + tchatAttachments.length + signatureAttachments.length} piece(s)</p>
         </div>
       </div>
 
       <AttachmentGroup title="Depuis Mail" items={mailAttachments} empty="Aucune piece jointe sauvegardee depuis Mail." onPreview={onPreview} />
       <AttachmentGroup title="Depuis Messagerie" items={tchatAttachments} empty="Aucune piece jointe sauvegardee depuis la Messagerie." onPreview={onPreview} />
+      <AttachmentGroup title="Depuis Signatures CMR" items={signatureAttachments} empty="Aucune preuve PDF de signature CMR enregistree." onPreview={onPreview} />
     </section>
   )
 }

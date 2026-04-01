@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
 interface Mission {
+  id: string
   reference: string
   conducteurName: string
   lat: number
   lng: number
   statut: string
+  source: 'gps' | 'adresse'
 }
 
 type MissionAddressRow = {
@@ -22,10 +24,16 @@ type MissionStepRow = {
 }
 
 type MissionOrderRow = {
+  id: string
   reference: string
   statut_operationnel: string | null
   conducteurs: { nom: string | null; prenom: string | null } | { nom: string | null; prenom: string | null }[] | null
   etapes_mission: MissionStepRow[] | null
+}
+
+type HistoryRow = {
+  ot_id: string
+  commentaire: string | null
 }
 
 // Coordonnées hardcodées par ville pour les missions actives (fallback si pas de coords en DB)
@@ -48,21 +56,74 @@ function cityToCoords(ville: string | null | undefined): [number, number] | null
   return null
 }
 
+function parseGpsFromComment(commentaire: string | null): [number, number] | null {
+  if (!commentaire) return null
+  try {
+    const payload = JSON.parse(commentaire) as {
+      gps?: {
+        lat?: unknown
+        lng?: unknown
+      }
+    }
+    const lat = payload?.gps?.lat
+    const lng = payload?.gps?.lng
+    if (typeof lat === 'number' && Number.isFinite(lat) && typeof lng === 'number' && Number.isFinite(lng)) {
+      return [lat, lng]
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+function statusColor(statut: string) {
+  const value = statut.toLowerCase()
+  if (value.includes('retard') || value.includes('critical')) return '#ef4444'
+  return '#3b82f6'
+}
+
 export function WidgetMiniCarteVehicules() {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<{ remove: () => void } | null>(null)
   const [missions, setMissions] = useState<Mission[]>([])
+  const [unavailableCount, setUnavailableCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    supabase
-      .from('ordres_transport')
-      .select('id, reference, statut_operationnel, conducteurs(nom, prenom), etapes_mission(ordre, ville, adresses(latitude, longitude, ville))')
-      .eq('statut', 'en_cours')
-      .limit(20)
-      .then(({ data }) => {
-        const rows = (data ?? []) as MissionOrderRow[]
+    async function load() {
+      setLoading(true)
+      setError(null)
+      try {
+        const { data: ordersData, error: ordersError } = await supabase
+          .from('ordres_transport')
+          .select('id, reference, statut_operationnel, conducteurs(nom, prenom), etapes_mission(ordre, ville, adresses(latitude, longitude, ville))')
+          .in('statut', ['planifie', 'en_cours'])
+          .limit(30)
+
+        if (ordersError) throw ordersError
+        const rows = (ordersData ?? []) as MissionOrderRow[]
+        const otIds = rows.map(row => row.id)
+
+        const latestGpsByOt: Record<string, [number, number]> = {}
+        if (otIds.length > 0) {
+          const { data: historyData, error: historyError } = await supabase
+            .from('historique_statuts')
+            .select('ot_id, commentaire')
+            .in('ot_id', otIds)
+            .order('created_at', { ascending: false })
+
+          if (historyError) throw historyError
+
+          for (const row of (historyData ?? []) as HistoryRow[]) {
+            if (latestGpsByOt[row.ot_id]) continue
+            const gps = parseGpsFromComment(row.commentaire)
+            if (gps) latestGpsByOt[row.ot_id] = gps
+          }
+        }
+
         const result: Mission[] = []
+        let missing = 0
 
         for (const ot of rows) {
           const conducteur = Array.isArray(ot.conducteurs) ? ot.conducteurs[0] : ot.conducteurs
@@ -70,37 +131,53 @@ export function WidgetMiniCarteVehicules() {
             ? [conducteur.prenom, conducteur.nom].filter(Boolean).join(' ')
             : 'Conducteur inconnu'
 
-          // Trouver la dernière étape en cours
-          const steps = (ot.etapes_mission ?? []).sort((a, b) => a.ordre - b.ordre)
-          let coords: [number, number] | null = null
+          let coords: [number, number] | null = latestGpsByOt[ot.id] ?? null
+          const source: 'gps' | 'adresse' = coords ? 'gps' : 'adresse'
 
-          for (const step of steps) {
-            const addr = Array.isArray(step.adresses) ? step.adresses[0] : step.adresses
-            if (addr?.latitude && addr?.longitude) {
-              coords = [addr.latitude, addr.longitude]
-              break
+          if (!coords) {
+            const steps = (ot.etapes_mission ?? []).sort((a, b) => a.ordre - b.ordre)
+            for (const step of steps) {
+              const addr = Array.isArray(step.adresses) ? step.adresses[0] : step.adresses
+              if (addr?.latitude && addr?.longitude) {
+                coords = [addr.latitude, addr.longitude]
+                break
+              }
+              const cityCoords = cityToCoords(step.ville ?? addr?.ville)
+              if (cityCoords) {
+                coords = cityCoords
+                break
+              }
             }
-            const cityCoords = cityToCoords(step.ville ?? addr?.ville)
-            if (cityCoords) { coords = cityCoords; break }
           }
 
           if (!coords) {
-            // Position aléatoire en France si pas de données
-            coords = [46.5 + Math.random() * 4 - 2, 2 + Math.random() * 6 - 3]
+            missing += 1
+            continue
           }
 
           result.push({
+            id: ot.id,
             reference: ot.reference,
             conducteurName,
             lat: coords[0],
             lng: coords[1],
             statut: ot.statut_operationnel ?? 'en_cours',
+            source,
           })
         }
 
         setMissions(result)
+        setUnavailableCount(missing)
+      } catch (loadError) {
+        setMissions([])
+        setUnavailableCount(0)
+        setError(loadError instanceof Error ? loadError.message : 'Impossible de charger la carte des missions.')
+      } finally {
         setLoading(false)
-      })
+      }
+    }
+
+    void load()
   }, [])
 
   useEffect(() => {
@@ -133,7 +210,7 @@ export function WidgetMiniCarteVehicules() {
 
       // Marqueurs pour chaque mission
       missions.forEach(m => {
-        const color = m.statut === 'en_retard' ? '#ef4444' : '#3b82f6'
+        const color = statusColor(m.statut)
         const icon = L.divIcon({
           html: `<div style="background:${color};width:10px;height:10px;border-radius:50%;border:2px solid rgba(255,255,255,0.6);box-shadow:0 0 6px ${color}80"></div>`,
           iconSize: [10, 10],
@@ -142,8 +219,13 @@ export function WidgetMiniCarteVehicules() {
         })
         L.marker([m.lat, m.lng], { icon })
           .addTo(map)
-          .bindPopup(`<b>${m.reference}</b><br>${m.conducteurName}`)
+          .bindPopup(`<b>${m.reference}</b><br>${m.conducteurName}<br><small>${m.source === 'gps' ? 'Position GPS conducteur' : 'Position estimee par adresse'}</small>`)
       })
+
+      if (missions.length > 0) {
+        const bounds = L.latLngBounds(missions.map(m => [m.lat, m.lng] as [number, number]))
+        map.fitBounds(bounds.pad(0.25))
+      }
     }
 
     void initMap()
@@ -161,6 +243,12 @@ export function WidgetMiniCarteVehicules() {
     </div>
   )
 
+  if (error) return (
+    <div className="flex flex-col items-center justify-center" style={{ height: 280 }}>
+      <p className="text-sm text-rose-500">{error}</p>
+    </div>
+  )
+
   if (missions.length === 0) return (
     <div className="flex flex-col items-center justify-center" style={{ height: 280 }}>
       <div className="text-4xl opacity-20 mb-2">🗺️</div>
@@ -175,13 +263,14 @@ export function WidgetMiniCarteVehicules() {
         style={{ background: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(8px)' }}>
         <span className="flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-blue-500" />
-          En cours
+          Normal
         </span>
         <span className="flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-red-500" />
           Retard
         </span>
         <span className="font-medium text-white">{missions.length} mission{missions.length > 1 ? 's' : ''}</span>
+        {unavailableCount > 0 && <span>{unavailableCount} sans position</span>}
       </div>
     </div>
   )

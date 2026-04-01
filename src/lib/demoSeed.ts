@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { looseSupabase } from './supabaseLoose'
+import { isDemoDataEnabled } from './runtimeFlags'
 import { MOCK_CLIENT_REFS, MOCK_TRAILER_REFS, MOCK_VEHICLE_REFS } from './mock/mockDomain'
 import { getDemoLocalTable, hasDemoLocalData, replaceDemoLocalTables } from './demoLocalStore'
 
@@ -251,7 +252,7 @@ function mockId(prefixDigit: number, index: number) {
 
 async function upsertRows(table: string, rows: Record<string, unknown>[]) {
   if (rows.length === 0) return
-  const { error } = await looseSupabase.from(table as any).upsert(rows as any, { onConflict: 'id' })
+  const { error } = await looseSupabase.from(table).upsert(rows, { onConflict: 'id' })
   if (error) throw error
 }
 
@@ -762,6 +763,7 @@ function buildAffretementPortalState(missions: GeneratedMission[]) {
 }
 
 export async function shouldAutoSeedTransportDemo() {
+  if (!isDemoDataEnabled()) return false
   if (!isLocalHost() || typeof window === 'undefined') return false
   const state = window.localStorage.getItem(DEMO_SEED_STORAGE_KEY)
   if (state === 'running') return false
@@ -827,6 +829,10 @@ export function markDemoSeedState(state: DemoSeedState) {
 }
 
 export async function seedTransportDemoData() {
+  if (!isDemoDataEnabled()) {
+    throw new Error('Mode donnees demo desactive. Active VITE_ENABLE_DEMO_DATA=true en local si necessaire.')
+  }
+
   const clientBankRefs = [
     ['FR16512345678', 30, 'virement', 'BNPAFRPPXXX', 'FR7630004000031234567890143'],
     ['FR24523456789', 45, 'virement', 'AGRIFRPP540', 'FR7630006000011122334455667'],

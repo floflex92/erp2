@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import type { Tables, TablesInsert } from '@/lib/database.types'
@@ -9,6 +10,20 @@ type FlotteDocument = Tables<'flotte_documents'>
 type FlotteEntretien = Tables<'flotte_entretiens'>
 type FlotteAlerte = Tables<'vue_alertes_flotte'>
 type FlotteCoutMensuel = Tables<'vue_couts_flotte_mensuels'>
+type RemorqueKm = {
+  id: string
+  remorque_id: string
+  reading_date: string
+  km_compteur: number
+  source: string | null
+  notes: string | null
+}
+type KmForm = {
+  reading_date: string
+  km_compteur: number
+  source: string | null
+  notes: string | null
+}
 
 const STATUT_COLORS: Record<string, string> = {
   disponible: 'bg-green-100 text-green-700',
@@ -95,6 +110,13 @@ const EMPTY_MAINTENANCE: TablesInsert<'flotte_entretiens'> = {
   invoice_document_id: null,
 }
 
+const EMPTY_KM: KmForm = {
+  reading_date: new Date().toISOString().slice(0, 10),
+  km_compteur: 0,
+  source: null,
+  notes: null,
+}
+
 function expColor(date: string | null) {
   if (!date) return 'text-slate-400'
   const delta = (new Date(date).getTime() - Date.now()) / 86400000
@@ -108,6 +130,11 @@ function formatDate(date: string | null) {
 function formatCurrency(value: number | null | undefined) {
   if (value === null || value === undefined) return 'Non renseigne'
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(value)
+}
+
+function formatKm(value: number | null | undefined) {
+  if (value === null || value === undefined) return 'Non renseigne'
+  return `${value.toLocaleString('fr-FR')} km`
 }
 
 function countExpiringSoon(dates: Array<string | null>) {
@@ -124,11 +151,31 @@ function sanitizeFilename(name: string) {
 
 function flotteFeatureError(err: unknown, fallback: string) {
   const message = err instanceof Error ? err.message : fallback
-  if (message.includes('flotte_') || message.includes('vue_alertes_flotte') || message.includes('vue_couts_flotte_mensuels')) {
+  if (message.includes('flotte_') || message.includes('vue_alertes_flotte') || message.includes('vue_couts_flotte_mensuels') || message.includes('remorque_releves_km')) {
     return 'Le dossier flotte necessite la migration Supabase flotte avant utilisation.'
   }
   if (message.includes('Bucket not found')) return 'Le bucket Supabase `flotte-documents` est introuvable.'
   return message || fallback
+}
+
+function isMissingOptionalFlotteFeature(err: unknown) {
+  const message = err instanceof Error
+    ? err.message
+    : typeof err === 'string'
+      ? err
+      : JSON.stringify(err)
+  const normalized = message.toLowerCase()
+  return (
+    normalized.includes('vue_alertes_flotte')
+    || normalized.includes('vue_couts_flotte_mensuels')
+    || normalized.includes('flotte_documents')
+    || normalized.includes('flotte_entretiens')
+    || normalized.includes('remorque_releves_km')
+    || normalized.includes('does not exist')
+    || normalized.includes('could not find the table')
+    || normalized.includes('pgrst205')
+    || normalized.includes('42p01')
+  )
 }
 
 function normalizePayload(form: TablesInsert<'remorques'>): TablesInsert<'remorques'> {
@@ -148,6 +195,8 @@ function normalizePayload(form: TablesInsert<'remorques'>): TablesInsert<'remorq
 }
 
 export default function Remorques() {
+  const { role } = useAuth()
+  const canManageFleetAssets = role === 'mecanicien' || role === 'dirigeant'
   const [list, setList] = useState<RemorqueRow[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -159,8 +208,10 @@ export default function Remorques() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [globalAlerts, setGlobalAlerts] = useState<FlotteAlerte[]>([])
+  const [latestKmByRemorque, setLatestKmByRemorque] = useState<Record<string, number>>({})
   const [documents, setDocuments] = useState<FlotteDocument[]>([])
   const [entretiens, setEntretiens] = useState<FlotteEntretien[]>([])
+  const [kmReadings, setKmReadings] = useState<RemorqueKm[]>([])
   const [assetAlerts, setAssetAlerts] = useState<FlotteAlerte[]>([])
   const [costSeries, setCostSeries] = useState<FlotteCoutMensuel[]>([])
   const [dossierLoading, setDossierLoading] = useState(false)
@@ -170,6 +221,8 @@ export default function Remorques() {
   const [savingDocument, setSavingDocument] = useState(false)
   const [maintenanceForm, setMaintenanceForm] = useState<TablesInsert<'flotte_entretiens'>>(EMPTY_MAINTENANCE)
   const [savingMaintenance, setSavingMaintenance] = useState(false)
+  const [kmForm, setKmForm] = useState<KmForm>(EMPTY_KM)
+  const [savingKm, setSavingKm] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -177,12 +230,23 @@ export default function Remorques() {
     try {
       const remorquesRes = await looseSupabase.from('remorques').select('*').order('immatriculation')
       if (remorquesRes.error) throw remorquesRes.error
-      setList((remorquesRes.data ?? []) as unknown as RemorqueRow[])
+      const remorques = (remorquesRes.data ?? []) as unknown as RemorqueRow[]
+      setList(remorques)
+
+      const kmRes = await looseSupabase.from('remorque_releves_km').select('remorque_id, reading_date, km_compteur').order('reading_date', { ascending: false })
+      if (kmRes.error && !isMissingOptionalFlotteFeature(kmRes.error)) throw kmRes.error
+      const latestMap: Record<string, number> = {}
+      ;(kmRes.data ?? []).forEach((row: { remorque_id: string; km_compteur: number }) => {
+        if (latestMap[row.remorque_id] === undefined) latestMap[row.remorque_id] = Number(row.km_compteur)
+      })
+      setLatestKmByRemorque(latestMap)
 
       const alertsRes = await supabase.from('vue_alertes_flotte').select('*').eq('asset_type', 'remorque')
       if (alertsRes.error) {
         setGlobalAlerts([])
-        setError(flotteFeatureError(alertsRes.error, 'Chargement partiel des remorques.'))
+        if (!isMissingOptionalFlotteFeature(alertsRes.error)) {
+          setError(flotteFeatureError(alertsRes.error, 'Chargement partiel des remorques.'))
+        }
       } else {
         setGlobalAlerts(alertsRes.data ?? [])
       }
@@ -243,15 +307,21 @@ export default function Remorques() {
     setNumeroParc('')
     setDocuments([])
     setEntretiens([])
+    setKmReadings([])
     setAssetAlerts([])
     setCostSeries([])
     setDossierError(null)
     setDocumentForm(EMPTY_DOCUMENT)
     setDocumentFile(null)
     setMaintenanceForm(EMPTY_MAINTENANCE)
+    setKmForm(EMPTY_KM)
   }
 
   function openCreate() {
+    if (!canManageFleetAssets) {
+      setError('Seuls les mecaniciens et dirigeants peuvent ajouter une remorque.')
+      return
+    }
     resetFeedback()
     closeForm()
     setShowForm(true)
@@ -283,6 +353,9 @@ export default function Remorques() {
       preferences: remorque.preferences,
     })
     setNumeroParc(remorque.numero_parc ?? '')
+    const currentKm = latestKmByRemorque[remorque.id] ?? 0
+    setKmForm({ ...EMPTY_KM, km_compteur: currentKm })
+    setMaintenanceForm({ ...EMPTY_MAINTENANCE, km_compteur: currentKm, next_due_km: currentKm > 0 ? currentKm + 30000 : null })
     setShowForm(true)
     void loadDossier(remorque.id)
   }
@@ -295,15 +368,24 @@ export default function Remorques() {
     setDossierLoading(true)
     setDossierError(null)
     try {
-      const [documentsRes, entretiensRes] = await Promise.all([
+      const [documentsRes, entretiensRes, kmRes] = await Promise.all([
         supabase.from('flotte_documents').select('*').eq('remorque_id', remorqueId).is('archived_at', null).order('created_at', { ascending: false }),
         supabase.from('flotte_entretiens').select('*').eq('remorque_id', remorqueId).order('service_date', { ascending: false }),
+        looseSupabase.from('remorque_releves_km').select('*').eq('remorque_id', remorqueId).order('reading_date', { ascending: false }),
       ])
       if (documentsRes.error) throw documentsRes.error
       if (entretiensRes.error) throw entretiensRes.error
+      if (kmRes.error && !isMissingOptionalFlotteFeature(kmRes.error)) throw kmRes.error
 
       setDocuments(documentsRes.data ?? [])
       setEntretiens(entretiensRes.data ?? [])
+      const readings = (kmRes.data ?? []) as unknown as RemorqueKm[]
+      setKmReadings(readings)
+      if (readings.length > 0) {
+        const latestKm = Number(readings[0].km_compteur)
+        setKmForm(current => ({ ...current, km_compteur: latestKm }))
+        setMaintenanceForm(current => ({ ...current, km_compteur: latestKm, next_due_km: current.next_due_km ?? latestKm + 30000 }))
+      }
 
       const [alertsRes, costsRes] = await Promise.all([
         supabase.from('vue_alertes_flotte').select('*').eq('asset_type', 'remorque').eq('asset_id', remorqueId).order('due_on', { ascending: true }),
@@ -317,6 +399,7 @@ export default function Remorques() {
     } catch (err) {
       setDocuments([])
       setEntretiens([])
+      setKmReadings([])
       setAssetAlerts([])
       setCostSeries([])
       setDossierError(flotteFeatureError(err, 'Chargement du dossier remorque impossible.'))
@@ -331,6 +414,10 @@ export default function Remorques() {
     const payload = normalizePayload(form)
     if (!payload.immatriculation) {
       setError('Immatriculation obligatoire.')
+      return
+    }
+    if (!editingId && !canManageFleetAssets) {
+      setError('Seuls les mecaniciens et dirigeants peuvent ajouter une remorque.')
       return
     }
     setSaving(true)
@@ -353,6 +440,10 @@ export default function Remorques() {
 
   async function del(id: string) {
     resetFeedback()
+    if (!canManageFleetAssets) {
+      setError('Seuls les mecaniciens et dirigeants peuvent supprimer une remorque.')
+      return
+    }
     if (!confirm('Supprimer cette remorque ?')) return
     try {
       const { error: deleteError } = await supabase.from('remorques').delete().eq('id', id)
@@ -363,8 +454,6 @@ export default function Remorques() {
       setError(err instanceof Error ? err.message : 'Suppression impossible.')
     }
   }
-
-  const currentMonthCost = costSeries[costSeries.length - 1]?.total_cout_ht ?? null
 
   async function saveDocument(e: React.FormEvent) {
     e.preventDefault()
@@ -434,14 +523,14 @@ export default function Remorques() {
         remorque_id: editingId,
         maintenance_type: maintenanceForm.maintenance_type,
         service_date: maintenanceForm.service_date,
-        km_compteur: null,
+        km_compteur: maintenanceForm.km_compteur ?? null,
         cout_ht: maintenanceForm.cout_ht ?? 0,
         cout_ttc: maintenanceForm.cout_ttc ?? null,
         covered_by_contract: maintenanceForm.covered_by_contract ?? false,
         prestataire: maintenanceForm.prestataire?.trim() || null,
         garage: maintenanceForm.garage?.trim() || null,
         next_due_date: maintenanceForm.next_due_date || null,
-        next_due_km: null,
+        next_due_km: maintenanceForm.next_due_km ?? null,
         notes: maintenanceForm.notes?.trim() || null,
         invoice_document_id: maintenanceForm.invoice_document_id || null,
       }
@@ -469,6 +558,47 @@ export default function Remorques() {
     }
   }
 
+  async function saveKmReading(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingId) return
+    if (!kmForm.reading_date || !Number.isFinite(kmForm.km_compteur) || kmForm.km_compteur <= 0) {
+      setDossierError('Renseignez une date et un kilometre valide pour le releve.')
+      return
+    }
+    setSavingKm(true)
+    setDossierError(null)
+    try {
+      const { error: insertError } = await looseSupabase.from('remorque_releves_km').upsert({
+        remorque_id: editingId,
+        reading_date: kmForm.reading_date,
+        km_compteur: Math.trunc(kmForm.km_compteur),
+        source: kmForm.source?.trim() || null,
+        notes: kmForm.notes?.trim() || null,
+      }, { onConflict: 'remorque_id,reading_date' })
+      if (insertError) throw insertError
+      setNotice('Releve kilometrique enregistre.')
+      await loadDossier(editingId)
+      await load()
+    } catch (err) {
+      setDossierError(flotteFeatureError(err, 'Enregistrement du releve kilometrique impossible.'))
+    } finally {
+      setSavingKm(false)
+    }
+  }
+
+  async function deleteKmReading(id: string) {
+    if (!editingId) return
+    try {
+      const { error: deleteError } = await looseSupabase.from('remorque_releves_km').delete().eq('id', id)
+      if (deleteError) throw deleteError
+      setNotice('Releve kilometrique supprime.')
+      await loadDossier(editingId)
+      await load()
+    } catch (err) {
+      setDossierError(flotteFeatureError(err, 'Suppression du releve kilometrique impossible.'))
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-6">
@@ -476,7 +606,7 @@ export default function Remorques() {
           <h2 className="text-2xl font-bold text-slate-800">Remorques</h2>
           <p className="text-slate-500 text-sm">{list.length} remorque{list.length !== 1 ? 's' : ''}</p>
         </div>
-        <button onClick={openCreate} className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors">+ Ajouter</button>
+        {canManageFleetAssets && <button onClick={openCreate} className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors">+ Ajouter</button>}
       </div>
 
       {(error || notice) && <div className={`rounded-xl border px-4 py-3 text-sm ${error ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>{error ?? notice}</div>}
@@ -499,7 +629,7 @@ export default function Remorques() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                {['Remorque', 'Administratif', 'Entretien / couts', 'Statut', ''].map(header => <th key={header} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{header}</th>)}
+                {['Remorque', 'Administratif', 'Entretien / km', 'Statut', ''].map(header => <th key={header} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{header}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -522,6 +652,7 @@ export default function Remorques() {
                     <td className="px-4 py-3">
                       <div className="text-xs text-slate-600">{PROPERTY_LABELS[(remorque.type_propriete as (typeof PROPERTY_TYPES)[number]) ?? 'autre'] ?? (remorque.type_propriete ?? 'Non renseigne')}</div>
                       <div className="text-xs text-slate-400">Achat: {formatCurrency(remorque.cout_achat_ht)}</div>
+                      <div className="text-xs text-slate-400">Km suivi: {formatKm(latestKmByRemorque[remorque.id])}</div>
                       <div className="text-xs text-slate-400">Garage: {remorque.garage_entretien ?? 'Non renseigne'}</div>
                       <div className="text-xs text-slate-400">{remorque.contrat_entretien ? 'Contrat entretien actif' : 'Sans contrat entretien'}</div>
                     </td>
@@ -529,7 +660,7 @@ export default function Remorques() {
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-3">
                         <button onClick={() => openEdit(remorque)} className="text-xs text-slate-400 hover:text-slate-700 transition-colors">Modifier</button>
-                        <button onClick={() => void del(remorque.id)} className="text-xs text-slate-400 hover:text-red-500 transition-colors">Suppr.</button>
+                        {canManageFleetAssets && <button onClick={() => void del(remorque.id)} className="text-xs text-slate-400 hover:text-red-500 transition-colors">Suppr.</button>}
                       </div>
                     </td>
                   </tr>
@@ -613,7 +744,7 @@ export default function Remorques() {
                     <StatCard label="Alertes ouvertes" value={assetAlerts.length} tone="amber" />
                     <StatCard label="Documents actifs" value={documents.length} tone="slate" />
                     <StatCard label="Entretiens" value={entretiens.length} tone="slate" />
-                    <StatCard label="Cout mois" value={currentMonthCost === null ? '0 EUR' : formatCurrency(currentMonthCost)} tone="slate" />
+                    <StatCard label="Km courant" value={formatKm(kmReadings[0]?.km_compteur ?? latestKmByRemorque[editingId] ?? null)} tone="slate" />
                   </div>
 
                   <ChartPanel
@@ -663,6 +794,36 @@ export default function Remorques() {
                     </div>
 
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <h4 className="text-sm font-semibold text-slate-800">Releves kilometriques</h4>
+                      <form onSubmit={saveKmReading} className="mt-4 space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <Field label="Date releve"><input className={inp} type="date" value={kmForm.reading_date} onChange={e => setKmForm(current => ({ ...current, reading_date: e.target.value }))} required /></Field>
+                          <Field label="Kilometrage compteur"><input className={inp} type="number" min={0} value={kmForm.km_compteur} onChange={e => setKmForm(current => ({ ...current, km_compteur: Number.parseInt(e.target.value || '0', 10) }))} required /></Field>
+                          <Field label="Source"><input className={inp} value={kmForm.source ?? ''} onChange={e => setKmForm(current => ({ ...current, source: e.target.value || null }))} placeholder="Atelier, controle, chauffeur..." /></Field>
+                          <Field label="Notes"><input className={inp} value={kmForm.notes ?? ''} onChange={e => setKmForm(current => ({ ...current, notes: e.target.value || null }))} placeholder="Commentaire optionnel" /></Field>
+                        </div>
+                        <div className="flex justify-end">
+                          <button type="submit" disabled={savingKm} className="rounded-lg bg-slate-800 px-4 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-50">{savingKm ? 'Enregistrement...' : 'Ajouter releve km'}</button>
+                        </div>
+                      </form>
+
+                      <div className="mt-4 space-y-2">
+                        {kmReadings.length === 0 ? <p className="text-xs text-slate-400">Aucun releve kilometrique enregistre.</p> : kmReadings.map(reading => (
+                          <div key={reading.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="text-sm font-medium text-slate-800">{formatKm(reading.km_compteur)}</div>
+                                <div className="text-xs text-slate-400">{formatDate(reading.reading_date)}{reading.source ? ` · ${reading.source}` : ''}</div>
+                              </div>
+                              <button type="button" onClick={() => void deleteKmReading(reading.id)} className="text-xs text-slate-400 hover:text-red-500">Suppr.</button>
+                            </div>
+                            {reading.notes && <p className="mt-2 text-xs text-slate-500 whitespace-pre-line">{reading.notes}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                       <h4 className="text-sm font-semibold text-slate-800">Entretien et couts</h4>
                       <form onSubmit={saveMaintenance} className="mt-4 space-y-3">
                         <div className="grid grid-cols-2 gap-3">
@@ -683,6 +844,8 @@ export default function Remorques() {
                           <Field label="Prestataire"><input className={inp} value={maintenanceForm.prestataire ?? ''} onChange={e => setMaintenanceForm(current => ({ ...current, prestataire: e.target.value || null }))} /></Field>
                           <Field label="Garage"><input className={inp} value={maintenanceForm.garage ?? ''} onChange={e => setMaintenanceForm(current => ({ ...current, garage: e.target.value || null }))} /></Field>
                           <Field label="Prochaine echeance"><input className={inp} type="date" value={maintenanceForm.next_due_date ?? ''} onChange={e => setMaintenanceForm(current => ({ ...current, next_due_date: e.target.value || null }))} /></Field>
+                          <Field label="Km au moment entretien"><input className={inp} type="number" min={0} value={maintenanceForm.km_compteur ?? ''} onChange={e => setMaintenanceForm(current => ({ ...current, km_compteur: e.target.value ? Number.parseInt(e.target.value, 10) : null }))} /></Field>
+                          <Field label="Prochaine echeance km"><input className={inp} type="number" min={0} value={maintenanceForm.next_due_km ?? ''} onChange={e => setMaintenanceForm(current => ({ ...current, next_due_km: e.target.value ? Number.parseInt(e.target.value, 10) : null }))} /></Field>
                         </div>
                         <label className="flex items-center gap-2 text-xs text-slate-600">
                           <input type="checkbox" checked={maintenanceForm.covered_by_contract ?? false} onChange={e => setMaintenanceForm(current => ({ ...current, covered_by_contract: e.target.checked }))} />
@@ -698,8 +861,9 @@ export default function Remorques() {
                             <div className="flex items-start justify-between gap-3">
                               <div>
                                 <div className="text-sm font-medium text-slate-800">{MAINTENANCE_TYPE_LABELS[(entretien.maintenance_type as (typeof MAINTENANCE_TYPES)[number]) ?? 'autre'] ?? entretien.maintenance_type}</div>
-                                <div className="text-xs text-slate-400">{formatDate(entretien.service_date)} · {formatCurrency(entretien.cout_ht)}</div>
+                                <div className="text-xs text-slate-400">{formatDate(entretien.service_date)} · {formatCurrency(entretien.cout_ht)}{typeof entretien.km_compteur === 'number' ? ` · ${formatKm(entretien.km_compteur)}` : ''}</div>
                                 {entretien.next_due_date && <div className="text-xs text-slate-400">Prochaine echeance: {formatDate(entretien.next_due_date)}</div>}
+                                {typeof entretien.next_due_km === 'number' && <div className="text-xs text-slate-400">Prochaine echeance km: {formatKm(entretien.next_due_km)}</div>}
                               </div>
                               <button type="button" onClick={() => void deleteMaintenance(entretien.id)} className="text-xs text-slate-400 hover:text-red-500">Suppr.</button>
                             </div>

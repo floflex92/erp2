@@ -279,7 +279,7 @@ function createTruckIcon(alertLevel: LiveMission['alertLevel'], selected: boolea
             <circle cx="17.5" cy="17.5" r="1.5"></circle>
           </svg>
         </div>
-        <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);padding:4px 8px;border-radius:999px;background:rgba(2,6,23,0.86);color:#f8fafc;font:600 10px/1 Inter,system-ui,sans-serif;letter-spacing:0.08em;text-transform:uppercase;white-space:nowrap;">${label}</div>
+        <div style="position:absolute;bottom:0;left:0;right:0;margin:0 auto;width:max-content;padding:4px 8px;border-radius:999px;background:rgba(2,6,23,0.86);color:#f8fafc;font:600 10px/1 Inter,system-ui,sans-serif;letter-spacing:0.08em;text-transform:uppercase;white-space:nowrap;">${label}</div>
       </div>
     `,
   })

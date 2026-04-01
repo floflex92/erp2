@@ -194,8 +194,8 @@ function useBadgeCount(page: string, profilId: string | null, demoProfil: unknow
       const { data } = await looseSupabase
         .from('tchat_messages')
         .select('id')
-        .neq('sender_id' as any, safeProfilId as any)
-        .is('read_at' as any, null as any)
+        .neq('sender_id', safeProfilId)
+        .is('read_at', null)
       setCount(Array.isArray(data) ? data.length : 0)
     }
 
@@ -262,86 +262,99 @@ export default function Sidebar() {
   }
 
   return (
-    <aside
-      className="shrink-0 transition-all duration-200 ease-in-out"
-      style={{ width: collapsed ? '78px' : '236px' }}
-    >
-      <div
-        className="flex h-full flex-col px-2 py-3 transition-all duration-200"
-        style={{
-          background: 'linear-gradient(180deg, rgba(15,23,42,0.98), rgba(15,23,42,0.95))',
-          borderRight: '1px solid rgba(255,255,255,0.08)',
-        }}
+    <>
+      <aside
+        className="relative shrink-0 overflow-visible transition-all duration-200 ease-in-out"
+        style={{ width: collapsed ? '0px' : '236px' }}
       >
-        <div className={`mb-3 flex items-center px-2 ${collapsed ? 'justify-center' : ''}`}>
-          {collapsed ? (
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600/80">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8">
-                <path d="M3 7h11v9H3z" />
-                <path d="M14 10h3l3 3v3h-6z" />
-                <circle cx="7.5" cy="18" r="1.5" />
-                <circle cx="17.5" cy="18" r="1.5" />
-              </svg>
-            </div>
-          ) : (
-            <NexoraTruckLogo dark size="sm" subtitle="ERP transport" />
-          )}
-        </div>
-
-        <div className="nx-scrollbar flex-1 space-y-2 overflow-y-auto overflow-x-hidden px-1 pb-2">
-          {visibleSections.map(section => {
-            const sectionOpen = collapsed ? true : (openSections[section.key] ?? true)
-            return (
-              <div
-                key={section.key}
-                className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-1.5"
-              >
-                {!collapsed && (
-                  <button
-                    type="button"
-                    onClick={() => toggleSection(section.key)}
-                    className="mb-1 flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 transition-colors hover:bg-white/[0.05] hover:text-slate-200"
-                  >
-                    <span className="truncate">{section.label}</span>
-                    <span className="ml-auto text-[10px] tracking-normal text-slate-500">{section.items.length}</span>
-                    <span className={`text-slate-500 transition-transform ${sectionOpen ? 'rotate-180' : ''}`}>
-                      <NavGlyph type="chevron-down" size={14} />
-                    </span>
-                  </button>
-                )}
-
-                {sectionOpen && (
-                  <div className={`flex flex-col ${collapsed ? 'items-center gap-1.5' : 'gap-1'}`}>
-                    {section.items.map(item => (
-                      <DockItem
-                        key={item.to}
-                        item={item}
-                        collapsed={collapsed}
-                        role={role}
-                        notificationCount={getBadge(item.page)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-
-        <div className={`mt-2 border-t border-white/[0.08] px-1 pt-3 ${collapsed ? 'flex justify-center' : ''}`}>
-          <button
-            type="button"
-            onClick={() => setCollapsed(current => !current)}
-            className={`flex items-center gap-2.5 rounded-xl border border-white/12 bg-white/[0.04] text-slate-300 transition-colors hover:bg-white/[0.08] hover:text-white ${
-              collapsed ? 'h-11 w-11 justify-center' : 'w-full px-3 py-2'
-            }`}
-            title={collapsed ? 'Afficher les libelles' : 'Mode compact'}
+        {!collapsed && (
+          <div
+            className="flex h-full flex-col px-2 py-3 transition-all duration-200"
+            style={{
+              background: 'linear-gradient(180deg, rgba(15,23,42,0.98), rgba(15,23,42,0.95))',
+              borderRight: '1px solid rgba(255,255,255,0.08)',
+            }}
           >
-            <NavGlyph type={collapsed ? 'expand' : 'collapse'} size={17} />
-            {!collapsed && <span className="truncate text-xs font-medium">Mode compact</span>}
-          </button>
-        </div>
-      </div>
-    </aside>
+            <div className="mb-3 flex items-center px-2">
+              <NexoraTruckLogo dark size="sm" subtitle="ERP transport" />
+            </div>
+
+            <div className="nx-scrollbar flex-1 space-y-2 overflow-y-auto overflow-x-hidden px-1 pb-2">
+              {visibleSections.map(section => {
+                const sectionOpen = openSections[section.key] ?? true
+                return (
+                  <div
+                    key={section.key}
+                    className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-1.5"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleSection(section.key)}
+                      className="mb-1 flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 transition-colors hover:bg-white/[0.05] hover:text-slate-200"
+                    >
+                      <span className="truncate">{section.label}</span>
+                      <span className="ml-auto text-[10px] tracking-normal text-slate-500">{section.items.length}</span>
+                      <span className={`text-slate-500 transition-transform ${sectionOpen ? 'rotate-180' : ''}`}>
+                        <NavGlyph type="chevron-down" size={14} />
+                      </span>
+                    </button>
+
+                    {sectionOpen && (
+                      <div className="flex flex-col gap-1">
+                        {section.items.map(item => (
+                          <DockItem
+                            key={item.to}
+                            item={item}
+                            collapsed={false}
+                            role={role}
+                            notificationCount={getBadge(item.page)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="mt-2 border-t border-white/[0.08] px-1 pt-3">
+              <button
+                type="button"
+                onClick={() => setCollapsed(true)}
+                className="flex w-full items-center gap-2.5 rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2 text-slate-300 transition-colors hover:bg-white/[0.08] hover:text-white"
+                title="Replier completement"
+              >
+                <NavGlyph type="collapse" size={17} />
+                <span className="truncate text-xs font-medium">Replier le menu</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </aside>
+
+      {!collapsed && (
+        <button
+          type="button"
+          onClick={() => setCollapsed(true)}
+          className="fixed left-[222px] top-3 z-[95] hidden h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-slate-900/90 text-slate-200 shadow-lg backdrop-blur transition-colors hover:bg-slate-800 hover:text-white lg:flex"
+          title="Replier le menu"
+          aria-label="Replier le menu"
+        >
+          <NavGlyph type="collapse" size={16} />
+        </button>
+      )}
+
+      {collapsed && (
+        <button
+          type="button"
+          onClick={() => setCollapsed(false)}
+          className="fixed left-2 top-3 z-[95] flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-slate-900/90 text-slate-200 shadow-lg backdrop-blur transition-colors hover:bg-slate-800 hover:text-white"
+          title="Afficher le menu"
+          aria-label="Afficher le menu"
+        >
+          <NavGlyph type="expand" size={17} />
+        </button>
+      )}
+    </>
   )
 }

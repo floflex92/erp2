@@ -2,6 +2,7 @@ import type { Role } from './auth'
 
 export interface EmployeeRecord {
   employeeId: string
+  matricule: string
   role: Role
   firstName: string
   lastName: string
@@ -70,7 +71,19 @@ function normalizeNamePart(value: string) {
 export function generateProfessionalEmail(firstName: string, lastName: string) {
   const first = normalizeNamePart(firstName || 'prenom')
   const last = normalizeNamePart(lastName || 'nom')
-  return `${first}.${last}@channelfret-international.com`
+  return `${first}.${last}@nexora-truck.fr`
+}
+
+export function generateEmployeeMatricule(employeeId: string) {
+  const token = employeeId.replace(/[^a-z0-9]/gi, '').slice(0, 8).toUpperCase() || 'UNKNOWN'
+  return `EMP-${token}`
+}
+
+function normalizeRecord(record: Omit<EmployeeRecord, 'matricule'> & { matricule?: string | null }) {
+  return {
+    ...record,
+    matricule: record.matricule?.trim() || generateEmployeeMatricule(record.employeeId),
+  } satisfies EmployeeRecord
 }
 
 export function generateProvisionalCode() {
@@ -83,17 +96,31 @@ export function generateProvisionalCode() {
 }
 
 export function listEmployeeRecords() {
-  return readState().items
+  const state = readState()
+  const normalizedItems = state.items.map(item => normalizeRecord(item))
+  if (normalizedItems.some((item, index) => item.matricule !== state.items[index].matricule)) {
+    saveState({ items: normalizedItems })
+  }
+
+  return normalizedItems
     .slice()
     .sort((left, right) => `${left.lastName} ${left.firstName}`.localeCompare(`${right.lastName} ${right.firstName}`, 'fr-FR'))
 }
 
 export function getEmployeeRecord(employeeId: string) {
-  return readState().items.find(item => item.employeeId === employeeId) ?? null
+  const state = readState()
+  const existing = state.items.find(item => item.employeeId === employeeId)
+  if (!existing) return null
+  const normalized = normalizeRecord(existing)
+  if (normalized.matricule !== existing.matricule) {
+    saveState({ items: state.items.map(item => item.employeeId === employeeId ? normalized : item) })
+  }
+  return normalized
 }
 
 export function ensureEmployeeRecord(input: {
   employeeId: string
+  matricule?: string | null
   role: Role
   firstName: string
   lastName: string
@@ -108,6 +135,7 @@ export function ensureEmployeeRecord(input: {
   const now = new Date().toISOString()
   const next: EmployeeRecord = {
     employeeId: input.employeeId,
+    matricule: input.matricule?.trim() || existing?.matricule || generateEmployeeMatricule(input.employeeId),
     role: input.role,
     firstName: input.firstName,
     lastName: input.lastName,

@@ -7,7 +7,7 @@ export interface VaultRecord {
   mime_type: string
   size: number
   url: string
-  source: 'mail' | 'tchat'
+  source: 'mail' | 'tchat' | 'signature'
   source_label: string
   created_at: string
 }
@@ -64,7 +64,7 @@ export function listVaultRecords(ownerId: string) {
 export function saveAttachmentToVault(
   ownerId: string,
   attachment: TchatAttachment,
-  source: 'mail' | 'tchat',
+  source: 'mail' | 'tchat' | 'signature',
   sourceLabel: string,
 ) {
   const state = readState()

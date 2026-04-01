@@ -80,7 +80,9 @@ export async function handler(event) {
       tenant_key: tenantKey,
       channel_key: channelKey,
       sender_type: senderType,
-      sender_id: body.sender_id ?? auth.profile.id,
+      // NOTE SECURITE: sender_id est toujours l'utilisateur authentifie,
+      // le body ne peut pas le surcharger pour eviter l'usurpation d'identite.
+      sender_id: auth.profile.id,
       recipient_type: typeof body.recipient_type === 'string' ? body.recipient_type : null,
       recipient_id: typeof body.recipient_id === 'string' ? body.recipient_id : null,
       ot_id: typeof body.ot_id === 'string' ? body.ot_id : null,
@@ -112,6 +114,8 @@ export async function handler(event) {
       .update(patch)
       .eq('tenant_key', tenantKey)
       .eq('id', body.id)
+      // NOTE SECURITE: seul l'expediteur ou le destinataire peut modifier le message
+      .or(`sender_id.eq.${auth.profile.id},recipient_id.eq.${auth.profile.id}`)
       .select('*')
       .maybeSingle()
 

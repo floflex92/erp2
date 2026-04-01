@@ -2,9 +2,31 @@
   command = "npm run build"
   publish = "dist"
 
+[dev]
+  framework = "#custom"
+  command = "npm run dev"
+  targetPort = 5173
+  port = 8888
+
 [build.environment]
   NODE_VERSION = "20"
-  VITE_APP_VERSION = "1.2.0"
+  VITE_APP_VERSION = "1.6.1"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(self), payment=()"
+
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "https://nexora-truck.fr"
+    Access-Control-Allow-Methods = "GET, POST, PATCH, DELETE, OPTIONS"
+    Access-Control-Allow-Headers = "Authorization, Content-Type, X-Tenant-Key"
 
 [[redirects]]
   from = "/*"

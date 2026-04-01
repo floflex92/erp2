@@ -9,6 +9,7 @@ type Affectation = Tables<'affectations'>
 type ConducteurDocument = Tables<'conducteur_documents'>
 type ConducteurEvent = Tables<'conducteur_evenements_rh'>
 type RhEventForm = Omit<TablesInsert<'conducteur_evenements_rh'>, 'conducteur_id'>
+type OtLite = Pick<Tables<'ordres_transport'>, 'id' | 'conducteur_id' | 'reference' | 'statut' | 'date_chargement_prevue' | 'date_livraison_prevue'>
 
 const LICENSE_CATEGORIES = ['B', 'BE', 'C1', 'C1E', 'C', 'CE', 'D1', 'D1E', 'D', 'DE'] as const
 const RH_EVENT_TYPES = ['arret_maladie', 'avertissement', 'mise_a_pied', 'visite_medicale', 'entretien', 'accident_travail', 'retour_poste', 'autre'] as const
@@ -55,6 +56,16 @@ function countExpiringSoon(dates: Array<string | null>) {
 
 function formatDate(date: string | null) {
   return date ? new Date(date).toLocaleDateString('fr-FR') : 'Non renseigne'
+}
+
+function formatDateTimeShort(date: string | null) {
+  if (!date) return 'Non planifie'
+  return new Date(date).toLocaleString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 function sanitizeFilename(name: string) {
@@ -150,6 +161,7 @@ export default function Chauffeurs() {
   const [notice, setNotice] = useState<string | null>(null)
   const [rhEvents, setRhEvents] = useState<ConducteurEvent[]>([])
   const [rhDocuments, setRhDocuments] = useState<ConducteurDocument[]>([])
+  const [activeOrdersByConducteur, setActiveOrdersByConducteur] = useState<Record<string, OtLite[]>>({})
   const [rhLoading, setRhLoading] = useState(false)
   const [rhError, setRhError] = useState<string | null>(null)
   const [eventForm, setEventForm] = useState<RhEventForm>(EMPTY_EVENT)
@@ -168,22 +180,45 @@ export default function Chauffeurs() {
     setError(null)
 
     try {
-      const [condRes, vehRes, remRes, affRes] = await Promise.all([
+      const [condRes, vehRes, remRes, affRes, otRes] = await Promise.all([
         supabase.from('conducteurs').select('*').order('nom').order('prenom'),
         supabase.from('vehicules').select('*').order('immatriculation'),
         supabase.from('remorques').select('*').order('immatriculation'),
         supabase.from('affectations').select('*').eq('actif', true),
+        supabase
+          .from('ordres_transport')
+          .select('id,conducteur_id,reference,statut,date_chargement_prevue,date_livraison_prevue')
+          .in('statut', ['planifie', 'en_cours'])
+          .not('conducteur_id', 'is', null)
+          .order('date_chargement_prevue', { ascending: true, nullsFirst: false }),
       ])
 
       if (condRes.error) throw condRes.error
       if (vehRes.error) throw vehRes.error
       if (remRes.error) throw remRes.error
       if (affRes.error) throw affRes.error
+      if (otRes.error) throw otRes.error
+
+      const groupedOrders: Record<string, OtLite[]> = {}
+      for (const order of (otRes.data ?? []) as OtLite[]) {
+        if (!order.conducteur_id) continue
+        groupedOrders[order.conducteur_id] = [...(groupedOrders[order.conducteur_id] ?? []), order]
+      }
+      for (const conducteurId of Object.keys(groupedOrders)) {
+        groupedOrders[conducteurId].sort((left, right) => {
+          if (left.statut === 'en_cours' && right.statut !== 'en_cours') return -1
+          if (right.statut === 'en_cours' && left.statut !== 'en_cours') return 1
+          const leftTs = new Date(left.date_chargement_prevue ?? left.date_livraison_prevue ?? 0).getTime()
+          const rightTs = new Date(right.date_chargement_prevue ?? right.date_livraison_prevue ?? 0).getTime()
+          return leftTs - rightTs
+        })
+      }
 
       setList(condRes.data ?? [])
       setVehicules(vehRes.data ?? [])
       setRemorques(remRes.data ?? [])
       setAffectations(affRes.data ?? [])
+      setActiveOrdersByConducteur(groupedOrders)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Chargement impossible.')
     } finally {
@@ -685,10 +720,10 @@ export default function Chauffeurs() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1040px] text-sm">
+            <table className="w-full min-w-[1160px] text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                {['Conducteur', 'Contact', 'Permis', 'FCO exp.', 'Carte tachy', 'Préférences', 'Affectation', 'Statut', ''].map(h => (
+                {['Conducteur', 'Contact', 'Permis', 'FCO exp.', 'Carte tachy', 'OT en cours / a venir', 'Preferences', 'Affectation', 'Statut', ''].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -698,6 +733,8 @@ export default function Chauffeurs() {
                 const aff = currentAff(c.id)
                 const veh = aff?.vehicule_id ? vehMap[aff.vehicule_id] : null
                 const rem = aff?.remorque_id ? remMap[aff.remorque_id] : null
+                const otList = activeOrdersByConducteur[c.id] ?? []
+                const firstOt = otList[0] ?? null
                 return (
                   <tr key={c.id} className={`border-t border-slate-100 ${i % 2 !== 0 ? 'bg-slate-50' : ''}`}>
                     <td className="px-4 py-3">
@@ -743,6 +780,21 @@ export default function Chauffeurs() {
                       <div className={`text-xs ${expColor(c.carte_tachy_expiration)}`}>
                         {c.carte_tachy_expiration ? `exp. ${new Date(c.carte_tachy_expiration).toLocaleDateString('fr-FR')}` : ''}
                       </div>
+                    </td>
+                    <td className="px-4 py-3 min-w-[220px]">
+                      {firstOt ? (
+                        <div>
+                          <div className="text-xs font-semibold text-slate-700">{firstOt.reference}</div>
+                          <div className="text-xs text-slate-500">
+                            {firstOt.statut === 'en_cours' ? 'En cours' : 'Planifie'} · {formatDateTimeShort(firstOt.date_chargement_prevue ?? firstOt.date_livraison_prevue)}
+                          </div>
+                          {otList.length > 1 && (
+                            <div className="mt-1 text-[11px] text-slate-400">+{otList.length - 1} autre{otList.length - 1 > 1 ? 's' : ''} mission{otList.length - 1 > 1 ? 's' : ''}</div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400">Aucune mission active</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 max-w-[160px]">
                       {c.preferences

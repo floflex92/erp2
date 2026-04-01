@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { createLogisticSite, listLogisticSites, type LogisticSite, type LogisticSiteInsert } from '@/lib/transportCourses'
+import {
+  createLogisticSite,
+  listLogisticSites,
+  updateLogisticSite,
+  type LogisticSite,
+  type LogisticSiteInsert,
+  type LogisticSiteUpdate,
+} from '@/lib/transportCourses'
 
 export function useLogisticSites() {
   const [sites, setSites] = useState<LogisticSite[]>([])
@@ -28,6 +35,15 @@ export function useLogisticSites() {
     return created
   }, [])
 
+  const updateSite = useCallback(async (siteId: string, payload: LogisticSiteUpdate) => {
+    const updated = await updateLogisticSite(siteId, payload)
+    setSites(current => {
+      const next = current.map(item => (item.id === siteId ? updated : item))
+      return next.sort((a, b) => a.nom.localeCompare(b.nom))
+    })
+    return updated
+  }, [])
+
   useEffect(() => {
     void reload()
   }, [reload])
@@ -38,5 +54,6 @@ export function useLogisticSites() {
     error,
     reload,
     addSite,
+    updateSite,
   }
 }

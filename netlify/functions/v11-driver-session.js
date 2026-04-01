@@ -52,29 +52,40 @@ async function openSession(dbClient, tenantKey, auth, body) {
   return json(201, { tenant_key: tenantKey, session: data })
 }
 
-async function heartbeat(dbClient, tenantKey, body) {
+// NOTE SECURITE: pour le role conducteur, restreint les actions au user ayant cree la session.
+// Les autres roles (exploitant, admin...) peuvent agir sur n'importe quelle session.
+function applySessionOwnershipFilter(query, auth) {
+  if (auth.profile.role === 'conducteur') {
+    return query.eq('created_by', auth.user.id)
+  }
+  return query
+}
+
+async function heartbeat(dbClient, tenantKey, body, auth) {
   const token = typeof body.session_token === 'string' ? body.session_token : null
   if (!token) return json(400, { error: 'session_token is required.' })
 
-  const { data, error } = await dbClient
+  let query = dbClient
     .from('erp_v11_driver_sessions')
     .update({ last_seen_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq('tenant_key', tenantKey)
     .eq('session_token', token)
     .eq('status', 'active')
     .select('id, conducteur_id, status, started_at, last_seen_at')
-    .maybeSingle()
 
+  query = applySessionOwnershipFilter(query, auth)
+
+  const { data, error } = await query.maybeSingle()
   if (error) return json(500, { error: error.message })
   if (!data) return json(404, { error: 'Session not found or inactive.' })
   return json(200, { tenant_key: tenantKey, session: data })
 }
 
-async function closeSession(dbClient, tenantKey, body) {
+async function closeSession(dbClient, tenantKey, body, auth) {
   const token = typeof body.session_token === 'string' ? body.session_token : null
   if (!token) return json(400, { error: 'session_token is required.' })
 
-  const { data, error } = await dbClient
+  let query = dbClient
     .from('erp_v11_driver_sessions')
     .update({
       status: 'closed',
@@ -85,8 +96,10 @@ async function closeSession(dbClient, tenantKey, body) {
     .eq('tenant_key', tenantKey)
     .eq('session_token', token)
     .select('id, conducteur_id, status, started_at, ended_at')
-    .maybeSingle()
 
+  query = applySessionOwnershipFilter(query, auth)
+
+  const { data, error } = await query.maybeSingle()
   if (error) return json(500, { error: error.message })
   if (!data) return json(404, { error: 'Session not found.' })
   return json(200, { tenant_key: tenantKey, session: data })
@@ -145,8 +158,8 @@ export async function handler(event) {
 
   if (event.httpMethod === 'POST') {
     if (action === 'open') return openSession(auth.dbClient, tenantKey, auth, body)
-    if (action === 'heartbeat') return heartbeat(auth.dbClient, tenantKey, body)
-    if (action === 'close') return closeSession(auth.dbClient, tenantKey, body)
+    if (action === 'heartbeat') return heartbeat(auth.dbClient, tenantKey, body, auth)
+    if (action === 'close') return closeSession(auth.dbClient, tenantKey, body, auth)
     return json(400, { error: 'Unsupported POST action.' })
   }
 

@@ -234,11 +234,13 @@ export default function Facturation() {
   const totalEnAttente = useMemo(() => activeList.filter(f => f.statut === 'envoyee').reduce((s, f) => s + (f.montant_ttc ?? f.montant_ht), 0), [activeList])
   const totalEnRetard = useMemo(() => activeList.filter(f => f.statut === 'en_retard').reduce((s, f) => s + (f.montant_ttc ?? f.montant_ht), 0), [activeList])
 
-  const now = new Date()
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const startOfMonth = useMemo(() => {
+    const currentDate = new Date()
+    return new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString()
+  }, [])
   const totalPayeeMois = useMemo(() => list
     .filter(f => f.statut === 'payee' && f.date_paiement && f.date_paiement >= startOfMonth)
-    .reduce((s, f) => s + (f.montant_ttc ?? f.montant_ht), 0), [list])
+    .reduce((s, f) => s + (f.montant_ttc ?? f.montant_ht), 0), [list, startOfMonth])
 
   // Monthly CA (current year)
   const monthlyCA = useMemo(() => {
@@ -297,7 +299,8 @@ export default function Facturation() {
 
   // Upcoming invoices (due in next 30 days)
   const upcoming = useMemo(() => {
-    const in30 = new Date()
+    const now = new Date()
+    const in30 = new Date(now)
     in30.setDate(in30.getDate() + 30)
     return list.filter(f =>
       f.statut === 'envoyee' && f.date_echeance &&
@@ -844,7 +847,7 @@ export default function Facturation() {
           <div className="bg-white rounded-xl border border-slate-200 p-5">
             <h3 className="text-sm font-semibold text-slate-800 mb-3">Projection annuelle</h3>
             {(() => {
-              const moisCoules = now.getMonth() + 1
+              const moisCoules = new Date().getMonth() + 1
               const moyenneMensuelle = moisCoules > 0 ? totalReel / moisCoules : 0
               const projection = moyenneMensuelle * 12
               const resteAFaire = projection - totalReel

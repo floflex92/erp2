@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
-import { markDemoSeedState, seedTransportDemoData, shouldAutoSeedTransportDemo } from '@/lib/demoSeed'
+import { clearDemoAndMockLocalData } from '@/lib/demoDataCleanup'
 import SessionPicker from '@/pages/SessionPicker'
 
 const RESERVED_BOOTSTRAP_ROLE_BY_EMAIL: Record<string, 'admin' | 'dirigeant'> = {
@@ -137,29 +137,7 @@ export default function RequireAuth() {
   }, [session?.user, session?.user?.id, accountProfil, profilLoading, authError, reloadProfil, bootstrapTick])
 
   useEffect(() => {
-    if (!session?.user) return
-
-    let active = true
-
-    void (async () => {
-      try {
-        const shouldSeed = await shouldAutoSeedTransportDemo()
-        if (!shouldSeed || !active) return
-
-        markDemoSeedState('running')
-        await seedTransportDemoData()
-        if (!active) return
-        markDemoSeedState('done')
-        window.location.reload()
-      } catch {
-        if (!active) return
-        markDemoSeedState('failed')
-      }
-    })()
-
-    return () => {
-      active = false
-    }
+    clearDemoAndMockLocalData()
   }, [session?.user, session?.user?.id])
 
   if (loading || (session?.user && profilLoading)) return <FullscreenSpinner />

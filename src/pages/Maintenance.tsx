@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import type { Tables, TablesInsert } from '@/lib/database.types'
+import { buildStaffDirectory, staffDisplayName } from '@/lib/staffDirectory'
 
 // ── Types DB ─────────────────────────────────────────────────────────────────
 type Vehicule = Tables<'vehicules'>
@@ -56,7 +58,53 @@ type Fournisseur = {
   note: number
 }
 
-type Tab = 'dashboard' | 'ot' | 'planning' | 'stock' | 'fournisseurs' | 'couts'
+type MaintenanceIndexEntry = {
+  id: string
+  marque: string
+  modele: string
+  motorisation: string | null
+  maintenance_type: string
+  periodicite_km: number | null
+  periodicite_mois: number | null
+  huile_moteur_l: number | null
+  huile_boite_l: number | null
+  huile_pont_l: number | null
+  liquide_frein_l: number | null
+  pieces_reference: string | null
+  source_constructeur: string | null
+  notes: string | null
+  derniere_veille_mois: string | null
+  created_at: string
+  updated_at: string
+}
+
+type IndexAlertStatus = 'preventif' | 'depasse' | 'ok' | 'a_initialiser'
+
+type IndexVehiculeAlerte = {
+  vehiculeId: string
+  immatriculation: string
+  modele: string
+  motorisation: string
+  maintenanceType: string
+  status: IndexAlertStatus
+  kmRestants: number | null
+  joursRestants: number | null
+  periodicite_km: number | null
+  periodicite_mois: number | null
+  prochaineEcheanceDate: string | null
+  prochaineEcheanceKm: number | null
+  source: string
+  lastServiceDate: string | null
+}
+
+type AlertSettings = {
+  preventifKm: number
+  preventifJours: number
+  toleranceDepasseKm: number
+  toleranceDepasseJours: number
+}
+
+type Tab = 'dashboard' | 'ot' | 'planning' | 'stock' | 'fournisseurs' | 'index' | 'alertes' | 'reglages' | 'couts'
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 const MAINTENANCE_TYPES = ['vidange', 'revision', 'pneus', 'freinage', 'controle_technique', 'tachygraphe', 'reparation', 'electricite', 'embrayage', 'prestation_exterieure', 'autre'] as const
@@ -91,7 +139,116 @@ const TYPE_FOURNISSEUR_LABELS: Record<string, string> = {
   lubrifiant: 'Lubrifiants', concessionnaire: 'Concessionnaire', autre: 'Autre',
 }
 
-const MECANICIENS_DEMO = ['', 'Pierre Martin', 'Marc Dubois', 'Karim Bensalem', 'Julien Petit', 'Thomas Bernard']
+const MAINTENANCE_INDEX_STORAGE_KEY = 'nexora_maintenance_index_v2'
+const MAINTENANCE_ALERT_SETTINGS_STORAGE_KEY = 'nexora_maintenance_alert_settings_v1'
+const MAINTENANCE_INDEX_LAST_SYNC_KEY = 'nexora_maintenance_index_last_sync_v1'
+
+type ConstructeurModele = {
+  marque: string
+  modele: string
+  motorisations: string[]
+  huile_moteur_l: number
+  huile_boite_l: number
+  huile_pont_l: number
+  liquide_frein_l: number
+}
+
+const CONSTRUCTEUR_SOURCES: Record<string, string> = {
+  Scania: 'Scania RMI Portal + Technical Information Shop (TIS) - https://www.scania.com/',
+  Volvo: 'Volvo Trucks Service & Technical Information (RMI) - https://www.volvotrucks.com/',
+  DAF: 'DAF RMI via Paccar.net (independent operators) - https://www.paccar.net/',
+  Iveco: 'IVECO Repair maintenance information / Tech Information - https://www.iveco.com/',
+  Renault: 'Renault Trucks Repair and Maintenance Information - https://www.renault-trucks.com/',
+  Mercedes: 'Mercedes-Benz Trucks Service Information (RMI) - https://www.mercedes-benz-trucks.com/',
+  MAN: 'MAN Service Portal (RMI) - https://www.man.eu/',
+}
+
+const MAINTENANCE_MULTI_MARQUES_SOURCES = [
+  'TecAlliance / TecRMI Truck - https://www.tecalliance.net/',
+  'HaynesPro Truck (OEM-based) - https://www.haynespro.com/',
+] as const
+
+const CONSTRUCTEUR_MODELES: ConstructeurModele[] = [
+  { marque: 'Scania', modele: 'Scania R', motorisations: ['DC13 460', 'DC13 500'], huile_moteur_l: 35, huile_boite_l: 14, huile_pont_l: 21, liquide_frein_l: 2 },
+  { marque: 'Scania', modele: 'Scania S', motorisations: ['DC13 500', 'DC13 560'], huile_moteur_l: 36, huile_boite_l: 14, huile_pont_l: 21, liquide_frein_l: 2 },
+  { marque: 'Volvo', modele: 'Volvo FH', motorisations: ['D13K 460', 'D13K 500'], huile_moteur_l: 36, huile_boite_l: 13, huile_pont_l: 22, liquide_frein_l: 2 },
+  { marque: 'Volvo', modele: 'Volvo FM', motorisations: ['D11K 430', 'D13K 460'], huile_moteur_l: 34, huile_boite_l: 13, huile_pont_l: 21, liquide_frein_l: 2 },
+  { marque: 'DAF', modele: 'DAF XF', motorisations: ['MX-13 480', 'MX-13 530'], huile_moteur_l: 34, huile_boite_l: 14, huile_pont_l: 21, liquide_frein_l: 2 },
+  { marque: 'DAF', modele: 'DAF XG', motorisations: ['MX-13 480', 'MX-13 530'], huile_moteur_l: 34, huile_boite_l: 14, huile_pont_l: 21, liquide_frein_l: 2 },
+  { marque: 'Iveco', modele: 'Iveco S-Way', motorisations: ['Cursor 11 460', 'Cursor 13 530'], huile_moteur_l: 32, huile_boite_l: 13, huile_pont_l: 20, liquide_frein_l: 2 },
+  { marque: 'Renault', modele: 'Renault Trucks T', motorisations: ['DTI 13 480', 'DTI 13 520'], huile_moteur_l: 33, huile_boite_l: 12, huile_pont_l: 20, liquide_frein_l: 2 },
+  { marque: 'Mercedes', modele: 'Mercedes Actros', motorisations: ['OM 471 480', 'OM 471 530'], huile_moteur_l: 40, huile_boite_l: 15, huile_pont_l: 23, liquide_frein_l: 2 },
+  { marque: 'MAN', modele: 'MAN TGX', motorisations: ['D26 470', 'D26 510'], huile_moteur_l: 35, huile_boite_l: 14, huile_pont_l: 22, liquide_frein_l: 2 },
+]
+
+function buildConstructeurIndexPresets() {
+  const maintenancePrograms: Array<{
+    maintenance_type: string
+    periodicite_km: number | null
+    periodicite_mois: number | null
+    pieces_builder: (modele: ConstructeurModele) => string
+  }> = [
+    {
+      maintenance_type: 'vidange',
+      periodicite_km: 60000,
+      periodicite_mois: 12,
+      pieces_builder: modele => `FIL-HUI-${modele.modele.toUpperCase().replace(/[^A-Z0-9]+/g, '-')} x1 piece; HUI-MOT-${modele.marque.toUpperCase()} ${modele.huile_moteur_l} litre; JOINT-BOUCHON x1 piece`,
+    },
+    {
+      maintenance_type: 'revision',
+      periodicite_km: 120000,
+      periodicite_mois: 24,
+      pieces_builder: modele => `FIL-AIR-${modele.marque.toUpperCase()} x1 piece; FIL-CARB-${modele.marque.toUpperCase()} x1 piece; HUI-BOITE ${modele.huile_boite_l} litre; HUI-PONT ${modele.huile_pont_l} litre`,
+    },
+    {
+      maintenance_type: 'freinage',
+      periodicite_km: 90000,
+      periodicite_mois: 18,
+      pieces_builder: modele => `PLAQUETTES-AV x1 kit; PLAQUETTES-AR x1 kit; LIQ-FREIN DOT4 ${modele.liquide_frein_l} litre`,
+    },
+    {
+      maintenance_type: 'tachygraphe',
+      periodicite_km: null,
+      periodicite_mois: 24,
+      pieces_builder: () => `ETALONNAGE-TACHY x1 prestation; KIT-SCELLE x1 piece`,
+    },
+    {
+      maintenance_type: 'controle_technique',
+      periodicite_km: null,
+      periodicite_mois: 12,
+      pieces_builder: () => `VISITE-TECHNIQUE x1 prestation`,
+    },
+  ]
+
+  const presets: Omit<MaintenanceIndexEntry, 'id' | 'created_at' | 'updated_at' | 'derniere_veille_mois'>[] = []
+
+  CONSTRUCTEUR_MODELES.forEach(modele => {
+    modele.motorisations.forEach(motorisation => {
+      maintenancePrograms.forEach(program => {
+        presets.push({
+          marque: modele.marque,
+          modele: modele.modele,
+          motorisation,
+          maintenance_type: program.maintenance_type,
+          periodicite_km: program.periodicite_km,
+          periodicite_mois: program.periodicite_mois,
+          huile_moteur_l: modele.huile_moteur_l,
+          huile_boite_l: modele.huile_boite_l,
+          huile_pont_l: modele.huile_pont_l,
+          liquide_frein_l: modele.liquide_frein_l,
+          pieces_reference: program.pieces_builder(modele),
+          source_constructeur: CONSTRUCTEUR_SOURCES[modele.marque] ?? null,
+          notes: `Source RMI ${modele.marque} + verification atelier hebdomadaire. Toujours valider selon VIN et plan constructeur.`,
+        })
+      })
+    })
+  })
+
+  return presets
+}
+
+const CONSTRUCTEUR_INDEX_PRESETS = buildConstructeurIndexPresets()
+
 
 // ── Seed data fournisseurs ────────────────────────────────────────────────────
 const SEED_FOURNISSEURS: Fournisseur[] = [
@@ -122,6 +279,29 @@ const inp = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline
 const fmtEur = (n: number) => n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString('fr-FR') : '—'
 const daysDiff = (d: string) => Math.ceil((new Date(d).getTime() - Date.now()) / 86400000)
+const normalizeText = (value: string | null | undefined) => (value ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+
+function extractMarqueFromModele(modele: string) {
+  const cleaned = modele.trim()
+  if (!cleaned) return 'Inconnue'
+  const firstToken = cleaned.split(' ')[0] ?? 'Inconnue'
+  if (/mercedes/i.test(cleaned)) return 'Mercedes'
+  if (/renault/i.test(cleaned)) return 'Renault'
+  return firstToken
+}
+
+function inferVehiculeMotorisation(v: Vehicule) {
+  const candidate = [v.notes, v.preferences, v.modele].filter(Boolean).join(' ')
+  const normalized = normalizeText(candidate)
+  if (!normalized) return 'standard'
+
+  const knownPatterns = [
+    'om 471', 'om471', 'om 470', 'om470', 'dc13', 'd13', 'd12', 'cursor 13', 'mx-13', 'mx13', 'xpi', '13l', '11l', '500', '460', '520',
+  ]
+  const found = knownPatterns.find(pattern => normalized.includes(pattern.replace(/\s+/g, '')) || normalized.includes(pattern))
+  if (found) return found.toUpperCase().replace(/\s+/g, ' ')
+  return 'standard'
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="space-y-1"><label className="text-xs font-medium text-slate-600">{label}</label>{children}</div>
@@ -156,6 +336,9 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
     { key: 'planning',    label: 'Planification' },
     { key: 'stock',       label: 'Pièces & Stock' },
     { key: 'fournisseurs',label: 'Fournisseurs' },
+    { key: 'index',       label: 'Index entretien' },
+    { key: 'alertes',     label: 'Alertes atelier' },
+    { key: 'reglages',    label: 'Réglage alertes' },
     { key: 'couts',       label: 'Coûts & Analyses' },
   ]
   return (
@@ -186,8 +369,38 @@ function BarChart({ data, height = 120, color = '#1e293b' }: { data: { label: st
   )
 }
 
+function extractErrorMessage(err: unknown) {
+  if (err instanceof Error && err.message) return err.message
+  if (err && typeof err === 'object') {
+    const candidate = err as { message?: unknown; error_description?: unknown; details?: unknown }
+    if (typeof candidate.message === 'string' && candidate.message) return candidate.message
+    if (typeof candidate.error_description === 'string' && candidate.error_description) return candidate.error_description
+    if (typeof candidate.details === 'string' && candidate.details) return candidate.details
+  }
+  if (typeof err === 'string') return err
+  try {
+    return JSON.stringify(err)
+  } catch {
+    return ''
+  }
+}
+
+function isMissingOptionalMaintenanceFeature(err: unknown) {
+  const normalized = extractErrorMessage(err).toLowerCase()
+  return (
+    normalized.includes('flotte_entretiens')
+    || normalized.includes('flotte_documents')
+    || normalized.includes('vue_alertes_flotte')
+    || normalized.includes('vue_couts_flotte_mensuels')
+    || normalized.includes('does not exist')
+    || normalized.includes('could not find the table')
+    || normalized.includes('pgrst205')
+    || normalized.includes('42p01')
+  )
+}
+
 function maintenanceError(err: unknown) {
-  const msg = err instanceof Error ? err.message : ''
+  const msg = extractErrorMessage(err)
   if (msg.includes('flotte_') || msg.includes('vue_alertes')) return 'La migration Supabase flotte est requise pour cette fonctionnalité.'
   if (msg.includes('Bucket')) return 'Bucket Supabase `flotte-documents` introuvable.'
   return msg || 'Erreur inconnue.'
@@ -195,7 +408,9 @@ function maintenanceError(err: unknown) {
 
 // ── Composant principal ───────────────────────────────────────────────────────
 export default function Maintenance() {
+  const { role, profil, accountProfil } = useAuth()
   const [tab, setTab] = useState<Tab>('dashboard')
+  const [alerteVue, setAlerteVue] = useState<'vehicules' | 'tableau'>('vehicules')
 
   // ── État DB ─────────────────────────────────────────────────────────────────
   const [vehicules, setVehicules] = useState<Vehicule[]>([])
@@ -207,6 +422,8 @@ export default function Maintenance() {
   const [dbError, setDbError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const isMecanicien = role === 'mecanicien'
+  const staff = useMemo(() => buildStaffDirectory([profil, accountProfil]), [profil, accountProfil])
 
   // ── État OT (in-memory) ─────────────────────────────────────────────────────
   const [ots, setOts] = useState<OT[]>([])
@@ -229,6 +446,249 @@ export default function Maintenance() {
   const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>(SEED_FOURNISSEURS)
   const [showFourForm, setShowFourForm] = useState(false)
   const [fourForm, setFourForm] = useState({ nom: '', type: 'pieces' as Fournisseur['type'], contact: '', telephone: '', email: '', delai_livraison: '', conditions: '', note: '3' })
+  const [indexEntries, setIndexEntries] = useState<MaintenanceIndexEntry[]>([])
+  const [indexEditingId, setIndexEditingId] = useState<string | null>(null)
+  const [indexLastSyncAt, setIndexLastSyncAt] = useState<string | null>(null)
+  const [indexFilterMarque, setIndexFilterMarque] = useState('toutes')
+  const [indexFilterModele, setIndexFilterModele] = useState('tous')
+  const [indexFilterMotorisation, setIndexFilterMotorisation] = useState('toutes')
+  const [alertSettings, setAlertSettings] = useState<AlertSettings>({
+    preventifKm: 5000,
+    preventifJours: 30,
+    toleranceDepasseKm: 0,
+    toleranceDepasseJours: 0,
+  })
+  const [indexForm, setIndexForm] = useState({
+    marque: 'Scania',
+    modele: '',
+    motorisation: '*',
+    maintenance_type: 'vidange',
+    periodicite_km: '',
+    periodicite_mois: '',
+    huile_moteur_l: '',
+    huile_boite_l: '',
+    huile_pont_l: '',
+    liquide_frein_l: '',
+    pieces_reference: '',
+    source_constructeur: '',
+    notes: '',
+  })
+
+  function parseNullableNumber(value: string) {
+    const normalized = value.trim().replace(',', '.')
+    if (!normalized) return null
+    const parsed = Number.parseFloat(normalized)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  function resetIndexForm() {
+    setIndexEditingId(null)
+    setIndexForm({
+      marque: 'Scania',
+      modele: '',
+      motorisation: '*',
+      maintenance_type: 'vidange',
+      periodicite_km: '',
+      periodicite_mois: '',
+      huile_moteur_l: '',
+      huile_boite_l: '',
+      huile_pont_l: '',
+      liquide_frein_l: '',
+      pieces_reference: '',
+      source_constructeur: '',
+      notes: '',
+    })
+  }
+
+  function startEditIndex(entry: MaintenanceIndexEntry) {
+    setIndexEditingId(entry.id)
+    setIndexForm({
+      marque: entry.marque,
+      modele: entry.modele,
+      motorisation: entry.motorisation ?? '*',
+      maintenance_type: entry.maintenance_type,
+      periodicite_km: entry.periodicite_km === null ? '' : String(entry.periodicite_km),
+      periodicite_mois: entry.periodicite_mois === null ? '' : String(entry.periodicite_mois),
+      huile_moteur_l: entry.huile_moteur_l === null ? '' : String(entry.huile_moteur_l),
+      huile_boite_l: entry.huile_boite_l === null ? '' : String(entry.huile_boite_l),
+      huile_pont_l: entry.huile_pont_l === null ? '' : String(entry.huile_pont_l),
+      liquide_frein_l: entry.liquide_frein_l === null ? '' : String(entry.liquide_frein_l),
+      pieces_reference: entry.pieces_reference ?? '',
+      source_constructeur: entry.source_constructeur ?? '',
+      notes: entry.notes ?? '',
+    })
+  }
+
+  function saveIndexEntry(e: React.FormEvent) {
+    e.preventDefault()
+    const modele = indexForm.modele.trim()
+    if (!modele) {
+      setNotice('Le modele est obligatoire pour enregistrer un index.')
+      return
+    }
+
+    const nowIso = new Date().toISOString()
+    const next: MaintenanceIndexEntry = {
+      id: indexEditingId ?? `idx-${Date.now()}`,
+      marque: indexForm.marque.trim() || extractMarqueFromModele(modele),
+      modele,
+      motorisation: indexForm.motorisation.trim() || '*',
+      maintenance_type: indexForm.maintenance_type,
+      periodicite_km: parseNullableNumber(indexForm.periodicite_km),
+      periodicite_mois: parseNullableNumber(indexForm.periodicite_mois),
+      huile_moteur_l: parseNullableNumber(indexForm.huile_moteur_l),
+      huile_boite_l: parseNullableNumber(indexForm.huile_boite_l),
+      huile_pont_l: parseNullableNumber(indexForm.huile_pont_l),
+      liquide_frein_l: parseNullableNumber(indexForm.liquide_frein_l),
+      pieces_reference: indexForm.pieces_reference.trim() || null,
+      source_constructeur: indexForm.source_constructeur.trim() || null,
+      notes: indexForm.notes.trim() || null,
+      derniere_veille_mois: null,
+      created_at: nowIso,
+      updated_at: nowIso,
+    }
+
+    setIndexEntries(prev => {
+      if (indexEditingId) {
+        return prev.map(item => item.id === indexEditingId ? { ...next, created_at: item.created_at, derniere_veille_mois: item.derniere_veille_mois } : item)
+      }
+      return [next, ...prev]
+    })
+
+    setNotice(indexEditingId ? 'Index entretien mis a jour.' : 'Index entretien ajoute.')
+    resetIndexForm()
+  }
+
+  function deleteIndexEntry(id: string) {
+    if (!confirm('Supprimer cet index entretien ?')) return
+    setIndexEntries(prev => prev.filter(item => item.id !== id))
+    if (indexEditingId === id) resetIndexForm()
+    setNotice('Index entretien supprime.')
+  }
+
+  function markIndexReviewed(id: string, month: string) {
+    setIndexEntries(prev => prev.map(item => item.id === id ? { ...item, derniere_veille_mois: month, updated_at: new Date().toISOString() } : item))
+    setNotice('Veille mensuelle marquee pour cet index.')
+  }
+
+  function loadConstructeurIndexPresets() {
+    syncConstructeurIndex(true)
+  }
+
+  function syncConstructeurIndex(force = false) {
+    const now = new Date()
+    const lastSyncRaw = localStorage.getItem(MAINTENANCE_INDEX_LAST_SYNC_KEY)
+    const lastSyncDate = lastSyncRaw ? new Date(lastSyncRaw) : null
+    const isWeeklyDue = !lastSyncDate || Number.isNaN(lastSyncDate.getTime()) || (now.getTime() - lastSyncDate.getTime()) >= 7 * 24 * 60 * 60 * 1000
+
+    if (!force && !isWeeklyDue) return
+
+    const nowIso = new Date().toISOString()
+    let added = 0
+
+    setIndexEntries(prev => {
+      const next = [...prev]
+      CONSTRUCTEUR_INDEX_PRESETS.forEach(preset => {
+        const exists = next.some(item =>
+          normalizeText(item.marque) === normalizeText(preset.marque)
+          && normalizeText(item.modele) === normalizeText(preset.modele)
+          && normalizeText(item.motorisation ?? '*') === normalizeText(preset.motorisation ?? '*')
+          && item.maintenance_type === preset.maintenance_type,
+        )
+        if (exists) return
+
+        next.push({
+          id: `idx-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          created_at: nowIso,
+          updated_at: nowIso,
+          derniere_veille_mois: null,
+          ...preset,
+        })
+        added += 1
+      })
+      return next
+    })
+
+    localStorage.setItem(MAINTENANCE_INDEX_LAST_SYNC_KEY, nowIso)
+    setIndexLastSyncAt(nowIso)
+
+    if (force) {
+      setNotice(added > 0
+        ? `${added} index constructeur(s) ajoutes. Base mecanicien mise a jour.`
+        : 'Base constructeur deja a jour.')
+    }
+  }
+
+  function applyAlertPresetFromIndex() {
+    const kmValues = indexEntries.map(item => item.periodicite_km).filter((value): value is number => typeof value === 'number' && value > 0)
+    const monthValues = indexEntries.map(item => item.periodicite_mois).filter((value): value is number => typeof value === 'number' && value > 0)
+
+    if (kmValues.length === 0 && monthValues.length === 0) {
+      setNotice('Impossible de pre-regler: aucun index periodique renseigne.')
+      return
+    }
+
+    const minKm = kmValues.length > 0 ? Math.min(...kmValues) : 30000
+    const minMois = monthValues.length > 0 ? Math.min(...monthValues) : 6
+
+    setAlertSettings({
+      preventifKm: Math.max(1000, Math.round(minKm * 0.15)),
+      preventifJours: Math.max(7, Math.round(minMois * 30 * 0.15)),
+      toleranceDepasseKm: 0,
+      toleranceDepasseJours: 0,
+    })
+    setNotice('Reglage preventif ajuste automatiquement selon les index atelier.')
+  }
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(MAINTENANCE_INDEX_STORAGE_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as MaintenanceIndexEntry[]
+      if (Array.isArray(parsed)) {
+        setIndexEntries(parsed.map(item => ({
+          ...item,
+          marque: item.marque ?? extractMarqueFromModele(item.modele),
+          motorisation: item.motorisation ?? '*',
+          pieces_reference: item.pieces_reference ?? null,
+          source_constructeur: item.source_constructeur ?? null,
+        })))
+      }
+    } catch {
+      setIndexEntries([])
+    }
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem(MAINTENANCE_INDEX_STORAGE_KEY, JSON.stringify(indexEntries))
+  }, [indexEntries])
+
+  useEffect(() => {
+    const raw = localStorage.getItem(MAINTENANCE_INDEX_LAST_SYNC_KEY)
+    if (raw) setIndexLastSyncAt(raw)
+    syncConstructeurIndex(false)
+  }, [])
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(MAINTENANCE_ALERT_SETTINGS_STORAGE_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as Partial<AlertSettings>
+      setAlertSettings(current => ({
+        ...current,
+        preventifKm: Number.isFinite(parsed.preventifKm) ? Number(parsed.preventifKm) : current.preventifKm,
+        preventifJours: Number.isFinite(parsed.preventifJours) ? Number(parsed.preventifJours) : current.preventifJours,
+        toleranceDepasseKm: Number.isFinite(parsed.toleranceDepasseKm) ? Number(parsed.toleranceDepasseKm) : current.toleranceDepasseKm,
+        toleranceDepasseJours: Number.isFinite(parsed.toleranceDepasseJours) ? Number(parsed.toleranceDepasseJours) : current.toleranceDepasseJours,
+      }))
+    } catch {
+      // garde les valeurs par defaut
+    }
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem(MAINTENANCE_ALERT_SETTINGS_STORAGE_KEY, JSON.stringify(alertSettings))
+  }, [alertSettings])
 
   // ── État Entretien form (sauvegarde DB depuis OT) ───────────────────────────
   async function load() {
@@ -249,13 +709,30 @@ export default function Maintenance() {
         supabase.from('flotte_documents').select('*').is('archived_at', null).order('created_at', { ascending: false }),
         supabase.from('vue_alertes_flotte').select('*').order('due_on', { ascending: true }),
       ])
-      if (eRes.error) throw eRes.error
-      if (dRes.error) throw dRes.error
-      setEntretiens(eRes.data ?? [])
-      setDocuments(dRes.data ?? [])
-      setAlerts(aRes.error ? [] : (aRes.data ?? []))
+      if (eRes.error) {
+        if (isMissingOptionalMaintenanceFeature(eRes.error)) setEntretiens([])
+        else throw eRes.error
+      } else {
+        setEntretiens(eRes.data ?? [])
+      }
+
+      if (dRes.error) {
+        if (isMissingOptionalMaintenanceFeature(dRes.error)) setDocuments([])
+        else throw dRes.error
+      } else {
+        setDocuments(dRes.data ?? [])
+      }
+
+      if (aRes.error) {
+        if (isMissingOptionalMaintenanceFeature(aRes.error)) setAlerts([])
+        else throw aRes.error
+      } else {
+        setAlerts(aRes.data ?? [])
+      }
     } catch (err) {
-      setDbError(maintenanceError(err))
+      if (!isMissingOptionalMaintenanceFeature(err)) {
+        setDbError(maintenanceError(err))
+      }
     } finally {
       setLoading(false)
     }
@@ -263,15 +740,256 @@ export default function Maintenance() {
 
   useEffect(() => { void load() }, [])
 
+  useEffect(() => {
+    if (!isMecanicien && showOTForm) {
+      setShowOTForm(false)
+    }
+  }, [isMecanicien, showOTForm])
+
+  const mecanicienOptions = useMemo(() => {
+    const names = Array.from(new Set(
+      staff
+        .filter(member => member.role === 'mecanicien')
+        .map(member => staffDisplayName(member))
+        .filter(Boolean),
+    )).sort((a, b) => a.localeCompare(b, 'fr'))
+    return ['' as string, ...names]
+  }, [staff])
+
   // ── Helpers lookup ──────────────────────────────────────────────────────────
-  const vehiculeLabel = (id: string | null) => id ? (vehicules.find(v => v.id === id)?.immatriculation ?? 'Véhicule') : null
-  const remorqueLabel = (id: string | null) => id ? (remorques.find(r => r.id === id)?.immatriculation ?? 'Remorque') : null
+  const vehiculeLabel = useCallback((id: string | null) => id ? (vehicules.find(v => v.id === id)?.immatriculation ?? 'Véhicule') : null, [vehicules])
+  const remorqueLabel = useCallback((id: string | null) => id ? (remorques.find(r => r.id === id)?.immatriculation ?? 'Remorque') : null, [remorques])
   const assetLabel = (e: FlotteEntretien) => vehiculeLabel(e.vehicule_id) ?? remorqueLabel(e.remorque_id) ?? 'Parc'
 
   // ── Computed agregats ───────────────────────────────────────────────────────
   const now = new Date()
+  const currentYear = now.getFullYear()
   const yearStr = String(now.getFullYear())
   const monthStr = `${yearStr}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+  const indexCatalogueMarques = useMemo(() => {
+    return Array.from(new Set(CONSTRUCTEUR_MODELES.map(item => item.marque))).sort((a, b) => a.localeCompare(b, 'fr'))
+  }, [])
+
+  const indexCatalogueModeles = useMemo(() => {
+    return Array.from(new Set(
+      CONSTRUCTEUR_MODELES
+        .filter(item => item.marque === indexForm.marque)
+        .map(item => item.modele),
+    )).sort((a, b) => a.localeCompare(b, 'fr'))
+  }, [indexForm.marque])
+
+  const indexCatalogueMotorisations = useMemo(() => {
+    const model = CONSTRUCTEUR_MODELES.find(item => item.marque === indexForm.marque && item.modele === indexForm.modele)
+    if (!model) return ['*']
+    return ['*', ...model.motorisations]
+  }, [indexForm.marque, indexForm.modele])
+
+  const maintenanceByModeleType = useMemo(() => {
+    const vehicleToModel = new Map<string, string>()
+    vehicules.forEach(v => {
+      const model = `${v.marque ?? ''} ${v.modele ?? ''}`.trim() || v.immatriculation
+      vehicleToModel.set(v.id, model)
+    })
+
+    const countMap: Record<string, number> = {}
+    entretiens.forEach(e => {
+      if (!e.vehicule_id) return
+      const model = vehicleToModel.get(e.vehicule_id)
+      if (!model) return
+      const key = `${model}__${e.maintenance_type}`
+      countMap[key] = (countMap[key] ?? 0) + 1
+    })
+
+    return Object.entries(countMap)
+      .map(([key, count]) => {
+        const [modele, maintenance_type] = key.split('__')
+        return { modele, maintenance_type, count }
+      })
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8)
+  }, [entretiens, vehicules])
+
+  const indexVeilleMois = useMemo(() => {
+    return indexEntries.filter(entry => entry.derniere_veille_mois !== monthStr)
+  }, [indexEntries, monthStr])
+
+  const indexMarques = useMemo(() => {
+    return Array.from(new Set(indexEntries.map(entry => entry.marque || extractMarqueFromModele(entry.modele)))).sort((a, b) => a.localeCompare(b, 'fr'))
+  }, [indexEntries])
+
+  const indexModelesFiltres = useMemo(() => {
+    return Array.from(new Set(
+      indexEntries
+        .filter(entry => indexFilterMarque === 'toutes' || (entry.marque || extractMarqueFromModele(entry.modele)) === indexFilterMarque)
+        .map(entry => entry.modele),
+    )).sort((a, b) => a.localeCompare(b, 'fr'))
+  }, [indexEntries, indexFilterMarque])
+
+  const indexMotorisationsFiltrees = useMemo(() => {
+    return Array.from(new Set(
+      indexEntries
+        .filter(entry => indexFilterMarque === 'toutes' || extractMarqueFromModele(entry.modele) === indexFilterMarque)
+        .filter(entry => indexFilterModele === 'tous' || entry.modele === indexFilterModele)
+        .map(entry => entry.motorisation ?? '*'),
+    )).sort((a, b) => a.localeCompare(b, 'fr'))
+  }, [indexEntries, indexFilterMarque, indexFilterModele])
+
+  const filteredIndexEntries = useMemo(() => {
+    return indexEntries.filter(entry => {
+      const marque = entry.marque || extractMarqueFromModele(entry.modele)
+      const marqueOk = indexFilterMarque === 'toutes' || marque === indexFilterMarque
+      const modeleOk = indexFilterModele === 'tous' || entry.modele === indexFilterModele
+      const motorisationOk = indexFilterMotorisation === 'toutes' || (entry.motorisation ?? '*') === indexFilterMotorisation
+      return marqueOk && modeleOk && motorisationOk
+    })
+  }, [indexEntries, indexFilterMarque, indexFilterModele, indexFilterMotorisation])
+
+  const constructeurRemontees = useMemo(() => {
+    const grouped = new Map<string, { constructeur: string; rules: number; modeles: Set<string>; source: string | null }>()
+
+    indexEntries.forEach(entry => {
+      const constructeur = entry.marque || extractMarqueFromModele(entry.modele)
+      const existing = grouped.get(constructeur)
+      if (!existing) {
+        grouped.set(constructeur, {
+          constructeur,
+          rules: 1,
+          modeles: new Set([entry.modele]),
+          source: entry.source_constructeur,
+        })
+        return
+      }
+
+      existing.rules += 1
+      existing.modeles.add(entry.modele)
+      if (!existing.source && entry.source_constructeur) existing.source = entry.source_constructeur
+    })
+
+    return Array.from(grouped.values())
+      .map(item => ({ ...item, modelesCount: item.modeles.size }))
+      .sort((a, b) => a.constructeur.localeCompare(b.constructeur, 'fr'))
+  }, [indexEntries])
+
+  const vehiculeDescriptors = useMemo(() => {
+    return vehicules.map(v => {
+      const modele = `${v.marque ?? ''} ${v.modele ?? ''}`.trim() || v.immatriculation
+      return {
+        id: v.id,
+        immatriculation: v.immatriculation,
+        modele,
+        motorisation: inferVehiculeMotorisation(v),
+        kmActuel: v.km_actuel,
+      }
+    })
+  }, [vehicules])
+
+  const indexAlertesVehicules = useMemo<IndexVehiculeAlerte[]>(() => {
+    const today = new Date()
+    const byVehicule: Record<string, FlotteEntretien[]> = {}
+    entretiens.forEach(item => {
+      if (!item.vehicule_id) return
+      byVehicule[item.vehicule_id] = byVehicule[item.vehicule_id] ?? []
+      byVehicule[item.vehicule_id].push(item)
+    })
+
+    const result: IndexVehiculeAlerte[] = []
+
+    vehiculeDescriptors.forEach(v => {
+      const reglesCompatibles = indexEntries.filter(entry => {
+        const modeleOk = normalizeText(v.modele).includes(normalizeText(entry.modele)) || normalizeText(entry.modele).includes(normalizeText(v.modele))
+        if (!modeleOk) return false
+
+        const motorisationRegle = normalizeText(entry.motorisation ?? '*')
+        const motorisationVehicule = normalizeText(v.motorisation)
+        return motorisationRegle === '*' || !motorisationRegle || motorisationRegle === motorisationVehicule || motorisationVehicule.includes(motorisationRegle)
+      })
+
+      reglesCompatibles.forEach(regle => {
+        const historique = (byVehicule[v.id] ?? [])
+          .filter(item => item.maintenance_type === regle.maintenance_type)
+          .sort((a, b) => +new Date(b.service_date) - +new Date(a.service_date))
+        const last = historique[0]
+
+        if (!last) {
+          result.push({
+            vehiculeId: v.id,
+            immatriculation: v.immatriculation,
+            modele: v.modele,
+            motorisation: v.motorisation,
+            maintenanceType: regle.maintenance_type,
+            status: 'a_initialiser',
+            kmRestants: null,
+            joursRestants: null,
+            periodicite_km: regle.periodicite_km,
+            periodicite_mois: regle.periodicite_mois,
+            prochaineEcheanceDate: null,
+            prochaineEcheanceKm: null,
+            source: regle.source_constructeur ?? 'index atelier',
+            lastServiceDate: null,
+          })
+          return
+        }
+
+        const lastDate = new Date(last.service_date)
+        const nextDate = regle.periodicite_mois ? new Date(lastDate.getTime() + regle.periodicite_mois * 30 * 86400000) : null
+        const lastKm = last.km_compteur ?? null
+        const nextKm = regle.periodicite_km && lastKm !== null ? lastKm + regle.periodicite_km : null
+        const kmRestants = nextKm !== null && v.kmActuel !== null ? nextKm - v.kmActuel : null
+        const joursRestants = nextDate ? Math.ceil((nextDate.getTime() - today.getTime()) / 86400000) : null
+
+        const depasse = (kmRestants !== null && kmRestants <= -Math.abs(alertSettings.toleranceDepasseKm))
+          || (joursRestants !== null && joursRestants <= -Math.abs(alertSettings.toleranceDepasseJours))
+        const preventif = !depasse && (
+          (kmRestants !== null && kmRestants <= Math.abs(alertSettings.preventifKm))
+          || (joursRestants !== null && joursRestants <= Math.abs(alertSettings.preventifJours))
+        )
+
+        result.push({
+          vehiculeId: v.id,
+          immatriculation: v.immatriculation,
+          modele: v.modele,
+          motorisation: v.motorisation,
+          maintenanceType: regle.maintenance_type,
+          status: depasse ? 'depasse' : preventif ? 'preventif' : 'ok',
+          kmRestants,
+          joursRestants,
+          periodicite_km: regle.periodicite_km,
+          periodicite_mois: regle.periodicite_mois,
+          prochaineEcheanceDate: nextDate ? nextDate.toISOString().slice(0, 10) : null,
+          prochaineEcheanceKm: nextKm,
+          source: regle.source_constructeur ?? 'index atelier',
+          lastServiceDate: last.service_date,
+        })
+      })
+    })
+
+    return result.sort((a, b) => {
+      const score = { depasse: 0, preventif: 1, a_initialiser: 2, ok: 3 }
+      if (score[a.status] !== score[b.status]) return score[a.status] - score[b.status]
+      return a.immatriculation.localeCompare(b.immatriculation, 'fr')
+    })
+  }, [vehiculeDescriptors, indexEntries, entretiens, alertSettings])
+
+  const countAlertesDepassees = indexAlertesVehicules.filter(item => item.status === 'depasse').length
+  const countAlertesPreventives = indexAlertesVehicules.filter(item => item.status === 'preventif').length
+  const countAlertesAInitialiser = indexAlertesVehicules.filter(item => item.status === 'a_initialiser').length
+
+  const alertesParVehicule = useMemo(() => {
+    const map = new Map<string, { immatriculation: string; modele: string; motorisation: string; kmActuel: number | null; items: IndexVehiculeAlerte[] }>()
+    const descMap = new Map(vehiculeDescriptors.map(v => [v.id, v]))
+    indexAlertesVehicules.forEach(item => {
+      if (!map.has(item.vehiculeId)) {
+        const desc = descMap.get(item.vehiculeId)
+        map.set(item.vehiculeId, { immatriculation: item.immatriculation, modele: item.modele, motorisation: item.motorisation, kmActuel: desc?.kmActuel ?? null, items: [] })
+      }
+      map.get(item.vehiculeId)!.items.push(item)
+    })
+    return Array.from(map.values()).sort((a, b) => {
+      const worst = (items: IndexVehiculeAlerte[]) => Math.min(...items.map(i => ({ depasse: 0, preventif: 1, a_initialiser: 2, ok: 3 }[i.status])))
+      return worst(a.items) - worst(b.items)
+    })
+  }, [indexAlertesVehicules, vehiculeDescriptors])
 
   const coutMois = useMemo(() => entretiens.filter(e => e.service_date.startsWith(monthStr)).reduce((s, e) => s + Number(e.cout_ht ?? 0), 0), [entretiens, monthStr])
   const coutAnnee = useMemo(() => entretiens.filter(e => e.service_date.startsWith(yearStr)).reduce((s, e) => s + Number(e.cout_ht ?? 0), 0), [entretiens, yearStr])
@@ -305,10 +1023,10 @@ export default function Maintenance() {
     const months = Array(12).fill(0)
     entretiens.forEach(e => {
       const d = new Date(e.service_date)
-      if (d.getFullYear() === now.getFullYear()) months[d.getMonth()] += Number(e.cout_ht ?? 0)
+      if (d.getFullYear() === currentYear) months[d.getMonth()] += Number(e.cout_ht ?? 0)
     })
     return months
-  }, [entretiens])
+  }, [currentYear, entretiens])
 
   const costByType = useMemo(() => {
     const map: Record<string, number> = {}
@@ -319,11 +1037,11 @@ export default function Maintenance() {
   const costByVehicule = useMemo(() => {
     const map: Record<string, number> = {}
     entretiens.forEach(e => {
-      const k = assetLabel(e)
+      const k = vehiculeLabel(e.vehicule_id) ?? remorqueLabel(e.remorque_id) ?? 'Parc'
       map[k] = (map[k] ?? 0) + Number(e.cout_ht ?? 0)
     })
     return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 6)
-  }, [entretiens])
+  }, [entretiens, remorqueLabel, vehiculeLabel])
 
   // Stock alertes
   const stockAlertes = pieces.filter(p => p.quantite <= p.quantite_min)
@@ -331,6 +1049,10 @@ export default function Maintenance() {
   // ── Actions OT ──────────────────────────────────────────────────────────────
   function createOT(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
+    if (!isMecanicien) {
+      setNotice("Seuls les mécaniciens peuvent créer un ordre de travaux.")
+      return
+    }
     const newOT: OT = {
       id: `ot-${Date.now()}`,
       vehicule_id: otForm.vehicule_id || null,
@@ -438,10 +1160,10 @@ export default function Maintenance() {
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Atelier Mécanique</h2>
           <p className="text-slate-500 text-sm">
-            {vehicules.length} véhicules · {otsActifs.length} OT actifs · {alerts.length + echeancesUrgentes} alerte{alerts.length + echeancesUrgentes !== 1 ? 's' : ''}
+            {vehicules.length} véhicules · {otsActifs.length} OT actifs · {alerts.length + echeancesUrgentes + countAlertesDepassees + countAlertesPreventives} alerte{alerts.length + echeancesUrgentes + countAlertesDepassees + countAlertesPreventives !== 1 ? 's' : ''}
           </p>
         </div>
-        {tab === 'ot' && (
+        {tab === 'ot' && isMecanicien && (
           <button onClick={() => setShowOTForm(true)} className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors">
             + Nouvel OT
           </button>
@@ -598,7 +1320,11 @@ export default function Maintenance() {
 
           {filteredOTs.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-10 text-center">
-              <p className="text-slate-400 text-sm">Aucun ordre de travaux. Cliquez sur + Nouvel OT pour commencer.</p>
+              <p className="text-slate-400 text-sm">
+                {isMecanicien
+                  ? 'Aucun ordre de travaux. Cliquez sur + Nouvel OT pour commencer.'
+                  : 'Aucun ordre de travaux.'}
+              </p>
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -890,6 +1616,593 @@ export default function Maintenance() {
         </div>
       )}
 
+      {/* ══ TAB: INDEX ENTRETIEN ═════════════════════════════════════════════ */}
+      {tab === 'index' && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+            <KPI label="Marques" value={new Set(indexEntries.map(e => e.marque)).size} color="slate" />
+            <KPI label="Modeles indexes" value={new Set(indexEntries.map(e => e.modele)).size} color="slate" />
+            <KPI label="Motorisations" value={new Set(indexEntries.map(e => e.motorisation ?? '*')).size} color="blue" />
+            <KPI label="Regles actives" value={indexEntries.length} color="blue" />
+            <KPI label="Veille a faire" value={indexVeilleMois.length} color={indexVeilleMois.length > 0 ? 'amber' : 'green'} sub={`Mois ${monthStr}`} />
+            <KPI label="Types suivis" value={new Set(indexEntries.map(e => e.maintenance_type)).size} color="slate" />
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <p className="text-xs text-slate-500">
+              Base constructeur globale (hors parc): Scania, Volvo, DAF, Iveco, Renault, Mercedes, MAN. Sources prioritaires: portails RMI constructeurs + TecRMI/HaynesPro en multi-marques. Synchro auto hebdomadaire: {indexLastSyncAt ? fmtDate(indexLastSyncAt) : 'jamais'}.
+            </p>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-slate-800">Lexique mecanique par modele camion</h3>
+              <button type="button" onClick={loadConstructeurIndexPresets} className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">
+                Charger presets RMI constructeurs
+              </button>
+            </div>
+            <form onSubmit={saveIndexEntry} className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+              <Field label="Marque *">
+                <select
+                  className={inp}
+                  value={indexForm.marque}
+                  onChange={e => {
+                    const newMarque = e.target.value
+                    const cat = CONSTRUCTEUR_MODELES.find(item => item.marque === newMarque)
+                    setIndexForm(current => ({
+                      ...current,
+                      marque: newMarque,
+                      modele: '',
+                      motorisation: '*',
+                      source_constructeur: CONSTRUCTEUR_SOURCES[newMarque] ?? current.source_constructeur,
+                      huile_moteur_l: cat ? String(cat.huile_moteur_l) : current.huile_moteur_l,
+                      huile_boite_l: cat ? String(cat.huile_boite_l) : current.huile_boite_l,
+                      huile_pont_l: cat ? String(cat.huile_pont_l) : current.huile_pont_l,
+                      liquide_frein_l: cat ? String(cat.liquide_frein_l) : current.liquide_frein_l,
+                    }))
+                  }}
+                  required
+                >
+                  {indexCatalogueMarques.map(marque => <option key={marque} value={marque}>{marque}</option>)}
+                </select>
+              </Field>
+              <Field label="Modele camion *">
+                <select
+                  className={inp}
+                  value={indexForm.modele}
+                  onChange={e => {
+                    const newModele = e.target.value
+                    const cat = CONSTRUCTEUR_MODELES.find(item => item.marque === indexForm.marque && item.modele === newModele)
+                    const preset = CONSTRUCTEUR_INDEX_PRESETS.find(p =>
+                      p.marque === indexForm.marque && p.modele === newModele && p.maintenance_type === indexForm.maintenance_type,
+                    )
+                    setIndexForm(current => ({
+                      ...current,
+                      modele: newModele,
+                      motorisation: cat ? (cat.motorisations[0] ?? '*') : '*',
+                      huile_moteur_l: cat ? String(cat.huile_moteur_l) : current.huile_moteur_l,
+                      huile_boite_l: cat ? String(cat.huile_boite_l) : current.huile_boite_l,
+                      huile_pont_l: cat ? String(cat.huile_pont_l) : current.huile_pont_l,
+                      liquide_frein_l: cat ? String(cat.liquide_frein_l) : current.liquide_frein_l,
+                      source_constructeur: cat ? (CONSTRUCTEUR_SOURCES[cat.marque] ?? current.source_constructeur) : current.source_constructeur,
+                      periodicite_km: preset ? String(preset.periodicite_km ?? '') : current.periodicite_km,
+                      periodicite_mois: preset ? String(preset.periodicite_mois ?? '') : current.periodicite_mois,
+                      pieces_reference: preset ? (preset.pieces_reference ?? '') : current.pieces_reference,
+                      notes: preset ? (preset.notes ?? '') : current.notes,
+                    }))
+                  }}
+                  required
+                >
+                  <option value="">Selectionner un modele</option>
+                  {indexCatalogueModeles.map(modele => <option key={modele} value={modele}>{modele}</option>)}
+                </select>
+              </Field>
+              <Field label="Motorisation">
+                <select
+                  className={inp}
+                  value={indexForm.motorisation}
+                  onChange={e => {
+                    const newMot = e.target.value
+                    const preset = CONSTRUCTEUR_INDEX_PRESETS.find(p =>
+                      p.marque === indexForm.marque && p.modele === indexForm.modele &&
+                      p.motorisation === newMot && p.maintenance_type === indexForm.maintenance_type,
+                    )
+                    setIndexForm(current => ({
+                      ...current,
+                      motorisation: newMot,
+                      periodicite_km: preset ? String(preset.periodicite_km ?? '') : current.periodicite_km,
+                      periodicite_mois: preset ? String(preset.periodicite_mois ?? '') : current.periodicite_mois,
+                      pieces_reference: preset ? (preset.pieces_reference ?? '') : current.pieces_reference,
+                      notes: preset ? (preset.notes ?? '') : current.notes,
+                    }))
+                  }}
+                >
+                  {indexCatalogueMotorisations.map(motorisation => <option key={motorisation} value={motorisation}>{motorisation}</option>)}
+                </select>
+              </Field>
+              <Field label="Type entretien">
+                <select
+                  className={inp}
+                  value={indexForm.maintenance_type}
+                  onChange={e => {
+                    const newType = e.target.value
+                    const preset = CONSTRUCTEUR_INDEX_PRESETS.find(p =>
+                      p.marque === indexForm.marque && p.modele === indexForm.modele &&
+                      p.motorisation === indexForm.motorisation && p.maintenance_type === newType,
+                    )
+                    setIndexForm(current => ({
+                      ...current,
+                      maintenance_type: newType,
+                      periodicite_km: preset ? String(preset.periodicite_km ?? '') : current.periodicite_km,
+                      periodicite_mois: preset ? String(preset.periodicite_mois ?? '') : current.periodicite_mois,
+                      pieces_reference: preset ? (preset.pieces_reference ?? '') : current.pieces_reference,
+                      notes: preset ? (preset.notes ?? '') : current.notes,
+                    }))
+                  }}
+                >
+                  {MAINTENANCE_TYPES.map(type => <option key={type} value={type}>{MAINTENANCE_LABELS[type]}</option>)}
+                </select>
+              </Field>
+              <Field label="Periodicite km"><input className={inp} type="number" min={0} value={indexForm.periodicite_km} onChange={e => setIndexForm(current => ({ ...current, periodicite_km: e.target.value }))} placeholder="30000" /></Field>
+              <Field label="Periodicite mois"><input className={inp} type="number" min={0} value={indexForm.periodicite_mois} onChange={e => setIndexForm(current => ({ ...current, periodicite_mois: e.target.value }))} placeholder="12" /></Field>
+              <Field label="Huile moteur (L)"><input className={inp} type="number" step="0.1" min={0} value={indexForm.huile_moteur_l} onChange={e => setIndexForm(current => ({ ...current, huile_moteur_l: e.target.value }))} /></Field>
+              <Field label="Huile boite (L)"><input className={inp} type="number" step="0.1" min={0} value={indexForm.huile_boite_l} onChange={e => setIndexForm(current => ({ ...current, huile_boite_l: e.target.value }))} /></Field>
+              <Field label="Huile pont (L)"><input className={inp} type="number" step="0.1" min={0} value={indexForm.huile_pont_l} onChange={e => setIndexForm(current => ({ ...current, huile_pont_l: e.target.value }))} /></Field>
+              <Field label="Liquide frein (L)"><input className={inp} type="number" step="0.1" min={0} value={indexForm.liquide_frein_l} onChange={e => setIndexForm(current => ({ ...current, liquide_frein_l: e.target.value }))} /></Field>
+              <div className="lg:col-span-2">
+                <Field label="Pieces (ref + quantites)"><input className={inp} value={indexForm.pieces_reference} onChange={e => setIndexForm(current => ({ ...current, pieces_reference: e.target.value }))} placeholder="Ex: FIL-HUI x1 piece; HUI-MOT 36 litre" /></Field>
+              </div>
+              <div className="lg:col-span-2">
+                <Field label="Source constructeur (portail/URL)"><input className={inp} value={indexForm.source_constructeur} onChange={e => setIndexForm(current => ({ ...current, source_constructeur: e.target.value }))} placeholder="Portail RMI constructeur ou URL" /></Field>
+              </div>
+              <div className="lg:col-span-2">
+                <Field label="Notes"><input className={inp} value={indexForm.notes} onChange={e => setIndexForm(current => ({ ...current, notes: e.target.value }))} placeholder="Procedure, viscosite, reference..." /></Field>
+              </div>
+              <div className="lg:col-span-6 flex justify-end gap-2">
+                {indexEditingId && <button type="button" onClick={resetIndexForm} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>}
+                <button type="submit" className="px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700">{indexEditingId ? 'Mettre a jour' : 'Ajouter index'}</button>
+              </div>
+            </form>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="text-sm font-semibold text-slate-800 mb-3">Veille mensuelle</h3>
+            {indexVeilleMois.length === 0 ? (
+              <p className="text-xs text-slate-400">Tous les index ont ete verifies ce mois-ci.</p>
+            ) : (
+              <div className="space-y-2">
+                {indexVeilleMois.map(item => (
+                  <div key={item.id} className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium text-amber-900">{item.modele} · {MAINTENANCE_LABELS[item.maintenance_type] ?? item.maintenance_type}</p>
+                      <p className="text-xs text-amber-700">Derniere veille: {item.derniere_veille_mois ?? 'jamais'}</p>
+                    </div>
+                    <button type="button" onClick={() => markIndexReviewed(item.id, monthStr)} className="text-xs font-medium text-amber-700 hover:text-amber-900">Marquer revue</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="text-sm font-semibold text-slate-800 mb-4">Filtres index atelier</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+              <Field label="Marque">
+                <select
+                  className={inp}
+                  value={indexFilterMarque}
+                  onChange={e => {
+                    setIndexFilterMarque(e.target.value)
+                    setIndexFilterModele('tous')
+                    setIndexFilterMotorisation('toutes')
+                  }}
+                >
+                  <option value="toutes">Toutes</option>
+                  {indexMarques.map(marque => <option key={marque} value={marque}>{marque}</option>)}
+                </select>
+              </Field>
+              <Field label="Modele">
+                <select
+                  className={inp}
+                  value={indexFilterModele}
+                  onChange={e => {
+                    setIndexFilterModele(e.target.value)
+                    setIndexFilterMotorisation('toutes')
+                  }}
+                >
+                  <option value="tous">Tous</option>
+                  {indexModelesFiltres.map(modele => <option key={modele} value={modele}>{modele}</option>)}
+                </select>
+              </Field>
+              <Field label="Motorisation">
+                <select className={inp} value={indexFilterMotorisation} onChange={e => setIndexFilterMotorisation(e.target.value)}>
+                  <option value="toutes">Toutes</option>
+                  {indexMotorisationsFiltrees.map(motorisation => <option key={motorisation} value={motorisation}>{motorisation}</option>)}
+                </select>
+              </Field>
+              <div className="flex items-end justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIndexFilterMarque('toutes')
+                    setIndexFilterModele('tous')
+                    setIndexFilterMotorisation('toutes')
+                  }}
+                  className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50"
+                >
+                  Reinitialiser
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="text-sm font-semibold text-slate-800 mb-3">Remontee de chaque constructeur</h3>
+            {constructeurRemontees.length === 0 ? (
+              <p className="text-xs text-slate-400">Aucune remontee constructeur disponible.</p>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {constructeurRemontees.map(item => (
+                  <div key={item.constructeur} className="rounded-lg border border-slate-200 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-slate-800">{item.constructeur}</p>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{item.rules} regles</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">{item.modelesCount} modele{item.modelesCount > 1 ? 's' : ''} indexe{item.modelesCount > 1 ? 's' : ''}</p>
+                    <p className="text-xs text-slate-400 mt-1 break-all">Source: {item.source ?? 'interne atelier'}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="text-sm font-semibold text-slate-800 mb-3">Agregateurs multi-marques (point d'entree unique)</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+              {MAINTENANCE_MULTI_MARQUES_SOURCES.map(source => (
+                <div key={source} className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 break-all">
+                  {source}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="p-4 border-b bg-slate-50 border-slate-200">
+              <p className="text-sm font-semibold text-slate-700">Index enregistres ({filteredIndexEntries.length})</p>
+            </div>
+            {filteredIndexEntries.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-sm">Aucun index defini.</div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    {['Marque', 'Modele', 'Motorisation', 'Type', 'Periodicite', 'Volumes (L)', 'Pieces', 'Source', 'Veille', ''].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredIndexEntries.map((item, i) => (
+                    <tr key={item.id} className={`border-t border-slate-100 ${i % 2 !== 0 ? 'bg-slate-50' : ''}`}>
+                      <td className="px-4 py-2.5 text-slate-700 font-medium">{item.marque}</td>
+                      <td className="px-4 py-2.5 text-slate-700 font-medium">{item.modele}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600">{item.motorisation ?? '*'}</td>
+                      <td className="px-4 py-2.5 text-slate-600">{MAINTENANCE_LABELS[item.maintenance_type] ?? item.maintenance_type}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-500">{item.periodicite_km ? `${item.periodicite_km.toLocaleString('fr-FR')} km` : '—'} · {item.periodicite_mois ? `${item.periodicite_mois} mois` : '—'}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-500">M: {item.huile_moteur_l ?? '—'} · B: {item.huile_boite_l ?? '—'} · P: {item.huile_pont_l ?? '—'} · F: {item.liquide_frein_l ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-500 max-w-[280px] truncate" title={item.pieces_reference ?? ''}>{item.pieces_reference ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-500 max-w-[320px] truncate" title={item.source_constructeur ?? ''}>{item.source_constructeur ?? 'Interne'}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-500">{item.derniere_veille_mois ?? 'jamais'}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button type="button" onClick={() => startEditIndex(item)} className="text-xs text-slate-500 hover:text-slate-800">Modifier</button>
+                          <button type="button" onClick={() => deleteIndexEntry(item.id)} className="text-xs text-slate-500 hover:text-red-600">Suppr.</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="text-sm font-semibold text-slate-800 mb-3">Historique entretien par modele/type (base flotte)</h3>
+            {maintenanceByModeleType.length === 0 ? (
+              <p className="text-xs text-slate-400">Pas assez de donnees pour proposer des tendances par modele.</p>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                {maintenanceByModeleType.map(item => (
+                  <div key={`${item.modele}-${item.maintenance_type}`} className="rounded-lg border border-slate-200 px-3 py-2">
+                    <p className="text-sm font-medium text-slate-800">{item.modele}</p>
+                    <p className="text-xs text-slate-500">{MAINTENANCE_LABELS[item.maintenance_type] ?? item.maintenance_type} · {item.count} intervention{item.count > 1 ? 's' : ''}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══ TAB: ALERTES ATELIER ════════════════════════════════════════════ */}
+      {tab === 'alertes' && (
+        <div className="space-y-5">
+          {/* KPIs */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <KPI label="Depassees" value={countAlertesDepassees} color={countAlertesDepassees > 0 ? 'red' : 'green'} />
+            <KPI label="Preventif" value={countAlertesPreventives} color={countAlertesPreventives > 0 ? 'amber' : 'green'} />
+            <KPI label="A initialiser" value={countAlertesAInitialiser} color={countAlertesAInitialiser > 0 ? 'orange' : 'slate'} />
+            <KPI label="Vehicules suivis" value={alertesParVehicule.length} color="blue" />
+          </div>
+
+          {/* Toggle vue */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setAlerteVue('vehicules')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                alerteVue === 'vehicules' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              Vue mécanicien (par véhicule)
+            </button>
+            <button
+              type="button"
+              onClick={() => setAlerteVue('tableau')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                alerteVue === 'tableau' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              Tableau détaillé
+            </button>
+          </div>
+
+          {/* ── VUE MÉCANICIEN : cartes par véhicule ── */}
+          {alerteVue === 'vehicules' && (
+            alertesParVehicule.length === 0 ? (
+              <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-sm">Aucune règle index applicable aux véhicules. Configurez l'index atelier.</div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                {alertesParVehicule.map(veh => {
+                  const worstStatus = veh.items.reduce<IndexAlertStatus>((worst, item) => {
+                    const score: Record<IndexAlertStatus, number> = { depasse: 0, preventif: 1, a_initialiser: 2, ok: 3 }
+                    return score[item.status] < score[worst] ? item.status : worst
+                  }, 'ok')
+                  const borderColor = { depasse: 'border-red-300', preventif: 'border-amber-300', a_initialiser: 'border-orange-200', ok: 'border-slate-200' }[worstStatus]
+                  const headerBg = { depasse: 'bg-red-50', preventif: 'bg-amber-50', a_initialiser: 'bg-orange-50', ok: 'bg-slate-50' }[worstStatus]
+
+                  return (
+                    <div key={veh.immatriculation} className={`bg-white rounded-xl border-2 ${borderColor} overflow-hidden`}>
+                      {/* Header véhicule */}
+                      <div className={`${headerBg} px-4 py-3 flex items-center justify-between gap-2`}>
+                        <div>
+                          <p className="font-mono text-sm font-bold text-slate-800">{veh.immatriculation}</p>
+                          <p className="text-xs text-slate-500">{veh.modele}{veh.motorisation && veh.motorisation !== '*' ? ` · ${veh.motorisation}` : ''}</p>
+                        </div>
+                        <div className="text-right">
+                          {veh.kmActuel !== null && (
+                            <p className="text-xs font-semibold text-slate-700">{veh.kmActuel.toLocaleString('fr-FR')} km</p>
+                          )}
+                          <p className="text-xs text-slate-400">km actuel</p>
+                        </div>
+                      </div>
+
+                      {/* Liste des entretiens */}
+                      <div className="divide-y divide-slate-100">
+                        {veh.items.map(item => {
+                          const statusBadgeClass = {
+                            depasse: 'bg-red-100 text-red-700',
+                            preventif: 'bg-amber-100 text-amber-700',
+                            a_initialiser: 'bg-orange-100 text-orange-700',
+                            ok: 'bg-green-100 text-green-700',
+                          }[item.status]
+                          const statusLabel = { depasse: 'Dépassé', preventif: 'Préventif', a_initialiser: 'À initialiser', ok: 'OK' }[item.status]
+
+                          // Barre de progression km
+                          const pctKm = (() => {
+                            if (item.periodicite_km === null || item.periodicite_km === 0) return null
+                            if (item.kmRestants === null) return null
+                            const consomme = item.periodicite_km - item.kmRestants
+                            return Math.min(100, Math.max(0, Math.round((consomme / item.periodicite_km) * 100)))
+                          })()
+                          const pctJours = (() => {
+                            if (item.periodicite_mois === null || item.periodicite_mois === 0) return null
+                            if (item.joursRestants === null) return null
+                            const totalJours = item.periodicite_mois * 30
+                            const consomme = totalJours - item.joursRestants
+                            return Math.min(100, Math.max(0, Math.round((consomme / totalJours) * 100)))
+                          })()
+                          const barColor = { depasse: 'bg-red-500', preventif: 'bg-amber-400', a_initialiser: 'bg-orange-300', ok: 'bg-green-400' }[item.status]
+
+                          return (
+                            <div key={item.maintenanceType} className="px-4 py-3">
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span className="text-xs font-semibold text-slate-700">{MAINTENANCE_LABELS[item.maintenanceType] ?? item.maintenanceType}</span>
+                                <Badge color={statusBadgeClass}>{statusLabel}</Badge>
+                              </div>
+
+                              {item.status === 'a_initialiser' ? (
+                                <p className="text-xs text-orange-500">Aucun entretien enregistré — initialiser l'historique</p>
+                              ) : (
+                                <>
+                                  {/* Barre km */}
+                                  {pctKm !== null && (
+                                    <div className="mb-1">
+                                      <div className="flex justify-between text-xs text-slate-400 mb-0.5">
+                                        <span>KM</span>
+                                        <span className={item.kmRestants !== null && item.kmRestants < 0 ? 'text-red-600 font-semibold' : 'text-slate-600'}>
+                                          {item.kmRestants !== null
+                                            ? item.kmRestants < 0
+                                              ? `Dépassé de ${Math.abs(item.kmRestants).toLocaleString('fr-FR')} km`
+                                              : `${item.kmRestants.toLocaleString('fr-FR')} km restants`
+                                            : '—'}
+                                        </span>
+                                      </div>
+                                      <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pctKm}%` }} />
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Barre jours */}
+                                  {pctJours !== null && (
+                                    <div>
+                                      <div className="flex justify-between text-xs text-slate-400 mb-0.5">
+                                        <span>Temps</span>
+                                        <span className={item.joursRestants !== null && item.joursRestants < 0 ? 'text-red-600 font-semibold' : 'text-slate-600'}>
+                                          {item.joursRestants !== null
+                                            ? item.joursRestants < 0
+                                              ? `Dépassé de ${Math.abs(item.joursRestants)} j`
+                                              : `${item.joursRestants} j restants`
+                                            : '—'}
+                                        </span>
+                                      </div>
+                                      <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pctJours}%` }} />
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Prochaine échéance */}
+                                  <p className="text-xs text-slate-400 mt-1.5">
+                                    Prochaine éch. :
+                                    {item.prochaineEcheanceDate ? ` ${fmtDate(item.prochaineEcheanceDate)}` : ''}
+                                    {item.prochaineEcheanceKm ? ` · ${item.prochaineEcheanceKm.toLocaleString('fr-FR')} km` : ''}
+                                    {!item.prochaineEcheanceDate && !item.prochaineEcheanceKm ? ' —' : ''}
+                                  </p>
+                                </>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          )}
+
+          {/* ── VUE TABLEAU DÉTAILLÉ ── */}
+          {alerteVue === 'tableau' && (
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="p-4 border-b bg-slate-50 border-slate-200">
+                <p className="text-sm font-semibold text-slate-700">Tableau détaillé ({indexAlertesVehicules.length} entrées)</p>
+              </div>
+              {indexAlertesVehicules.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-sm">Aucune règle index applicable aux véhicules.</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      {['Statut', 'Véhicule', 'Modèle / moteur', 'Type', 'Restant km · jours', 'Prochaine échéance', 'Source'].map(h => (
+                        <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {indexAlertesVehicules.map((item, i) => {
+                      const statusStyle = {
+                        depasse: 'bg-red-100 text-red-700',
+                        preventif: 'bg-amber-100 text-amber-700',
+                        a_initialiser: 'bg-orange-100 text-orange-700',
+                        ok: 'bg-green-100 text-green-700',
+                      }[item.status]
+                      const statusLabel = { depasse: 'Dépassé', preventif: 'Préventif', a_initialiser: 'À initialiser', ok: 'OK' }[item.status]
+                      return (
+                        <tr key={`${item.vehiculeId}-${item.maintenanceType}-${i}`} className={`border-t border-slate-100 ${i % 2 !== 0 ? 'bg-slate-50' : ''}`}>
+                          <td className="px-4 py-2.5"><Badge color={statusStyle}>{statusLabel}</Badge></td>
+                          <td className="px-4 py-2.5 font-mono text-xs font-semibold text-slate-700">{item.immatriculation}</td>
+                          <td className="px-4 py-2.5 text-xs text-slate-600">{item.modele} · {item.motorisation}</td>
+                          <td className="px-4 py-2.5 text-slate-600">{MAINTENANCE_LABELS[item.maintenanceType] ?? item.maintenanceType}</td>
+                          <td className="px-4 py-2.5 text-xs text-slate-500">
+                            {item.kmRestants === null ? '—' : `${item.kmRestants.toLocaleString('fr-FR')} km`} · {item.joursRestants === null ? '—' : `${item.joursRestants} j`}
+                          </td>
+                          <td className="px-4 py-2.5 text-xs text-slate-500">
+                            {item.prochaineEcheanceDate ? fmtDate(item.prochaineEcheanceDate) : '—'} · {item.prochaineEcheanceKm ? `${item.prochaineEcheanceKm.toLocaleString('fr-FR')} km` : '—'}
+                          </td>
+                          <td className="px-4 py-2.5 text-xs text-slate-500">{item.source.includes('http') ? 'Constructeur' : 'Interne'}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ TAB: REGLAGE ALERTES ═════════════════════════════════════════════ */}
+      {tab === 'reglages' && (
+        <div className="space-y-5">
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <h3 className="text-sm font-semibold text-slate-800">Seuils preventif et depasse</h3>
+              <button type="button" onClick={applyAlertPresetFromIndex} className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">
+                Pre-regler depuis l'index atelier
+              </button>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
+                <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">Alerte preventive</p>
+                <Field label="Seuil km restants">
+                  <input
+                    className={inp}
+                    type="number"
+                    min={0}
+                    value={alertSettings.preventifKm}
+                    onChange={e => setAlertSettings(current => ({ ...current, preventifKm: Math.max(0, Number.parseInt(e.target.value || '0', 10) || 0) }))}
+                  />
+                </Field>
+                <Field label="Seuil jours restants">
+                  <input
+                    className={inp}
+                    type="number"
+                    min={0}
+                    value={alertSettings.preventifJours}
+                    onChange={e => setAlertSettings(current => ({ ...current, preventifJours: Math.max(0, Number.parseInt(e.target.value || '0', 10) || 0) }))}
+                  />
+                </Field>
+              </div>
+
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4 space-y-3">
+                <p className="text-xs font-semibold text-red-800 uppercase tracking-wide">Depassement</p>
+                <Field label="Tolerance km depasses">
+                  <input
+                    className={inp}
+                    type="number"
+                    min={0}
+                    value={alertSettings.toleranceDepasseKm}
+                    onChange={e => setAlertSettings(current => ({ ...current, toleranceDepasseKm: Math.max(0, Number.parseInt(e.target.value || '0', 10) || 0) }))}
+                  />
+                </Field>
+                <Field label="Tolerance jours depasses">
+                  <input
+                    className={inp}
+                    type="number"
+                    min={0}
+                    value={alertSettings.toleranceDepasseJours}
+                    onChange={e => setAlertSettings(current => ({ ...current, toleranceDepasseJours: Math.max(0, Number.parseInt(e.target.value || '0', 10) || 0) }))}
+                  />
+                </Field>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="text-sm font-semibold text-slate-800 mb-3">Apercu des regles actives</h3>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <KPI label="Preventif km" value={`${alertSettings.preventifKm.toLocaleString('fr-FR')} km`} color="amber" />
+              <KPI label="Preventif jours" value={`${alertSettings.preventifJours} j`} color="amber" />
+              <KPI label="Tolerance depasse km" value={`${alertSettings.toleranceDepasseKm.toLocaleString('fr-FR')} km`} color="red" />
+              <KPI label="Tolerance depasse jours" value={`${alertSettings.toleranceDepasseJours} j`} color="red" />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ══ TAB: COÛTS & ANALYSES ══════════════════════════════════════════════ */}
       {tab === 'couts' && (
         <div className="space-y-5">
@@ -1029,7 +2342,7 @@ export default function Maintenance() {
                 </Field>
                 <Field label="Mécanicien assigné">
                   <select className={inp} value={otForm.mecanicien} onChange={e => setOTForm(f => ({ ...f, mecanicien: e.target.value }))}>
-                    {MECANICIENS_DEMO.map(m => <option key={m} value={m}>{m || '— Non assigné'}</option>)}
+                    {mecanicienOptions.map(m => <option key={m || 'none'} value={m}>{m || '— Non assigné'}</option>)}
                   </select>
                 </Field>
                 <Field label="Date d'ouverture">

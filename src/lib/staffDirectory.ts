@@ -3,6 +3,7 @@ import { listMockEmployees } from './mock/mockDomain'
 
 export interface StaffMember {
   id: string
+  matricule: string
   role: Role
   nom: string
   prenom: string
@@ -10,9 +11,15 @@ export interface StaffMember {
   domain: string
 }
 
+function fallbackMatricule(memberId: string) {
+  const token = memberId.replace(/[^a-z0-9]/gi, '').slice(0, 8).toUpperCase() || 'UNKNOWN'
+  return `EMP-${token}`
+}
+
 function normalizeMember(profil: Profil): StaffMember {
   return {
     id: profil.id,
+    matricule: profil.matricule?.trim() || fallbackMatricule(profil.id),
     role: profil.role,
     nom: profil.nom ?? ROLE_LABELS[profil.role],
     prenom: profil.prenom ?? '',
@@ -27,6 +34,7 @@ export function buildStaffDirectory(extraProfiles: Array<Profil | null | undefin
   listMockEmployees().forEach(employee => {
     map.set(employee.id, {
       id: employee.id,
+      matricule: fallbackMatricule(employee.id),
       role: employee.role,
       nom: employee.lastName,
       prenom: employee.firstName,

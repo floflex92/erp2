@@ -4,6 +4,7 @@ import { AuthProvider, canAccess, firstPage, useAuth, type Role } from '@/lib/au
 import { ThemeProvider } from '@/lib/theme'
 import RequireAuth from '@/components/layout/RequireAuth'
 import AppLayout from '@/components/layout/AppLayout'
+import SiteLayout from '@/site/components/SiteLayout'
 
 const Login = lazy(() => import('@/pages/Login'))
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
@@ -35,6 +36,18 @@ const Communication = lazy(() => import('@/pages/Communication'))
 const Coffre = lazy(() => import('@/pages/Coffre'))
 const MentionsLegales = lazy(() => import('@/pages/MentionsLegales'))
 const Tasks = lazy(() => import('@/pages/Tasks'))
+const HomePage = lazy(() => import('@/site/pages/HomePage'))
+const SolutionPage = lazy(() => import('@/site/pages/SolutionPage'))
+const PlanningIntelligentPage = lazy(() => import('@/site/pages/PlanningIntelligentPage'))
+const RoiPage = lazy(() => import('@/site/pages/RoiPage'))
+const SecteurTransportPage = lazy(() => import('@/site/pages/SecteurTransportPage'))
+const AboutPage = lazy(() => import('@/site/pages/AboutPage'))
+const SeoErpTransportPage = lazy(() => import('@/site/pages/SeoErpTransportPage'))
+const DemoPage = lazy(() => import('@/site/pages/DemoPage'))
+const ContactPage = lazy(() => import('@/site/pages/ContactPage'))
+const ERPLoginPage = lazy(() => import('@/site/pages/ERPLoginPage'))
+const PrivacyPolicyPage = lazy(() => import('@/site/pages/PrivacyPolicyPage'))
+const TermsOfUsePage = lazy(() => import('@/site/pages/TermsOfUsePage'))
 
 function RequireRole({ page, children }: { page: string; children: React.ReactNode }) {
   const { role, loading } = useAuth()
@@ -61,11 +74,27 @@ export default function App() {
         <BrowserRouter>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
+              <Route element={<SiteLayout />}>
+                <Route index element={<HomePage />} />
+                <Route path="solution" element={<SolutionPage />} />
+                <Route path="planning-intelligent" element={<PlanningIntelligentPage />} />
+                <Route path="avantages-roi" element={<RoiPage />} />
+                <Route path="secteur-transport" element={<SecteurTransportPage />} />
+                <Route path="a-propos" element={<AboutPage />} />
+                <Route path="erp-transport-tms" element={<SeoErpTransportPage />} />
+                <Route path="demonstration" element={<DemoPage />} />
+                <Route path="contact" element={<ContactPage />} />
+                <Route path="politique-confidentialite" element={<PrivacyPolicyPage />} />
+                <Route path="conditions-generales-utilisation" element={<TermsOfUsePage />} />
+                <Route path="connexion-erp" element={<ERPLoginPage />} />
+                <Route path="produit" element={<Navigate to="/solution" replace />} />
+                <Route path="fonctionnalites" element={<Navigate to="/solution" replace />} />
+                <Route path="demo" element={<Navigate to="/demonstration" replace />} />
+              </Route>
               <Route path="/login" element={<Login />} />
               <Route path="/mentions-legales-public" element={<MentionsLegales />} />
               <Route element={<RequireAuth />}>
                 <Route element={<AppLayout />}>
-                  <Route index element={<Navigate to="/dashboard" replace />} />
                   <Route path="dashboard"    element={<RequireRole page="dashboard"><Dashboard /></RequireRole>} />
                   <Route path="tasks"        element={<RequireRole page="tasks"><Tasks /></RequireRole>} />
                   <Route path="chauffeurs"   element={<RequireRole page="chauffeurs"><Chauffeurs /></RequireRole>} />
@@ -97,7 +126,7 @@ export default function App() {
                   <Route path="mentions-legales" element={<RequireRole page="mentions-legales"><MentionsLegales /></RequireRole>} />
                 </Route>
               </Route>
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
         </BrowserRouter>

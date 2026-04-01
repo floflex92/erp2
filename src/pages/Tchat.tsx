@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   countUnreadDemoMessages,
   getDemoConversationLastMessage,
@@ -47,6 +48,7 @@ function mapDemoMessage(message: ReturnType<typeof getDemoMessageRecords>[number
 
 export default function Tchat() {
   const { profil, role, isDemoSession } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [conversations, setConversations] = useState<TchatConversation[]>([])
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null)
   const [messages, setMessages] = useState<TchatMessage[]>([])
@@ -86,7 +88,7 @@ export default function Tchat() {
     setSelectedRecipientIds(current => Array.from(new Set([...current, ...ids])))
   }
 
-  async function loadAvailableProfils() {
+  const loadAvailableProfils = useCallback(async () => {
     if (!profil || !role) return
     if (demoMode) {
       setAllProfils(DEMO_PROFILES.filter(candidate => candidate.id !== profil.id && canChatWith(role as Role, candidate.role)))
@@ -94,9 +96,9 @@ export default function Tchat() {
     }
     const { data } = await db.from('profils').select('id, nom, prenom, role').neq('id', profil.id)
     setAllProfils(((data ?? []) as Profil[]).filter(candidate => canChatWith(role as Role, candidate.role)))
-  }
+  }, [db, demoMode, profil, role])
 
-  async function loadConversations() {
+  const loadConversations = useCallback(async () => {
     if (!profil) return
     setLoadingConvs(true)
     try {
@@ -134,9 +136,9 @@ export default function Tchat() {
     } finally {
       setLoadingConvs(false)
     }
-  }
+  }, [db, demoMode, profil])
 
-  async function loadConversationSearchIndex() {
+  const loadConversationSearchIndex = useCallback(async () => {
     if (!profil) return
     if (demoMode) {
       const index = Object.fromEntries(getDemoConversationRecords(profil.id).map(record => [record.id, getDemoMessageRecords(record.id).map(message => { const payload = parseTchatPayload(message.content); return [payload.text, payload.links.map(link => `${link.title} ${link.description ?? ''}`).join(' ')].join(' ') }).join(' ')]))
@@ -155,9 +157,9 @@ export default function Tchat() {
       index[item.conversation_id] = `${index[item.conversation_id] ?? ''} ${payload.text} ${payload.links.map(link => `${link.title} ${link.description ?? ''}`).join(' ')}`
     }
     setConversationSearchIndex(index)
-  }
+  }, [conversations, db, demoMode, profil])
 
-  async function loadMessages(conversationId: string) {
+  const loadMessages = useCallback(async (conversationId: string) => {
     if (!profil) return
     setLoadingMsgs(true)
     try {
@@ -174,7 +176,7 @@ export default function Tchat() {
     } finally {
       setLoadingMsgs(false)
     }
-  }
+  }, [db, demoMode, profil])
 
   async function maybeSendDemoAutoReplies(conversationId: string) {
     if (!selectedConv) return
@@ -210,7 +212,7 @@ export default function Tchat() {
     }
   }
 
-  async function openOrCreateConversation(targetIds: string[]) {
+  const openOrCreateConversation = useCallback(async (targetIds: string[]) => {
     if (!profil) return
     const recipientIds = Array.from(new Set(targetIds.filter(id => id !== profil.id)))
     if (!recipientIds.length) return
@@ -242,11 +244,11 @@ export default function Tchat() {
     await loadConversations()
     await loadConversationSearchIndex()
     setSelectedConvId(conversation.id)
-  }
+  }, [db, demoMode, loadConversationSearchIndex, loadConversations, profil])
 
-  useEffect(() => { void loadAvailableProfils() }, [profil?.id, role, demoMode])
-  useEffect(() => { if (selectedConvId) void loadMessages(selectedConvId) }, [selectedConvId, profil?.id, demoMode])
-  useEffect(() => { void loadConversationSearchIndex() }, [conversations, profil?.id, demoMode])
+  useEffect(() => { void loadAvailableProfils() }, [loadAvailableProfils])
+  useEffect(() => { if (selectedConvId) void loadMessages(selectedConvId) }, [loadMessages, selectedConvId])
+  useEffect(() => { void loadConversationSearchIndex() }, [loadConversationSearchIndex])
 
   useEffect(() => {
     if (!profil) return
@@ -258,7 +260,7 @@ export default function Tchat() {
       await loadConversationSearchIndex()
     }
     void openInbox()
-  }, [profil?.id, demoMode])
+  }, [db, demoMode, loadConversationSearchIndex, loadConversations, profil])
 
   useEffect(() => {
     if (!profil || !demoMode) return
@@ -267,7 +269,7 @@ export default function Tchat() {
       void loadConversationSearchIndex()
       if (selectedConvId) void loadMessages(selectedConvId)
     })
-  }, [profil?.id, demoMode, selectedConvId])
+  }, [demoMode, loadConversationSearchIndex, loadConversations, loadMessages, profil, selectedConvId])
 
   useEffect(() => {
     if (!selectedConvId || !profil || demoMode) return
@@ -282,7 +284,7 @@ export default function Tchat() {
       setMessages(previous => previous.map(message => message.id === updated.id ? { ...message, read_at: updated.read_at } : message))
     }).subscribe()
     return () => { void supabase.removeChannel(channel) }
-  }, [selectedConvId, profil?.id, demoMode])
+  }, [db, demoMode, loadConversationSearchIndex, loadConversations, profil, selectedConvId])
 
   useEffect(() => {
     if (!profil || demoMode) return
@@ -291,7 +293,7 @@ export default function Tchat() {
       void loadConversationSearchIndex()
     }).subscribe()
     return () => { void supabase.removeChannel(channel) }
-  }, [profil?.id, demoMode])
+  }, [db, demoMode, loadConversationSearchIndex, loadConversations, profil])
 
   useEffect(() => {
     if (!profil) return
@@ -302,7 +304,7 @@ export default function Tchat() {
     }
     refreshPresence()
     return subscribeChatPresenceUpdates(refreshPresence)
-  }, [profil?.id, allProfils, conversations])
+  }, [profil, allProfils, conversations])
 
   useEffect(() => {
     function refreshImportance() {
@@ -318,6 +320,43 @@ export default function Tchat() {
   const selectedRecipients = allProfils.filter(candidate => selectedRecipientIds.includes(candidate.id))
   const groupSelectionCount = allProfils.filter(candidate => selectedRoleGroups.includes(candidate.role)).length
   const normalizedSearch = normalizeSearch(searchTerm)
+
+  useEffect(() => {
+    if (!profil || allProfils.length === 0) return
+
+    const recipientHintRaw = searchParams.get('recipient')?.trim()
+    const recipientId = searchParams.get('recipientId')?.trim()
+    const shouldAutostart = searchParams.get('autostart') === '1'
+    if (!shouldAutostart) return
+
+    let targetIds: string[] = []
+    if (recipientId) {
+      targetIds = allProfils.some(candidate => candidate.id === recipientId) ? [recipientId] : []
+    }
+
+    if (targetIds.length === 0 && recipientHintRaw) {
+      const hint = normalizeSearch(recipientHintRaw)
+      const matches = allProfils.filter(candidate => {
+        const fullName = normalizeSearch([candidate.prenom, candidate.nom].filter(Boolean).join(' '))
+        return fullName.includes(hint)
+      })
+      if (matches.length > 0) {
+        targetIds = [matches[0].id]
+      }
+    }
+
+    if (targetIds.length > 0) {
+      void openOrCreateConversation(targetIds)
+      setShowNewConv(false)
+    } else {
+      setShowNewConv(true)
+      if (recipientHintRaw) setSearchTerm(recipientHintRaw)
+    }
+
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('autostart')
+    setSearchParams(nextParams, { replace: true })
+  }, [allProfils, openOrCreateConversation, profil, searchParams, setSearchParams])
 
   const filteredConvs = useMemo(() => {
     const list = conversations.filter(conversation => filterRole === 'tous' || conversation.participants.some(participant => participant.role === filterRole))

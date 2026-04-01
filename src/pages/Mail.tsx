@@ -38,6 +38,7 @@ const FOLDER_LABELS: Record<DemoMailFolder, string> = {
 
 export default function Mail() {
   const { profil } = useAuth()
+  const profilId = profil?.id ?? null
   const [mails, setMails] = useState<DemoMailRecord[]>([])
   const [folder, setFolder] = useState<DemoMailFolder>('inbox')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -65,7 +66,7 @@ export default function Mail() {
     }
     loadMailbox()
     return subscribeDemoMailUpdates(loadMailbox)
-  }, [profil?.id])
+  }, [profil])
 
   useEffect(() => {
     function refreshImportance() {
@@ -79,8 +80,8 @@ export default function Mail() {
     inbox: mails.filter(mail => mail.folder === 'inbox').length,
     sent: mails.filter(mail => mail.folder === 'sent').length,
     archive: mails.filter(mail => mail.folder === 'archive').length,
-    unread: profil ? countUnreadDemoMails(profil.id) : 0,
-  }), [mails, profil?.id])
+    unread: profilId ? countUnreadDemoMails(profilId) : 0,
+  }), [mails, profilId])
 
   const normalizedSearch = normalizeSearch(searchTerm)
 
@@ -109,7 +110,7 @@ export default function Mail() {
   useEffect(() => {
     if (!profil || !selectedMail || selectedMail.folder !== 'inbox' || selectedMail.read) return
     markDemoMailRead(profil.id, selectedMail.id)
-  }, [profil?.id, selectedMail?.id, selectedMail?.read])
+  }, [profil, selectedMail])
 
   async function addAttachments(files: FileList | null, kind: 'image' | 'document') {
     if (!files?.length) return

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import type { Tables, TablesInsert } from '@/lib/database.types'
@@ -175,6 +176,27 @@ function flotteFeatureError(err: unknown, fallback: string) {
   return message || fallback
 }
 
+function isMissingOptionalFlotteFeature(err: unknown) {
+  const message = err instanceof Error
+    ? err.message
+    : typeof err === 'string'
+      ? err
+      : JSON.stringify(err)
+  const normalized = message.toLowerCase()
+  return (
+    normalized.includes('vue_alertes_flotte')
+    || normalized.includes('vue_couts_flotte_mensuels')
+    || normalized.includes('vue_cout_kilometrique_vehicules')
+    || normalized.includes('flotte_documents')
+    || normalized.includes('flotte_entretiens')
+    || normalized.includes('vehicule_releves_km')
+    || normalized.includes('does not exist')
+    || normalized.includes('could not find the table')
+    || normalized.includes('pgrst205')
+    || normalized.includes('42p01')
+  )
+}
+
 function normalizeVehiculePayload(form: TablesInsert<'vehicules'>): TablesInsert<'vehicules'> {
   return {
     ...form,
@@ -192,6 +214,8 @@ function normalizeVehiculePayload(form: TablesInsert<'vehicules'>): TablesInsert
 }
 
 export default function Vehicules() {
+  const { role } = useAuth()
+  const canManageFleetAssets = role === 'mecanicien' || role === 'dirigeant'
   const [list, setList] = useState<VehiculeRow[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -236,7 +260,9 @@ export default function Vehicules() {
       const alertsRes = await supabase.from('vue_alertes_flotte').select('*').eq('asset_type', 'vehicule')
       if (alertsRes.error) {
         setGlobalAlerts([])
-        setError(flotteFeatureError(alertsRes.error, 'Chargement partiel du parc.'))
+        if (!isMissingOptionalFlotteFeature(alertsRes.error)) {
+          setError(flotteFeatureError(alertsRes.error, 'Chargement partiel du parc.'))
+        }
       } else {
         setGlobalAlerts(alertsRes.data ?? [])
       }
@@ -314,6 +340,10 @@ export default function Vehicules() {
   }
 
   function openCreate() {
+    if (!canManageFleetAssets) {
+      setError('Seuls les mecaniciens et dirigeants peuvent ajouter un vehicule.')
+      return
+    }
     resetFeedback()
     closeForm()
     setShowForm(true)
@@ -421,6 +451,11 @@ export default function Vehicules() {
       return
     }
 
+    if (!editingId && !canManageFleetAssets) {
+      setError('Seuls les mecaniciens et dirigeants peuvent ajouter un vehicule.')
+      return
+    }
+
     setSaving(true)
 
     try {
@@ -444,6 +479,10 @@ export default function Vehicules() {
 
   async function del(id: string) {
     resetFeedback()
+    if (!canManageFleetAssets) {
+      setError('Seuls les mecaniciens et dirigeants peuvent supprimer un vehicule.')
+      return
+    }
     if (!confirm('Supprimer ce vehicule ?')) return
 
     try {
@@ -627,9 +666,11 @@ export default function Vehicules() {
           <h2 className="text-2xl font-bold text-slate-800">Vehicules</h2>
           <p className="text-slate-500 text-sm">{list.length} vehicule{list.length !== 1 ? 's' : ''}</p>
         </div>
-        <button onClick={openCreate} className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors">
-          + Ajouter
-        </button>
+        {canManageFleetAssets && (
+          <button onClick={openCreate} className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors">
+            + Ajouter
+          </button>
+        )}
       </div>
 
       {(error || notice) && (
@@ -701,7 +742,7 @@ export default function Vehicules() {
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-3">
                         <button onClick={() => openEdit(vehicle)} className="text-xs text-slate-400 hover:text-slate-700 transition-colors">Modifier</button>
-                        <button onClick={() => void del(vehicle.id)} className="text-xs text-slate-400 hover:text-red-500 transition-colors">Suppr.</button>
+                        {canManageFleetAssets && <button onClick={() => void del(vehicle.id)} className="text-xs text-slate-400 hover:text-red-500 transition-colors">Suppr.</button>}
                       </div>
                     </td>
                   </tr>

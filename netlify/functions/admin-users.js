@@ -25,7 +25,11 @@ const ROLE_ALIASES = {
 const RESERVED_ADMIN_EMAIL_ROLE = {
   'admin@erp-demo.fr': 'admin',
   'direction@erp-demo.fr': 'dirigeant',
-  'chabre.florent@gmail.com': 'admin',
+}
+
+function isEmailRoleFallbackEnabled() {
+  const envFlag = String(process.env.ALLOW_EMAIL_ROLE_FALLBACK ?? '').trim().toLowerCase()
+  return envFlag === 'true' && process.env.NODE_ENV !== 'production'
 }
 
 function json(statusCode, body) {
@@ -80,7 +84,13 @@ function normalizeRole(value) {
   return ROLE_ALIASES[token] ?? null
 }
 
+function generateUserMatricule(profileId) {
+  const token = String(profileId ?? '').replace(/[^a-z0-9]/gi, '').slice(0, 8).toUpperCase()
+  return `USR-${token || 'UNKNOWN'}`
+}
+
 function fallbackRoleFromEmail(email) {
+  if (!isEmailRoleFallbackEnabled()) return null
   if (typeof email !== 'string') return null
   const normalized = email.trim().toLowerCase()
   const role = (
@@ -117,7 +127,7 @@ async function authorize(event) {
   const profileClient = admin ?? sessionClient
   const { data: profile, error: profileError } = await profileClient
     .from('profils')
-    .select('id, user_id, role')
+    .select('id, user_id, role, matricule')
     .eq('user_id', data.user.id)
     .maybeSingle()
 
@@ -251,10 +261,21 @@ async function createAdminUser(clients, rawBody) {
     prenom: prenom || null,
   }, {
     onConflict: 'user_id',
-  }).select('id,user_id').single()
+  }).select('id,user_id,matricule').single()
 
   if (profileError) {
     return json(500, { error: profileError.message })
+  }
+
+  const ensuredMatricule = profileRow?.matricule || generateUserMatricule(profileRow?.id)
+  if (profileRow && !profileRow.matricule) {
+    const { error: matriculeError } = await dbClient
+      .from('profils')
+      .update({ matricule: ensuredMatricule })
+      .eq('id', profileRow.id)
+    if (matriculeError) {
+      return json(500, { error: matriculeError.message })
+    }
   }
 
   return json(201, {
@@ -263,6 +284,7 @@ async function createAdminUser(clients, rawBody) {
       profile_id: profileRow?.id ?? null,
       email: createdUser.email ?? email,
       role,
+      matricule: ensuredMatricule,
       nom: nom || null,
       prenom: prenom || null,
       requires_email_confirmation: !clients.admin,

@@ -27,6 +27,7 @@ function isPrivileged(role: Role | null) {
 
 export default function Frais() {
   const { profil, accountProfil, role } = useAuth()
+  const viewerId = profil?.id ?? null
   const [version, setVersion] = useState(0)
   const [presetsVersion, setPresetsVersion] = useState(0)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('all')
@@ -50,12 +51,15 @@ export default function Frais() {
   const staff = useMemo(() => buildStaffDirectory([profil, accountProfil]), [profil, accountProfil])
   const canManageAll = isPrivileged(role)
   const canManagePresets = role === 'admin' || role === 'dirigeant' || role === 'comptable'
-  const employeeFilterId = canManageAll ? (selectedEmployeeId === 'all' ? null : selectedEmployeeId) : profil?.id ?? null
-  const tickets = useMemo(
-    () => profil && role ? listExpenseTicketsForViewer(profil.id, role, employeeFilterId) : [],
-    [profil?.id, role, employeeFilterId, version],
-  )
-  const presets = useMemo(() => listExpensePresets(), [presetsVersion])
+  const employeeFilterId = canManageAll ? (selectedEmployeeId === 'all' ? null : selectedEmployeeId) : viewerId
+  const tickets = useMemo(() => {
+    void version
+    return viewerId && role ? listExpenseTicketsForViewer(viewerId, role, employeeFilterId) : []
+  }, [viewerId, role, employeeFilterId, version])
+  const presets = useMemo(() => {
+    void presetsVersion
+    return listExpensePresets()
+  }, [presetsVersion])
   const targetStaffMember = findStaffMember(staff, employeeFilterId ?? profil?.id)
   const targetEmployee: Profil | null = targetStaffMember
     ? {
@@ -88,14 +92,14 @@ export default function Frais() {
   }, [])
 
   useEffect(() => {
-    if (!profil || !canManageAll) {
-      setSelectedEmployeeId(profil?.id ?? 'all')
+    if (!viewerId || !canManageAll) {
+      setSelectedEmployeeId(viewerId ?? 'all')
       return
     }
     if (selectedEmployeeId === 'all') return
     if (staff.some(member => member.id === selectedEmployeeId)) return
     setSelectedEmployeeId('all')
-  }, [profil?.id, canManageAll, selectedEmployeeId, staff])
+  }, [viewerId, canManageAll, selectedEmployeeId, staff])
 
   if (!profil || !role) return null
   const actor = profil

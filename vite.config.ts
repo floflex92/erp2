@@ -8,6 +8,20 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) return 'react'
+          if (id.includes('node_modules/react-router-dom/')) return 'router'
+          if (id.includes('node_modules/@supabase/')) return 'supabase'
+          if (id.includes('node_modules/leaflet/')) return 'leaflet'
+          if (id.includes('node_modules/jspdf/')) return 'pdf'
+          return undefined
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -25,3 +39,4 @@ export default defineConfig({
     },
   },
 })
+

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { STATUT_OPS, StatutOpsDot, type StatutOps } from '@/lib/statut-ops'
+import SiteMapPicker from '@/components/transports/SiteMapPicker'
 import {
   getAffretementContextByOtId,
   listAffretementContracts,
@@ -10,6 +11,7 @@ import {
   type AffretementContract,
 } from '@/lib/affretementPortal'
 import { validatePlanningDropAudit, type CEAlert } from '@/lib/ce561Validation'
+import { createLogisticSite, updateLogisticSite, type LogisticSite } from '@/lib/transportCourses'
 
 // â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -21,13 +23,13 @@ type OT = {
   remorque_id: string | null; prix_ht: number | null; statut_operationnel: string | null
   distance_km: number | null; donneur_ordre_id: string | null
   chargement_site_id: string | null; livraison_site_id: string | null
+  groupage_id: string | null; groupage_fige: boolean
   est_affretee: boolean
 }
 type Conducteur = { id: string; nom: string; prenom: string; statut: string }
 type Vehicule   = { id: string; immatriculation: string; marque: string | null; modele: string | null; statut: string }
 type Remorque   = { id: string; immatriculation: string; type_remorque: string; statut: string }
 type ClientRef  = { id: string; nom: string; actif: boolean | null }
-type LogisticSite = { id: string; nom: string; adresse: string | null }
 type Affectation = {
   id: string
   conducteur_id: string | null
@@ -41,6 +43,7 @@ type ColorMode  = 'statut' | 'conducteur' | 'type' | 'client'
 type AssignForm = {
   ot: OT; conducteur_id: string; vehicule_id: string; remorque_id: string
   date_chargement: string; time_chargement: string; date_livraison: string; time_livraison: string
+  applyToGroupage: boolean
 }
 type EditDraft = {
   reference: string; nature_marchandise: string; prix_ht: string; statut: string
@@ -72,10 +75,68 @@ type NativeDragPayload = {
   durationMinutes: number
   customBlockId?: string
 }
+type BlockMetrics = { leftPct: number; widthPct: number }
 type RowOrderMap = Record<Tab, string[]>
 type ContextMenu = { x: number; y: number; ot: OT } | null
 type AffretementContext = NonNullable<ReturnType<typeof getAffretementContextByOtId>>
 type RowConflict = { first: OT; second: OT; overlapMinutes: number }
+type BottomDockTab = 'missions' | 'non_affectees' | 'conflits' | 'affretement' | 'groupages' | 'non_programmees' | 'annulees' | 'urgences'
+type SiteUsageType = 'chargement' | 'livraison' | 'mixte'
+type SiteKind = 'chargement' | 'livraison'
+type SiteDraft = {
+  entreprise_id: string
+  nom: string
+  adresse: string
+  usage_type: SiteUsageType
+  horaires_ouverture: string
+  jours_ouverture: string
+  notes_livraison: string
+  latitude: number | null
+  longitude: number | null
+  showMap: boolean
+}
+type SiteLoadRow = {
+  id: string
+  nom: string
+  adresse: string
+  entreprise_id?: string | null
+  usage_type?: string | null
+  horaires_ouverture?: string | null
+  jours_ouverture?: string | null
+  notes_livraison?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+type AddressLoadRow = {
+  id: string
+  client_id?: string | null
+  nom_lieu?: string | null
+  type_lieu?: string | null
+  adresse?: string | null
+  horaires?: string | null
+  instructions?: string | null
+}
+type GeneratedInlineEvent = {
+  id: string
+  rowId: string
+  label: string
+  dateStart: string
+  dateEnd: string
+  color: string
+  kind: Exclude<PlanningInlineType, 'course'>
+}
+type PlanningUrgence = {
+  id: string
+  level: 'critique' | 'haute' | 'moyenne'
+  source: 'retard' | 'non_affectee' | 'conflit'
+  label: string
+  detail: string
+  otId?: string
+  rowId?: string
+  score: number
+}
 
 function getUpdateFailureReason(result: { error?: { message?: string } | null; data?: unknown }) {
   if (result.error?.message) return result.error.message
@@ -115,12 +176,6 @@ function toDateTimeISO(date: string, time: string): string { return `${date}T${t
 function toDateTimeFromDate(d: Date): string {
   return `${toISO(d)}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:00`
 }
-function normalizeDateTimeInput(value: string, defaultTime = '08:00'): string {
-  const date = value.slice(0, 10)
-  const rawTime = value.includes('T') ? value.slice(11, 16) : defaultTime
-  const time = /^\d{2}:\d{2}$/.test(rawTime) ? rawTime : defaultTime
-  return `${date}T${time}:00`
-}
 function isoToTime(iso: string | null): string {
   if (!iso) return '08:00'
   if (iso.includes('T')) return iso.slice(11, 16)
@@ -152,7 +207,7 @@ function toTimeValue(iso: string | null, fallbackDayISO: string): number {
 
 // â”€â”€â”€ Block position (week view) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-function blockPos(ot: OT, weekStart: Date): React.CSSProperties | null {
+function getWeekBlockMetrics(ot: OT, weekStart: Date): BlockMetrics | null {
   const weekStartMs    = weekStart.getTime()
   const weekDurationMs = 7 * 24 * 60 * 60 * 1000
   const weekEndMs      = weekStartMs + weekDurationMs  // exclusif : lundi suivant 00:00
@@ -174,16 +229,21 @@ function blockPos(ot: OT, weekStart: Date): React.CSSProperties | null {
   const left  = (visStartMs - weekStartMs) / weekDurationMs
   const width = Math.max(minWidthMs, visEndMs - visStartMs) / weekDurationMs
 
-  return { position:'absolute', top:'6px', height:'52px', left:`calc(${left*100}% + 2px)`, width:`calc(${width*100}% - 4px)` }
+  return { leftPct: left * 100, widthPct: width * 100 }
+}
+
+function blockPos(ot: OT, weekStart: Date): React.CSSProperties | null {
+  const metrics = getWeekBlockMetrics(ot, weekStart)
+  if (!metrics) return null
+  return { position:'absolute', top:'6px', height:'52px', left:`calc(${metrics.leftPct}% + 2px)`, width:`calc(${metrics.widthPct}% - 4px)` }
 }
 
 // Block position (day view - full 24h)
 
 const DAY_START_MIN  = 0            // 00:00
 const DAY_TOTAL_MIN  = 24 * 60      // 00:00 - 23:59
-const HOUR_WIDTH_PX  = 100          // px per hour column
 
-function blockPosDay(startISO: string | null, endISO: string | null, selectedDay: string): React.CSSProperties | null {
+function getDayBlockMetrics(startISO: string | null, endISO: string | null, selectedDay: string): BlockMetrics | null {
   if (!startISO) return null
   const startDate = isoToDate(startISO)
   const endDate   = isoToDate(endISO ?? startISO)
@@ -197,7 +257,13 @@ function blockPosDay(startISO: string | null, endISO: string | null, selectedDay
   const left  = (cStart - DAY_START_MIN) / DAY_TOTAL_MIN
   const width = (cEnd   - cStart)        / DAY_TOTAL_MIN
   if (width <= 0) return null
-  return { position:'absolute', top:'4px', height:'52px', left:`${left*100}%`, width:`${width*100}%` }
+  return { leftPct: left * 100, widthPct: width * 100 }
+}
+
+function blockPosDay(startISO: string | null, endISO: string | null, selectedDay: string): React.CSSProperties | null {
+  const metrics = getDayBlockMetrics(startISO, endISO, selectedDay)
+  if (!metrics) return null
+  return { position:'absolute', top:'4px', height:'52px', left:`${metrics.leftPct}%`, width:`${metrics.widthPct}%` }
 }
 
 // â”€â”€â”€ Color constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -229,14 +295,77 @@ const INLINE_EVENT_COLORS: Record<Exclude<PlanningInlineType, 'course'>, string>
 const INLINE_EVENT_LABELS: Record<PlanningInlineType, string> = {
   course: 'Course',
   hlp: 'HLP',
-  maintenance: 'Maintenance',
-  repos: 'Repos',
+  maintenance: 'Nettoyage',
+  repos: 'Pause',
 }
 const COLOR_PALETTE = [
   '#6366f1','#ec4899','#f59e0b','#10b981',
   '#3b82f6','#8b5cf6','#ef4444','#14b8a6',
   '#f97316','#84cc16','#06b6d4','#fb7185',
 ]
+const SITE_USAGE_LABELS: Record<SiteUsageType, string> = {
+  chargement: 'Chargement uniquement',
+  livraison: 'Livraison uniquement',
+  mixte: 'Chargement et livraison',
+}
+const EMPTY_SITE_DRAFT: SiteDraft = {
+  entreprise_id: '',
+  nom: '',
+  adresse: '',
+  usage_type: 'mixte',
+  horaires_ouverture: '',
+  jours_ouverture: '',
+  notes_livraison: '',
+  latitude: null,
+  longitude: null,
+  showMap: false,
+}
+
+function normalizeAddressValue(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
+function siteSupportsKind(site: LogisticSite, kind: SiteKind) {
+  return site.usage_type === 'mixte' || site.usage_type === kind
+}
+
+function sortLogisticSites(items: LogisticSite[]) {
+  return [...items].sort((left, right) => left.nom.localeCompare(right.nom, 'fr-FR'))
+}
+
+function makeEmptySiteDraft(entrepriseId = ''): SiteDraft {
+  return { ...EMPTY_SITE_DRAFT, entreprise_id: entrepriseId }
+}
+
+function mapSiteLoadRow(row: SiteLoadRow): LogisticSite {
+  return {
+    id: row.id,
+    nom: row.nom,
+    adresse: row.adresse,
+    entreprise_id: row.entreprise_id ?? null,
+    usage_type: (row.usage_type === 'chargement' || row.usage_type === 'livraison' || row.usage_type === 'mixte')
+      ? row.usage_type
+      : 'mixte',
+    horaires_ouverture: row.horaires_ouverture ?? null,
+    jours_ouverture: row.jours_ouverture ?? null,
+    notes_livraison: row.notes_livraison ?? null,
+    latitude: row.latitude ?? null,
+    longitude: row.longitude ?? null,
+    created_at: row.created_at ?? new Date(0).toISOString(),
+    updated_at: row.updated_at ?? new Date(0).toISOString(),
+  }
+}
+
+function mapAddressTypeToSiteUsage(_typeLieu?: string | null): SiteUsageType {
+  void _typeLieu
+  // Les adresses client sont toujours mixtes : elles apparaissent dans les deux sélecteurs
+  return 'mixte'
+}
 const TYPE_TRANSPORT_COLORS: Record<string, string> = {
   complet:'#3b82f6', groupage:'#f59e0b', express:'#ef4444',
   partiel:'#8b5cf6', frigorifique:'#06b6d4', vrac:'#84cc16', conventionnel:'#6b7280',
@@ -251,6 +380,12 @@ const ROW_ORDER_KEY        = 'nexora_planning_row_order_v1'
 const SHOW_AFF_ASSETS_KEY  = 'nexora_planning_show_affretement_assets_v1'
 const COMPLIANCE_BLOCK_KEY = 'nexora_planning_compliance_block_v1'
 const COMPLIANCE_BLOCK_RULES_KEY = 'nexora_planning_compliance_block_rules_v1'
+const SIMULATION_MODE_KEY = 'nexora_planning_simulation_mode_v1'
+const AUTO_HABILLAGE_KEY = 'nexora_planning_auto_habillage_v1'
+const AUTO_PAUSE_KEY = 'nexora_planning_auto_pause_v1'
+const BOTTOM_DOCK_HEIGHT_KEY = 'nexora_planning_bottom_dock_height_v1'
+const BOTTOM_DOCK_COLLAPSED_KEY = 'nexora_planning_bottom_dock_collapsed_v1'
+const BOTTOM_DOCK_VIEWPORT_OFFSET = 8
 
 const COMPLIANCE_RULE_LABELS: Record<string, string> = {
   PERMIS_EXPIRE: 'Permis CE expire',
@@ -321,6 +456,31 @@ function loadComplianceBlockingRules(): Record<string, boolean> {
 function saveComplianceBlockingRules(value: Record<string, boolean>) {
   localStorage.setItem(COMPLIANCE_BLOCK_RULES_KEY, JSON.stringify(value))
 }
+function loadBooleanSetting(key: string, defaultValue = false): boolean {
+  try {
+    const raw = localStorage.getItem(key)
+    if (raw == null) return defaultValue
+    return raw === '1'
+  } catch {
+    return defaultValue
+  }
+}
+function saveBooleanSetting(key: string, value: boolean) {
+  localStorage.setItem(key, value ? '1' : '0')
+}
+function loadNumberSetting(key: string, defaultValue: number): number {
+  try {
+    const raw = localStorage.getItem(key)
+    if (raw == null) return defaultValue
+    const parsed = Number(raw)
+    return Number.isFinite(parsed) ? parsed : defaultValue
+  } catch {
+    return defaultValue
+  }
+}
+function saveNumberSetting(key: string, value: number) {
+  localStorage.setItem(key, String(value))
+}
 function uid(): string { return Math.random().toString(36).slice(2) + Date.now().toString(36) }
 
 // â”€â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -333,6 +493,7 @@ export default function Planning() {
 
   const [pool,        setPool]        = useState<OT[]>([])
   const [ganttOTs,    setGanttOTs]    = useState<OT[]>([])
+  const [cancelledOTs, setCancelledOTs] = useState<OT[]>([])
   const [conducteurs, setConducteurs] = useState<Conducteur[]>([])
   const [vehicules,   setVehicules]   = useState<Vehicule[]>([])
   const [remorques,   setRemorques]   = useState<Remorque[]>([])
@@ -343,6 +504,10 @@ export default function Planning() {
   const [assignModal,  setAssignModal]  = useState<AssignForm | null>(null)
   const [selected,     setSelected]     = useState<OT | null>(null)
   const [editDraft,    setEditDraft]    = useState<EditDraft | null>(null)
+  const [editSiteDrafts, setEditSiteDrafts] = useState<Record<SiteKind, SiteDraft>>({
+    chargement: makeEmptySiteDraft(),
+    livraison: makeEmptySiteDraft(),
+  })
   const [saving,       setSaving]       = useState(false)
   const [planningNotice, setPlanningNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
@@ -359,6 +524,7 @@ export default function Planning() {
   const [showAddRow,    setShowAddRow]    = useState(false)
   const [newRowLabel,   setNewRowLabel]   = useState('')
   const [addBlockFor,   setAddBlockFor]   = useState<{ rowId:string; dateStart:string } | null>(null)
+  const [editingCustomBlockId, setEditingCustomBlockId] = useState<string | null>(null)
   const [newBlockLabel, setNewBlockLabel] = useState('')
   const [newBlockType, setNewBlockType] = useState<PlanningInlineType>('hlp')
   const [newBlockClientId, setNewBlockClientId] = useState('')
@@ -372,6 +538,7 @@ export default function Planning() {
   const [newBlockDateLivraison, setNewBlockDateLivraison] = useState(toISO(new Date()))
   const [newBlockTimeLivraison, setNewBlockTimeLivraison] = useState('18:00')
   const [newBlockDurationHours, setNewBlockDurationHours] = useState('10')
+  const [newBlockDurationMinutes, setNewBlockDurationMinutes] = useState('00')
   const [creatingInlineEvent, setCreatingInlineEvent] = useState(false)
 
   // Couleurs conducteurs
@@ -396,10 +563,20 @@ export default function Planning() {
   const [resourceSearch, setResourceSearch] = useState('')
   const [filterType,    setFilterType]    = useState('')
   const [filterClient,  setFilterClient]  = useState('')
+  const [centerFilter, setCenterFilter] = useState('')
   const [showOnlyAlert, setShowOnlyAlert] = useState(false)
   const [showOnlyConflicts, setShowOnlyConflicts] = useState(false)
   const [conflictPanelRowId, setConflictPanelRowId] = useState<string | null>(null)
   const [resolvingRowId, setResolvingRowId] = useState<string | null>(null)
+  const [conflictActionKey, setConflictActionKey] = useState<string | null>(null)
+  const [bottomDockTab, setBottomDockTab] = useState<BottomDockTab>('missions')
+  const [simulationMode, setSimulationMode] = useState<boolean>(() => loadBooleanSetting(SIMULATION_MODE_KEY, false))
+  const [autoHabillage, setAutoHabillage] = useState<boolean>(() => loadBooleanSetting(AUTO_HABILLAGE_KEY, true))
+  const [autoPauseReglementaire, setAutoPauseReglementaire] = useState<boolean>(() => loadBooleanSetting(AUTO_PAUSE_KEY, true))
+  const [bottomDockHeight, setBottomDockHeight] = useState<number>(() => loadNumberSetting(BOTTOM_DOCK_HEIGHT_KEY, 260))
+  const [bottomDockCollapsed, setBottomDockCollapsed] = useState<boolean>(() => loadBooleanSetting(BOTTOM_DOCK_COLLAPSED_KEY, false))
+  const [isResizingBottomDock, setIsResizingBottomDock] = useState(false)
+  const [groupageTargetId, setGroupageTargetId] = useState('')
 
   // Menu contextuel
   const [contextMenu, setContextMenu] = useState<ContextMenu>(null)
@@ -410,9 +587,8 @@ export default function Planning() {
   const [draggingRowId, setDraggingRowId] = useState<string | null>(null)
   const [dragOverRowId, setDragOverRowId] = useState<string | null>(null)
 
-  const dayScrollRef    = useRef<HTMLDivElement>(null)
-  const dayBodyScrollRef = useRef<HTMLDivElement>(null)
   const noticeTimerRef = useRef<number | null>(null)
+  const bottomDockResizeRef = useRef<{ startY: number; startHeight: number } | null>(null)
   const today = toISO(new Date())
 
   function pushPlanningNotice(message: string, type: 'success' | 'error' = 'success') {
@@ -422,6 +598,108 @@ export default function Planning() {
       setPlanningNotice(null)
       noticeTimerRef.current = null
     }, 3500)
+  }
+
+  function ensureWriteAllowed(actionLabel: string): boolean {
+    if (!simulationMode) return true
+    pushPlanningNotice(`Mode simulation actif: ${actionLabel} non enregistree en base.`, 'error')
+    return false
+  }
+
+  function startBottomDockResize(event: React.MouseEvent<HTMLDivElement>) {
+    event.preventDefault()
+    bottomDockResizeRef.current = { startY: event.clientY, startHeight: bottomDockHeight }
+    setIsResizingBottomDock(true)
+  }
+
+  useEffect(() => {
+    if (!isResizingBottomDock) return
+
+    function handleMouseMove(event: MouseEvent) {
+      const resizeState = bottomDockResizeRef.current
+      if (!resizeState) return
+      const delta = resizeState.startY - event.clientY
+      const nextHeight = Math.max(180, Math.min(560, resizeState.startHeight + delta))
+      setBottomDockHeight(nextHeight)
+    }
+
+    function handleMouseUp() {
+      setIsResizingBottomDock(false)
+      bottomDockResizeRef.current = null
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    window.addEventListener('blur', handleMouseUp)
+    document.body.style.cursor = 'ns-resize'
+    document.body.style.userSelect = 'none'
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+      window.removeEventListener('blur', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isResizingBottomDock])
+
+  useEffect(() => {
+    saveNumberSetting(BOTTOM_DOCK_HEIGHT_KEY, bottomDockHeight)
+  }, [bottomDockHeight])
+
+  useEffect(() => {
+    saveBooleanSetting(BOTTOM_DOCK_COLLAPSED_KEY, bottomDockCollapsed)
+  }, [bottomDockCollapsed])
+
+  function buildGeneratedInlineEvents(ot: OT, rowId: string): GeneratedInlineEvent[] {
+    if (!autoHabillage) return []
+    const startISO = ot.date_chargement_prevue
+    const endISO = ot.date_livraison_prevue ?? ot.date_chargement_prevue
+    if (!startISO || !endISO) return []
+
+    const start = new Date(startISO)
+    const end = new Date(endISO)
+    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) return []
+
+    const events: GeneratedInlineEvent[] = []
+    const beforeStart = new Date(start.getTime() - 20 * 60000)
+    events.push({
+      id: `hlp-before-${ot.id}`,
+      rowId,
+      label: `HLP ${ot.reference}`,
+      dateStart: toDateTimeFromDate(beforeStart),
+      dateEnd: toDateTimeFromDate(start),
+      color: INLINE_EVENT_COLORS.hlp,
+      kind: 'hlp',
+    })
+
+    const afterEnd = new Date(end.getTime() + 15 * 60000)
+    events.push({
+      id: `maint-after-${ot.id}`,
+      rowId,
+      label: `Nettoyage ${ot.reference}`,
+      dateStart: toDateTimeFromDate(end),
+      dateEnd: toDateTimeFromDate(afterEnd),
+      color: INLINE_EVENT_COLORS.maintenance,
+      kind: 'maintenance',
+    })
+
+    const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000)
+    if (autoPauseReglementaire && durationMinutes >= 6 * 60) {
+      const pauseStart = new Date(start.getTime() + Math.floor(durationMinutes / 2) * 60000)
+      const pauseEnd = new Date(pauseStart.getTime() + 45 * 60000)
+      events.push({
+        id: `pause-${ot.id}`,
+        rowId,
+        label: `Pause 45 min ${ot.reference}`,
+        dateStart: toDateTimeFromDate(pauseStart),
+        dateEnd: toDateTimeFromDate(pauseEnd),
+        color: INLINE_EVENT_COLORS.repos,
+        kind: 'repos',
+      })
+    }
+
+    return events
   }
 
   function isRuleBlocking(code: string): boolean {
@@ -569,16 +847,6 @@ export default function Planning() {
     }
   }
 
-  // Scroll to current hour in day view
-  useEffect(() => {
-    if (viewMode === 'jour' && dayScrollRef.current) {
-      const now = new Date()
-      const nowMin = now.getHours() * 60 + now.getMinutes()
-      const px = (nowMin / DAY_TOTAL_MIN) * (24 * HOUR_WIDTH_PX)
-      dayScrollRef.current.scrollLeft = Math.max(0, px - 200)
-    }
-  }, [viewMode, selectedDay])
-
   useEffect(() => {
     return () => {
       if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current)
@@ -617,9 +885,11 @@ export default function Planning() {
   }, [])
 
   const loadAll = useCallback(async () => {
-    const extendedOtSelect = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, donneur_ordre_id, chargement_site_id, livraison_site_id, est_affretee, clients!ordres_transport_client_id_fkey(nom)'
-    const legacyOtSelect = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, clients!ordres_transport_client_id_fkey(nom)'
-    const bareMinimumOtSelect = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km'
+    const extendedOtSelect = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, donneur_ordre_id, chargement_site_id, livraison_site_id, groupage_id, groupage_fige, est_affretee, clients!ordres_transport_client_id_fkey(nom)'
+    const extendedWithoutAffretementSelect = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, donneur_ordre_id, chargement_site_id, livraison_site_id, groupage_id, groupage_fige, clients!ordres_transport_client_id_fkey(nom)'
+    const siteAwareOtSelect = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, chargement_site_id, livraison_site_id, groupage_id, groupage_fige, clients!ordres_transport_client_id_fkey(nom)'
+    const legacyOtSelect = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, groupage_id, groupage_fige, clients!ordres_transport_client_id_fkey(nom)'
+    const bareMinimumOtSelect = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, groupage_id, groupage_fige'
 
     let otR: {
       data: unknown[] | null
@@ -627,40 +897,116 @@ export default function Planning() {
     } = await supabase
       .from('ordres_transport')
       .select(extendedOtSelect)
-      .neq('statut', 'annule')
       .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
 
     if (otR.error) {
-      // Fallback 1 : colonnes originales + FK join
-      const legacyR = await supabase
+      // Fallback 1 : meme charge utile sans est_affretee (schemas plus anciens)
+      const noAffretementR = await supabase
         .from('ordres_transport')
-        .select(legacyOtSelect)
-        .neq('statut', 'annule')
+        .select(extendedWithoutAffretementSelect)
         .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
-      if (!legacyR.error) {
-        otR = legacyR as typeof otR
+      if (!noAffretementR.error) {
+        otR = noAffretementR as typeof otR
       } else {
-        // Fallback 2 : colonnes originales sans FK join
-        const bareR = await supabase
+        // Fallback 2 : conserve chargement/livraison meme sans donneur_ordre_id
+        const siteAwareR = await supabase
           .from('ordres_transport')
-          .select(bareMinimumOtSelect)
-          .neq('statut', 'annule')
+          .select(siteAwareOtSelect)
           .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
-        if (!bareR.error) otR = bareR as typeof otR
+        if (!siteAwareR.error) {
+          otR = siteAwareR as typeof otR
+        } else {
+          // Fallback 3 : colonnes originales + FK join
+          const legacyR = await supabase
+            .from('ordres_transport')
+            .select(legacyOtSelect)
+            .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
+          if (!legacyR.error) {
+            otR = legacyR as typeof otR
+          } else {
+            // Fallback 4 : colonnes originales sans FK join
+            const bareR = await supabase
+              .from('ordres_transport')
+              .select(bareMinimumOtSelect)
+              .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
+            if (!bareR.error) otR = bareR as typeof otR
+          }
+        }
       }
     }
 
-    const [cR, vR, rR, clientR, siteR, aR] = await Promise.all([
+    async function fetchSiteRows() {
+      let result: {
+        data: SiteLoadRow[] | null
+        error: { message?: string } | null
+      } = await looseSupabase
+        .from('sites_logistiques')
+        .select('id, nom, adresse, entreprise_id, usage_type, horaires_ouverture, jours_ouverture, notes_livraison, latitude, longitude, created_at, updated_at')
+        .order('nom')
+
+      if (result.error) {
+        const siteFallbackR = await looseSupabase
+          .from('sites_logistiques')
+          .select('id, nom, adresse, entreprise_id, usage_type')
+          .order('nom')
+        if (!siteFallbackR.error) {
+          result = siteFallbackR as typeof result
+        } else {
+          const siteMinimumR = await looseSupabase
+            .from('sites_logistiques')
+            .select('id, nom, adresse, entreprise_id')
+            .order('nom')
+          if (!siteMinimumR.error) result = siteMinimumR as typeof result
+        }
+      }
+
+      return result
+    }
+
+    let siteR = await fetchSiteRows()
+
+    if (!siteR.error && (siteR.data?.length ?? 0) === 0) {
+      const addressR = await looseSupabase
+        .from('adresses')
+        .select('id, client_id, nom_lieu, type_lieu, adresse, horaires, instructions')
+        .not('client_id', 'is', null)
+        .not('adresse', 'is', null)
+        .order('nom_lieu')
+
+      if (!addressR.error && (addressR.data?.length ?? 0) > 0) {
+        const seededSites = (addressR.data as AddressLoadRow[])
+          .filter(address => address.id && address.client_id && address.adresse)
+          .map(address => ({
+            id: address.id,
+            nom: (address.nom_lieu && address.nom_lieu.trim()) ? address.nom_lieu.trim() : address.adresse!.slice(0, 80),
+            adresse: address.adresse!,
+            entreprise_id: address.client_id!,
+            usage_type: mapAddressTypeToSiteUsage(address.type_lieu),
+            horaires_ouverture: address.horaires ?? null,
+            jours_ouverture: null,
+            notes_livraison: address.instructions ?? null,
+          }))
+
+        if (seededSites.length > 0) {
+          await supabase
+            .from('sites_logistiques')
+            .upsert(seededSites, { onConflict: 'id' })
+          siteR = await fetchSiteRows()
+        }
+      }
+    }
+
+    const [cR, vR, rR, clientR, aR] = await Promise.all([
       supabase.from('conducteurs').select('id, nom, prenom, statut').eq('statut', 'actif').order('nom'),
       supabase.from('vehicules').select('id, immatriculation, marque, modele, statut').neq('statut', 'hors_service').order('immatriculation'),
       supabase.from('remorques').select('id, immatriculation, type_remorque, statut').neq('statut', 'hors_service').order('immatriculation'),
       supabase.from('clients').select('id, nom, actif').eq('actif', true).order('nom'),
-      looseSupabase.from('sites_logistiques').select('id, nom, adresse').order('nom'),
       supabase.from('affectations').select('id, conducteur_id, vehicule_id, remorque_id, actif').eq('actif', true),
     ])
     if (otR.error) {
       setPool([])
       setGanttOTs([])
+      setCancelledOTs([])
       setSelected(null)
     } else if (otR.data) {
       type OtLoadRow = Omit<OT, 'client_nom'> & {
@@ -669,6 +1015,8 @@ export default function Planning() {
         donneur_ordre_id?: string | null
         chargement_site_id?: string | null
         livraison_site_id?: string | null
+        groupage_id?: string | null
+        groupage_fige?: boolean | null
       }
       const ots: OT[] = (otR.data as OtLoadRow[]).map(r => ({
         id: r.id, reference: r.reference, client_nom: (Array.isArray(r.clients) ? r.clients[0] : r.clients)?.nom ?? '-',
@@ -678,11 +1026,16 @@ export default function Planning() {
         remorque_id: r.remorque_id, prix_ht: r.prix_ht, statut_operationnel: r.statut_operationnel,
         distance_km: r.distance_km ?? null, donneur_ordre_id: r.donneur_ordre_id ?? null,
         chargement_site_id: r.chargement_site_id ?? null, livraison_site_id: r.livraison_site_id ?? null,
-        est_affretee: r.est_affretee,
+        groupage_id: r.groupage_id ?? null, groupage_fige: Boolean(r.groupage_fige),
+        est_affretee: Boolean(r.est_affretee),
       }))
-      const principalPlanning = ots.filter(o => !o.est_affretee)
-      setPool(principalPlanning.filter(o => o.statut === 'brouillon' || o.statut === 'confirme'))
-      setGanttOTs(principalPlanning.filter(o => !['brouillon','confirme'].includes(o.statut)))
+      const cancelled = ots.filter(o => o.statut === 'annule')
+      const principalPlanning = ots.filter(o => !o.est_affretee && o.statut !== 'annule')
+      const isDraftStatut = (ot: OT) => ot.statut === 'brouillon' || ot.statut === 'confirme'
+      const hasAssignedResource = (ot: OT) => Boolean(ot.conducteur_id || ot.vehicule_id || ot.remorque_id)
+      setCancelledOTs(cancelled)
+      setPool(principalPlanning.filter(o => isDraftStatut(o) && !hasAssignedResource(o)))
+      setGanttOTs(principalPlanning.filter(o => !isDraftStatut(o) || hasAssignedResource(o)))
       setSelected(current => current ? (ots.find(ot => ot.id === current.id) ?? null) : current)
     }
     if (cR.error) setConducteurs([])
@@ -698,7 +1051,7 @@ export default function Planning() {
     else if (clientR.data) setClients(clientR.data)
 
     if (siteR.error) setLogisticSites([])
-    else if (siteR.data) setLogisticSites((siteR.data as LogisticSite[]) ?? [])
+    else if (siteR.data) setLogisticSites(sortLogisticSites((siteR.data ?? []).map(mapSiteLoadRow)))
 
     if (aR.error) setAffectations([])
     else if (aR.data) setAffectations(aR.data)
@@ -731,6 +1084,8 @@ export default function Planning() {
   // ── Edit modal (clic sur un bloc du planning) ─────────────────────────────────────────────
 
   function openSelected(ot: OT) {
+    const enterpriseId = ot.donneur_ordre_id ?? ''
+    setGroupageTargetId('')
     setSelected(ot)
     setEditDraft({
       reference:           ot.reference,
@@ -750,13 +1105,119 @@ export default function Planning() {
       livraison_site_id:   ot.livraison_site_id ?? '',
       distance_km:         ot.distance_km != null ? String(ot.distance_km) : '',
     })
+    setEditSiteDrafts({
+      chargement: makeEmptySiteDraft(enterpriseId),
+      livraison: makeEmptySiteDraft(enterpriseId),
+    })
   }
   function closeSelected() {
     setSelected(null)
     setEditDraft(null)
+    setGroupageTargetId('')
+    setEditSiteDrafts({
+      chargement: makeEmptySiteDraft(),
+      livraison: makeEmptySiteDraft(),
+    })
+  }
+
+  function ensureGroupageEditable(ot: OT, actionLabel: string): boolean {
+    if (!ot.groupage_fige) return true
+    pushPlanningNotice(`${actionLabel} impossible: ce lot est fige. Defigez-le depuis le planning avant modification.`, 'error')
+    return false
+  }
+
+  function setEditSiteDraft<K extends keyof SiteDraft>(kind: SiteKind, key: K, value: SiteDraft[K]) {
+    setEditSiteDrafts(current => ({
+      ...current,
+      [kind]: {
+        ...current[kind],
+        [key]: value,
+      },
+    }))
+  }
+
+  function resetEditSiteDraft(kind: SiteKind, entrepriseId?: string) {
+    setEditSiteDrafts(current => ({
+      ...current,
+      [kind]: makeEmptySiteDraft(entrepriseId ?? editDraft?.donneur_ordre_id ?? ''),
+    }))
+  }
+
+  async function createOrSelectPlanningSite(kind: SiteKind) {
+    if (!editDraft) return
+
+    const draft = editSiteDrafts[kind]
+    const entrepriseId = (draft.entreprise_id || editDraft.donneur_ordre_id).trim()
+    const adresse = draft.adresse.trim()
+
+    if (!entrepriseId) {
+      pushPlanningNotice('Impossible d ajouter une adresse: selectionnez d abord le donneur d ordre.', 'error')
+      return
+    }
+
+    if (!adresse) {
+      pushPlanningNotice('Adresse manquante: saisissez une adresse ou posez un point GPS sur la carte.', 'error')
+      return
+    }
+
+    const existing = logisticSites.find(site =>
+      site.entreprise_id === entrepriseId && normalizeAddressValue(site.adresse) === normalizeAddressValue(adresse),
+    )
+
+    if (existing) {
+      const nextUsageType = siteSupportsKind(existing, kind) ? existing.usage_type : 'mixte'
+      let linkedSite = existing
+      if (nextUsageType !== existing.usage_type) {
+        linkedSite = await updateLogisticSite(existing.id, { usage_type: nextUsageType })
+        setLogisticSites(current => sortLogisticSites(current.map(site => site.id === linkedSite.id ? linkedSite : site)))
+      }
+      setEditDraft(current => current ? {
+        ...current,
+        ...(kind === 'chargement'
+          ? { chargement_site_id: linkedSite.id }
+          : { livraison_site_id: linkedSite.id }),
+      } : current)
+      resetEditSiteDraft(kind, entrepriseId)
+      pushPlanningNotice('Adresse existante detectee: site deja present en base et selectionne.')
+      return
+    }
+
+    try {
+      const companyName = clients.find(client => client.id === entrepriseId)?.nom ?? 'Entreprise'
+      const defaultName = kind === 'chargement'
+        ? `Chargement - ${companyName}`
+        : `Livraison - ${companyName}`
+
+      const created = await createLogisticSite({
+        nom: draft.nom.trim() || defaultName,
+        adresse,
+        entreprise_id: entrepriseId,
+        usage_type: draft.usage_type,
+        horaires_ouverture: draft.horaires_ouverture.trim() || null,
+        jours_ouverture: draft.jours_ouverture.trim() || null,
+        notes_livraison: draft.notes_livraison.trim() || null,
+        latitude: draft.latitude,
+        longitude: draft.longitude,
+      })
+
+      setLogisticSites(current => sortLogisticSites([created, ...current.filter(site => site.id !== created.id)]))
+      setEditDraft(current => current ? {
+        ...current,
+        ...(kind === 'chargement'
+          ? { chargement_site_id: created.id }
+          : { livraison_site_id: created.id }),
+      } : current)
+      resetEditSiteDraft(kind, entrepriseId)
+      pushPlanningNotice('Nouveau lieu cree et selectionne dans la course.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Creation du site logistique impossible.'
+      pushPlanningNotice(message, 'error')
+    }
   }
   async function saveEdit() {
     if (!selected || !editDraft) return
+    if (!ensureWriteAllowed('Mise a jour de course')) return
+    if (!ensureGroupageEditable(selected, 'Mise a jour')) return
     setSaving(true)
     const payload = {
       reference:              editDraft.reference || selected.reference,
@@ -785,7 +1246,7 @@ export default function Planning() {
     pushPlanningNotice('Course mise a jour.')
   }
 
-  function openAssign(ot: OT, resourceId?: string, dropDay?: string, dropTimeMin?: number) {
+  function openAssign(ot: OT, resourceId?: string, dropDay?: string, dropTimeMin?: number, applyToGroupage = false) {
     const preC = tab === 'conducteurs' ? (resourceId ?? ot.conducteur_id ?? '') : (ot.conducteur_id ?? '')
     const preV = tab === 'camions'     ? (resourceId ?? ot.vehicule_id   ?? '') : (ot.vehicule_id   ?? '')
     const preR = tab === 'remorques'   ? (resourceId ?? ot.remorque_id   ?? '') : (ot.remorque_id   ?? '')
@@ -796,26 +1257,34 @@ export default function Planning() {
     const endDate = dropDay ?? isoToDate(ot.date_livraison_prevue ?? ot.date_chargement_prevue)
     const endTime = isoToTime(ot.date_livraison_prevue)
     setAssignModal({ ot, conducteur_id:preC, vehicule_id:preV, remorque_id:preR,
-      date_chargement:baseDate, time_chargement:baseTime, date_livraison:endDate, time_livraison:endTime })
+      date_chargement:baseDate, time_chargement:baseTime, date_livraison:endDate, time_livraison:endTime, applyToGroupage })
     closeSelected()
   }
 
   async function saveAssign() {
     if (!assignModal) return
+    if (!ensureWriteAllowed('Affectation')) return
+    if (!ensureGroupageEditable(assignModal.ot, 'Affectation')) return
+    const targets = assignModal.applyToGroupage ? getGroupageMembersForOt(assignModal.ot) : [assignModal.ot]
     const otId = assignModal.ot.id
     setSaving(true)
     const plannedStartISO = toDateTimeISO(assignModal.date_chargement, assignModal.time_chargement)
     const plannedEndISO = toDateTimeISO(assignModal.date_livraison, assignModal.time_livraison)
-    const auditSummary = await buildComplianceAuditSummary({
-      otId,
-      conducteurId: assignModal.conducteur_id || null,
-      startISO: plannedStartISO,
-      endISO: plannedEndISO,
-    })
-    if (blockOnCompliance && auditSummary?.hasBlocking) {
-      setSaving(false)
-      pushPlanningNotice(`Affectation bloquee. ${auditSummary.message}`, 'error')
-      return
+    let lastAuditSummary: { message: string; hasBlocking: boolean } | null = null
+    for (const target of targets) {
+      const auditSummary = await buildComplianceAuditSummary({
+        otId: target.id,
+        conducteurId: assignModal.conducteur_id || null,
+        startISO: plannedStartISO,
+        endISO: plannedEndISO,
+      })
+      lastAuditSummary = auditSummary
+      if (blockOnCompliance && auditSummary?.hasBlocking) {
+        setSaving(false)
+        const prefix = assignModal.applyToGroupage ? `Programmation du lot bloquee sur ${target.reference}.` : 'Affectation bloquee.'
+        pushPlanningNotice(`${prefix} ${auditSummary.message}`, 'error')
+        return
+      }
     }
 
     const updatePayload = {
@@ -826,10 +1295,15 @@ export default function Planning() {
       date_chargement_prevue: plannedStartISO,
       date_livraison_prevue:  plannedEndISO,
     }
-    const firstTry = await supabase
-      .from('ordres_transport')
-      .update(updatePayload)
-      .eq('id', otId)
+    const firstTry = assignModal.applyToGroupage
+      ? await supabase
+          .from('ordres_transport')
+          .update(updatePayload)
+          .in('id', targets.map(target => target.id))
+      : await supabase
+          .from('ordres_transport')
+          .update(updatePayload)
+          .eq('id', otId)
     if (firstTry.error) {
       // Some schemas store planned dates as DATE instead of TIMESTAMP.
       const fallbackPayload = {
@@ -837,10 +1311,15 @@ export default function Planning() {
         date_chargement_prevue: assignModal.date_chargement,
         date_livraison_prevue: assignModal.date_livraison,
       }
-      const fallbackTry = await supabase
-        .from('ordres_transport')
-        .update(fallbackPayload)
-        .eq('id', otId)
+      const fallbackTry = assignModal.applyToGroupage
+        ? await supabase
+            .from('ordres_transport')
+            .update(fallbackPayload)
+            .in('id', targets.map(target => target.id))
+        : await supabase
+            .from('ordres_transport')
+            .update(fallbackPayload)
+            .eq('id', otId)
       if (fallbackTry.error) {
         setSaving(false)
         const message = getUpdateFailureReason(fallbackTry)
@@ -849,105 +1328,89 @@ export default function Planning() {
       }
     }
     setCustomBlocks(prev => {
-      const upd = prev.filter(block => block.otId !== otId)
+      const targetIds = new Set(targets.map(target => target.id))
+      const upd = prev.filter(block => !block.otId || !targetIds.has(block.otId))
       if (upd.length !== prev.length) saveCustomBlocks(upd)
       return upd
     })
     setSaving(false); setAssignModal(null); loadAll()
     pushPlanningNotice(
-      auditSummary ? `Affectation enregistree. ${auditSummary.message}` : 'Affectation enregistree.',
-      auditSummary?.hasBlocking ? 'error' : 'success',
+      lastAuditSummary
+        ? `${assignModal.applyToGroupage ? 'Lot programme.' : 'Affectation enregistree.'} ${lastAuditSummary.message}`
+        : assignModal.applyToGroupage ? 'Lot programme.' : 'Affectation enregistree.',
+      lastAuditSummary?.hasBlocking ? 'error' : 'success',
     )
   }
 
-  async function quickAssignFromDrop(
-    ot: OT,
-    resourceId: string,
-    dropDay: string,
-    dropTimeMin: number | null,
-    durationMinutes: number,
-    durationDays: number,
-  ) {
-    setSavingOtId(ot.id)
-    try {
-      const startTime = dropTimeMin != null
-        ? `${String(Math.floor(dropTimeMin / 60)).padStart(2, '0')}:${String(dropTimeMin % 60).padStart(2, '0')}`
-        : isoToTime(ot.date_chargement_prevue)
+  function getScheduledBounds(ot: OT): { startISO: string; endISO: string } | null {
+    const startISO = ot.date_chargement_prevue ?? ot.date_livraison_prevue
+    const endISO = ot.date_livraison_prevue ?? ot.date_chargement_prevue
+    if (!startISO || !endISO) return null
+    return { startISO, endISO }
+  }
 
-      let endDate = toISO(addDays(parseDay(dropDay), Math.max(1, durationDays) - 1))
-      let endTime = ot.date_livraison_prevue ? isoToTime(ot.date_livraison_prevue) : startTime
-      // Garantir une duree minimale d 8h quand les dates n ont pas de composante horaire exploitable
-      if (endDate === dropDay && endTime === startTime) {
-        const [h, m] = startTime.split(':').map(Number)
-        const endH = h + 8
-        if (endH < 24) {
-          endTime = `${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-        } else {
-          endDate = toISO(addDays(parseDay(dropDay), 1))
-          endTime = `${String(endH - 24).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-        }
-      }
+  async function assignCourseToResourceWithoutTimelineMove(ot: OT, resourceId: string) {
+    if (!ensureWriteAllowed('Affectation par glisser-deposer')) return
+    if (!ensureGroupageEditable(ot, 'Affectation')) return
 
-      if (dropTimeMin != null) {
-        const startDate = parseDay(dropDay)
-        startDate.setHours(Math.floor(dropTimeMin / 60), dropTimeMin % 60, 0, 0)
-        const endDateTime = new Date(startDate.getTime() + Math.max(15, durationMinutes) * 60000)
-        endDate = toISO(endDateTime)
-        endTime = `${String(endDateTime.getHours()).padStart(2, '0')}:${String(endDateTime.getMinutes()).padStart(2, '0')}`
-      }
-
-      const updatePayload = {
-        statut: 'planifie',
-        conducteur_id: tab === 'conducteurs' ? resourceId : (ot.conducteur_id ?? null),
-        vehicule_id: tab === 'camions' ? resourceId : (ot.vehicule_id ?? null),
-        remorque_id: tab === 'remorques' ? resourceId : (ot.remorque_id ?? null),
-        date_chargement_prevue: toDateTimeISO(dropDay, startTime),
-        date_livraison_prevue: toDateTimeISO(endDate, endTime),
-      }
-
-      const targetConducteurId = tab === 'conducteurs' ? resourceId : (ot.conducteur_id ?? null)
-      const auditSummary = await buildComplianceAuditSummary({
-        otId: ot.id,
-        conducteurId: targetConducteurId,
-        startISO: toDateTimeISO(dropDay, startTime),
-        endISO: toDateTimeISO(endDate, endTime),
-      })
-      if (blockOnCompliance && auditSummary?.hasBlocking) {
-        pushPlanningNotice(`Affectation bloquee. ${auditSummary.message}`, 'error')
+    const members = getGroupageMembersForOt(ot)
+    for (const member of members) {
+      const schedule = getScheduledBounds(member)
+      if (!schedule) {
+        openAssign(member, resourceId)
+        pushPlanningNotice('Cette course doit etre reglee depuis sa fiche pour definir debut et fin avant positionnement sur le planning.', 'error')
         return
       }
+    }
 
-      const firstTry = await supabase
-        .from('ordres_transport')
-        .update(updatePayload)
-        .eq('id', ot.id)
-      if (firstTry.error) {
-        const fallbackPayload = {
-          ...updatePayload,
-          date_chargement_prevue: dropDay,
-          date_livraison_prevue: endDate,
-        }
-        const fallbackTry = await supabase
-          .from('ordres_transport')
-          .update(fallbackPayload)
-          .eq('id', ot.id)
-        if (fallbackTry.error) {
-          const message = getUpdateFailureReason(fallbackTry)
-          pushPlanningNotice(`Affectation impossible: ${message}`, 'error')
+    setSavingOtId(ot.id)
+    try {
+      let lastAuditSummary: { message: string; hasBlocking: boolean } | null = null
+      for (const member of members) {
+        const schedule = getScheduledBounds(member)
+        if (!schedule) continue
+        const targetConducteurId = tab === 'conducteurs' ? resourceId : (member.conducteur_id ?? null)
+        const auditSummary = await buildComplianceAuditSummary({
+          otId: member.id,
+          conducteurId: targetConducteurId,
+          startISO: schedule.startISO,
+          endISO: schedule.endISO,
+        })
+        lastAuditSummary = auditSummary
+        if (blockOnCompliance && auditSummary?.hasBlocking) {
+          pushPlanningNotice(`Affectation du lot bloquee sur ${member.reference}. ${auditSummary.message}`, 'error')
           return
         }
       }
 
+      const updatePayload: Record<string, string> = { statut: 'planifie' }
+      if (tab === 'conducteurs') updatePayload.conducteur_id = resourceId
+      if (tab === 'camions') updatePayload.vehicule_id = resourceId
+      if (tab === 'remorques') updatePayload.remorque_id = resourceId
+
+      const result = await supabase
+        .from('ordres_transport')
+        .update(updatePayload)
+        .in('id', members.map(member => member.id))
+
+      if (result.error) {
+        pushPlanningNotice(`Affectation impossible: ${result.error.message}`, 'error')
+        return
+      }
+
       setCustomBlocks(prev => {
-        const upd = prev.filter(block => block.otId !== ot.id)
+        const memberIds = new Set(members.map(member => member.id))
+        const upd = prev.filter(block => !block.otId || !memberIds.has(block.otId))
         if (upd.length !== prev.length) saveCustomBlocks(upd)
         return upd
       })
 
       await loadAll()
       pushPlanningNotice(
-        auditSummary ? `Affectation enregistree. ${auditSummary.message}` : 'Affectation enregistree.',
-        auditSummary?.hasBlocking ? 'error' : 'success',
+        members.length > 1
+          ? (lastAuditSummary ? `Lot de ${members.length} courses deplace ensemble. ${lastAuditSummary.message}` : `Lot de ${members.length} courses deplace ensemble sans changer leurs dates.`)
+          : (lastAuditSummary ? `Ressource mise a jour. ${lastAuditSummary.message}` : 'Ressource mise a jour sans changer les dates de la course.'),
+        lastAuditSummary?.hasBlocking ? 'error' : 'success',
       )
     } finally {
       setSavingOtId(null)
@@ -955,6 +1418,8 @@ export default function Planning() {
   }
 
   async function unassign(ot: OT) {
+    if (!ensureWriteAllowed('Desaffectation')) return
+    if (!ensureGroupageEditable(ot, 'Desaffectation')) return
     // Remet au statut confirme et efface les affectations quelle que soit l'etape
     const newStatut = ['brouillon','confirme'].includes(ot.statut) ? ot.statut : 'confirme'
     await supabase.from('ordres_transport').update({
@@ -971,6 +1436,8 @@ export default function Planning() {
   // â”€â”€ Direct block move â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async function moveBlock(ot: OT, resourceId: string, newStartISO: string, newEndISO: string, notifySuccess = true) {
+    if (!ensureWriteAllowed('Deplacement de course')) return
+    if (!ensureGroupageEditable(ot, 'Deplacement')) return
     setSavingOtId(ot.id)
     const targetConducteurId = tab === 'conducteurs' ? resourceId : (ot.conducteur_id ?? null)
     const auditSummary = await buildComplianceAuditSummary({
@@ -1026,6 +1493,173 @@ export default function Planning() {
       )
     }
     setSavingOtId(null)
+  }
+
+  function findOverlapTarget(rowId: string, startISO: string, endISO: string, movingOtIds: string[]): OT | null {
+    const start = new Date(startISO).getTime()
+    const end = Math.max(start + 15 * 60 * 1000, new Date(endISO).getTime())
+    return rowOTs(rowId)
+      .filter(item => !movingOtIds.includes(item.id))
+      .find(item => {
+        const interval = otInterval(item)
+        return Math.min(end, interval.end) > Math.max(start, interval.start)
+      }) ?? null
+  }
+
+  async function normalizeSingletonGroupage(groupId: string) {
+    const membersRes = await supabase
+      .from('ordres_transport')
+      .select('id')
+      .eq('groupage_id', groupId)
+
+    if ((membersRes.data?.length ?? 0) <= 1) {
+      await supabase
+        .from('ordres_transport')
+        .update({ groupage_id: null, groupage_fige: false })
+        .eq('groupage_id', groupId)
+    }
+  }
+
+  async function linkCoursesToGroupage(source: OT, target: OT) {
+    if (!ensureWriteAllowed('Liaison de groupage')) return false
+    if (source.groupage_fige || target.groupage_fige) {
+      pushPlanningNotice('Groupage impossible: un des lots est fige.', 'error')
+      return false
+    }
+
+    const previousSourceGroupId = source.groupage_id
+    const previousTargetGroupId = target.groupage_id
+    const nextGroupId = source.groupage_id ?? target.groupage_id ?? crypto.randomUUID()
+
+    const result = await supabase
+      .from('ordres_transport')
+      .update({ groupage_id: nextGroupId, groupage_fige: false, type_transport: 'groupage' })
+      .in('id', [source.id, target.id])
+
+    if (result.error) {
+      pushPlanningNotice(`Groupage impossible: ${result.error.message}`, 'error')
+      return false
+    }
+
+    if (previousSourceGroupId && previousSourceGroupId !== nextGroupId) await normalizeSingletonGroupage(previousSourceGroupId)
+    if (previousTargetGroupId && previousTargetGroupId !== nextGroupId) await normalizeSingletonGroupage(previousTargetGroupId)
+    return nextGroupId
+  }
+
+  async function applyConflictGroupage(conflict: RowConflict, freezeGroupage: boolean) {
+    const actionLabel = freezeGroupage ? 'Validation de lot' : 'Proposition de groupage'
+    if (!ensureGroupageEditable(conflict.first, actionLabel)) return
+    if (!ensureGroupageEditable(conflict.second, actionLabel)) return
+
+    const actionKey = `${conflict.first.id}:${conflict.second.id}:${freezeGroupage ? 'freeze' : 'link'}`
+    setConflictActionKey(actionKey)
+    try {
+      const alreadyGrouped = sharesSameGroupage(conflict.first, conflict.second)
+      const alreadyFrozen = alreadyGrouped && (conflict.first.groupage_fige || conflict.second.groupage_fige)
+
+      if (alreadyGrouped && !freezeGroupage) {
+        pushPlanningNotice('Ces courses sont deja dans le meme groupage.')
+        return
+      }
+
+      if (alreadyFrozen && freezeGroupage) {
+        pushPlanningNotice('Ce lot est deja verrouille.')
+        return
+      }
+
+      let nextGroupId = alreadyGrouped ? conflict.first.groupage_id : null
+      if (!nextGroupId) {
+        const linkedGroupId = await linkCoursesToGroupage(conflict.first, conflict.second)
+        if (!linkedGroupId) return
+        nextGroupId = linkedGroupId
+      }
+
+      if (freezeGroupage && nextGroupId) {
+        const freezeResult = await supabase
+          .from('ordres_transport')
+          .update({ groupage_fige: true })
+          .eq('groupage_id', nextGroupId)
+
+        if (freezeResult.error) {
+          pushPlanningNotice(`Verrouillage impossible: ${freezeResult.error.message}`, 'error')
+          return
+        }
+      }
+
+      await loadAll()
+      pushPlanningNotice(
+        freezeGroupage
+          ? `Lot verrouille pour ${conflict.first.reference} et ${conflict.second.reference}.`
+          : `Groupage propose entre ${conflict.first.reference} et ${conflict.second.reference}.`,
+      )
+    } finally {
+      setConflictActionKey(current => (current === actionKey ? null : current))
+    }
+  }
+
+  async function unlinkCourseFromGroupage(ot: OT) {
+    if (!ensureWriteAllowed('Deliaison de groupage')) return
+    if (!ot.groupage_id) return
+    if (ot.groupage_fige) {
+      pushPlanningNotice('Ce lot est fige. Defigez-le avant de delier une course.', 'error')
+      return
+    }
+
+    const previousGroupId = ot.groupage_id
+    const result = await supabase
+      .from('ordres_transport')
+      .update({ groupage_id: null, groupage_fige: false })
+      .eq('id', ot.id)
+
+    if (result.error) {
+      pushPlanningNotice(`Deliaison impossible: ${result.error.message}`, 'error')
+      return
+    }
+
+    await normalizeSingletonGroupage(previousGroupId)
+    await loadAll()
+    pushPlanningNotice('Course deliee du groupage.')
+  }
+
+  async function toggleGroupageFreeze(ot: OT, nextFrozen: boolean) {
+    if (!ot.groupage_id) return
+    if (!ensureWriteAllowed(nextFrozen ? 'Figeage de groupage' : 'Defigeage de groupage')) return
+
+    const result = await supabase
+      .from('ordres_transport')
+      .update({ groupage_fige: nextFrozen })
+      .eq('groupage_id', ot.groupage_id)
+
+    if (result.error) {
+      pushPlanningNotice(`Mise a jour du lot impossible: ${result.error.message}`, 'error')
+      return
+    }
+
+    await loadAll()
+    pushPlanningNotice(nextFrozen ? 'Groupage fige: modifications bloquees.' : 'Groupage degele: modifications autorisees.')
+  }
+
+  async function toggleSelectedGroupageFreeze(nextFrozen: boolean) {
+    if (!selected) return
+    await toggleGroupageFreeze(selected, nextFrozen)
+  }
+
+  async function linkSelectedToGroupage() {
+    if (!selected || !groupageTargetId) return
+    const target = [...pool, ...ganttOTs].find(ot => ot.id === groupageTargetId)
+    if (!target) {
+      pushPlanningNotice('Course cible introuvable pour le groupage.', 'error')
+      return
+    }
+    if (!ensureGroupageEditable(selected, 'Liaison de groupage')) return
+    if (!ensureGroupageEditable(target, 'Liaison de groupage')) return
+
+    const linked = await linkCoursesToGroupage(selected, target)
+    if (!linked) return
+
+    setGroupageTargetId('')
+    await loadAll()
+    pushPlanningNotice(`Course liee au groupage avec ${target.reference}.`)
   }
 
   function findOTById(otId?: string): OT | null {
@@ -1145,48 +1779,116 @@ export default function Planning() {
     }
 
     if (viewMode === 'semaine') {
-      const dayIdx  = Math.max(0, Math.min(6, Math.floor(relX / rect.width * 7)))
-      const dropDay = toISO(addDays(weekStart, dayIdx))
       if (activeDrag.kind === 'pool') {
         if (activeDrag.ot) {
-          await quickAssignFromDrop(
-            activeDrag.ot,
-            rowId,
-            dropDay,
-            null,
-            activeDrag.durationMinutes,
-            activeDrag.durationDays,
-          )
+          const currentSchedule = getScheduledBounds(activeDrag.ot)
+          const movingOtIds = getGroupageMemberIds(activeDrag.ot)
+          if (!currentSchedule) {
+            openAssign(activeDrag.ot, rowId)
+            pushPlanningNotice('Reglez les dates de la course depuis sa fiche avant de la placer sur le planning.', 'error')
+            setDrag(null)
+            return
+          }
+          const overlapTarget = findOverlapTarget(rowId, currentSchedule.startISO, currentSchedule.endISO, movingOtIds)
+          if (overlapTarget) {
+            const shouldCreateGroupage = window.confirm(`Superposition detectee avec ${overlapTarget.reference}. Voulez-vous creer un groupage deliable ?`)
+            if (shouldCreateGroupage) {
+              const linked = await linkCoursesToGroupage(activeDrag.ot, overlapTarget)
+              if (linked) {
+                await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
+                pushPlanningNotice(`Groupage cree avec ${overlapTarget.reference}.`)
+                setDrag(null)
+                return
+              }
+            }
+          }
+          await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
         }
       } else if (activeDrag.kind === 'block' && activeDrag.ot) {
-        const newStart  = toDateTimeISO(dropDay, isoToTime(activeDrag.ot.date_chargement_prevue))
-        const newEnd    = toISO(addDays(parseDay(dropDay), activeDrag.durationDays - 1))
-        const newEndISO = toDateTimeISO(newEnd, isoToTime(activeDrag.ot.date_livraison_prevue))
-        await moveBlock(activeDrag.ot, rowId, newStart, newEndISO)
+        const currentSchedule = getScheduledBounds(activeDrag.ot)
+        const movingOtIds = getGroupageMemberIds(activeDrag.ot)
+        if (!currentSchedule) {
+          openSelected(activeDrag.ot)
+          pushPlanningNotice('Pour changer la position sur la timeline, modifiez les dates et heures depuis la fiche course.', 'error')
+          setDrag(null)
+          return
+        }
+        const overlapTarget = findOverlapTarget(rowId, currentSchedule.startISO, currentSchedule.endISO, movingOtIds)
+        if (overlapTarget) {
+          const shouldCreateGroupage = window.confirm(`Superposition detectee avec ${overlapTarget.reference}. Voulez-vous creer un groupage deliable ?`)
+          if (shouldCreateGroupage) {
+            const linked = await linkCoursesToGroupage(activeDrag.ot, overlapTarget)
+            if (linked) {
+              await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
+              if (activeDrag.customBlockId) {
+                const upd = customBlocks.filter(b => b.id !== activeDrag.customBlockId)
+                if (upd.length !== customBlocks.length) { setCustomBlocks(upd); saveCustomBlocks(upd) }
+              }
+              pushPlanningNotice(`Groupage cree avec ${overlapTarget.reference}.`)
+              setDrag(null)
+              return
+            }
+          }
+        }
+        await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
         if (activeDrag.customBlockId) {
           const upd = customBlocks.filter(b => b.id !== activeDrag.customBlockId)
           if (upd.length !== customBlocks.length) { setCustomBlocks(upd); saveCustomBlocks(upd) }
         }
       }
     } else {
-      const rawMin  = DAY_START_MIN + (relX / rect.width) * DAY_TOTAL_MIN
-      const timeMin = snapToQuarter(Math.max(DAY_START_MIN, Math.min(DAY_START_MIN + DAY_TOTAL_MIN - 15, rawMin)))
       if (activeDrag.kind === 'pool') {
         if (activeDrag.ot) {
-          await quickAssignFromDrop(
-            activeDrag.ot,
-            rowId,
-            selectedDay,
-            timeMin,
-            activeDrag.durationMinutes,
-            activeDrag.durationDays,
-          )
+          const currentSchedule = getScheduledBounds(activeDrag.ot)
+          const movingOtIds = getGroupageMemberIds(activeDrag.ot)
+          if (!currentSchedule) {
+            openAssign(activeDrag.ot, rowId)
+            pushPlanningNotice('Reglez les dates de la course depuis sa fiche avant de la placer sur le planning.', 'error')
+            setDrag(null)
+            return
+          }
+          const overlapTarget = findOverlapTarget(rowId, currentSchedule.startISO, currentSchedule.endISO, movingOtIds)
+          if (overlapTarget) {
+            const shouldCreateGroupage = window.confirm(`Superposition detectee avec ${overlapTarget.reference}. Voulez-vous creer un groupage deliable ?`)
+            if (shouldCreateGroupage) {
+              const linked = await linkCoursesToGroupage(activeDrag.ot, overlapTarget)
+              if (linked) {
+                await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
+                pushPlanningNotice(`Groupage cree avec ${overlapTarget.reference}.`)
+                setDrag(null)
+                return
+              }
+            }
+          }
+          await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
         }
       } else if (activeDrag.kind === 'block' && activeDrag.ot) {
-        const startDate = parseDay(selectedDay)
-        startDate.setHours(Math.floor(timeMin / 60), timeMin % 60, 0, 0)
-        const endDate = new Date(startDate.getTime() + Math.max(15, activeDrag.durationMinutes) * 60000)
-        await moveBlock(activeDrag.ot, rowId, toDateTimeFromDate(startDate), toDateTimeFromDate(endDate))
+        const currentSchedule = getScheduledBounds(activeDrag.ot)
+        const movingOtIds = getGroupageMemberIds(activeDrag.ot)
+        if (!currentSchedule) {
+          openSelected(activeDrag.ot)
+          pushPlanningNotice('Pour changer la position sur la timeline, modifiez les dates et heures depuis la fiche course.', 'error')
+          setDrag(null)
+          return
+        }
+        const overlapTarget = findOverlapTarget(rowId, currentSchedule.startISO, currentSchedule.endISO, movingOtIds)
+        if (overlapTarget) {
+          const shouldCreateGroupage = window.confirm(`Superposition detectee avec ${overlapTarget.reference}. Voulez-vous creer un groupage deliable ?`)
+          if (shouldCreateGroupage) {
+            const linked = await linkCoursesToGroupage(activeDrag.ot, overlapTarget)
+            if (linked) {
+              await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
+              if (activeDrag.customBlockId) {
+                const upd = customBlocks.filter(b => b.id !== activeDrag.customBlockId)
+                if (upd.length !== customBlocks.length) { setCustomBlocks(upd); saveCustomBlocks(upd) }
+              }
+              pushPlanningNotice(`Groupage cree avec ${overlapTarget.reference}.`)
+              setDrag(null)
+              return
+            }
+          }
+        }
+        await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
         if (activeDrag.customBlockId) {
           const upd = customBlocks.filter(b => b.id !== activeDrag.customBlockId)
           if (upd.length !== customBlocks.length) { setCustomBlocks(upd); saveCustomBlocks(upd) }
@@ -1250,6 +1952,132 @@ export default function Planning() {
     return `OT-PLAN-${stamp}`
   }
 
+  function openPlanningCreationModal(options?: { rowId?: string; dateStart?: string; type?: PlanningInlineType }) {
+    const dateStart = options?.dateStart ?? (viewMode === 'jour' ? `${selectedDay}T08:00` : toISO(weekStart))
+    const defaultDay = dateStart.includes('T') ? dateStart.slice(0, 10) : dateStart
+    const defaultTime = dateStart.includes('T') ? dateStart.slice(11, 16) : '08:00'
+    const resolvedRowId = options?.rowId ?? orderedRows.find(row => !row.isAffretementAsset)?.id ?? orderedRows[0]?.id ?? ''
+    setEditingCustomBlockId(null)
+    setAddBlockFor({ rowId: resolvedRowId, dateStart })
+    setNewBlockLabel('')
+    setNewBlockType(options?.type ?? 'hlp')
+    setNewBlockDurationHours('10')
+    setNewBlockDurationMinutes('00')
+    setNewBlockClientId(clients[0]?.id ?? '')
+    setNewBlockDonneurOrdreId(clients[0]?.id ?? '')
+    setNewBlockReferenceCourse(generatePlanningCourseReference())
+    setNewBlockChargementSiteId('')
+    setNewBlockLivraisonSiteId('')
+    setNewBlockDistanceKm('')
+    setNewBlockDateChargement(defaultDay)
+    setNewBlockTimeChargement(defaultTime)
+    setNewBlockDateLivraison(defaultDay)
+    setNewBlockTimeLivraison('18:00')
+  }
+
+  function openPlanningBlockEditor(block: CustomBlock) {
+    const startDate = new Date(block.dateStart)
+    const endDate = new Date(block.dateEnd)
+    const durationMinutes = Math.max(15, Math.round((endDate.getTime() - startDate.getTime()) / 60000))
+    setEditingCustomBlockId(block.id)
+    setAddBlockFor({ rowId: block.rowId, dateStart: block.dateStart })
+    setNewBlockLabel(block.label)
+    setNewBlockType(block.kind ?? 'hlp')
+    setNewBlockDurationHours(String(Math.floor(durationMinutes / 60)))
+    setNewBlockDurationMinutes(String(durationMinutes % 60).padStart(2, '0'))
+    setNewBlockDateChargement(block.dateStart.slice(0, 10))
+    setNewBlockTimeChargement(block.dateStart.slice(11, 16))
+    setNewBlockDateLivraison(block.dateEnd.slice(0, 10))
+    setNewBlockTimeLivraison(block.dateEnd.slice(11, 16))
+  }
+
+  function getPlanningEventDurationMinutes(): number {
+    const hours = Math.max(0, Number.parseInt(newBlockDurationHours, 10) || 0)
+    const minutesRaw = Number.parseInt(newBlockDurationMinutes, 10) || 0
+    const minutes = Math.min(59, Math.max(0, minutesRaw))
+    return Math.max(15, hours * 60 + minutes)
+  }
+
+  function setPlanningEventDurationParts(durationMinutes: number) {
+    const safeDuration = Math.max(15, durationMinutes)
+    setNewBlockDurationHours(String(Math.floor(safeDuration / 60)))
+    setNewBlockDurationMinutes(String(safeDuration % 60).padStart(2, '0'))
+  }
+
+  function computePlanningEventEndISO(startISO: string, durationMinutes: number): string {
+    return toDateTimeFromDate(new Date(new Date(startISO).getTime() + durationMinutes * 60000))
+  }
+
+  function setPlanningEventEnd(endISO: string) {
+    setNewBlockDateLivraison(endISO.slice(0, 10))
+    setNewBlockTimeLivraison(endISO.slice(11, 16))
+  }
+
+  function setPlanningEventStart(startISO: string) {
+    setNewBlockDateChargement(startISO.slice(0, 10))
+    setNewBlockTimeChargement(startISO.slice(11, 16))
+    setPlanningEventEnd(computePlanningEventEndISO(startISO, getPlanningEventDurationMinutes()))
+  }
+
+  function setPlanningEventDurationAndSync(hours: string, minutes: string) {
+    const parsedHours = Math.max(0, Number.parseInt(hours, 10) || 0)
+    const parsedMinutes = Math.min(59, Math.max(0, Number.parseInt(minutes, 10) || 0))
+    const nextDuration = Math.max(15, parsedHours * 60 + parsedMinutes)
+    setPlanningEventDurationParts(nextDuration)
+    const startISO = toDateTimeISO(newBlockDateChargement, newBlockTimeChargement)
+    setPlanningEventEnd(computePlanningEventEndISO(startISO, nextDuration))
+  }
+
+  function setPlanningEventEndAndSync(endISO: string) {
+    const startISO = toDateTimeISO(newBlockDateChargement, newBlockTimeChargement)
+    const durationMinutes = Math.max(15, Math.round((new Date(endISO).getTime() - new Date(startISO).getTime()) / 60000))
+    setPlanningEventDurationParts(durationMinutes)
+    setPlanningEventEnd(computePlanningEventEndISO(startISO, durationMinutes))
+  }
+
+  function openPlanningEventNearCourse(rowId: string, ot: OT, type: Exclude<PlanningInlineType, 'course'>) {
+    const defaultDuration = type === 'repos' ? 45 : 60
+    const interval = otInterval(ot)
+    const anchor = type === 'hlp' ? new Date(interval.start - defaultDuration * 60000) : new Date(interval.end)
+    const startISO = toDateTimeFromDate(anchor)
+    openPlanningCreationModal({ rowId, dateStart: startISO, type })
+    setPlanningEventDurationParts(defaultDuration)
+    setPlanningEventStart(startISO)
+    setNewBlockLabel(`${INLINE_EVENT_LABELS[type]} ${ot.reference}`)
+  }
+
+  const nearestPlanningCourseSuggestion = (() => {
+    if (!addBlockFor || newBlockType === 'course' || !addBlockFor.rowId) return null
+
+    const startISO = toDateTimeISO(newBlockDateChargement, newBlockTimeChargement)
+    const startMs = toTimeValue(startISO, newBlockDateChargement)
+    const durationMs = getPlanningEventDurationMinutes() * 60000
+    const rowCourses = rowOTs(addBlockFor.rowId)
+      .map(ot => ({ ot, ...otInterval(ot) }))
+      .filter(item => Number.isFinite(item.start) && Number.isFinite(item.end))
+
+    if (rowCourses.length === 0) return null
+
+    const nearest = rowCourses.reduce((best, current) => {
+      const bestGap = Math.min(Math.abs(startMs - best.start), Math.abs(startMs - best.end))
+      const currentGap = Math.min(Math.abs(startMs - current.start), Math.abs(startMs - current.end))
+      return currentGap < bestGap ? current : best
+    })
+
+    const beforeStartISO = toDateTimeFromDate(new Date(nearest.start - durationMs))
+    const afterStartISO = toDateTimeFromDate(new Date(nearest.end))
+    const preferredMode = newBlockType === 'hlp' ? 'before' : 'after'
+
+    return {
+      ot: nearest.ot,
+      beforeStartISO,
+      afterStartISO,
+      beforeLabel: `${isoToDate(beforeStartISO)} ${isoToTime(beforeStartISO)}`,
+      afterLabel: `${isoToDate(afterStartISO)} ${isoToTime(afterStartISO)}`,
+      preferredMode,
+    }
+  })()
+
   function resolveRowAssignment(rowId: string): Pick<AssignForm, 'conducteur_id' | 'vehicule_id' | 'remorque_id'> {
     const row = allRows.find(item => item.id === rowId)
     if (!row || row.isCustom || row.isAffretementAsset) return { conducteur_id: '', vehicule_id: '', remorque_id: '' }
@@ -1260,13 +2088,14 @@ export default function Planning() {
 
   async function addCustomBlock() {
     if (!addBlockFor || !newBlockLabel.trim()) return
-    const startISO = normalizeDateTimeInput(addBlockFor.dateStart, '08:00')
+    const startISO = toDateTimeISO(newBlockDateChargement, newBlockTimeChargement)
     const startDate = new Date(startISO)
     const safeStart = Number.isNaN(startDate.getTime()) ? new Date(`${toISO(new Date())}T08:00:00`) : startDate
-    const durationHours = Math.max(1, Number.parseFloat(newBlockDurationHours) || 10)
-    const endDate = new Date(safeStart.getTime() + durationHours * 60 * 60000)
+    const durationMinutes = getPlanningEventDurationMinutes()
+    const endDate = new Date(safeStart.getTime() + durationMinutes * 60000)
 
     if (newBlockType === 'course') {
+      if (!ensureWriteAllowed('Creation de course depuis planning')) return
       if (!newBlockClientId) {
         pushPlanningNotice('Selectionne un client pour creer la course.', 'error')
         return
@@ -1311,7 +2140,9 @@ export default function Planning() {
         }
         setNewBlockLabel('')
         setAddBlockFor(null)
+        setEditingCustomBlockId(null)
         setNewBlockDistanceKm('')
+        setNewBlockDurationMinutes('00')
         await loadAll()
         pushPlanningNotice('Course creee depuis le planning.')
       } finally {
@@ -1320,16 +2151,19 @@ export default function Planning() {
       return
     }
 
-    const block: CustomBlock = {
-      id:uid(), rowId:addBlockFor.rowId, label:newBlockLabel.trim(),
+    const nextBlock: CustomBlock = {
+      id: editingCustomBlockId ?? uid(), rowId:addBlockFor.rowId, label:newBlockLabel.trim(),
       dateStart: toDateTimeFromDate(safeStart),
       dateEnd:   toDateTimeFromDate(endDate),
       color: INLINE_EVENT_COLORS[newBlockType],
       kind: newBlockType,
     }
-    const upd = [...customBlocks, block]; setCustomBlocks(upd); saveCustomBlocks(upd)
-    setNewBlockLabel(''); setAddBlockFor(null)
-    pushPlanningNotice(`${INLINE_EVENT_LABELS[newBlockType]} ajoute sur le planning.`)
+    const upd = editingCustomBlockId
+      ? customBlocks.map(block => block.id === editingCustomBlockId ? { ...block, ...nextBlock, otId: block.otId } : block)
+      : [...customBlocks, nextBlock]
+    setCustomBlocks(upd); saveCustomBlocks(upd)
+    setNewBlockLabel(''); setAddBlockFor(null); setEditingCustomBlockId(null); setNewBlockDurationMinutes('00')
+    pushPlanningNotice(`${INLINE_EVENT_LABELS[newBlockType]} ${editingCustomBlockId ? 'mis a jour' : 'ajoute'} sur le planning.`)
   }
   function deleteCustomBlock(blockId: string) {
     const upd = customBlocks.filter(b => b.id !== blockId); setCustomBlocks(upd); saveCustomBlocks(upd)
@@ -1557,6 +2391,7 @@ export default function Planning() {
       for (let i = 0; i < segments.length; i += 1) {
         for (let j = i + 1; j < segments.length; j += 1) {
           if (segments[j].start >= segments[i].end) break
+          if (sharesSameGroupage(segments[i].ot, segments[j].ot)) continue
           const overlapMs = Math.max(0, Math.min(segments[i].end, segments[j].end) - Math.max(segments[i].start, segments[j].start))
           if (overlapMs <= 0) continue
           conflicts.push({
@@ -1592,6 +2427,124 @@ export default function Planning() {
     })
   })()
 
+  const resourceLoadRows = (() => {
+    const rangeStart = viewMode === 'semaine'
+      ? new Date(`${toISO(weekStart)}T00:00:00`).getTime()
+      : new Date(`${selectedDay}T00:00:00`).getTime()
+    const rangeEnd = viewMode === 'semaine'
+      ? new Date(`${toISO(addDays(weekStart, 6))}T23:59:59`).getTime()
+      : new Date(`${selectedDay}T23:59:59`).getTime()
+
+    return visibleRows
+      .filter(row => !row.isCustom)
+      .map(row => {
+        const scopedOts = rowOTs(row.id).filter(ot => {
+          const interval = otInterval(ot)
+          return interval.end >= rangeStart && interval.start <= rangeEnd
+        })
+        const plannedMinutes = scopedOts.reduce((sum, ot) => {
+          const interval = otInterval(ot)
+          return sum + Math.max(15, Math.round((interval.end - interval.start) / 60000))
+        }, 0)
+        return {
+          rowId: row.id,
+          label: row.primary,
+          missionCount: scopedOts.length,
+          plannedMinutes,
+          conflictCount: rowConflictCountById[row.id] ?? 0,
+          hasLate: scopedOts.some(ot => ot.statut !== 'facture' && ot.date_livraison_prevue && ot.date_livraison_prevue.slice(0, 10) < today),
+        }
+      })
+      .sort((left, right) => {
+        if (right.missionCount !== left.missionCount) return right.missionCount - left.missionCount
+        return right.plannedMinutes - left.plannedMinutes
+      })
+  })()
+
+  const bottomDockMissions = useMemo(() => {
+    const sorted = [...ganttOTs]
+      .filter(ot => !centerFilter || ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter)
+      .sort((left, right) => {
+      const leftTs = new Date(left.date_chargement_prevue ?? left.date_livraison_prevue ?? 0).getTime()
+      const rightTs = new Date(right.date_chargement_prevue ?? right.date_livraison_prevue ?? 0).getTime()
+      return leftTs - rightTs
+    })
+    return sorted.slice(0, 80)
+  }, [centerFilter, ganttOTs])
+
+  const bottomDockNonProgrammees = useMemo(
+    () => pool.filter(ot => !centerFilter || ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter),
+    [centerFilter, pool],
+  )
+
+  const bottomDockGroupages = useMemo(() => {
+    const allPlanning = [...pool, ...ganttOTs]
+      .filter(ot => ot.groupage_id)
+      .filter(ot => !centerFilter || ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter)
+    const byGroup = new Map<string, OT[]>()
+    for (const ot of allPlanning) {
+      if (!ot.groupage_id) continue
+      byGroup.set(ot.groupage_id, [...(byGroup.get(ot.groupage_id) ?? []), ot])
+    }
+    return Array.from(byGroup.entries())
+      .map(([groupId, members]) => ({
+        groupId,
+        members: members.sort((left, right) => left.reference.localeCompare(right.reference, 'fr-FR')),
+        frozen: members.some(member => member.groupage_fige),
+      }))
+      .sort((left, right) => right.members.length - left.members.length)
+  }, [centerFilter, ganttOTs, pool])
+
+  const groupageMembersByGroupId = useMemo(() => {
+    const next = new Map<string, OT[]>()
+    for (const ot of [...pool, ...ganttOTs, ...cancelledOTs]) {
+      if (!ot.groupage_id) continue
+      next.set(ot.groupage_id, [...(next.get(ot.groupage_id) ?? []), ot])
+    }
+    for (const [groupId, members] of next.entries()) {
+      next.set(groupId, [...members].sort((left, right) => left.reference.localeCompare(right.reference, 'fr-FR')))
+    }
+    return next
+  }, [cancelledOTs, ganttOTs, pool])
+
+  const selectedGroupMembers = useMemo(() => {
+    if (!selected?.groupage_id) return []
+    return [...pool, ...ganttOTs, ...cancelledOTs]
+      .filter(ot => ot.groupage_id === selected.groupage_id)
+      .sort((left, right) => left.reference.localeCompare(right.reference, 'fr-FR'))
+  }, [cancelledOTs, ganttOTs, pool, selected?.groupage_id])
+
+  const assignGroupMembers = useMemo(() => {
+    if (!assignModal?.ot) return []
+    if (!assignModal.ot.groupage_id) return [assignModal.ot]
+    return groupageMembersByGroupId.get(assignModal.ot.groupage_id) ?? [assignModal.ot]
+  }, [assignModal, groupageMembersByGroupId])
+
+  const planningGroupageCandidates = useMemo(() => {
+    if (!selected) return []
+    return [...pool, ...ganttOTs]
+      .filter(ot => ot.id !== selected.id)
+      .filter(ot => !ot.est_affretee)
+      .filter(ot => !ot.groupage_fige)
+      .sort((left, right) => left.reference.localeCompare(right.reference, 'fr-FR'))
+  }, [ganttOTs, pool, selected])
+
+  const bottomDockAnnulees = useMemo(
+    () => cancelledOTs.filter(ot => !centerFilter || ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter),
+    [cancelledOTs, centerFilter],
+  )
+
+  const bottomDockConflicts = useMemo(() => {
+    const rows = Object.entries(rowConflictPairsById)
+      .filter(([, pairs]) => pairs.length > 0)
+      .map(([rowId, pairs]) => ({
+        rowId,
+        rowLabel: orderedRows.find(row => row.id === rowId)?.primary ?? rowId,
+        pairs,
+      }))
+    return rows
+  }, [orderedRows, rowConflictPairsById])
+
   // Client color map - couleur unique par client
   const clientColorMap = useMemo<Record<string,string>>(() => {
     const allOTs = [...pool, ...ganttOTs]
@@ -1617,6 +2570,7 @@ export default function Planning() {
   // Pool filtre
   const visiblePool = useMemo(() => {
     let list = pool.filter(ot => !customOTIds.has(ot.id))
+    if (centerFilter) list = list.filter(ot => ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter)
     if (poolSearch) {
       const q = poolSearch.toLowerCase()
       list = list.filter(o => o.reference.toLowerCase().includes(q) || o.client_nom.toLowerCase().includes(q))
@@ -1624,7 +2578,7 @@ export default function Planning() {
     if (filterType) list = list.filter(o => o.type_transport === filterType)
     if (filterClient) list = list.filter(o => o.client_nom === filterClient)
     return list
-  }, [pool, customOTIds, poolSearch, filterType, filterClient])
+  }, [pool, customOTIds, centerFilter, poolSearch, filterType, filterClient])
 
   function getAffretementRowId(ot: OT): string | null {
     const context = affretementContextByOtId[ot.id]
@@ -1657,8 +2611,153 @@ export default function Planning() {
     return Boolean(affretementContextByOtId[otId])
   }
 
+  function getGroupageMembersForOt(ot: OT): OT[] {
+    if (!ot.groupage_id) return [ot]
+    return groupageMembersByGroupId.get(ot.groupage_id) ?? [ot]
+  }
+
+  function getGroupageMemberIds(ot: OT): string[] {
+    return getGroupageMembersForOt(ot).map(member => member.id)
+  }
+
+  function getGroupageBubbleLabel(ot: OT): string | null {
+    if (!ot.groupage_id) return null
+    const members = getGroupageMembersForOt(ot)
+    return members.length > 1 ? `LOT ${members.length}` : 'LOT'
+  }
+
+  function sharesSameGroupage(first: OT, second: OT): boolean {
+    return Boolean(first.groupage_id && first.groupage_id === second.groupage_id)
+  }
+
+  function buildFrozenGroupageOverlays(ots: OT[]): Array<{ groupId: string; leftPct: number; widthPct: number; label: string; references: string }> {
+    const byGroup = new Map<string, OT[]>()
+    for (const ot of ots) {
+      if (!ot.groupage_id || !ot.groupage_fige) continue
+      byGroup.set(ot.groupage_id, [...(byGroup.get(ot.groupage_id) ?? []), ot])
+    }
+
+    const overlays: Array<{ groupId: string; leftPct: number; widthPct: number; label: string; references: string }> = []
+    for (const [groupId, members] of byGroup.entries()) {
+      const visibleMembers = members
+        .map(member => ({
+          member,
+          metrics: viewMode === 'semaine'
+            ? getWeekBlockMetrics(member, weekStart)
+            : getDayBlockMetrics(member.date_chargement_prevue, member.date_livraison_prevue, selectedDay),
+        }))
+        .filter((item): item is { member: OT; metrics: BlockMetrics } => Boolean(item.metrics))
+
+      if (visibleMembers.length < 2) continue
+
+      const leftPct = Math.min(...visibleMembers.map(item => item.metrics.leftPct))
+      const rightPct = Math.max(...visibleMembers.map(item => item.metrics.leftPct + item.metrics.widthPct))
+      overlays.push({
+        groupId,
+        leftPct,
+        widthPct: rightPct - leftPct,
+        label: `Lot verrouille · ${visibleMembers.length} courses`,
+        references: visibleMembers.map(item => item.member.reference).join(' · '),
+      })
+    }
+
+    return overlays
+  }
+
+  function buildGroupedBlockLayout(ots: OT[]): Record<string, { top: number; height: number; compact: boolean }> {
+    const layout: Record<string, { top: number; height: number; compact: boolean }> = {}
+    const byGroup = new Map<string, OT[]>()
+
+    for (const ot of ots) {
+      if (!ot.groupage_id) continue
+      byGroup.set(ot.groupage_id, [...(byGroup.get(ot.groupage_id) ?? []), ot])
+    }
+
+    for (const members of byGroup.values()) {
+      if (members.length < 2) continue
+      const sortedMembers = [...members].sort((left, right) => {
+        const leftInterval = otInterval(left)
+        const rightInterval = otInterval(right)
+        return leftInterval.start - rightInterval.start
+      })
+      const laneCount = sortedMembers.length
+      const usableHeight = 42
+      const gap = 2
+      const blockHeight = Math.max(10, Math.floor((usableHeight - gap * (laneCount - 1)) / laneCount))
+      const compact = blockHeight <= 18
+
+      sortedMembers.forEach((member, index) => {
+        layout[member.id] = {
+          top: 10 + index * (blockHeight + gap),
+          height: blockHeight,
+          compact,
+        }
+      })
+    }
+
+    return layout
+  }
+
+  function buildGroupageCards(ots: OT[]): Array<{
+    groupId: string
+    leftPct: number
+    widthPct: number
+    members: OT[]
+    frozen: boolean
+  }> {
+    const byGroup = new Map<string, OT[]>()
+    for (const ot of ots) {
+      if (!ot.groupage_id) continue
+      byGroup.set(ot.groupage_id, [...(byGroup.get(ot.groupage_id) ?? []), ot])
+    }
+
+    const cards: Array<{
+      groupId: string
+      leftPct: number
+      widthPct: number
+      members: OT[]
+      frozen: boolean
+    }> = []
+
+    for (const [groupId, members] of byGroup.entries()) {
+      if (members.length < 2) continue
+
+      const visibleMembers = members
+        .map(member => ({
+          member,
+          metrics: viewMode === 'semaine'
+            ? getWeekBlockMetrics(member, weekStart)
+            : getDayBlockMetrics(member.date_chargement_prevue, member.date_livraison_prevue, selectedDay),
+        }))
+        .filter((item): item is { member: OT; metrics: BlockMetrics } => Boolean(item.metrics))
+
+      if (visibleMembers.length < 2) continue
+
+      const leftPct = Math.min(...visibleMembers.map(item => item.metrics.leftPct))
+      const rightPct = Math.max(...visibleMembers.map(item => item.metrics.leftPct + item.metrics.widthPct))
+      const sortedMembers = [...visibleMembers]
+        .sort((left, right) => otInterval(left.member).start - otInterval(right.member).start)
+        .map(item => item.member)
+
+      cards.push({
+        groupId,
+        leftPct,
+        widthPct: rightPct - leftPct,
+        members: sortedMembers,
+        frozen: sortedMembers.some(member => member.groupage_fige),
+      })
+    }
+
+    return cards
+  }
+
   function rowOTs(resourceId: string): OT[] {
-    return ganttOTs.filter(ot => resolveRowId(ot) === resourceId && !customOTIds.has(ot.id))
+    return ganttOTs.filter(ot => {
+      const matchResource = resolveRowId(ot) === resourceId && !customOTIds.has(ot.id)
+      if (!matchResource) return false
+      if (!centerFilter) return true
+      return ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter
+    })
   }
 
   function otInterval(ot: OT): { start: number; end: number } {
@@ -1714,14 +2813,76 @@ export default function Planning() {
     }
   }
 
-  const unresourced = ganttOTs.filter(ot => !resolveRowId(ot)).filter(ot => !customOTIds.has(ot.id))
+  const unresourced = ganttOTs
+    .filter(ot => !resolveRowId(ot))
+    .filter(ot => !customOTIds.has(ot.id))
+    .filter(ot => !centerFilter || ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter)
     .filter(ot => viewMode === 'semaine' ? blockPos(ot, weekStart) !== null : isoToDate(ot.date_chargement_prevue) === selectedDay)
 
-  const canMove   = (ot: OT) => ot.statut === 'planifie' || ot.statut === 'confirme'
+  const bottomDockUrgences = useMemo(() => {
+    const now = Date.now()
+    const in24h = now + 24 * 60 * 60 * 1000
+    const urgences: PlanningUrgence[] = []
+
+    for (const ot of ganttOTs) {
+      const endTs = new Date(ot.date_livraison_prevue ?? ot.date_chargement_prevue ?? 0).getTime()
+      if (!Number.isFinite(endTs)) continue
+      if (ot.statut !== 'facture' && endTs < now) {
+        const minutesLate = Math.max(0, Math.round((now - endTs) / 60000))
+        urgences.push({
+          id: `late-${ot.id}`,
+          level: minutesLate >= 180 ? 'critique' : 'haute',
+          source: 'retard',
+          label: ot.reference,
+          detail: `Retard livraison ${formatMinutes(minutesLate)}`,
+          otId: ot.id,
+          score: 200 + Math.min(minutesLate, 600),
+        })
+      }
+    }
+
+    for (const ot of unresourced) {
+      const startTs = new Date(ot.date_chargement_prevue ?? ot.date_livraison_prevue ?? 0).getTime()
+      if (!Number.isFinite(startTs)) continue
+      if (startTs >= now && startTs <= in24h) {
+        const minutesToStart = Math.max(0, Math.round((startTs - now) / 60000))
+        urgences.push({
+          id: `unresourced-${ot.id}`,
+          level: minutesToStart <= 240 ? 'critique' : 'haute',
+          source: 'non_affectee',
+          label: ot.reference,
+          detail: `Depart dans ${formatMinutes(minutesToStart)} sans ressource`,
+          otId: ot.id,
+          score: 180 + Math.max(0, 300 - minutesToStart),
+        })
+      }
+    }
+
+    for (const conflict of bottomDockConflicts) {
+      const overlap = conflict.pairs.reduce((sum, pair) => sum + pair.overlapMinutes, 0)
+      if (overlap <= 0) continue
+      urgences.push({
+        id: `conflict-${conflict.rowId}`,
+        level: overlap >= 120 ? 'critique' : 'moyenne',
+        source: 'conflit',
+        label: conflict.rowLabel,
+        detail: `${conflict.pairs.length} conflit(s), chevauchement cumule ${formatMinutes(overlap)}`,
+        rowId: conflict.rowId,
+        score: 120 + overlap,
+      })
+    }
+
+    return urgences
+      .sort((left, right) => right.score - left.score)
+      .slice(0, 40)
+  }, [bottomDockConflicts, ganttOTs, unresourced])
+
+  const canMove   = (ot: OT) => (ot.statut === 'planifie' || ot.statut === 'confirme') && !ot.groupage_fige
   const canUnlock = canMove
 
   function ghostPos(rowId: string): React.CSSProperties | null {
     if (!hoverRow || hoverRow.rowId !== rowId || !drag) return null
+    if (drag.kind === 'pool' || drag.kind === 'block') return null
     if (viewMode === 'semaine') {
       const left  = hoverRow.dayIdx / 7
       const width = Math.min(drag.durationDays, 7 - hoverRow.dayIdx) / 7
@@ -1885,22 +3046,7 @@ export default function Planning() {
 
         {row.isCustom && !isRowEditMode && (
           <div className="flex items-center gap-1 mt-1">
-            <button onClick={() => {
-              setAddBlockFor({ rowId:row.id, dateStart:toISO(weekStart) })
-              setNewBlockLabel('')
-              setNewBlockType('hlp')
-              setNewBlockDurationHours('10')
-              setNewBlockClientId(clients[0]?.id ?? '')
-              setNewBlockDonneurOrdreId(clients[0]?.id ?? '')
-              setNewBlockReferenceCourse(generatePlanningCourseReference())
-              setNewBlockChargementSiteId('')
-              setNewBlockLivraisonSiteId('')
-              setNewBlockDistanceKm('')
-              setNewBlockDateChargement(toISO(weekStart))
-              setNewBlockTimeChargement('08:00')
-              setNewBlockDateLivraison(toISO(weekStart))
-              setNewBlockTimeLivraison('18:00')
-            }}
+            <button onClick={() => openPlanningCreationModal({ rowId: row.id, dateStart: toISO(weekStart), type: 'hlp' })}
               className="text-[9px] text-slate-600 hover:text-slate-400 transition-colors">+ bloc</button>
             <button onClick={() => deleteCustomRow(row.id)}
               className="text-[9px] text-red-800 hover:text-red-500 transition-colors ml-1">suppr.</button>
@@ -1913,7 +3059,10 @@ export default function Planning() {
   // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   return (
-    <div className="absolute inset-0 flex overflow-hidden bg-slate-950">
+    <div
+      className={`relative flex min-h-full bg-slate-950 ${isResizingBottomDock ? 'cursor-ns-resize' : ''}`}
+      style={{ paddingBottom: `${BOTTOM_DOCK_VIEWPORT_OFFSET}px` }}
+    >
       {planningNotice && (
         <div className={`absolute right-4 top-4 z-[80] max-w-sm rounded-xl border px-4 py-3 text-xs font-semibold shadow-2xl ${drag ? 'pointer-events-none' : ''}`}
           style={planningNotice.type === 'error'
@@ -2068,7 +3217,7 @@ export default function Planning() {
       </div>
 
       {/* -- Gantt area ---------------------------------------------------------- */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0">
 
         {/* â”€â”€ Top bar â”€â”€ */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700 bg-slate-900 flex-shrink-0 gap-3">
@@ -2212,7 +3361,7 @@ export default function Planning() {
         </div>
 
         {/* -- KPI Strip exploitation -- */}
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-800/60 bg-slate-950/60 flex-shrink-0 overflow-x-auto">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-slate-800/60 bg-slate-950/60 flex-shrink-0 overflow-x-hidden">
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/40 flex-shrink-0">
             <span className="text-[10px] text-slate-500 whitespace-nowrap">A placer</span>
             <span className="text-sm font-bold text-white">{pool.length}</span>
@@ -2301,7 +3450,7 @@ export default function Planning() {
         )}
 
         {/* -- Onglets ressources + filtres couleur -- */}
-        <div className="flex items-center border-b border-slate-700/80 bg-slate-900 px-4 flex-shrink-0 gap-1 overflow-x-auto">
+        <div className="flex flex-wrap items-center border-b border-slate-700/80 bg-slate-900 px-4 flex-shrink-0 gap-1 overflow-x-hidden">
           {/* Tabs */}
           <div className="flex items-center flex-shrink-0">
             {([
@@ -2353,16 +3502,48 @@ export default function Planning() {
             </select>
           </div>
 
-          {/* Affrete toggle */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <span className="text-[10px] text-slate-600 whitespace-nowrap">Centre :</span>
+            <select value={centerFilter} onChange={e => setCenterFilter(e.target.value)}
+              className="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-indigo-500 transition-colors max-w-[140px]">
+              <option value="">Tous</option>
+              {logisticSites.map(site => (
+                <option key={site.id} value={site.id}>{site.nom}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Option planning affreteur */}
           <div className="flex items-center gap-1 flex-shrink-0 border-l border-slate-700 ml-1 pl-2">
             <button
               type="button"
+              onClick={() => openPlanningCreationModal({ type: 'course' })}
+              className="flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] rounded-full font-medium transition-colors border border-emerald-600/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25"
+            >
+              <span className="text-xs leading-none">+</span>
+              Nouvelle course
+            </button>
+            <button
+              type="button"
+              onClick={() => openPlanningCreationModal({ type: 'hlp' })}
+              className="flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] rounded-full font-medium transition-colors border border-slate-600/50 bg-slate-700/30 text-slate-100 hover:bg-slate-700/50"
+            >
+              <span className="text-xs leading-none">+</span>
+              HLP / pause / bloc
+            </button>
+            <button
+              type="button"
               onClick={() => setShowAffretementAssets(current => { const next = !current; saveShowAffretementAssets(next); return next })}
-              className={`flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full font-medium transition-colors border ${
-                showAffretementAssets ? 'bg-blue-500/20 border-blue-600/40 text-blue-200' : 'border-slate-700 text-slate-600 hover:text-slate-400'
+              title="Afficher ou masquer le planning affreteur"
+              className={`flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] rounded-full font-medium transition-colors border ${
+                showAffretementAssets ? 'bg-blue-500/20 border-blue-600/40 text-blue-200' : 'border-slate-700 text-slate-500 hover:text-slate-300'
               }`}>
-              <span className="text-[9px] font-bold">AFF</span>
-              {showAffretementAssets ? 'Affiche' : 'Masque'}
+              <span className="text-[9px] font-bold uppercase tracking-wide">Planning affreteur</span>
+              <span className={`text-[9px] px-1.5 py-[1px] rounded-full border ${
+                showAffretementAssets ? 'bg-blue-500/30 border-blue-500/60 text-blue-100' : 'bg-slate-800 border-slate-700 text-slate-400'
+              }`}>
+                {showAffretementAssets ? 'Visible' : 'Masque'}
+              </span>
             </button>
           </div>
 
@@ -2389,7 +3570,7 @@ export default function Planning() {
 
         {/* â”€â”€ WEEK VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {viewMode === 'semaine' && (
-          <div className="flex-1 overflow-auto" onDragOver={e => e.preventDefault()}>
+          <div className="overflow-visible" onDragOver={e => e.preventDefault()}>
             {/* Day headers */}
             <div className="flex sticky top-0 z-10 bg-slate-900 border-b border-slate-700">
               <div className="w-44 flex-shrink-0 border-r border-slate-700 bg-slate-900" />
@@ -2417,6 +3598,11 @@ export default function Planning() {
             ) : visibleRows.map(row => {
               const ots = row.isCustom ? [] : rowOTs(row.id)
               const cBlocks = row.isCustom ? customBlocks.filter(b => b.rowId===row.id) : []
+              const generatedBlocks = row.isCustom ? [] : ots.flatMap(ot => buildGeneratedInlineEvents(ot, row.id))
+              const groupageCards = row.isCustom ? [] : buildGroupageCards(ots)
+              const groupedOtIds = new Set(groupageCards.flatMap(card => card.members.map(member => member.id)))
+              const frozenGroupageOverlays = row.isCustom ? [] : buildFrozenGroupageOverlays(ots)
+              const groupedBlockLayout = row.isCustom ? {} : buildGroupedBlockLayout(ots)
               const isDropTarget = hoverRow?.rowId === row.id && !isRowEditMode
               const gPos = ghostPos(row.id)
               return (
@@ -2441,16 +3627,66 @@ export default function Planning() {
                         {drag?.ot?.reference ?? '-'}
                       </div>
                     )}
+                    {frozenGroupageOverlays.map(overlay => (
+                      <div
+                        key={`frozen-week-${overlay.groupId}`}
+                        style={{ position:'absolute', top:'2px', height:'60px', left:`calc(${overlay.leftPct}% + 1px)`, width:`calc(${overlay.widthPct}% - 2px)` }}
+                        className="pointer-events-none rounded-[20px] border border-indigo-400/45 bg-indigo-500/10 shadow-inner ring-1 ring-indigo-300/10"
+                        title={overlay.references}
+                      >
+                        <span className="absolute left-3 -top-2 rounded-full border border-indigo-400/40 bg-slate-950/95 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-indigo-200">
+                          {overlay.label}
+                        </span>
+                      </div>
+                    ))}
+                    {groupageCards.map(card => (
+                      <div
+                        key={`group-card-week-${card.groupId}`}
+                        style={{ position:'absolute', top:'6px', height:'52px', left:`calc(${card.leftPct}% + 2px)`, width:`calc(${card.widthPct}% - 4px)` }}
+                        className={`rounded-xl border overflow-hidden shadow-lg ${card.frozen ? 'border-indigo-400/60 bg-slate-900/96' : 'border-emerald-400/45 bg-slate-950/92'}`}
+                      >
+                        <div className={`flex items-center justify-between px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] ${card.frozen ? 'bg-indigo-500/20 text-indigo-100' : 'bg-emerald-500/15 text-emerald-100'}`}>
+                          <span>Lot {card.members.length}</span>
+                          <span>{card.frozen ? 'Verrouille' : 'Deliable'}</span>
+                        </div>
+                        <div className="grid h-[calc(100%-22px)] divide-x divide-white/8" style={{ gridTemplateColumns: `repeat(${card.members.length}, minmax(0, 1fr))` }}>
+                          {card.members.map(member => {
+                            const isLate = member.statut !== 'facture' && member.date_livraison_prevue && member.date_livraison_prevue.slice(0,10) < today
+                            return (
+                              <button
+                                key={member.id}
+                                type="button"
+                                onClick={() => !isRowEditMode && openSelected(member)}
+                                onContextMenu={e => { e.preventDefault(); setContextMenu({ x:e.clientX, y:e.clientY, ot:member }) }}
+                                className={`flex min-w-0 flex-col justify-center px-2 text-left transition-colors ${isRowEditMode ? 'cursor-default' : 'cursor-pointer hover:bg-white/5'}`}
+                              >
+                                <div className="flex items-center gap-1 min-w-0">
+                                  {isAffretedOt(member.id) && <span className="rounded px-1 text-[8px] font-bold bg-blue-500/30 text-blue-200 flex-shrink-0">AFF</span>}
+                                  {isLate && <span className="rounded px-1 text-[8px] font-bold bg-red-500/30 text-red-200 flex-shrink-0">!</span>}
+                                  <StatutOpsDot statut={member.statut_operationnel} size="xs"/>
+                                  <span className="truncate font-mono text-[10px] font-bold text-white">{member.reference}</span>
+                                </div>
+                                <span className="truncate text-[10px] font-semibold text-white/80">{member.client_nom}</span>
+                                <span className="truncate text-[9px] font-mono text-white/45">{isoToTime(member.date_chargement_prevue)}-{isoToTime(member.date_livraison_prevue)}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
                     {ots.map(ot => {
+                      if (groupedOtIds.has(ot.id)) return null
                       const pos = blockPos(ot, weekStart); if (!pos) return null
                       const { cls:cCls, style:cStyle } = getBlockColors(ot, row.id)
+                      const groupedLayout = groupedBlockLayout[ot.id]
+                      const groupageBubbleLabel = getGroupageBubbleLabel(ot)
                       const isSaving   = savingOtId === ot.id
                       const isDragging = drag?.ot?.id === ot.id
                       const isLate = ot.statut !== 'facture' && ot.date_livraison_prevue && ot.date_livraison_prevue.slice(0,10) < today
                       const hCharge = ot.date_chargement_prevue?.includes('T') ? ot.date_chargement_prevue.slice(11,16) : ''
                       const hLivre  = ot.date_livraison_prevue?.includes('T')  ? ot.date_livraison_prevue.slice(11,16)  : ''
                       return (
-                        <div key={ot.id} style={{...pos,...cStyle}}
+                        <div key={ot.id} style={{...pos,...cStyle, ...(groupedLayout ? { top:`${groupedLayout.top}px`, height:`${groupedLayout.height}px` } : null)}}
                           draggable={canMove(ot) && !isRowEditMode && !drag}
                           onDragStart={canMove(ot)&&!isRowEditMode&&!drag ? e => onDragStartBlock(ot, e) : undefined}
                           onDragEnd={onDragEnd}
@@ -2464,22 +3700,32 @@ export default function Planning() {
                           {/* Ligne 1 : badges + reference + bouton desaffecter */}
                           <div className="flex items-center gap-1 min-w-0">
                             {isAffretedOt(ot.id) && <span className="rounded px-1 text-[8px] font-bold bg-blue-500/30 text-blue-200 flex-shrink-0">AFF</span>}
+                            {groupageBubbleLabel && <span className="rounded px-1 text-[8px] font-bold bg-amber-500/30 text-amber-100 flex-shrink-0">{groupageBubbleLabel}</span>}
                             {isLate && <span className="rounded px-1 text-[8px] font-bold bg-red-500/30 text-red-200 flex-shrink-0">?</span>}
                             {ot.statut === 'facture' && <span className="rounded px-1 text-[8px] font-bold bg-violet-500/30 text-violet-200 flex-shrink-0">EUR</span>}
                             <StatutOpsDot statut={ot.statut_operationnel} size="xs"/>
                             <span className="font-mono text-[10px] font-bold truncate flex-1">{ot.reference}</span>
+                            {!isRowEditMode && !drag && (
+                              <>
+                                <button title="Ajouter HLP avant" className="opacity-0 group-hover/block:opacity-100 transition-opacity flex-shrink-0 rounded px-1 py-0.5 text-[8px] font-bold bg-slate-950/70 hover:bg-slate-950"
+                                  onClick={e => { e.stopPropagation(); openPlanningEventNearCourse(row.id, ot, 'hlp') }}>HLP</button>
+                                <button title="Ajouter pause apres" className="opacity-0 group-hover/block:opacity-100 transition-opacity flex-shrink-0 rounded px-1 py-0.5 text-[8px] font-bold bg-slate-950/70 hover:bg-slate-950"
+                                  onClick={e => { e.stopPropagation(); openPlanningEventNearCourse(row.id, ot, 'repos') }}>PAUSE</button>
+                              </>
+                            )}
                             {!isRowEditMode && (
                               <button title="Desaffecter" className="opacity-0 group-hover/block:opacity-100 transition-opacity flex-shrink-0 w-3.5 h-3.5 flex items-center justify-center rounded hover:bg-white/20 text-[10px]"
                                 onClick={e => { e.stopPropagation(); unassign(ot) }}>x</button>
                             )}
                           </div>
-                          {/* Ligne 2 : nom client + heures */}
-                          <div className="flex items-center gap-1 min-w-0">
-                            <span className="truncate flex-1 text-[10px] text-white/80 font-semibold">{ot.client_nom}</span>
-                            {(hCharge || hLivre) && (
-                              <span className="text-[9px] text-white/50 flex-shrink-0 font-mono">{hCharge}{hCharge && hLivre ? '-' : ''}{hLivre}</span>
-                            )}
-                          </div>
+                          {!groupedLayout?.compact && (
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="truncate flex-1 text-[10px] text-white/80 font-semibold">{ot.client_nom}</span>
+                              {(hCharge || hLivre) && (
+                                <span className="text-[9px] text-white/50 flex-shrink-0 font-mono">{hCharge}{hCharge && hLivre ? '-' : ''}{hLivre}</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )
                     })}
@@ -2492,6 +3738,7 @@ export default function Planning() {
                       const linkedOT = findOTById(block.otId)
                       if (linkedOT) {
                         const { cls:cCls, style:cStyle } = getBlockColors(linkedOT, row.id)
+                        const groupageBubbleLabel = getGroupageBubbleLabel(linkedOT)
                         const isLate = linkedOT.statut !== 'facture' && linkedOT.date_livraison_prevue && linkedOT.date_livraison_prevue.slice(0,10) < today
                         const hCharge = linkedOT.date_chargement_prevue?.includes('T') ? linkedOT.date_chargement_prevue.slice(11,16) : ''
                         const hLivre  = linkedOT.date_livraison_prevue?.includes('T')  ? linkedOT.date_livraison_prevue.slice(11,16)  : ''
@@ -2508,6 +3755,7 @@ export default function Planning() {
                             onContextMenu={e => { e.preventDefault(); setContextMenu({ x:e.clientX, y:e.clientY, ot:linkedOT }) }}>
                             <div className="flex items-center gap-1 min-w-0">
                               {isAffretedOt(linkedOT.id) && <span className="rounded px-1 text-[8px] font-bold bg-blue-500/30 text-blue-200 flex-shrink-0">AFF</span>}
+                              {groupageBubbleLabel && <span className="rounded px-1 text-[8px] font-bold bg-amber-500/30 text-amber-100 flex-shrink-0">{groupageBubbleLabel}</span>}
                               {isLate && <span className="rounded px-1 text-[8px] font-bold bg-red-500/30 text-red-200 flex-shrink-0">!</span>}
                               {linkedOT.statut === 'facture' && <span className="rounded px-1 text-[8px] font-bold bg-violet-500/30 text-violet-200 flex-shrink-0">EUR</span>}
                               <StatutOpsDot statut={linkedOT.statut_operationnel} size="xs"/>
@@ -2529,10 +3777,38 @@ export default function Planning() {
                       return (
                         <div key={block.id} style={p2} draggable={!isRowEditMode && !drag}
                           onDragStart={!isRowEditMode&&!drag ? e => onDragStartCustomBlock(block, e) : undefined} onDragEnd={onDragEnd}
+                          onClick={() => !isRowEditMode && openPlanningBlockEditor(block)}
                           className={`${block.color} border rounded-md text-white text-[11px] font-medium flex items-center px-2 gap-1.5 cursor-grab active:cursor-grabbing group/cblock overflow-hidden shadow-sm ${drag?.customBlockId===block.id?'opacity-30':''} ${drag && drag.customBlockId !== block.id ? 'pointer-events-none' : ''}`}>
                           <span className="truncate flex-1">{block.label}</span>
                           {!isRowEditMode && <button className="opacity-0 group-hover/cblock:opacity-100 transition-opacity flex-shrink-0 w-4 h-4 flex items-center justify-center rounded hover:bg-white/20 text-xs"
+                            title="Modifier"
+                            onClick={e => { e.stopPropagation(); openPlanningBlockEditor(block) }}>
+                            ✎</button>}
+                          {!isRowEditMode && <button className="opacity-0 group-hover/cblock:opacity-100 transition-opacity flex-shrink-0 w-4 h-4 flex items-center justify-center rounded hover:bg-white/20 text-xs"
                             onClick={async e => { e.stopPropagation(); await unassignFromCustomBlock(block) }}>x</button>}
+                        </div>
+                      )
+                    })}
+                    {generatedBlocks.map(block => {
+                      const start = block.dateStart.slice(0,10)
+                      const end = block.dateEnd.slice(0,10)
+                      const sD = parseDay(start)
+                      const eD = parseDay(end)
+                      const wE = addDays(weekStart, 6)
+                      if (eD < weekStart || sD > wE) return null
+                      const vS = sD < weekStart ? weekStart : sD
+                      const vE = eD > wE ? wE : eD
+                      const p2: React.CSSProperties = {
+                        position:'absolute',
+                        top:'44px',
+                        height:'16px',
+                        left:`calc(${daysDiff(weekStart,vS)/7*100}% + 2px)`,
+                        width:`calc(${(daysDiff(vS,vE)+1)/7*100}% - 4px)`,
+                      }
+                      return (
+                        <div key={block.id} style={p2}
+                          className={`${block.color} border rounded text-white/90 text-[9px] px-1.5 flex items-center overflow-hidden pointer-events-none opacity-80`}>
+                          <span className="truncate">{block.label}</span>
                         </div>
                       )
                     })}
@@ -2589,14 +3865,14 @@ export default function Planning() {
 
         {/* â”€â”€ DAY VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {viewMode === 'jour' && (
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex flex-col">
             {/* Hour header */}
             <div className="flex flex-shrink-0 bg-slate-900 border-b border-slate-700 overflow-hidden">
               <div className="w-44 flex-shrink-0 border-r border-slate-700 bg-slate-900"/>
-              <div ref={dayScrollRef} className="flex-1 overflow-x-hidden" style={{scrollbarWidth:'none'}}>
-                <div className="flex" style={{ width:`${24*HOUR_WIDTH_PX}px` }}>
+              <div className="flex-1 overflow-hidden">
+                <div className="flex w-full">
                   {hourSlots.map(h => (
-                    <div key={h} className="flex-shrink-0 border-r border-slate-700/50" style={{width:HOUR_WIDTH_PX}}>
+                    <div key={h} className="min-w-0 flex-1 border-r border-slate-700/50">
                       <p className={`text-[10px] font-mono text-center py-2 ${h===new Date().getHours()&&selectedDay===today?'text-blue-400':'text-slate-500'}`}>
                         {String(h).padStart(2,'0')}:00
                       </p>
@@ -2610,12 +3886,15 @@ export default function Planning() {
             </div>
 
             {/* Rows body */}
-            <div ref={dayBodyScrollRef} className="flex-1 overflow-auto" onDragOver={e => e.preventDefault()} onScroll={e => {
-              if (dayScrollRef.current) dayScrollRef.current.scrollLeft = (e.target as HTMLDivElement).scrollLeft
-            }}>
+            <div className="overflow-x-hidden overflow-y-visible" onDragOver={e => e.preventDefault()}>
               {visibleRows.map(row => {
                 const ots    = row.isCustom ? [] : rowOTs(row.id)
                 const cBlocks = row.isCustom ? customBlocks.filter(b => b.rowId===row.id) : []
+                const generatedBlocks = row.isCustom ? [] : ots.flatMap(ot => buildGeneratedInlineEvents(ot, row.id))
+                const groupageCards = row.isCustom ? [] : buildGroupageCards(ots)
+                const groupedOtIds = new Set(groupageCards.flatMap(card => card.members.map(member => member.id)))
+                const frozenGroupageOverlays = row.isCustom ? [] : buildFrozenGroupageOverlays(ots)
+                const groupedBlockLayout = row.isCustom ? {} : buildGroupedBlockLayout(ots)
                 const isDropTarget = hoverRow?.rowId===row.id && !isRowEditMode
                 const gPos = ghostPos(row.id)
                 return (
@@ -2624,7 +3903,7 @@ export default function Planning() {
                     onDrop={!isRowEditMode ? e => onRowDrop(e, row.id, !!row.isCustom) : undefined}
                     className={`flex border-b border-slate-800/50 transition-colors group ${isDropTarget?'bg-indigo-950/30':'hover:bg-white/[0.01]'}`}>
                     {renderRowLabel(row)}
-                    <div className="flex-1 relative overflow-hidden" style={{ height:ROW_H, width:`${24*HOUR_WIDTH_PX}px`, minWidth:`${24*HOUR_WIDTH_PX}px` }}
+                    <div className="flex-1 relative overflow-hidden" style={{ height:ROW_H }}
                       onDragOver={!isRowEditMode ? e => onRowDragOver(e, row.id) : undefined}
                       onDragLeave={!isRowEditMode ? onRowDragLeave : undefined}
                       onDrop={!isRowEditMode ? e => onRowDrop(e, row.id, !!row.isCustom) : undefined}
@@ -2635,25 +3914,12 @@ export default function Planning() {
                         const snapped = snapToQuarter(Math.round(rawMin))
                         const hh = String(Math.floor(snapped/60)).padStart(2,'0')
                         const mm = String(snapped%60).padStart(2,'0')
-                        setAddBlockFor({ rowId:row.id, dateStart:`${selectedDay}T${hh}:${mm}` })
-                        setNewBlockLabel('')
-                        setNewBlockType('hlp')
-                        setNewBlockDurationHours('10')
-                        setNewBlockClientId(clients[0]?.id ?? '')
-                        setNewBlockDonneurOrdreId(clients[0]?.id ?? '')
-                        setNewBlockReferenceCourse(generatePlanningCourseReference())
-                        setNewBlockChargementSiteId('')
-                        setNewBlockLivraisonSiteId('')
-                        setNewBlockDistanceKm('')
-                        setNewBlockDateChargement(selectedDay)
-                        setNewBlockTimeChargement(`${hh}:${mm}`)
-                        setNewBlockDateLivraison(selectedDay)
-                        setNewBlockTimeLivraison('18:00')
+                        openPlanningCreationModal({ rowId: row.id, dateStart: `${selectedDay}T${hh}:${mm}`, type: 'hlp' })
                       }}>
                       {/* Hour grid */}
                       <div className="absolute inset-0 flex pointer-events-none">
                         {hourSlots.map(h => (
-                          <div key={h} className="flex-shrink-0 border-r border-slate-800/40" style={{width:HOUR_WIDTH_PX}}>
+                          <div key={h} className="min-w-0 flex-1 border-r border-slate-800/40">
                             <div className="flex h-full">
                               {[0,1,2,3].map(q => <div key={q} className="flex-1 border-r border-slate-800/20 last:border-r-0"/>)}
                             </div>
@@ -2672,14 +3938,72 @@ export default function Planning() {
                           {drag?.ot?.reference ?? '-'}
                         </div>
                       )}
+                      {frozenGroupageOverlays.map(overlay => (
+                        <div
+                          key={`frozen-day-${overlay.groupId}`}
+                          style={{ position:'absolute', top:'2px', height:'58px', left:`${overlay.leftPct}%`, width:`${overlay.widthPct}%` }}
+                          className="pointer-events-none rounded-[20px] border border-indigo-400/45 bg-indigo-500/10 shadow-inner ring-1 ring-indigo-300/10"
+                          title={overlay.references}
+                        >
+                          <span className="absolute left-3 -top-2 rounded-full border border-indigo-400/40 bg-slate-950/95 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-indigo-200">
+                            {overlay.label}
+                          </span>
+                        </div>
+                      ))}
+                      {groupageCards.map(card => (
+                        <div
+                          key={`group-card-day-${card.groupId}`}
+                          style={{ position:'absolute', top:'4px', height:'52px', left:`${card.leftPct}%`, width:`${card.widthPct}%` }}
+                          className={`rounded-xl border overflow-hidden shadow-lg ${card.frozen ? 'border-indigo-400/60 bg-slate-900/96' : 'border-emerald-400/45 bg-slate-950/92'}`}
+                        >
+                          <div className={`flex items-center justify-between px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] ${card.frozen ? 'bg-indigo-500/20 text-indigo-100' : 'bg-emerald-500/15 text-emerald-100'}`}>
+                            <span>Lot {card.members.length}</span>
+                            <span>{card.frozen ? 'Verrouille' : 'Deliable'}</span>
+                          </div>
+                          <div className="grid h-[calc(100%-22px)] divide-x divide-white/8" style={{ gridTemplateColumns: `repeat(${card.members.length}, minmax(0, 1fr))` }}>
+                            {card.members.map(member => {
+                              const isLate = member.statut !== 'facture' && member.date_livraison_prevue && member.date_livraison_prevue.slice(0,10) < today
+                              return (
+                                <button
+                                  key={member.id}
+                                  type="button"
+                                  onClick={() => !isRowEditMode && openSelected(member)}
+                                  onContextMenu={e => { e.preventDefault(); setContextMenu({ x:e.clientX, y:e.clientY, ot:member }) }}
+                                  className={`flex min-w-0 flex-col justify-center px-2 text-left transition-colors ${isRowEditMode ? 'cursor-default' : 'cursor-pointer hover:bg-white/5'}`}
+                                >
+                                  <div className="flex items-center gap-1 min-w-0">
+                                    {isAffretedOt(member.id) && <span className="rounded px-1 text-[8px] font-bold bg-blue-500/30 text-blue-200 flex-shrink-0">AFF</span>}
+                                    {isLate && <span className="rounded px-1 text-[8px] font-bold bg-red-500/30 text-red-200 flex-shrink-0">!</span>}
+                                    <StatutOpsDot statut={member.statut_operationnel} size="xs"/>
+                                    <span className="truncate font-mono text-[10px] font-bold text-white">{member.reference}</span>
+                                  </div>
+                                  <span className="truncate text-[10px] font-semibold text-white/80">{member.client_nom}</span>
+                                  <span className="truncate text-[9px] font-mono text-white/45">{isoToTime(member.date_chargement_prevue)}-{isoToTime(member.date_livraison_prevue)}</span>
+                                  {!isRowEditMode && (
+                                    <span className="mt-1 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                                      <button type="button" className="rounded px-1 py-0.5 text-[8px] font-bold bg-slate-950/70 hover:bg-slate-950"
+                                        onClick={e => { e.stopPropagation(); openPlanningEventNearCourse(row.id, member, 'hlp') }}>HLP</button>
+                                      <button type="button" className="rounded px-1 py-0.5 text-[8px] font-bold bg-slate-950/70 hover:bg-slate-950"
+                                        onClick={e => { e.stopPropagation(); openPlanningEventNearCourse(row.id, member, 'repos') }}>PAUSE</button>
+                                    </span>
+                                  )}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))}
                       {ots.map(ot => {
+                        if (groupedOtIds.has(ot.id)) return null
                         const pos = blockPosDay(ot.date_chargement_prevue, ot.date_livraison_prevue, selectedDay)
                         if (!pos) return null
                         const { cls:cCls, style:cStyle } = getBlockColors(ot, row.id)
+                        const groupedLayout = groupedBlockLayout[ot.id]
+                        const groupageBubbleLabel = getGroupageBubbleLabel(ot)
                         const isDragging = drag?.ot?.id===ot.id
                         const isLate = ot.statut !== 'facture' && ot.date_livraison_prevue && ot.date_livraison_prevue.slice(0,10) < today
                         return (
-                          <div key={ot.id} style={{...pos,...cStyle}}
+                          <div key={ot.id} style={{...pos,...cStyle, ...(groupedLayout ? { top:`${groupedLayout.top}px`, height:`${groupedLayout.height}px` } : null)}}
                             draggable={canMove(ot)&&!isRowEditMode&&!drag}
                             onDragStart={canMove(ot)&&!isRowEditMode&&!drag ? e => onDragStartBlock(ot, e) : undefined}
                             onDragEnd={onDragEnd}
@@ -2692,15 +4016,26 @@ export default function Planning() {
                             onContextMenu={e => { e.preventDefault(); setContextMenu({ x:e.clientX, y:e.clientY, ot }) }}>
                             <div className="flex items-center gap-1 min-w-0">
                               {isAffretedOt(ot.id) && <span className="rounded px-1 text-[8px] font-bold bg-blue-500/30 text-blue-200 flex-shrink-0">AFF</span>}
+                              {groupageBubbleLabel && <span className="rounded px-1 text-[8px] font-bold bg-amber-500/30 text-amber-100 flex-shrink-0">{groupageBubbleLabel}</span>}
                               {isLate && <span className="text-[8px] flex-shrink-0">?</span>}
                               {ot.statut === 'facture' && <span className="text-[8px] flex-shrink-0 text-violet-300">EUR</span>}
                               <StatutOpsDot statut={ot.statut_operationnel} size="xs"/>
                               <span className="font-mono font-bold truncate flex-1">{ot.reference}</span>
+                              {!isRowEditMode && !drag && (
+                                <>
+                                  <button title="Ajouter HLP avant" className="opacity-0 group-hover/block:opacity-100 transition-opacity flex-shrink-0 rounded px-1 py-0.5 text-[8px] font-bold bg-slate-950/70 hover:bg-slate-950"
+                                    onClick={e => { e.stopPropagation(); openPlanningEventNearCourse(row.id, ot, 'hlp') }}>HLP</button>
+                                  <button title="Ajouter pause apres" className="opacity-0 group-hover/block:opacity-100 transition-opacity flex-shrink-0 rounded px-1 py-0.5 text-[8px] font-bold bg-slate-950/70 hover:bg-slate-950"
+                                    onClick={e => { e.stopPropagation(); openPlanningEventNearCourse(row.id, ot, 'repos') }}>PAUSE</button>
+                                </>
+                              )}
                             </div>
-                            <div className="flex items-center gap-1 min-w-0">
-                              <span className="text-white/80 text-[10px] font-semibold truncate flex-1">{ot.client_nom}</span>
-                              <span className="text-white/50 text-[9px] font-mono flex-shrink-0">{isoToTime(ot.date_chargement_prevue)}?{isoToTime(ot.date_livraison_prevue)}</span>
-                            </div>
+                            {!groupedLayout?.compact && (
+                              <div className="flex items-center gap-1 min-w-0">
+                                <span className="text-white/80 text-[10px] font-semibold truncate flex-1">{ot.client_nom}</span>
+                                <span className="text-white/50 text-[9px] font-mono flex-shrink-0">{isoToTime(ot.date_chargement_prevue)}-{isoToTime(ot.date_livraison_prevue)}</span>
+                              </div>
+                            )}
                           </div>
                         )
                       })}
@@ -2710,6 +4045,7 @@ export default function Planning() {
                         const linkedOT = findOTById(block.otId)
                         if (linkedOT) {
                           const { cls:cCls, style:cStyle } = getBlockColors(linkedOT, row.id)
+                          const groupageBubbleLabel = getGroupageBubbleLabel(linkedOT)
                           const isLate = linkedOT.statut !== 'facture' && linkedOT.date_livraison_prevue && linkedOT.date_livraison_prevue.slice(0,10) < today
                           return (
                             <div key={block.id} style={{...pos,...cStyle}}
@@ -2724,6 +4060,7 @@ export default function Planning() {
                               onContextMenu={e => { e.preventDefault(); setContextMenu({ x:e.clientX, y:e.clientY, ot:linkedOT }) }}>
                               <div className="flex items-center gap-1 min-w-0">
                                 {isAffretedOt(linkedOT.id) && <span className="rounded px-1 text-[8px] font-bold bg-blue-500/30 text-blue-200 flex-shrink-0">AFF</span>}
+                                {groupageBubbleLabel && <span className="rounded px-1 text-[8px] font-bold bg-amber-500/30 text-amber-100 flex-shrink-0">{groupageBubbleLabel}</span>}
                                 {isLate && <span className="text-[8px] flex-shrink-0">!</span>}
                                 {linkedOT.statut === 'facture' && <span className="text-[8px] flex-shrink-0 text-violet-300">EUR</span>}
                                 <StatutOpsDot statut={linkedOT.statut_operationnel} size="xs"/>
@@ -2743,11 +4080,25 @@ export default function Planning() {
                         return (
                           <div key={block.id} style={pos} draggable={!isRowEditMode&&!drag}
                             onDragStart={!isRowEditMode&&!drag ? e => onDragStartCustomBlock(block, e) : undefined} onDragEnd={onDragEnd}
+                            onClick={() => !isRowEditMode && openPlanningBlockEditor(block)}
                             className={`${block.color} border rounded-md text-white text-[11px] font-medium flex flex-col justify-center px-2 cursor-grab active:cursor-grabbing group/cblock overflow-hidden shadow-sm ${drag && drag.customBlockId !== block.id ? 'pointer-events-none' : ''}`}>
                             <span className="truncate leading-tight">{block.label}</span>
                               <span className="text-white/60 text-[9px]">{block.dateStart.slice(11,16)}-{block.dateEnd.slice(11,16)}</span>
+                            {!isRowEditMode && <button className="absolute right-5 top-1 opacity-0 group-hover/cblock:opacity-100 w-4 h-4 flex items-center justify-center rounded hover:bg-white/20 text-xs"
+                              title="Modifier"
+                              onClick={e => { e.stopPropagation(); openPlanningBlockEditor(block) }}>✎</button>}
                             {!isRowEditMode && <button className="absolute right-1 top-1 opacity-0 group-hover/cblock:opacity-100 w-4 h-4 flex items-center justify-center rounded hover:bg-white/20 text-xs"
                               onClick={async e => { e.stopPropagation(); await unassignFromCustomBlock(block) }}>x</button>}
+                          </div>
+                        )
+                      })}
+                      {generatedBlocks.map(block => {
+                        const pos = blockPosDay(block.dateStart, block.dateEnd, selectedDay)
+                        if (!pos) return null
+                        return (
+                          <div key={block.id} style={{...pos, top:'42px', height:'14px'}}
+                            className={`${block.color} border rounded text-white/90 text-[9px] px-1.5 flex items-center overflow-hidden pointer-events-none opacity-80`}>
+                            <span className="truncate">{block.label}</span>
                           </div>
                         )
                       })}
@@ -2777,6 +4128,437 @@ export default function Planning() {
             </div>
           </div>
         )}
+
+        <div className="sticky bottom-0 z-[30] mb-2">
+          {bottomDockCollapsed ? (
+            <div className="border border-slate-800 bg-slate-950/95 px-4 py-2 rounded-t-xl">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  Panneau operations replie
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setBottomDockCollapsed(false)}
+                  className="rounded-full border border-indigo-500/50 bg-indigo-500/20 px-3 py-1 text-[11px] font-semibold text-indigo-200 hover:bg-indigo-500/30"
+                >
+                  Ouvrir le panneau
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="relative h-3 flex-shrink-0 border-t border-slate-800 bg-slate-950/95">
+                <div
+                  role="separator"
+                  aria-orientation="horizontal"
+                  onMouseDown={startBottomDockResize}
+                  className="absolute inset-0 z-[25] flex cursor-ns-resize items-center justify-center"
+                  title="Redimensionner le dock"
+                >
+                  <div className="h-1 w-16 rounded-full bg-slate-600/80 transition-colors hover:bg-indigo-400" />
+                </div>
+              </div>
+
+              <div className="border-t border-slate-800 bg-slate-950/95 flex-shrink-0 overflow-hidden" style={{ height: `${bottomDockHeight}px` }}>
+          <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-slate-800/80 overflow-x-hidden">
+            {([
+              { key: 'missions' as BottomDockTab, label: 'Missions', count: bottomDockMissions.length },
+              { key: 'urgences' as BottomDockTab, label: 'Urgences', count: bottomDockUrgences.length },
+              { key: 'non_affectees' as BottomDockTab, label: 'Non affectees', count: unresourced.length },
+              { key: 'conflits' as BottomDockTab, label: 'Conflits', count: bottomDockConflicts.reduce((sum, item) => sum + item.pairs.length, 0) },
+              { key: 'affretement' as BottomDockTab, label: 'Affretement', count: activeAffretementContracts.length },
+              { key: 'groupages' as BottomDockTab, label: 'Groupages', count: bottomDockGroupages.length },
+              { key: 'non_programmees' as BottomDockTab, label: 'Non programmees', count: bottomDockNonProgrammees.length },
+              { key: 'annulees' as BottomDockTab, label: 'Annulees', count: bottomDockAnnulees.length },
+            ]).map(item => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setBottomDockTab(item.key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border whitespace-nowrap ${
+                  bottomDockTab === item.key
+                    ? 'bg-indigo-600/25 border-indigo-500/50 text-indigo-200'
+                    : 'border-slate-700 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {item.label}
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${bottomDockTab === item.key ? 'bg-indigo-500/50 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                  {item.count}
+                </span>
+              </button>
+            ))}
+
+            <div className="ml-auto flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setBottomDockTab('urgences')}
+                className="px-2.5 py-1 rounded-full text-[10px] font-semibold border border-rose-500/40 bg-rose-500/15 text-rose-200 hover:bg-rose-500/25 transition-colors whitespace-nowrap"
+              >
+                Focus urgences
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPoolSearch('')
+                  setResourceSearch('')
+                  setFilterType('')
+                  setFilterClient('')
+                  setCenterFilter('')
+                  setShowOnlyAlert(false)
+                  setShowOnlyConflicts(false)
+                }}
+                className="px-2.5 py-1 rounded-full text-[10px] font-semibold border border-slate-700 text-slate-300 hover:text-white transition-colors whitespace-nowrap"
+              >
+                Reset filtres
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !simulationMode
+                  setSimulationMode(next)
+                  saveBooleanSetting(SIMULATION_MODE_KEY, next)
+                }}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${simulationMode ? 'bg-emerald-500/25 border-emerald-500/40 text-emerald-200' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
+              >
+                Mode simulation {simulationMode ? 'ON' : 'OFF'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !autoHabillage
+                  setAutoHabillage(next)
+                  saveBooleanSetting(AUTO_HABILLAGE_KEY, next)
+                }}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${autoHabillage ? 'bg-sky-500/20 border-sky-600/40 text-sky-200' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
+              >
+                Habillage auto {autoHabillage ? 'active' : 'off'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !autoPauseReglementaire
+                  setAutoPauseReglementaire(next)
+                  saveBooleanSetting(AUTO_PAUSE_KEY, next)
+                }}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${autoPauseReglementaire ? 'bg-amber-500/20 border-amber-600/40 text-amber-200' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
+              >
+                Pause 45 min {autoPauseReglementaire ? 'activee' : 'off'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setBottomDockCollapsed(true)}
+                className="px-2.5 py-1 rounded-full text-[10px] font-semibold border border-slate-700 text-slate-300 hover:text-white transition-colors whitespace-nowrap"
+              >
+                Replier panneau
+              </button>
+            </div>
+          </div>
+
+          <div className="grid h-[calc(100%-52px)] grid-cols-1 gap-3 overflow-auto px-4 py-3 xl:grid-cols-[1.5fr_1fr]">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/70 overflow-hidden">
+              {bottomDockTab === 'missions' && (
+                <div className="overflow-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
+                      <tr>
+                        <th className="text-left px-3 py-2">Reference</th>
+                        <th className="text-left px-3 py-2">Client</th>
+                        <th className="text-left px-3 py-2">Ressource</th>
+                        <th className="text-left px-3 py-2">Fenetre</th>
+                        <th className="text-left px-3 py-2">Statut</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bottomDockMissions.length === 0 && (
+                        <tr><td className="px-3 py-3 text-slate-500" colSpan={5}>Aucune mission planifiee.</td></tr>
+                      )}
+                      {bottomDockMissions.map(ot => (
+                        <tr key={ot.id} className="border-t border-slate-800/70 hover:bg-slate-800/40 cursor-pointer" onClick={() => openSelected(ot)}>
+                          <td className="px-3 py-2 font-mono text-slate-300">{ot.reference}</td>
+                          <td className="px-3 py-2 text-slate-200">{ot.client_nom}</td>
+                          <td className="px-3 py-2 text-slate-400">{resolveRowId(ot) ? (orderedRows.find(row => row.id === resolveRowId(ot))?.primary ?? '-') : '-'}</td>
+                          <td className="px-3 py-2 text-slate-400">{isoToDate(ot.date_chargement_prevue)} {isoToTime(ot.date_chargement_prevue)} - {isoToDate(ot.date_livraison_prevue)} {isoToTime(ot.date_livraison_prevue)}</td>
+                          <td className="px-3 py-2"><span className={`text-[10px] px-1.5 py-0.5 rounded-full ${BADGE_CLS[ot.statut] ?? 'bg-slate-700 text-slate-300'}`}>{STATUT_LABEL[ot.statut] ?? ot.statut}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {bottomDockTab === 'urgences' && (
+                <div className="overflow-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
+                      <tr>
+                        <th className="text-left px-3 py-2">Priorite</th>
+                        <th className="text-left px-3 py-2">Objet</th>
+                        <th className="text-left px-3 py-2">Details</th>
+                        <th className="text-left px-3 py-2">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bottomDockUrgences.length === 0 && (
+                        <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucune urgence immediate.</td></tr>
+                      )}
+                      {bottomDockUrgences.map(item => (
+                        <tr key={item.id} className="border-t border-slate-800/70 hover:bg-slate-800/40">
+                          <td className="px-3 py-2">
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                              item.level === 'critique'
+                                ? 'bg-red-500/25 text-red-200'
+                                : item.level === 'haute'
+                                  ? 'bg-amber-500/25 text-amber-200'
+                                  : 'bg-sky-500/25 text-sky-200'
+                            }`}>
+                              {item.level === 'critique' ? 'Critique' : item.level === 'haute' ? 'Haute' : 'Moyenne'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 font-mono text-slate-300">{item.label}</td>
+                          <td className="px-3 py-2 text-slate-300">{item.detail}</td>
+                          <td className="px-3 py-2">
+                            {item.source === 'conflit' ? (
+                              <button type="button" onClick={() => item.rowId && setConflictPanelRowId(item.rowId)} className="text-rose-300 hover:text-rose-200">
+                                Ouvrir conflits
+                              </button>
+                            ) : item.source === 'non_affectee' ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const ot = item.otId ? findOTById(item.otId) : null
+                                  if (ot) openAssign(ot)
+                                }}
+                                className="text-indigo-300 hover:text-indigo-200"
+                              >
+                                Affecter
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const ot = item.otId ? findOTById(item.otId) : null
+                                  if (ot) openSelected(ot)
+                                }}
+                                className="text-indigo-300 hover:text-indigo-200"
+                              >
+                                Ouvrir OT
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {bottomDockTab === 'non_affectees' && (
+                <div className="overflow-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
+                      <tr>
+                        <th className="text-left px-3 py-2">Reference</th>
+                        <th className="text-left px-3 py-2">Client</th>
+                        <th className="text-left px-3 py-2">Date</th>
+                        <th className="text-left px-3 py-2">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {unresourced.length === 0 && (
+                        <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucune mission non affectee.</td></tr>
+                      )}
+                      {unresourced.map(ot => (
+                        <tr key={ot.id} className="border-t border-slate-800/70 hover:bg-slate-800/40">
+                          <td className="px-3 py-2 font-mono text-slate-300">{ot.reference}</td>
+                          <td className="px-3 py-2 text-slate-200">{ot.client_nom}</td>
+                          <td className="px-3 py-2 text-slate-400">{isoToDate(ot.date_chargement_prevue)} {isoToTime(ot.date_chargement_prevue)}</td>
+                          <td className="px-3 py-2"><button type="button" onClick={() => openAssign(ot)} className="text-indigo-300 hover:text-indigo-200">Affecter</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {bottomDockTab === 'conflits' && (
+                <div className="overflow-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
+                      <tr>
+                        <th className="text-left px-3 py-2">Ressource</th>
+                        <th className="text-left px-3 py-2">Courses</th>
+                        <th className="text-left px-3 py-2">Chevauchement</th>
+                        <th className="text-left px-3 py-2">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bottomDockConflicts.length === 0 && (
+                        <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucun conflit detecte.</td></tr>
+                      )}
+                      {bottomDockConflicts.flatMap(item => item.pairs.map((pair, idx) => (
+                        <tr key={`${item.rowId}-${pair.first.id}-${pair.second.id}-${idx}`} className="border-t border-slate-800/70 hover:bg-slate-800/40">
+                          <td className="px-3 py-2 text-slate-200">{item.rowLabel}</td>
+                          <td className="px-3 py-2 font-mono text-slate-300">{pair.first.reference} / {pair.second.reference}</td>
+                          <td className="px-3 py-2 text-rose-300">{formatMinutes(pair.overlapMinutes)}</td>
+                          <td className="px-3 py-2"><button type="button" onClick={() => setConflictPanelRowId(item.rowId)} className="text-rose-300 hover:text-rose-200">Voir</button></td>
+                        </tr>
+                      )))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {bottomDockTab === 'affretement' && (
+                <div className="overflow-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
+                      <tr>
+                        <th className="text-left px-3 py-2">Course</th>
+                        <th className="text-left px-3 py-2">Affreteur</th>
+                        <th className="text-left px-3 py-2">Statut</th>
+                        <th className="text-left px-3 py-2">Affectations</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeAffretementContracts.length === 0 && (
+                        <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucune course affretee en cours.</td></tr>
+                      )}
+                      {activeAffretementContracts.map(contract => {
+                        const ot = ganttOTs.find(item => item.id === contract.otId) ?? pool.find(item => item.id === contract.otId)
+                        const context = affretementContextByOtId[contract.otId]
+                        return (
+                          <tr key={contract.id} className="border-t border-slate-800/70 hover:bg-slate-800/40">
+                            <td className="px-3 py-2 font-mono text-slate-300">{ot?.reference ?? contract.otId.slice(0, 8)}</td>
+                            <td className="px-3 py-2 text-slate-200">{context?.onboarding?.companyName ?? '-'}</td>
+                            <td className="px-3 py-2"><span className="px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-[10px]">{contract.status}</span></td>
+                            <td className="px-3 py-2 text-slate-400">
+                              {context?.driver ? `Cond. ${context.driver.fullName}` : 'Cond. -'}
+                              {' / '}
+                              {context?.vehicle ? `Veh. ${context.vehicle.plate}` : 'Veh. -'}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {bottomDockTab === 'groupages' && (
+                <div className="overflow-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
+                      <tr>
+                        <th className="text-left px-3 py-2">Lot</th>
+                        <th className="text-left px-3 py-2">Courses</th>
+                        <th className="text-left px-3 py-2">Etat</th>
+                        <th className="text-left px-3 py-2">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bottomDockGroupages.length === 0 && (
+                        <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucun groupage actif.</td></tr>
+                      )}
+                      {bottomDockGroupages.map(group => (
+                        <tr key={group.groupId} className="border-t border-slate-800/70 hover:bg-slate-800/40">
+                          <td className="px-3 py-2 font-mono text-slate-300">{group.groupId.slice(0, 8)}</td>
+                          <td className="px-3 py-2 text-slate-200">{group.members.map(item => item.reference).join(', ')}</td>
+                          <td className="px-3 py-2">
+                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${group.frozen ? 'bg-indigo-500/25 text-indigo-200' : 'bg-emerald-500/20 text-emerald-200'}`}>
+                              {group.frozen ? 'Fige' : 'Deliable'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2">
+                            <button type="button" onClick={() => openSelected(group.members[0])} className="text-indigo-300 hover:text-indigo-200">Ouvrir</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {bottomDockTab === 'non_programmees' && (
+                <div className="overflow-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
+                      <tr>
+                        <th className="text-left px-3 py-2">Reference</th>
+                        <th className="text-left px-3 py-2">Client</th>
+                        <th className="text-left px-3 py-2">Statut</th>
+                        <th className="text-left px-3 py-2">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bottomDockNonProgrammees.length === 0 && (
+                        <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucune course non programmee.</td></tr>
+                      )}
+                      {bottomDockNonProgrammees.map(ot => (
+                        <tr key={ot.id} className="border-t border-slate-800/70 hover:bg-slate-800/40">
+                          <td className="px-3 py-2 font-mono text-slate-300">{ot.reference}</td>
+                          <td className="px-3 py-2 text-slate-200">{ot.client_nom}</td>
+                          <td className="px-3 py-2"><span className={`text-[10px] px-1.5 py-0.5 rounded-full ${BADGE_CLS[ot.statut] ?? 'bg-slate-700 text-slate-300'}`}>{STATUT_LABEL[ot.statut] ?? ot.statut}</span></td>
+                          <td className="px-3 py-2"><button type="button" onClick={() => openAssign(ot)} className="text-indigo-300 hover:text-indigo-200">Programmer</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {bottomDockTab === 'annulees' && (
+                <div className="overflow-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
+                      <tr>
+                        <th className="text-left px-3 py-2">Reference</th>
+                        <th className="text-left px-3 py-2">Client</th>
+                        <th className="text-left px-3 py-2">Date prevue</th>
+                        <th className="text-left px-3 py-2">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bottomDockAnnulees.length === 0 && (
+                        <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucune course annulee.</td></tr>
+                      )}
+                      {bottomDockAnnulees.map(ot => (
+                        <tr key={ot.id} className="border-t border-slate-800/70 hover:bg-slate-800/40">
+                          <td className="px-3 py-2 font-mono text-slate-300">{ot.reference}</td>
+                          <td className="px-3 py-2 text-slate-200">{ot.client_nom}</td>
+                          <td className="px-3 py-2 text-slate-400">{isoToDate(ot.date_chargement_prevue)} {isoToTime(ot.date_chargement_prevue)}</td>
+                          <td className="px-3 py-2"><button type="button" onClick={() => openSelected(ot)} className="text-indigo-300 hover:text-indigo-200">Consulter</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+              <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">Charge ressource</p>
+              <div className="space-y-1.5 max-h-48 overflow-auto">
+                {resourceLoadRows.length === 0 && <p className="text-xs text-slate-500">Aucune donnee de charge.</p>}
+                {resourceLoadRows.slice(0, 12).map(item => (
+                  <div key={item.rowId} className="rounded-lg border border-slate-800/80 bg-slate-950/40 px-2.5 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold text-slate-200 truncate">{item.label}</p>
+                      <span className="text-[10px] text-slate-500">{item.missionCount} mission{item.missionCount > 1 ? 's' : ''}</span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-2 text-[10px]">
+                      <span className="text-slate-400">Temps planifie: {formatMinutes(item.plannedMinutes)}</span>
+                      {item.conflictCount > 0 && <span className="text-rose-300">Conflits: {item.conflictCount}</span>}
+                      {item.hasLate && <span className="text-red-300">Retard</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* -- Assign modal -------------------------------------------------------- */}
@@ -2792,6 +4574,31 @@ export default function Planning() {
               </p>
             </div>
             <div className="p-6 space-y-4">
+              {assignGroupMembers.length > 1 && (
+                <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-3 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAssignModal(m => m ? { ...m, applyToGroupage: false } : m)}
+                      className={`rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${assignModal.applyToGroupage ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white text-slate-900'}`}
+                    >
+                      Modifier cette course
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAssignModal(m => m ? { ...m, applyToGroupage: true } : m)}
+                      className={`rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${assignModal.applyToGroupage ? 'bg-indigo-400 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                    >
+                      Modifier tout le lot
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-indigo-100/90">
+                    {assignModal.applyToGroupage
+                      ? `Cette programmation s'appliquera aux ${assignGroupMembers.length} courses du lot ${getGroupageBubbleLabel(assignModal.ot)}.`
+                      : `Seule la course ${assignModal.ot.reference} sera modifiee. Le reste du lot restera inchange.`}
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 {[
                   { label:'Date chargement', type:'date', key:'date_chargement' as const },
@@ -2838,7 +4645,14 @@ export default function Planning() {
       {addBlockFor && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setAddBlockFor(null)}>
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 w-full max-w-xl shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold text-white mb-3">Ajouter un evenement planning</h3>
+            <h3 className="text-sm font-semibold text-white mb-1">{newBlockType === 'course' ? 'Creer une course' : editingCustomBlockId ? 'Modifier un evenement planning' : 'Ajouter un evenement planning'}</h3>
+            <p className="text-[11px] text-slate-400 mb-3">
+              {newBlockType === 'course'
+                ? 'Creer une course directement depuis la ligne du planning.'
+                : editingCustomBlockId
+                ? 'Ajustez le type, le libelle ou la duree du bloc selectionne.'
+                : 'Ajoutez un HLP, une pause, une maintenance ou un autre bloc directement sur la ligne choisie.'}
+            </p>
             <label className="block mb-2">
               <span className="text-[11px] text-slate-400">Type</span>
               <select
@@ -2960,21 +4774,109 @@ export default function Planning() {
                 </label>
               </div>
             )}
-            <label className="block mb-3">
-              <span className="text-[11px] text-slate-400">Duree (heures)</span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={newBlockDurationHours}
-                onChange={e => setNewBlockDurationHours(e.target.value)}
-                className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-              />
-            </label>
+            {newBlockType !== 'course' && (
+              <>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <label className="block">
+                    <span className="text-[11px] text-slate-400">Date debut</span>
+                    <input
+                      type="date"
+                      value={newBlockDateChargement}
+                      onChange={e => setNewBlockDateChargement(e.target.value)}
+                      className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[11px] text-slate-400">Heure debut</span>
+                    <input
+                      type="time"
+                      step={300}
+                      value={newBlockTimeChargement}
+                      onChange={e => setNewBlockTimeChargement(e.target.value)}
+                      className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
+                    />
+                  </label>
+                </div>
+                {nearestPlanningCourseSuggestion && (
+                  <div className="mb-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+                    <p className="text-[11px] font-semibold text-amber-100">
+                      Course la plus proche : {nearestPlanningCourseSuggestion.ot.reference}
+                    </p>
+                    <p className="mt-1 text-[10px] text-amber-200/80">
+                      {nearestPlanningCourseSuggestion.preferredMode === 'before'
+                        ? 'Ce type de bloc est propose en priorite avant le depart de la course.'
+                        : 'Ce type de bloc est propose en priorite a la fin de la course.'}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPlanningEventStart(nearestPlanningCourseSuggestion.beforeStartISO)}
+                        className={`rounded-full border px-3 py-1.5 text-[10px] font-semibold hover:bg-slate-800 ${nearestPlanningCourseSuggestion.preferredMode === 'before' ? 'border-amber-300/60 bg-amber-400/20 text-amber-50' : 'border-amber-400/30 bg-slate-900/60 text-amber-100'}`}
+                      >
+                        Coller avant · {nearestPlanningCourseSuggestion.beforeLabel}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPlanningEventStart(nearestPlanningCourseSuggestion.afterStartISO)}
+                        className={`rounded-full border px-3 py-1.5 text-[10px] font-semibold hover:bg-slate-800 ${nearestPlanningCourseSuggestion.preferredMode === 'after' ? 'border-amber-300/60 bg-amber-400/20 text-amber-50' : 'border-amber-400/30 bg-slate-900/60 text-amber-100'}`}
+                      >
+                        Coller apres · {nearestPlanningCourseSuggestion.afterLabel}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <label className="block">
+                    <span className="text-[11px] text-slate-400">Duree heures</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={newBlockDurationHours}
+                      onChange={e => setPlanningEventDurationAndSync(e.target.value, newBlockDurationMinutes)}
+                      className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[11px] text-slate-400">Duree minutes</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={59}
+                      step={5}
+                      value={newBlockDurationMinutes}
+                      onChange={e => setPlanningEventDurationAndSync(newBlockDurationHours, e.target.value)}
+                      className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
+                    />
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <label className="block">
+                    <span className="text-[11px] text-slate-400">Date fin</span>
+                    <input
+                      type="date"
+                      value={newBlockDateLivraison}
+                      onChange={e => setPlanningEventEndAndSync(toDateTimeISO(e.target.value, newBlockTimeLivraison))}
+                      className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[11px] text-slate-400">Heure fin</span>
+                    <input
+                      type="time"
+                      step={300}
+                      value={newBlockTimeLivraison}
+                      onChange={e => setPlanningEventEndAndSync(toDateTimeISO(newBlockDateLivraison, e.target.value))}
+                      className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
+                    />
+                  </label>
+                </div>
+              </>
+            )}
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setAddBlockFor(null)} className="px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">Annuler</button>
+              <button onClick={() => { setAddBlockFor(null); setEditingCustomBlockId(null) }} className="px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">Annuler</button>
               <button onClick={() => void addCustomBlock()} disabled={creatingInlineEvent} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-60">
-                {creatingInlineEvent ? 'Creation...' : 'Ajouter'}
+                {creatingInlineEvent ? 'Creation...' : newBlockType === 'course' ? 'Creer la course' : editingCustomBlockId ? 'Mettre a jour' : 'Ajouter'}
               </button>
             </div>
           </div>
@@ -2990,6 +4892,7 @@ export default function Planning() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   {isAffretedOt(selected.id) && <span className="rounded px-1.5 py-0.5 text-[9px] font-bold bg-blue-500/20 text-blue-300">AFF</span>}
+                  {selected.groupage_id && <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${selected.groupage_fige ? 'bg-indigo-500/20 text-indigo-300' : 'bg-amber-500/20 text-amber-300'}`}>{selected.groupage_fige ? 'GRP FIGE' : 'GRP'}</span>}
                   <input
                     value={editDraft.reference}
                     onChange={e => setEditDraft(d => d && { ...d, reference: e.target.value })}
@@ -3056,7 +4959,7 @@ export default function Planning() {
 
               {/* Details */}
               <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Details</p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Details course</p>
                 <div className="grid grid-cols-2 gap-2.5">
                   <label className="block">
                     <span className="text-[10px] text-slate-500">Marchandise</span>
@@ -3095,46 +4998,239 @@ export default function Planning() {
                       className="mt-0.5 w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-white text-xs outline-none focus:border-indigo-500 transition-colors placeholder-slate-600"
                     />
                   </label>
-                  <label className="block">
-                    <span className="text-[10px] text-slate-500">Lieu de chargement</span>
-                    <select
-                      value={editDraft.chargement_site_id}
-                      onChange={e => setEditDraft(d => d && { ...d, chargement_site_id: e.target.value })}
-                      className="mt-0.5 w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-white text-xs outline-none focus:border-indigo-500 transition-colors"
-                    >
-                      <option value="">Selectionner</option>
-                      {logisticSites.map(site => <option key={site.id} value={site.id}>{site.nom}</option>)}
-                    </select>
-                  </label>
-                  <label className="block">
-                    <span className="text-[10px] text-slate-500">Lieu de livraison</span>
-                    <select
-                      value={editDraft.livraison_site_id}
-                      onChange={e => setEditDraft(d => d && { ...d, livraison_site_id: e.target.value })}
-                      className="mt-0.5 w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-white text-xs outline-none focus:border-indigo-500 transition-colors"
-                    >
-                      <option value="">Selectionner</option>
-                      {logisticSites.map(site => <option key={site.id} value={site.id}>{site.nom}</option>)}
-                    </select>
-                  </label>
+                  {(['chargement', 'livraison'] as const).map(kind => {
+                    const draft = editSiteDrafts[kind]
+                    const selectedSiteId = kind === 'chargement' ? editDraft.chargement_site_id : editDraft.livraison_site_id
+                    const selectedSite = selectedSiteId ? logisticSites.find(site => site.id === selectedSiteId) ?? null : null
+                    const filteredSites = logisticSites.filter(site => siteSupportsKind(site, kind))
+                    const title = kind === 'chargement' ? 'Lieu de chargement' : 'Lieu de livraison'
+                    const placeholder = kind === 'chargement' ? 'Ex: Quai 2 - Entrepot Nord' : 'Ex: Magasin central'
+                    const addressPlaceholder = kind === 'chargement'
+                      ? 'Saisissez une adresse ou detectez-la sur carte'
+                      : 'Saisissez une adresse ou posez un point GPS'
+                    return (
+                      <div key={kind} className="col-span-2 rounded-xl border border-slate-800 bg-slate-900/55 p-3 space-y-2.5">
+                        <label className="block">
+                          <span className="text-[10px] text-slate-500">{title}</span>
+                          <select
+                            value={selectedSiteId}
+                            onChange={e => setEditDraft(d => d && {
+                              ...d,
+                              ...(kind === 'chargement'
+                                ? { chargement_site_id: e.target.value }
+                                : { livraison_site_id: e.target.value }),
+                            })}
+                            className="mt-0.5 w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-white text-xs outline-none focus:border-indigo-500 transition-colors"
+                          >
+                            <option value="">Selectionner</option>
+                            {filteredSites.map(site => (
+                              <option key={site.id} value={site.id}>{site.nom} - {site.adresse}</option>
+                            ))}
+                          </select>
+                        </label>
+                        {selectedSite && (
+                          <div className="rounded-lg border border-slate-800/80 bg-slate-950/60 px-2.5 py-2 text-[11px] text-slate-300">
+                            <p className="font-medium text-slate-200">{selectedSite.nom}</p>
+                            <p className="mt-0.5 text-slate-400">{selectedSite.adresse}</p>
+                          </div>
+                        )}
+                        <details className="rounded-lg border border-slate-800 bg-slate-950/50 p-3">
+                          <summary className="cursor-pointer text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                            Ajouter ou lier une adresse
+                          </summary>
+                          <div className="mt-2.5 space-y-2">
+                            <div className="grid grid-cols-2 gap-2.5">
+                            <label className="block">
+                              <span className="text-[10px] text-slate-500">Entreprise rattachee</span>
+                              <select
+                                value={draft.entreprise_id}
+                                onChange={e => setEditSiteDraft(kind, 'entreprise_id', e.target.value)}
+                                className="mt-0.5 w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-white text-xs outline-none focus:border-indigo-500 transition-colors"
+                              >
+                                <option value="">Selectionner</option>
+                                {clients.map(client => <option key={client.id} value={client.id}>{client.nom}</option>)}
+                              </select>
+                            </label>
+                            <label className="block">
+                              <span className="text-[10px] text-slate-500">Nom du lieu</span>
+                              <input
+                                value={draft.nom}
+                                onChange={e => setEditSiteDraft(kind, 'nom', e.target.value)}
+                                placeholder={placeholder}
+                                className="mt-0.5 w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-white text-xs outline-none focus:border-indigo-500 transition-colors placeholder-slate-600"
+                              />
+                            </label>
+                            <label className="col-span-2 block">
+                              <span className="text-[10px] text-slate-500">Adresse</span>
+                              <input
+                                value={draft.adresse}
+                                onChange={e => setEditSiteDraft(kind, 'adresse', e.target.value)}
+                                placeholder={addressPlaceholder}
+                                className="mt-0.5 w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-white text-xs outline-none focus:border-indigo-500 transition-colors placeholder-slate-600"
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="text-[10px] text-slate-500">Usage du lieu</span>
+                              <select
+                                value={draft.usage_type}
+                                onChange={e => setEditSiteDraft(kind, 'usage_type', e.target.value as SiteUsageType)}
+                                className="mt-0.5 w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-white text-xs outline-none focus:border-indigo-500 transition-colors"
+                              >
+                                {Object.entries(SITE_USAGE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                              </select>
+                            </label>
+                            <label className="block">
+                              <span className="text-[10px] text-slate-500">Jours d ouverture</span>
+                              <input
+                                value={draft.jours_ouverture}
+                                onChange={e => setEditSiteDraft(kind, 'jours_ouverture', e.target.value)}
+                                placeholder="Ex: Lun-Ven"
+                                className="mt-0.5 w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-white text-xs outline-none focus:border-indigo-500 transition-colors placeholder-slate-600"
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="text-[10px] text-slate-500">Horaires d ouverture</span>
+                              <input
+                                value={draft.horaires_ouverture}
+                                onChange={e => setEditSiteDraft(kind, 'horaires_ouverture', e.target.value)}
+                                placeholder="Ex: 08:00-12:00 / 14:00-18:00"
+                                className="mt-0.5 w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-white text-xs outline-none focus:border-indigo-500 transition-colors placeholder-slate-600"
+                              />
+                            </label>
+                            <label className="col-span-2 block">
+                              <span className="text-[10px] text-slate-500">Specificites du lieu</span>
+                              <textarea
+                                value={draft.notes_livraison}
+                                onChange={e => setEditSiteDraft(kind, 'notes_livraison', e.target.value)}
+                                placeholder="Quai, badge, acces PL, securite, horaires..."
+                                className="mt-0.5 h-20 w-full resize-none bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-white text-xs outline-none focus:border-indigo-500 transition-colors placeholder-slate-600"
+                              />
+                            </label>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setEditSiteDraft(kind, 'showMap', !draft.showMap)}
+                                className="text-[11px] text-indigo-300 hover:text-indigo-200 transition-colors"
+                              >
+                                {draft.showMap ? 'Masquer la carte' : 'Poser un point GPS sur la carte'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => resetEditSiteDraft(kind)}
+                                className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+                              >
+                                Reinitialiser
+                              </button>
+                            </div>
+                            {draft.showMap && (
+                              <div className="rounded-lg border border-slate-800 overflow-hidden bg-white">
+                                <SiteMapPicker
+                                  onPick={({ latitude, longitude, adresse }) => {
+                                    setEditSiteDraft(kind, 'latitude', latitude)
+                                    setEditSiteDraft(kind, 'longitude', longitude)
+                                    setEditSiteDraft(kind, 'adresse', adresse)
+                                  }}
+                                />
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => { void createOrSelectPlanningSite(kind) }}
+                              className="w-full rounded-lg border border-indigo-500/40 bg-indigo-500/10 px-3 py-2 text-[11px] font-semibold text-indigo-200 hover:bg-indigo-500/20 transition-colors"
+                            >
+                              Enregistrer puis selectionner ce lieu
+                            </button>
+                          </div>
+                        </details>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
 
               {/* Statut operationnel */}
               <div>
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Statut operationnel</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {(Object.entries(STATUT_OPS) as [StatutOps, typeof STATUT_OPS[StatutOps]][]).map(([k, cfg]) => (
-                    <button key={k} type="button"
-                      onClick={() => setEditDraft(d => d ? { ...d, statut_operationnel: d.statut_operationnel === k ? null : k } : d)}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
-                        editDraft.statut_operationnel === k
-                          ? `${cfg.dot} text-white border-transparent`
-                          : 'bg-transparent text-slate-400 border-slate-700 hover:border-slate-500 hover:text-slate-200'
-                      }`}>
-                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`}/>{cfg.label}
+                <div className="rounded-xl border border-slate-800 bg-slate-900/55 p-3 space-y-2.5">
+                  <p className="text-[11px] text-slate-400">
+                    Statut actuel: <span className="font-semibold text-slate-200">{editDraft.statut_operationnel ? (STATUT_OPS[editDraft.statut_operationnel as StatutOps]?.label ?? editDraft.statut_operationnel) : 'Non defini'}</span>
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(Object.entries(STATUT_OPS) as [StatutOps, typeof STATUT_OPS[StatutOps]][]).map(([k, cfg]) => (
+                      <button key={k} type="button"
+                        onClick={() => setEditDraft(d => d ? { ...d, statut_operationnel: d.statut_operationnel === k ? null : k } : d)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
+                          editDraft.statut_operationnel === k
+                            ? `${cfg.dot} text-white border-transparent`
+                            : 'bg-transparent text-slate-400 border-slate-700 hover:border-slate-500 hover:text-slate-200'
+                        }`}>
+                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`}/>{cfg.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Groupage</p>
+                <div className="space-y-2.5 rounded-xl border border-slate-800 bg-slate-900/55 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`text-[10px] px-2 py-1 rounded-full font-semibold ${selected.groupage_id ? (selected.groupage_fige ? 'bg-indigo-500/20 text-indigo-300' : 'bg-emerald-500/20 text-emerald-300') : 'bg-slate-800 text-slate-400'}`}>
+                      {selected.groupage_id ? (selected.groupage_fige ? 'Lot fige' : 'Lot deliable') : 'Hors groupage'}
+                    </span>
+                    {selected.groupage_id && (
+                      <span className="text-[10px] text-slate-500">{selectedGroupMembers.length} course{selectedGroupMembers.length > 1 ? 's' : ''} dans le lot</span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={groupageTargetId}
+                      onChange={e => setGroupageTargetId(e.target.value)}
+                      disabled={selected.groupage_fige}
+                      className="flex-1 min-w-[220px] bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-white text-xs outline-none focus:border-indigo-500 transition-colors disabled:opacity-50"
+                    >
+                      <option value="">Selectionner une course a lier</option>
+                      {planningGroupageCandidates.map(item => (
+                        <option key={item.id} value={item.id}>{item.reference} - {item.client_nom}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => { void linkSelectedToGroupage() }}
+                      disabled={!groupageTargetId || selected.groupage_fige}
+                      className="px-3 py-2 text-xs rounded-lg border border-slate-700 text-slate-200 hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                    >
+                      Lier
                     </button>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={() => { void toggleSelectedGroupageFreeze(!selected.groupage_fige) }}
+                      disabled={!selected.groupage_id}
+                      className="px-3 py-2 text-xs rounded-lg border border-slate-700 text-slate-200 hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                    >
+                      {selected.groupage_fige ? 'Defiger le lot' : 'Figer le lot'}
+                    </button>
+                  </div>
+
+                  {selectedGroupMembers.length > 0 && (
+                    <div className="rounded-lg border border-slate-800/80 bg-slate-950/60 px-2.5 py-2">
+                      <p className="text-[10px] font-semibold text-slate-300 mb-1.5">Courses du lot</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedGroupMembers.map(item => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => openSelected(item)}
+                            className={`rounded-full px-2 py-1 text-[10px] transition-colors ${item.id === selected.id ? 'bg-indigo-500/30 text-indigo-100' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                          >
+                            {item.reference}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -3145,6 +5241,24 @@ export default function Planning() {
                 <button onClick={() => unassign(selected)}
                   className="py-2 px-3 text-xs text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-lg border border-red-900/30 transition-colors">
                   Retirer
+                </button>
+              )}
+              {selected.groupage_id && !selected.groupage_fige && (
+                <button onClick={() => { void unlinkCourseFromGroupage(selected) }}
+                  className="py-2 px-3 text-xs text-amber-300 hover:text-amber-200 hover:bg-amber-900/20 rounded-lg border border-amber-900/30 transition-colors">
+                  Delier du groupage
+                </button>
+              )}
+              {selected.groupage_id && (
+                <button onClick={() => { void toggleSelectedGroupageFreeze(!selected.groupage_fige) }}
+                  className="py-2 px-3 text-xs text-indigo-300 hover:text-indigo-200 hover:bg-indigo-900/20 rounded-lg border border-indigo-900/30 transition-colors">
+                  {selected.groupage_fige ? 'Defiger le lot' : 'Figer le lot'}
+                </button>
+              )}
+              {selectedGroupMembers.length > 1 && !selected.groupage_fige && (
+                <button onClick={() => openAssign(selected, undefined, undefined, undefined, true)}
+                  className="py-2 px-3 text-xs text-emerald-300 hover:text-emerald-200 hover:bg-emerald-900/20 rounded-lg border border-emerald-900/30 transition-colors">
+                  Modifier tout le lot
                 </button>
               )}
               <div className="flex-1" />
@@ -3198,6 +5312,41 @@ export default function Planning() {
                   <p className="text-xs text-slate-500 mt-0.5">
                     {isoToDate(conflict.second.date_chargement_prevue)} {isoToTime(conflict.second.date_chargement_prevue)} - {isoToDate(conflict.second.date_livraison_prevue)} {isoToTime(conflict.second.date_livraison_prevue)}
                   </p>
+                  {(() => {
+                    const sameGroupage = sharesSameGroupage(conflict.first, conflict.second)
+                    const frozenGroupage = sameGroupage && (conflict.first.groupage_fige || conflict.second.groupage_fige)
+                    const linkActionKey = `${conflict.first.id}:${conflict.second.id}:link`
+                    const freezeActionKey = `${conflict.first.id}:${conflict.second.id}:freeze`
+                    return (
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-[11px] text-slate-400">
+                          {frozenGroupage
+                            ? 'Lot deja verrouille sur cette paire.'
+                            : sameGroupage
+                            ? 'Lot deliable deja cree. Vous pouvez maintenant le verrouiller.'
+                            : 'Proposer un groupage deliable ou valider un lot verrouille pour cette paire.'}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => { void applyConflictGroupage(conflict, false) }}
+                            disabled={sameGroupage || conflictActionKey !== null}
+                            className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-emerald-500/35 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50 disabled:hover:bg-emerald-500/10 transition-colors"
+                          >
+                            {conflictActionKey === linkActionKey ? 'Creation...' : sameGroupage ? 'Deja groupees' : 'Proposer groupage'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { void applyConflictGroupage(conflict, true) }}
+                            disabled={frozenGroupage || conflictActionKey !== null}
+                            className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-indigo-500/35 bg-indigo-500/10 text-indigo-200 hover:bg-indigo-500/20 disabled:opacity-50 disabled:hover:bg-indigo-500/10 transition-colors"
+                          >
+                            {conflictActionKey === freezeActionKey ? 'Validation...' : frozenGroupage ? 'Lot verrouille' : sameGroupage ? 'Verrouiller le lot' : 'Valider et verrouiller'}
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
               ))}
             </div>
@@ -3216,6 +5365,7 @@ export default function Planning() {
           <div className="px-3 py-2.5 border-b border-slate-800 bg-slate-800/40">
             <div className="flex items-center gap-1.5 mb-1">
               {isAffretedOt(contextMenu.ot.id) && <span className="rounded px-1.5 py-0.5 text-[9px] font-bold bg-blue-600/30 text-blue-300">AFF</span>}
+              {contextMenu.ot.groupage_id && <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${contextMenu.ot.groupage_fige ? 'bg-indigo-600/30 text-indigo-300' : 'bg-amber-500/20 text-amber-300'}`}>{contextMenu.ot.groupage_fige ? 'GRP FIGE' : 'GRP'}</span>}
               <span className="text-xs font-mono text-slate-400">{contextMenu.ot.reference}</span>
               <span className={`ml-auto text-[9px] px-2 py-0.5 rounded-full font-medium ${BADGE_CLS[contextMenu.ot.statut] ?? 'bg-slate-700 text-slate-400'}`}>
                 {STATUT_LABEL[contextMenu.ot.statut] ?? contextMenu.ot.statut}
@@ -3262,6 +5412,37 @@ export default function Planning() {
                   <rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M7 15h2M11 15h6"/>
                 </svg>
                 Marquer comme facture
+              </button>
+            )}
+
+            {contextMenu.ot.groupage_id && !contextMenu.ot.groupage_fige && (
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-amber-300 hover:bg-amber-900/20 hover:text-amber-200 transition-colors text-left"
+                onClick={() => {
+                  const target = contextMenu.ot
+                  setContextMenu(null)
+                  void unlinkCourseFromGroupage(target)
+                }}>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M9 12h6"/><path d="M4 7h5a3 3 0 0 1 3 3v0a3 3 0 0 1-3 3H4"/><path d="M20 17h-5a3 3 0 0 1-3-3v0a3 3 0 0 1 3-3h5"/>
+                </svg>
+                Delier du groupage
+              </button>
+            )}
+
+            {contextMenu.ot.groupage_id && (
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-indigo-300 hover:bg-indigo-900/20 hover:text-indigo-200 transition-colors text-left"
+                onClick={() => {
+                  const target = contextMenu.ot
+                  setContextMenu(null)
+                  if (selected?.id !== target.id) openSelected(target)
+                  void toggleGroupageFreeze(target, !target.groupage_fige)
+                }}>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/><rect x="4" y="11" width="16" height="10" rx="2"/>
+                </svg>
+                {contextMenu.ot.groupage_fige ? 'Defiger le lot' : 'Figer le lot'}
               </button>
             )}
 

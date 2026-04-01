@@ -36,6 +36,7 @@ export type CourseOrderInsert = TablesInsert<'ordres_transport'>
 export type CourseOrderUpdate = TablesUpdate<'ordres_transport'>
 export type LogisticSite = Tables<'sites_logistiques'>
 export type LogisticSiteInsert = TablesInsert<'sites_logistiques'>
+export type LogisticSiteUpdate = TablesUpdate<'sites_logistiques'>
 export type TransportStatusHistory = Tables<'ordres_transport_statut_history'>
 
 export async function listLogisticSites() {
@@ -52,6 +53,18 @@ export async function createLogisticSite(payload: LogisticSiteInsert) {
   const query = await supabase
     .from('sites_logistiques')
     .insert(payload)
+    .select('*')
+    .single()
+
+  if (query.error) throw query.error
+  return query.data
+}
+
+export async function updateLogisticSite(siteId: string, payload: LogisticSiteUpdate) {
+  const query = await supabase
+    .from('sites_logistiques')
+    .update(payload)
+    .eq('id', siteId)
     .select('*')
     .single()
 

@@ -1,4 +1,6 @@
-﻿import type { Role } from './auth'
+﻿import type { TablesInsert } from '@/lib/database.types'
+import { supabase } from '@/lib/supabase'
+import type { Role } from './auth'
 
 export type OnboardingReviewState = 'en_attente' | 'valide' | 'refuse'
 export type AffreteurOnboardingStatus = 'en_verification_commerciale' | 'en_verification_comptable' | 'validee' | 'refusee'
@@ -38,6 +40,7 @@ export interface AffreteurOnboardingRecord {
   billingAddress: string
   operationAddress: string | null
   notes: string | null
+  clientId: string | null
   commercialReview: OnboardingReviewState
   comptableReview: OnboardingReviewState
   status: AffreteurOnboardingStatus
@@ -216,6 +219,131 @@ function canExploitReview(role: Role) {
   return role === 'exploitant' || role === 'admin' || role === 'dirigeant'
 }
 
+async function upsertAffreteurClientRow(onboarding: AffreteurOnboardingRecord): Promise<string | null> {
+  try {
+    const { data: existingBySiret } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('siret', onboarding.siret)
+      .maybeSingle()
+
+    const payload: TablesInsert<'clients'> = {
+      nom: onboarding.companyName,
+      type_client: 'autre',
+      siret: onboarding.siret,
+      tva_intra: onboarding.vatNumber,
+      email: onboarding.contactEmail,
+      telephone: onboarding.contactPhone,
+      adresse: onboarding.operationAddress ?? onboarding.billingAddress,
+      adresse_facturation: onboarding.billingAddress,
+      notes: onboarding.notes,
+      actif: true,
+      code_client: null,
+      ville: null,
+      code_postal: null,
+      pays: 'France',
+      ville_facturation: null,
+      code_postal_facturation: null,
+      pays_facturation: 'France',
+      contact_facturation_nom: null,
+      contact_facturation_email: onboarding.contactEmail,
+      contact_facturation_telephone: onboarding.contactPhone,
+      conditions_paiement: 30,
+      type_echeance: 'date_facture_plus_delai',
+      jour_echeance: null,
+      mode_paiement_defaut: 'virement',
+      encours_max: null,
+      taux_tva_defaut: 20,
+      iban: null,
+      bic: null,
+      banque: null,
+      titulaire_compte: null,
+      site_web: null,
+    }
+
+    const existingClientId = onboarding.clientId ?? existingBySiret?.id ?? null
+
+    if (existingClientId) {
+      const { error } = await supabase
+        .from('clients')
+        .update(payload)
+        .eq('id', existingClientId)
+
+      if (error) return null
+      return existingClientId
+    }
+
+    const { data: inserted, error } = await supabase
+      .from('clients')
+      .insert(payload)
+      .select('id')
+      .single()
+
+    if (error) return null
+    return inserted?.id ?? null
+  } catch {
+    return null
+  }
+}
+
+async function ensureAffreteurOperationSite(onboarding: AffreteurOnboardingRecord, clientId: string): Promise<boolean> {
+  const targetAddress = onboarding.operationAddress?.trim() || onboarding.billingAddress.trim()
+  if (!targetAddress) return true
+
+  try {
+    const { data: existing } = await supabase
+      .from('sites_logistiques')
+      .select('id')
+      .eq('entreprise_id', clientId)
+      .eq('adresse', targetAddress)
+      .limit(1)
+      .maybeSingle()
+
+    if (existing?.id) return true
+
+    const payload: TablesInsert<'sites_logistiques'> = {
+      entreprise_id: clientId,
+      nom: `${onboarding.operationAddress?.trim() ? 'Base operationnelle' : 'Adresse facturation'} - ${onboarding.companyName}`,
+      adresse: targetAddress,
+      usage_type: 'mixte',
+      horaires_ouverture: null,
+      jours_ouverture: null,
+      notes_livraison: 'Site cree depuis le dossier affreteur.',
+      latitude: null,
+      longitude: null,
+    }
+
+    const { error } = await supabase
+      .from('sites_logistiques')
+      .insert(payload)
+
+    return !error
+  } catch {
+    return false
+  }
+}
+
+async function syncAffreteurSharedData(target: AffreteurOnboardingRecord, strict: boolean): Promise<AffreteurOnboardingRecord> {
+  target.clientId = await upsertAffreteurClientRow(target)
+  if (!target.clientId) {
+    if (strict) {
+      target.status = 'en_verification_comptable'
+      target.comptableReview = 'en_attente'
+      target.rejectionReason = 'Integration ERP du partenaire affreteur impossible pour le moment. Reessayer.'
+    }
+    return target
+  }
+
+  const operationSiteReady = await ensureAffreteurOperationSite(target, target.clientId)
+  if (!operationSiteReady && strict) {
+    target.status = 'en_verification_comptable'
+    target.comptableReview = 'en_attente'
+    target.rejectionReason = 'Creation du site logistique affreteur impossible pour le moment. Reessayer.'
+  }
+
+  return target
+}
+
 function mapOnboardingStatus(record: AffreteurOnboardingRecord): AffreteurOnboardingStatus {
   if (record.commercialReview === 'refuse' || record.comptableReview === 'refuse') return 'refusee'
   if (record.commercialReview === 'valide' && record.comptableReview === 'valide') return 'validee'
@@ -255,6 +383,17 @@ export function subscribeAffretementPortalUpdates(listener: () => void) {
 
 export function listAffreteurOnboardings() {
   return readState().onboardings.slice().sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
+}
+
+export async function syncAffreteurOnboardingSharedFlow(onboardingId: string) {
+  const state = readState()
+  const target = state.onboardings.find(item => item.id === onboardingId)
+  if (!target || target.status !== 'validee') return target ?? null
+
+  await syncAffreteurSharedData(target, false)
+  target.updatedAt = nowIso()
+  writeState(state)
+  return target
 }
 
 export function findAffreteurOnboardingForProfile(profileId: string) {
@@ -319,6 +458,7 @@ export function submitAffreteurOnboarding(input: {
     billingAddress: input.billingAddress.trim(),
     operationAddress: input.operationAddress?.trim() || null,
     notes: input.notes?.trim() || null,
+    clientId: current?.clientId ?? null,
     commercialReview: current?.commercialReview ?? 'en_attente',
     comptableReview: current?.comptableReview ?? 'en_attente',
     status: current?.status ?? 'en_verification_commerciale',
@@ -337,7 +477,7 @@ export function submitAffreteurOnboarding(input: {
   return next
 }
 
-export function reviewAffreteurOnboarding(input: {
+export async function reviewAffreteurOnboarding(input: {
   onboardingId: string
   reviewerRole: Role
   reviewerName: string
@@ -368,6 +508,11 @@ export function reviewAffreteurOnboarding(input: {
   }
 
   target.status = mapOnboardingStatus(target)
+
+  if (target.status === 'validee') {
+    await syncAffreteurSharedData(target, true)
+  }
+
   target.updatedAt = nowIso()
   target.history = pushHistory(target.history, {
     actorRole: input.reviewerRole,

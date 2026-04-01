@@ -197,7 +197,7 @@ function notifyRecipients(recipients: typeof DEMO_PROFILES, subject: string, tex
     deliverDemoMailToInbox(
       profile,
       'Workflow frais',
-      'frais@channelfret-international.com',
+      'frais@nexora-truck.fr',
       subject,
       serializeTchatPayload(text, attachments),
       labels,

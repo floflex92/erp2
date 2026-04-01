@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { getDemoSeedState, markDemoSeedState, resetDemoSeedState, seedTransportDemoData } from '@/lib/demoSeed'
+import { isDemoDataEnabled } from '@/lib/runtimeFlags'
 import type { Tables, TablesInsert } from '@/lib/database.types'
 import { STATUT_OPS } from '@/lib/statut-ops'
 
@@ -230,6 +231,7 @@ function clientFeatureError(err: unknown, fallback: string) {
 }
 
 export default function Clients() {
+  const demoDataEnabled = isDemoDataEnabled()
   const [list, setList] = useState<Client[]>([])
   const [adresses, setAdresses] = useState<AdresseClient[]>([])
   const [factures, setFactures] = useState<Facture[]>([])
@@ -446,6 +448,11 @@ export default function Clients() {
   }
 
   async function injectDemoData() {
+    if (!demoDataEnabled) {
+      setError('Mode donnees demo desactive sur cet environnement.')
+      return
+    }
+
     resetFeedback()
     setSeeding(true)
     setSeedStatus('running')
@@ -761,7 +768,7 @@ export default function Clients() {
         </button>
       </div>
 
-      {typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname) && (
+      {demoDataEnabled && (
         <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 px-4 py-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>

@@ -10,6 +10,7 @@ import {
   listAffreteurOnboardings,
   listAffreteurVehicles,
   reviewAffreteurOnboarding,
+  syncAffreteurOnboardingSharedFlow,
   subscribeAffretementPortalUpdates,
   upsertAffretementContractByExploitation,
   type AffretementContract,
@@ -70,14 +71,16 @@ export default function BourseAffretementPanel({ orders, clientMap, onRefresh }:
   const canComptable = role === 'comptable' || role === 'admin' || role === 'dirigeant' || role === 'exploitant'
   const canExploit = role === 'exploitant' || role === 'admin' || role === 'dirigeant'
 
-  function reload() {
+  async function reload() {
+    const nextOnboardings = listAffreteurOnboardings()
+    await Promise.all(nextOnboardings.filter(item => item.status === 'validee').map(item => syncAffreteurOnboardingSharedFlow(item.id)))
     setOnboardings(listAffreteurOnboardings())
     setContracts(listAffretementContracts())
   }
 
   useEffect(() => {
-    reload()
-    const unsubscribe = subscribeAffretementPortalUpdates(reload)
+    void reload()
+    const unsubscribe = subscribeAffretementPortalUpdates(() => { void reload() })
     return unsubscribe
   }, [])
 
@@ -111,7 +114,7 @@ export default function BourseAffretementPanel({ orders, clientMap, onRefresh }:
   async function decideOnboarding(onboardingId: string, decision: 'approve' | 'reject') {
     if (!role || !profil) return
 
-    const updated = reviewAffreteurOnboarding({
+    const updated = await reviewAffreteurOnboarding({
       onboardingId,
       reviewerRole: role,
       reviewerName: [profil.prenom, profil.nom].filter(Boolean).join(' ') || role,

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth, ROLE_LABELS } from '@/lib/auth'
-import { ensureEmployeeRecord, generateProfessionalEmail, getEmployeeRecord, subscribeEmployeeRecords } from '@/lib/employeeRecords'
+import { ensureEmployeeRecord, generateProfessionalEmail, getEmployeeRecord, listEmployeeRecords, subscribeEmployeeRecords, updateEmployeeRecord, type EmployeeRecord } from '@/lib/employeeRecords'
 import { ensureEmployeeJobSheets, ensurePolicyDocuments, generateEmploymentContract, generateJobSheet, HR_CATEGORY_LABELS, uploadEmployeeDocument } from '@/lib/hrDocuments'
 import { importEmployeeIntakeForm, provisionEmployeeOnboarding } from '@/lib/onboarding'
 import { createPayrollSlip } from '@/lib/payroll'
@@ -9,10 +9,16 @@ import { buildStaffDirectory, findStaffMember, staffDisplayName } from '@/lib/st
 
 const RH_UPLOAD_CATEGORIES = ['carte_vitale', 'carte_identite', 'justificatif_domicile', 'scan_complementaire'] as const
 const inp = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-slate-400'
+type RhTab = 'employes' | 'documents'
 
 export default function Rh() {
   const { profil, accountProfil } = useAuth()
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState('all')
+  const [activeTab, setActiveTab] = useState<RhTab>('employes')
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
+  const [employeeRecords, setEmployeeRecords] = useState<EmployeeRecord[]>(() => listEmployeeRecords())
+  const [roleFilter, setRoleFilter] = useState('all')
+  const [searchEmployee, setSearchEmployee] = useState('')
+  const [employeeDraft, setEmployeeDraft] = useState<EmployeeRecord | null>(null)
   const [payPeriod, setPayPeriod] = useState('Mars 2026')
   const [payAmount, setPayAmount] = useState('2450')
   const [uploadCategory, setUploadCategory] = useState<(typeof RH_UPLOAD_CATEGORIES)[number]>('carte_vitale')
@@ -20,7 +26,7 @@ export default function Rh() {
   const [error, setError] = useState<string | null>(null)
 
   const staff = useMemo(() => buildStaffDirectory([profil, accountProfil]), [profil, accountProfil])
-  const selectedEmployee = findStaffMember(staff, selectedEmployeeId === 'all' ? profil?.id : selectedEmployeeId)
+  const selectedEmployee = findStaffMember(staff, selectedEmployeeId || profil?.id)
   const selectedEmployeeRecord = selectedEmployee ? getEmployeeRecord(selectedEmployee.id) ?? ensureEmployeeRecord({
     employeeId: selectedEmployee.id,
     role: selectedEmployee.role,
@@ -31,24 +37,100 @@ export default function Rh() {
     jobTitle: ROLE_LABELS[selectedEmployee.role] ?? selectedEmployee.role,
   }) : null
 
-  useEffect(() => {
-    if (!profil) return
-    ensurePolicyDocuments(staff, profil)
-    ensureEmployeeJobSheets(staff, profil)
-  }, [profil?.id, staff.length])
+  const filteredEmployees = useMemo(() => {
+    const normalizedSearch = searchEmployee.trim().toLowerCase()
+    return staff.filter(member => {
+      if (roleFilter !== 'all' && member.role !== roleFilter) return false
+      if (!normalizedSearch) return true
+      const record = employeeRecords.find(item => item.employeeId === member.id)
+      const haystack = [
+        member.nom,
+        member.prenom,
+        member.email,
+        member.matricule,
+        ROLE_LABELS[member.role],
+        record?.professionalEmail,
+        record?.jobTitle,
+      ].filter(Boolean).join(' ').toLowerCase()
+      return haystack.includes(normalizedSearch)
+    })
+  }, [employeeRecords, roleFilter, searchEmployee, staff])
+
+  const roleOptions = useMemo(() => {
+    const unique = Array.from(new Set(staff.map(member => member.role)))
+    return unique.sort((left, right) => (ROLE_LABELS[left] ?? left).localeCompare(ROLE_LABELS[right] ?? right, 'fr'))
+  }, [staff])
 
   useEffect(() => {
-    if (selectedEmployeeId !== 'all') return
+    if (!profil) return
+    staff.forEach(member => {
+      ensureEmployeeRecord({
+        employeeId: member.id,
+        matricule: member.matricule,
+        role: member.role,
+        firstName: member.prenom,
+        lastName: member.nom,
+        professionalEmail: member.email ?? generateProfessionalEmail(member.prenom, member.nom),
+        loginEmail: member.email,
+        jobTitle: ROLE_LABELS[member.role] ?? member.role,
+      })
+    })
+    setEmployeeRecords(listEmployeeRecords())
+    ensurePolicyDocuments(staff, profil)
+    ensureEmployeeJobSheets(staff, profil)
+  }, [profil, staff])
+
+  useEffect(() => {
+    if (selectedEmployeeId) return
     if (staff.length === 0) return
     setSelectedEmployeeId(staff[0].id)
   }, [selectedEmployeeId, staff])
 
   useEffect(() => subscribeEmployeeRecords(() => {
-    setNotice(current => current)
+    setEmployeeRecords(listEmployeeRecords())
   }), [])
+
+  useEffect(() => {
+    if (!selectedEmployeeRecord) {
+      setEmployeeDraft(null)
+      return
+    }
+    setEmployeeDraft(selectedEmployeeRecord)
+  }, [selectedEmployeeRecord])
 
   if (!profil) return null
   const actor = profil
+
+  function updateDraft<K extends keyof EmployeeRecord>(key: K, value: EmployeeRecord[K]) {
+    setEmployeeDraft(current => current ? { ...current, [key]: value } : current)
+  }
+
+  function handleSaveEmployee() {
+    if (!selectedEmployee || !employeeDraft) return
+    const nextChildren = employeeDraft.childrenCount === null || employeeDraft.childrenCount === undefined
+      ? null
+      : Number.isFinite(Number(employeeDraft.childrenCount))
+        ? Number(employeeDraft.childrenCount)
+        : null
+    const nextHourlyRate = employeeDraft.hourlyRate === null || employeeDraft.hourlyRate === undefined
+      ? null
+      : Number.isFinite(Number(employeeDraft.hourlyRate))
+        ? Number(employeeDraft.hourlyRate)
+        : null
+    const nextMonthlyBaseHours = Number.isFinite(Number(employeeDraft.monthlyBaseHours))
+      ? Number(employeeDraft.monthlyBaseHours)
+      : 151.67
+
+    updateEmployeeRecord(selectedEmployee.id, {
+      ...employeeDraft,
+      childrenCount: nextChildren,
+      hourlyRate: nextHourlyRate,
+      monthlyBaseHours: nextMonthlyBaseHours,
+    })
+    setEmployeeRecords(listEmployeeRecords())
+    setNotice(`Informations collaborateur mises a jour pour ${staffDisplayName(selectedEmployee)}.`)
+    setError(null)
+  }
 
   function handleGenerateContract() {
     if (!selectedEmployee) return
@@ -180,6 +262,113 @@ export default function Rh() {
       )}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-5 inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab('employes')}
+            className={`rounded-lg px-4 py-2 text-sm font-medium ${activeTab === 'employes' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+          >
+            Employes
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('documents')}
+            className={`rounded-lg px-4 py-2 text-sm font-medium ${activeTab === 'documents' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+          >
+            Onboarding et documents
+          </button>
+        </div>
+
+        {activeTab === 'employes' && (
+          <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field label="Filtre metier">
+                  <select className={inp} value={roleFilter} onChange={event => setRoleFilter(event.target.value)}>
+                    <option value="all">Tous les metiers</option>
+                    {roleOptions.map(role => (
+                      <option key={role} value={role}>{ROLE_LABELS[role] ?? role}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Recherche rapide">
+                  <input
+                    className={inp}
+                    placeholder="Nom, matricule, email, metier..."
+                    value={searchEmployee}
+                    onChange={event => setSearchEmployee(event.target.value)}
+                  />
+                </Field>
+              </div>
+
+              <div className="max-h-[480px] overflow-auto rounded-2xl border border-slate-200">
+                {filteredEmployees.length === 0 && (
+                  <p className="px-4 py-6 text-sm text-slate-500">Aucun employe ne correspond a ce filtre.</p>
+                )}
+                {filteredEmployees.map(member => {
+                  const isActive = selectedEmployeeId === member.id
+                  return (
+                    <button
+                      key={member.id}
+                      type="button"
+                      onClick={() => setSelectedEmployeeId(member.id)}
+                      className={`w-full border-b border-slate-100 px-4 py-3 text-left last:border-b-0 ${isActive ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'}`}
+                    >
+                      <p className="text-sm font-semibold">{staffDisplayName(member)}</p>
+                      <p className={`mt-1 text-xs ${isActive ? 'text-slate-200' : 'text-slate-500'}`}>
+                        {member.matricule} - {ROLE_LABELS[member.role] ?? member.role}
+                      </p>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {!selectedEmployee || !employeeDraft ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                  Selectionne un employe pour modifier ses informations.
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Field label="Prenom"><input className={inp} value={employeeDraft.firstName} onChange={event => updateDraft('firstName', event.target.value)} /></Field>
+                    <Field label="Nom"><input className={inp} value={employeeDraft.lastName} onChange={event => updateDraft('lastName', event.target.value)} /></Field>
+                    <Field label="Matricule"><input className={inp} value={employeeDraft.matricule} onChange={event => updateDraft('matricule', event.target.value)} /></Field>
+                    <Field label="Poste / metier"><input className={inp} value={employeeDraft.jobTitle ?? ''} onChange={event => updateDraft('jobTitle', event.target.value)} /></Field>
+                    <Field label="Email professionnel"><input className={inp} value={employeeDraft.professionalEmail} onChange={event => updateDraft('professionalEmail', event.target.value)} /></Field>
+                    <Field label="Email connexion"><input className={inp} value={employeeDraft.loginEmail ?? ''} onChange={event => updateDraft('loginEmail', event.target.value || null)} /></Field>
+                    <Field label="Email personnel"><input className={inp} value={employeeDraft.personalEmail ?? ''} onChange={event => updateDraft('personalEmail', event.target.value || null)} /></Field>
+                    <Field label="Telephone"><input className={inp} value={employeeDraft.phone ?? ''} onChange={event => updateDraft('phone', event.target.value || null)} /></Field>
+                    <Field label="Adresse"><input className={inp} value={employeeDraft.address ?? ''} onChange={event => updateDraft('address', event.target.value || null)} /></Field>
+                    <Field label="Code postal"><input className={inp} value={employeeDraft.postalCode ?? ''} onChange={event => updateDraft('postalCode', event.target.value || null)} /></Field>
+                    <Field label="Ville"><input className={inp} value={employeeDraft.city ?? ''} onChange={event => updateDraft('city', event.target.value || null)} /></Field>
+                    <Field label="Date de naissance"><input type="date" className={inp} value={employeeDraft.birthDate ?? ''} onChange={event => updateDraft('birthDate', event.target.value || null)} /></Field>
+                    <Field label="Contact urgence"><input className={inp} value={employeeDraft.emergencyContactName ?? ''} onChange={event => updateDraft('emergencyContactName', event.target.value || null)} /></Field>
+                    <Field label="Tel urgence"><input className={inp} value={employeeDraft.emergencyContactPhone ?? ''} onChange={event => updateDraft('emergencyContactPhone', event.target.value || null)} /></Field>
+                    <Field label="Numero securite sociale"><input className={inp} value={employeeDraft.socialSecurityNumber ?? ''} onChange={event => updateDraft('socialSecurityNumber', event.target.value || null)} /></Field>
+                    <Field label="Situation familiale"><input className={inp} value={employeeDraft.maritalStatus ?? ''} onChange={event => updateDraft('maritalStatus', event.target.value || null)} /></Field>
+                    <Field label="Nombre d enfants"><input type="number" min={0} className={inp} value={employeeDraft.childrenCount ?? ''} onChange={event => updateDraft('childrenCount', event.target.value === '' ? null : Number(event.target.value))} /></Field>
+                    <Field label="IBAN"><input className={inp} value={employeeDraft.iban ?? ''} onChange={event => updateDraft('iban', event.target.value || null)} /></Field>
+                    <Field label="Mutuelle"><input className={inp} value={employeeDraft.mutuellePlan ?? ''} onChange={event => updateDraft('mutuellePlan', event.target.value || null)} /></Field>
+                    <Field label="Type de contrat"><input className={inp} value={employeeDraft.contractType ?? ''} onChange={event => updateDraft('contractType', event.target.value || null)} /></Field>
+                    <Field label="Convention collective"><input className={inp} value={employeeDraft.conventionCollective} onChange={event => updateDraft('conventionCollective', event.target.value)} /></Field>
+                    <Field label="Coefficient"><input className={inp} value={employeeDraft.jobCoefficient ?? ''} onChange={event => updateDraft('jobCoefficient', event.target.value || null)} /></Field>
+                    <Field label="Taux horaire"><input type="number" step="0.01" className={inp} value={employeeDraft.hourlyRate ?? ''} onChange={event => updateDraft('hourlyRate', event.target.value === '' ? null : Number(event.target.value))} /></Field>
+                    <Field label="Heures base mensuelle"><input type="number" step="0.01" className={inp} value={employeeDraft.monthlyBaseHours} onChange={event => updateDraft('monthlyBaseHours', Number(event.target.value))} /></Field>
+                    <Field label="Code provisoire"><input className={inp} value={employeeDraft.provisionalCode ?? ''} onChange={event => updateDraft('provisionalCode', event.target.value || null)} /></Field>
+                  </div>
+                  <button type="button" onClick={handleSaveEmployee} className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white">
+                    Enregistrer les modifications
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'documents' && (
+          <>
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Dossier salarie</p>
         <h3 className="mt-2 text-lg font-semibold text-slate-900">Onboarding et documents RH</h3>
         <p className="mt-1 text-sm text-slate-500">Toute la gestion RH est centralisee ici, separee des reglages generaux.</p>
@@ -189,13 +378,14 @@ export default function Rh() {
             <Field label="Collaborateur">
               <select className={inp} value={selectedEmployeeId} onChange={event => setSelectedEmployeeId(event.target.value)}>
                 {staff.map(member => (
-                  <option key={member.id} value={member.id}>{staffDisplayName(member)} - {ROLE_LABELS[member.role]}</option>
+                  <option key={member.id} value={member.id}>{staffDisplayName(member)} - {member.matricule} - {ROLE_LABELS[member.role]}</option>
                 ))}
               </select>
             </Field>
             {selectedEmployee && (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
                 <p className="font-semibold text-slate-900">{staffDisplayName(selectedEmployee)}</p>
+                <p className="mt-1 font-mono text-xs text-slate-500">Matricule: {selectedEmployee.matricule}</p>
                 <p className="mt-1">{ROLE_LABELS[selectedEmployee.role]} - {selectedEmployee.domain}</p>
                 <p className="mt-1">{selectedEmployee.email ?? 'Email non renseigne'}</p>
                 {selectedEmployeeRecord && (
@@ -259,6 +449,8 @@ export default function Rh() {
             </div>
           </div>
         </div>
+        </>
+        )}
       </section>
     </div>
   )

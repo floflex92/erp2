@@ -1,7 +1,7 @@
 {
   "name": "nexora-truck",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.6.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "npm run lint:src",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "security:db": "npx supabase migration list"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.100.1",

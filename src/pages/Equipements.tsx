@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '@/lib/auth'
 import { looseSupabase } from '@/lib/supabaseLoose'
 
 type VehiculeRef = { id: string; immatriculation: string }
@@ -41,6 +42,8 @@ function safeId() {
 }
 
 export default function Equipements() {
+  const { role } = useAuth()
+  const canManageFleetAssets = role === 'mecanicien' || role === 'dirigeant'
   const [equipements, setEquipements] = useState<FlotteEquipement[]>([])
   const [vehicules, setVehicules] = useState<VehiculeRef[]>([])
   const [remorques, setRemorques] = useState<RemorqueRef[]>([])
@@ -131,6 +134,11 @@ export default function Equipements() {
       return
     }
 
+    if (!editingId && !canManageFleetAssets) {
+      setError('Seuls les mecaniciens et dirigeants peuvent ajouter un equipement.')
+      return
+    }
+
     const assignmentId = form.assetType === 'vehicule' ? form.vehicule_id : form.remorque_id
     if (!assignmentId) {
       setError('Selectionne un camion ou une remorque.')
@@ -180,6 +188,10 @@ export default function Equipements() {
   async function removeEquipement(id: string) {
     setError(null)
     setNotice(null)
+    if (!canManageFleetAssets) {
+      setError('Seuls les mecaniciens et dirigeants peuvent supprimer un equipement.')
+      return
+    }
     if (!confirm('Supprimer cet equipement ?')) return
 
     if (storageMode === 'remote') {
@@ -273,7 +285,7 @@ export default function Equipements() {
 
         <div className="md:col-span-3 flex gap-2 justify-end">
           {editingId && <button type="button" onClick={resetForm} className="rounded-xl border border-slate-200 px-4 py-2 text-sm">Annuler edition</button>}
-          <button type="submit" disabled={saving} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+          <button type="submit" disabled={saving || (!editingId && !canManageFleetAssets)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
             {saving ? 'Enregistrement...' : editingId ? 'Mettre a jour' : 'Ajouter'}
           </button>
         </div>
@@ -304,7 +316,7 @@ export default function Equipements() {
                   <td className="px-5 py-4">
                     <div className="flex justify-end gap-3">
                       <button type="button" onClick={() => editEquipement(item)} className="text-xs text-slate-500 hover:text-slate-800">Modifier</button>
-                      <button type="button" onClick={() => void removeEquipement(item.id)} className="text-xs text-slate-500 hover:text-red-600">Supprimer</button>
+                      {canManageFleetAssets && <button type="button" onClick={() => void removeEquipement(item.id)} className="text-xs text-slate-500 hover:text-red-600">Supprimer</button>}
                     </div>
                   </td>
                 </tr>

@@ -1,5 +1,9 @@
 # Regles Agents du Projet
 
+- Ce document reprend le meme socle de regles que `AGENTS.md` et doit rester strictement aligne avec lui.
+- Ces regles s'appliquent a Claude Code, GitHub Copilot, Codex de ChatGPT et a tout autre agent intervenant sur ce repo.
+- En cas de divergence, `AGENTS.md` fait foi.
+
 ## 1) Netlify (regle critique)
 
 - Interdiction de pousser ou deployer sur Netlify sans demande explicite de l'utilisateur dans la conversation en cours.
@@ -9,6 +13,10 @@
   - `netlify link`
   - `git push <netlify-remote> ...`
 - Si une action Netlify est demandee, confirmer que la demande est explicite et actuelle avant execution.
+- Si un push Netlify est explicitement demande, faire avant le push :
+  - la mise a jour de version selon les regles de versioning du projet
+  - la mise a jour de l'onglet `Developpement` dans `Reglages`
+- Le push Netlify reste toujours supervise et interdit sans demande explicite actuelle de l'utilisateur.
 
 ## 2) Langue du logiciel
 
@@ -56,6 +64,12 @@
 ### Base de donnees
 - Toute migration doit etre reversible.
 - Interdiction de suppression de donnees en production sans accord explicite.
+- Les actions Supabase et les commandes de run liees au projet sont autorisees en autonomie quand elles sont necessaires a la demande.
+- Le push Supabase effectif est autorise en autonomie pour tous les agents du repo des lors que la sequence `supabase migration list` puis `supabase db push --dry-run` est propre.
+- Pour toute nouvelle migration Supabase ajoutee, conserver obligatoirement cette methode avant push :
+  - `supabase migration list`
+  - puis `supabase db push --dry-run`
+  - puis seulement le push effectif si le dry-run est propre
 
 ### Secrets
 - Interdiction de committer des secrets (`.env`, tokens, cles).
@@ -85,6 +99,9 @@
   - rester strictement dans le perimetre demande
 - En fin de demande:
   - fournir le compte-rendu final defini dans la section "Compte-rendu final"
+- Les operations Supabase utiles peuvent etre executees sans validation supplementaire.
+- Si un dry-run Supabase est propre, le push reel correspondant doit etre execute sans demander de confirmation supplementaire.
+- Les operations Netlify restent exclues de cette autonomie et exigent une demande explicite de l'utilisateur.
 
 ## 7) Definition d'agents personnalisés
 - Pour ce projet, un agent de support a été ajouté : `task-manager-helper` dans `.agent.md`.

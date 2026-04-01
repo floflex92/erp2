@@ -9,7 +9,23 @@ export interface CompanySettings {
 
 const STORAGE_KEY = 'nexora-company-settings-v1'
 const EVENT_NAME = 'nexora-company-settings-updated'
-export const DEFAULT_COMPANY_NAME = 'CHANNELFRET INTERNATIONAL'
+export const DEFAULT_COMPANY_NAME = 'NEXORA Truck'
+
+function normalizeCompanyName(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return DEFAULT_COMPANY_NAME
+
+  const normalized = trimmed
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+
+  if (normalized.includes('fret') && normalized.includes('international')) {
+    return DEFAULT_COMPANY_NAME
+  }
+
+  return trimmed
+}
 
 export const DEFAULT_RGPD_CHARTER = [
   '1. L entreprise traite les donnees personnelles uniquement pour des finalites determinees, explicites et legitimes: RH, paie, exploitation, flotte, conformite et communication professionnelle.',
@@ -57,14 +73,20 @@ export function readCompanySettings() {
 
   try {
     const parsed = JSON.parse(raw) as Partial<CompanySettings>
-    return {
-      companyName: typeof parsed.companyName === 'string' && parsed.companyName.trim() ? parsed.companyName.trim() : DEFAULT_COMPANY_NAME,
+    const next = {
+      companyName: typeof parsed.companyName === 'string' ? normalizeCompanyName(parsed.companyName) : DEFAULT_COMPANY_NAME,
       logoDataUrl: typeof parsed.logoDataUrl === 'string' ? parsed.logoDataUrl : null,
       logoFileName: typeof parsed.logoFileName === 'string' ? parsed.logoFileName : null,
       rgpdCharter: typeof parsed.rgpdCharter === 'string' && parsed.rgpdCharter.trim() ? parsed.rgpdCharter : DEFAULT_RGPD_CHARTER,
       internalRules: typeof parsed.internalRules === 'string' && parsed.internalRules.trim() ? parsed.internalRules : DEFAULT_INTERNAL_RULES,
       updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
     } satisfies CompanySettings
+
+    if (next.companyName !== parsed.companyName) {
+      saveState(next)
+    }
+
+    return next
   } catch {
     const fallback = defaultSettings()
     saveState(fallback)

@@ -5,6 +5,7 @@ Tu es mon assistant technique pour le projet ERP2. Tu dois respecter strictement
 Contexte projet
 - Repo: `c:\Users\Florent\erp2`
 - Source de verite des regles: `AGENTS.md` (a lire et appliquer en priorite).
+- Ces regles doivent etre appliquees de la meme facon par GitHub Copilot, Codex de ChatGPT, Claude Code et tout autre agent.
 - Langue du logiciel: francais uniquement.
 - Traduction/i18n: interdite sauf demande explicite.
 - Nommage environnements:
@@ -19,7 +20,7 @@ Regles critiques
   - interdit: `git reset --hard`, `git clean -fd`, `git push --force`.
 
 Versioning
-- Version de reference: `1.1.0`
+- Version de reference: `1.2.0`
 - Le bump de version se fait uniquement au deploiement Netlify (`serv prod`), jamais avant.
 - Aucun bump en local (`serv dev`) ni au simple push Git.
 - Priorite des increments:
@@ -39,6 +40,17 @@ Facon de travailler attendue
 - Base de donnees:
   - migrations reversibles
   - jamais de suppression de donnees prod sans accord explicite
+- Les actions Supabase et les commandes de run liees au projet sont autorisees en autonomie quand elles sont necessaires.
+- Pour toute nouvelle migration Supabase:
+  - lancer `supabase migration list`
+  - puis `supabase db push --dry-run`
+  - puis seulement le push effectif si le dry-run est propre
+- Si le dry-run Supabase est propre, effectuer le push reel sans demander de confirmation supplementaire.
+- Le push Netlify reste strictement interdit sans demande explicite actuelle.
+- Si un push Netlify est explicitement demande:
+  - mettre a jour la version selon les regles du projet
+  - mettre a jour l'onglet `Developpement` dans `Reglages`
+  - puis seulement lancer le push Netlify
 - Secrets:
   - ne jamais committer `.env`, tokens, cles
   - utiliser uniquement des variables d'environnement
@@ -65,5 +77,6 @@ Demande utilisateur du jour
 3. Valider le périmètre du ticket avant de modifier le code : lister le “but recherché” et demander accord si ambigu.
 4. Écrire un plan synthétique puis réaliser les modifications.
 5. Fournir le rapport final (fichiers modifiés, commandes, statut tests/build, risques restants).
+6. Appliquer exactement le meme socle de regles que Copilot et tout autre agent du repo, sans interpretation divergente.
 
 

@@ -27,6 +27,11 @@ const ROLE_BADGE: Record<string, string> = {
 const inp = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-300'
 const DEFAULT_ROLE: Role = 'exploitant'
 
+function fallbackUserMatricule(profileId: string) {
+  const token = profileId.replace(/[^a-z0-9]/gi, '').slice(0, 8).toUpperCase() || 'UNKNOWN'
+  return `USR-${token}`
+}
+
 async function adminRequest<T>(accessToken: string, method: 'GET' | 'POST' | 'PATCH', body?: unknown): Promise<T> {
   const response = await fetch('/.netlify/functions/admin-users', {
     method,
@@ -291,7 +296,7 @@ export default function Utilisateurs() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                {['Utilisateur', 'Email', 'Type de session', 'Derniere connexion', ''].map(h => (
+                {['Utilisateur', 'Matricule', 'Email', 'Type de session', 'Derniere connexion', ''].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -315,6 +320,11 @@ export default function Utilisateurs() {
                         <div className="text-xs text-slate-400 font-mono mt-0.5">{user.user_id.slice(0, 8)}...</div>
                       </div>
                     )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs font-mono rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-slate-600">
+                      {user.matricule || fallbackUserMatricule(user.id)}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-slate-600">
                     <div>{user.email ?? <span className="text-slate-400 italic">Email indisponible</span>}</div>

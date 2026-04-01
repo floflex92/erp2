@@ -50,9 +50,9 @@ export const ROLE_LABELS: Record<Role, string> = {
 }
 
 export const ROLE_ACCESS: Record<Role, string[]> = {
-  admin: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'clients', 'facturation', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
+  admin: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'vehicules', 'remorques', 'equipements', 'transports', 'clients', 'facturation', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   dirigeant: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'clients', 'facturation', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
-  exploitant: ['dashboard', 'tasks', 'chauffeurs', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'demandes-clients', 'parametres', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
+  exploitant: ['dashboard', 'tasks', 'chauffeurs', 'vehicules', 'remorques', 'equipements', 'transports', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'demandes-clients', 'parametres', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   mecanicien: ['tasks', 'vehicules', 'remorques', 'equipements', 'maintenance', 'frais', 'tachygraphe', 'parametres', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   commercial: ['dashboard', 'tasks', 'transports', 'clients', 'facturation', 'frais', 'prospection', 'demandes-clients', 'parametres', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   comptable: ['dashboard', 'tasks', 'facturation', 'paie', 'frais', 'clients', 'amendes', 'demandes-clients', 'parametres', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
@@ -86,6 +86,7 @@ export function firstPage(role: Role): string {
 export interface Profil {
   id: string
   role: Role
+  matricule?: string | null
   nom: string | null
   prenom: string | null
   email?: string | null
@@ -119,6 +120,11 @@ function fallbackRoleFromEmail(email: string | null | undefined): Role | null {
   if (localPart === 'admin') return 'admin'
   if (localPart === 'direction' || localPart === 'dirigeant') return 'dirigeant'
   return null
+}
+
+function fallbackUserMatricule(profileId: string) {
+  const token = profileId.replace(/[^a-z0-9]/gi, '').slice(0, 8).toUpperCase() || 'UNKNOWN'
+  return `USR-${token}`
 }
 
 function canUseSessionPickerForUser(user: User | null, baseRole: Role | null): boolean {
@@ -194,7 +200,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await withTimeout(
         supabase
           .from('profils')
-          .select('id, role, nom, prenom')
+          .select('id, role, matricule, nom, prenom')
           .eq('user_id', user.id)
           .maybeSingle(),
         PROFILE_TIMEOUT_MS,
@@ -205,12 +211,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Si aucun profil en base, on en crée un via le RPC sécurisé (SECURITY DEFINER).
       // Le RPC détermine le rôle depuis la liste d'emails réservés ou les métadonnées Auth.
-      let profileData = data
+      type ProfileRow = { id: string; role: string; matricule: string; nom: string | null; prenom: string | null }
+      let profileData: ProfileRow | null = data
+        ? {
+            id: data.id,
+            role: data.role,
+            matricule: data.matricule || fallbackUserMatricule(data.id),
+            nom: data.nom,
+            prenom: data.prenom,
+          }
+        : null
       if (!profileData) {
         const rpcClient = supabase as unknown as { rpc: (fn: string) => Promise<{ data: unknown; error: { message?: string } | null }> }
         const { data: rpcResult } = await rpcClient.rpc('upsert_my_profile')
         if (rpcResult && typeof rpcResult === 'object' && 'id' in rpcResult) {
-          profileData = rpcResult as { id: string; role: string; nom: string | null; prenom: string | null }
+          const raw = rpcResult as { id: string; role: string; matricule?: string | null; nom: string | null; prenom: string | null }
+          profileData = {
+            id: raw.id,
+            role: raw.role,
+            matricule: raw.matricule?.trim() || fallbackUserMatricule(raw.id),
+            nom: raw.nom,
+            prenom: raw.prenom,
+          }
         }
       }
 
@@ -234,6 +256,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ? {
             id: profileData.id,
             role: normalizedRole as Role,
+            matricule: profileData.matricule,
             nom: profileData.nom,
             prenom: profileData.prenom,
           }
@@ -309,7 +332,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   function setSessionRole(r: Role) { setSessionRoleState(r) }
   function resetSessionRole() { setSessionRoleState(null) }
-  function setSessionProfil(profil: Profil | null) { setSessionProfilState(profil) }
+  function setSessionProfil(profil: Profil | null) {
+    if (!profil) {
+      setSessionProfilState(null)
+      return
+    }
+
+    // Hard-disable legacy demo sessions to keep a single DB-backed runtime path.
+    const sanitizedProfil: Profil = {
+      id: profil.id,
+      role: profil.role,
+      matricule: profil.matricule ?? null,
+      nom: profil.nom,
+      prenom: profil.prenom,
+      email: profil.email ?? null,
+      domain: profil.domain ?? null,
+    }
+
+    setSessionProfilState(sanitizedProfil)
+  }
   function resetSessionProfil() { setSessionProfilState(null) }
 
   async function signIn(email: string, password: string) {
@@ -345,7 +386,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
   const isAdmin = baseRole === 'admin' || baseRole === 'dirigeant'
   const canUseSessionPicker = canUseSessionPickerForUser(session?.user ?? null, baseRole)
-  const isDemoSession = Boolean(sessionProfil?.isDemo)
+  const isDemoSession = false
   const role = session?.user ? (sessionProfil?.role ?? sessionRole ?? baseRole ?? 'admin') : null
 
   return (

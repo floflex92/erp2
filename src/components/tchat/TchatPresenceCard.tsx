@@ -57,7 +57,7 @@ export function TchatPresenceCard({ presence, onChange }: Props) {
           onClick={() => onChange({ vacationEnabled: !presence.vacationEnabled })}
           className={`relative h-7 w-12 rounded-full transition-colors ${presence.vacationEnabled ? 'bg-blue-500' : 'bg-slate-700'}`}
         >
-          <span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-transform ${presence.vacationEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+          <span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white transition-all ${presence.vacationEnabled ? 'opacity-100 scale-100' : 'opacity-85 scale-90'}`} />
         </button>
       </label>
 

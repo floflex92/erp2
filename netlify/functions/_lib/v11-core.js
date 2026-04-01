@@ -25,6 +25,11 @@ const RESERVED_ADMIN_EMAIL_ROLE = {
   'direction@erp-demo.fr': 'dirigeant',
 }
 
+function isEmailRoleFallbackEnabled() {
+  const envFlag = String(process.env.ALLOW_EMAIL_ROLE_FALLBACK ?? '').trim().toLowerCase()
+  return envFlag === 'true' && process.env.NODE_ENV !== 'production'
+}
+
 const MODULE_DEFAULTS = {
   tracking: { enabled: true, mode: 'hybrid', refresh_interval_sec: 30, fallback_strategy: 'internal_recompute' },
   tachy: { enabled: true, mode: 'hybrid', refresh_interval_sec: 60, fallback_strategy: 'internal_recompute' },
@@ -36,18 +41,29 @@ const MODULE_DEFAULTS = {
   ai: { enabled: true, mode: 'hybrid', refresh_interval_sec: 120, fallback_strategy: 'stale_cache' },
 }
 
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+}
+
 export function json(statusCode, body) {
   return {
     statusCode,
     headers: {
       'Content-Type': 'application/json',
+      ...SECURITY_HEADERS,
     },
     body: JSON.stringify(body),
   }
 }
 
+const MAX_BODY_BYTES = 512 * 1024 // 512 KB
+
 export function parseJsonBody(event) {
   if (!event.body) return {}
+  if (event.body.length > MAX_BODY_BYTES) return null
   try {
     return JSON.parse(event.body)
   } catch {
@@ -60,11 +76,14 @@ export function readToken(event) {
   return authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
 }
 
+const TENANT_KEY_RE = /^[a-z0-9_-]{1,64}$/
+
 export function readTenantKey(event, body) {
   const fromHeader = event.headers['x-tenant-key'] || event.headers['X-Tenant-Key']
   const fromQuery = event.queryStringParameters?.tenant_key
   const fromBody = body && typeof body.tenant_key === 'string' ? body.tenant_key : null
-  return (fromHeader || fromQuery || fromBody || DEFAULT_TENANT_KEY).trim().toLowerCase()
+  const raw = (fromHeader || fromQuery || fromBody || DEFAULT_TENANT_KEY).trim().toLowerCase()
+  return TENANT_KEY_RE.test(raw) ? raw : DEFAULT_TENANT_KEY
 }
 
 function normalizeRoleToken(value) {
@@ -84,6 +103,7 @@ function normalizeRole(value) {
 }
 
 function fallbackRoleFromEmail(email) {
+  if (!isEmailRoleFallbackEnabled()) return null
   if (typeof email !== 'string') return null
   const normalized = email.trim().toLowerCase()
   const reservedRole = RESERVED_ADMIN_EMAIL_ROLE[normalized]
@@ -157,7 +177,9 @@ export async function authorize(event, options = {}) {
   if (profileError) return { error: json(500, { error: profileError.message }) }
 
   const normalizedRole = normalizeRole(profile?.role)
-  const metadataRole = normalizeRole(authData.user?.app_metadata?.role ?? authData.user?.user_metadata?.role ?? null)
+  // NOTE SECURITE: seul app_metadata (non modifiable par l'utilisateur) est autorise
+  // user_metadata est exclu deliberement car modifiable par l'utilisateur lui-meme
+  const metadataRole = normalizeRole(authData.user?.app_metadata?.role ?? null)
   const emailRole = fallbackRoleFromEmail(authData.user?.email)
   const privilegedFallbackRole = (
     emailRole
@@ -171,10 +193,8 @@ export async function authorize(event, options = {}) {
 
   if (!profile || !effectiveRole) return { error: json(403, { error: 'Forbidden: no profile.' }) }
 
-  if (profile.role !== effectiveRole) {
-    const writer = admin ?? sessionClient
-    await writer.from('profils').update({ role: effectiveRole }).eq('id', profile.id)
-  }
+  // NOTE SECURITE: l'auto-update de role depuis les metadonnees JWT est supprime deliberement.
+  // Les roles doivent etre geres explicitement via l'interface admin uniquement.
 
   const allowedRoles = Array.isArray(options.allowedRoles) ? options.allowedRoles : []
   const normalizedAllowedRoles = allowedRoles.map(role => normalizeRole(role)).filter(Boolean)

@@ -19,6 +19,7 @@ export type Database = {
           id: string
           user_id: string
           role: string
+          matricule: string
           nom: string | null
           prenom: string | null
           created_at: string
@@ -28,6 +29,7 @@ export type Database = {
           id?: string
           user_id: string
           role?: string
+          matricule?: string
           nom?: string | null
           prenom?: string | null
           created_at?: string
@@ -37,6 +39,7 @@ export type Database = {
           id?: string
           user_id?: string
           role?: string
+          matricule?: string
           nom?: string | null
           prenom?: string | null
           created_at?: string
@@ -1643,6 +1646,8 @@ export type Database = {
           donneur_ordre_id: string
           est_affretee: boolean
           facturation_id: string | null
+          groupage_fige: boolean
+          groupage_id: string | null
           id: string
           instructions: string | null
           livraison_site_id: string | null
@@ -1681,6 +1686,8 @@ export type Database = {
           donneur_ordre_id?: string
           est_affretee?: boolean
           facturation_id?: string | null
+          groupage_fige?: boolean
+          groupage_id?: string | null
           id?: string
           instructions?: string | null
           livraison_site_id?: string | null
@@ -1719,6 +1726,8 @@ export type Database = {
           donneur_ordre_id?: string
           est_affretee?: boolean
           facturation_id?: string | null
+          groupage_fige?: boolean
+          groupage_id?: string | null
           id?: string
           instructions?: string | null
           livraison_site_id?: string | null
@@ -1863,31 +1872,43 @@ export type Database = {
           adresse: string
           created_at: string
           entreprise_id: string | null
+          horaires_ouverture: string | null
           id: string
+          jours_ouverture: string | null
           latitude: number | null
           longitude: number | null
           nom: string
+          notes_livraison: string | null
           updated_at: string
+          usage_type: string
         }
         Insert: {
           adresse: string
           created_at?: string
           entreprise_id?: string | null
+          horaires_ouverture?: string | null
           id?: string
+          jours_ouverture?: string | null
           latitude?: number | null
           longitude?: number | null
           nom: string
+          notes_livraison?: string | null
           updated_at?: string
+          usage_type?: string
         }
         Update: {
           adresse?: string
           created_at?: string
           entreprise_id?: string | null
+          horaires_ouverture?: string | null
           id?: string
+          jours_ouverture?: string | null
           latitude?: number | null
           longitude?: number | null
           nom?: string
+          notes_livraison?: string | null
           updated_at?: string
+          usage_type?: string
         }
         Relationships: [
           {
@@ -2069,6 +2090,7 @@ export type Database = {
       vehicules: {
         Row: {
           annee: number | null
+          numero_parc: string | null
           assurance_expiration: string | null
           contrat_entretien: boolean
           created_at: string
@@ -2099,6 +2121,7 @@ export type Database = {
         }
         Insert: {
           annee?: number | null
+          numero_parc?: string | null
           assurance_expiration?: string | null
           contrat_entretien?: boolean
           created_at?: string
@@ -2129,6 +2152,7 @@ export type Database = {
         }
         Update: {
           annee?: number | null
+          numero_parc?: string | null
           assurance_expiration?: string | null
           contrat_entretien?: boolean
           created_at?: string

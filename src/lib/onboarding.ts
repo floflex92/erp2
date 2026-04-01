@@ -80,6 +80,7 @@ export function provisionEmployeeOnboarding(account: OnboardingAccountPayload, a
 
   const staffMember: StaffMember = {
     id: employee.employeeId,
+    matricule: employee.matricule,
     role: employee.role,
     prenom: employee.firstName,
     nom: employee.lastName,

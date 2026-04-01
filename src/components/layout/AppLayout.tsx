@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, Outlet, useLocation } from 'react-router-dom'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import NexoraTruckLogo from './NexoraTruckLogo'
 import { ROLE_LABELS, canAccess, useAuth } from '@/lib/auth'
@@ -57,6 +57,7 @@ function ChevronIcon({ open }: { open: boolean }) {
 
 export default function AppLayout() {
   const location = useLocation()
+  const navigate = useNavigate()
   const {
     user,
     profil,
@@ -70,12 +71,20 @@ export default function AppLayout() {
   } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchHighlightIndex, setSearchHighlightIndex] = useState(0)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const searchRef = useRef<HTMLDivElement | null>(null)
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setMenuOpen(false)
+      }
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setSearchOpen(false)
       }
     }
     window.addEventListener('mousedown', handleClickOutside)
@@ -84,7 +93,24 @@ export default function AppLayout() {
 
   useEffect(() => {
     setMenuOpen(false)
+    setSearchOpen(false)
+    setSearchHighlightIndex(0)
+    setSearchQuery('')
   }, [location.pathname])
+
+  useEffect(() => {
+    function handleShortcut(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setSearchOpen(true)
+        searchInputRef.current?.focus()
+        searchInputRef.current?.select()
+      }
+    }
+
+    window.addEventListener('keydown', handleShortcut)
+    return () => window.removeEventListener('keydown', handleShortcut)
+  }, [])
 
   const pageTitle = PAGE_TITLES[location.pathname] ?? 'NEXORA truck'
   const displayName = profil?.prenom || profil?.nom
@@ -102,6 +128,55 @@ export default function AppLayout() {
     canAccess(role, 'mentions-legales') ? { to: '/mentions-legales', label: 'Mentions legales' } : null,
     canAccess(role, 'utilisateurs') ? { to: '/utilisateurs', label: 'Utilisateurs' } : null,
   ].filter(Boolean) as { to: string; label: string }[]
+
+  const quickLinks = Object.entries(PAGE_TITLES)
+    .map(([to, label]) => ({ to, label, page: to.slice(1) }))
+    .filter(link => canAccess(role, link.page))
+
+  const normalizedQuery = searchQuery.trim().toLowerCase()
+  const filteredQuickLinks = (normalizedQuery
+    ? quickLinks.filter(link => link.label.toLowerCase().includes(normalizedQuery) || link.to.toLowerCase().includes(normalizedQuery))
+    : quickLinks
+  ).slice(0, 8)
+
+  const hasSearchResults = filteredQuickLinks.length > 0
+
+  function openQuickLink(to: string) {
+    navigate(to)
+    setSearchQuery('')
+    setSearchOpen(false)
+    setSearchHighlightIndex(0)
+  }
+
+  function handleSearchKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (!searchOpen) {
+      setSearchOpen(true)
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      if (!hasSearchResults) return
+      setSearchHighlightIndex(current => (current + 1) % filteredQuickLinks.length)
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      if (!hasSearchResults) return
+      setSearchHighlightIndex(current => (current - 1 + filteredQuickLinks.length) % filteredQuickLinks.length)
+    }
+
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      if (!hasSearchResults) return
+      const selected = filteredQuickLinks[searchHighlightIndex] ?? filteredQuickLinks[0]
+      if (selected) openQuickLink(selected.to)
+    }
+
+    if (event.key === 'Escape') {
+      setSearchOpen(false)
+      setSearchHighlightIndex(0)
+    }
+  }
 
   function resetSessionView() {
     resetSessionProfil()
@@ -129,14 +204,63 @@ export default function AppLayout() {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <label className="flex min-w-[280px] items-center gap-3 rounded-2xl border px-4 py-3 text-sm shadow-sm sm:min-w-[340px]" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-                <span className="nx-muted"><SearchIcon /></span>
-                <input
-                  type="text"
-                  placeholder="Rechercher mission, vehicule, conducteur ou client"
-                  className="w-full border-0 bg-transparent p-0 text-sm outline-none placeholder:text-[color:var(--text-discreet)]"
-                />
-              </label>
+              <div ref={searchRef} className="relative">
+                <label className="flex min-w-[280px] items-center gap-3 rounded-2xl border px-4 py-3 text-sm shadow-sm sm:min-w-[340px]" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                  <span className="nx-muted"><SearchIcon /></span>
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={(event) => {
+                      setSearchQuery(event.target.value)
+                      setSearchOpen(true)
+                      setSearchHighlightIndex(0)
+                    }}
+                    onFocus={() => setSearchOpen(true)}
+                    onKeyDown={handleSearchKeyDown}
+                    placeholder="Aller vers un module (Ctrl/Cmd + K)"
+                    className="w-full border-0 bg-transparent p-0 text-sm outline-none placeholder:text-[color:var(--text-discreet)]"
+                    aria-label="Navigation rapide"
+                  />
+                  <span className="hidden rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide sm:inline" style={{ borderColor: 'var(--border)', color: 'var(--text-discreet)' }}>
+                    Ctrl+K
+                  </span>
+                </label>
+
+                {searchOpen && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-[130] overflow-hidden rounded-2xl border shadow-2xl" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                    {hasSearchResults ? (
+                      <ul className="max-h-72 overflow-auto p-1 nx-scrollbar" role="listbox" aria-label="Resultats de navigation">
+                        {filteredQuickLinks.map((link, index) => {
+                          const isActive = index === searchHighlightIndex
+                          return (
+                            <li key={link.to}>
+                              <button
+                                type="button"
+                                onMouseEnter={() => setSearchHighlightIndex(index)}
+                                onClick={() => openQuickLink(link.to)}
+                                className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-colors"
+                                style={isActive
+                                  ? { background: 'var(--primary-soft)', color: 'var(--text-heading)' }
+                                  : { color: 'var(--text)' }}
+                                role="option"
+                                aria-selected={isActive}
+                              >
+                                <span>{link.label}</span>
+                                <span className="text-xs nx-subtle">{link.to}</span>
+                              </button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    ) : (
+                      <div className="px-3 py-3 text-sm nx-subtle">
+                        Aucun module ne correspond a cette recherche.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <div className="flex items-center gap-2">
                 {canUseSessionPicker && (

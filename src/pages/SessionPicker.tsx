@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { DEMO_PROFILES } from '@/lib/demoUsers'
 import NexoraTruckLogo from '@/components/layout/NexoraTruckLogo'
 import { ROLE_ACCESS, ROLE_LABELS, type Role, useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
@@ -31,6 +30,7 @@ type ManagedUser = Tables<'profils'> & {
 type SessionUser = {
   id: string
   user_id: string
+  matricule: string | null
   role: Role
   nom: string | null
   prenom: string | null
@@ -52,6 +52,7 @@ async function loadSupabaseUsers(accessToken: string): Promise<SessionUser[]> {
       return [{
         id: user.id,
         user_id: user.user_id,
+        matricule: user.matricule ?? null,
         role,
         nom: user.nom ?? null,
         prenom: user.prenom ?? null,
@@ -91,7 +92,7 @@ async function loadSupabaseUsers(accessToken: string): Promise<SessionUser[]> {
     console.warn('Echec admin-users, fallback direct supabase :', error)
 
     // Fallback direct sur la table profils si la fonction Netlify est indisponible.
-    const { data, error: supabaseError } = await supabase.from('profils').select('id,user_id,role,nom,prenom').order('created_at')
+    const { data, error: supabaseError } = await supabase.from('profils').select('id,user_id,matricule,role,nom,prenom').order('created_at')
 
     if (supabaseError) {
       throw new Error(`Impossible de charger les sessions utilisateurs (fallback Supabase) : ${supabaseError.message}`)
@@ -156,13 +157,6 @@ export default function SessionPicker() {
     setSessionRole(role)
   }
 
-  function openDemoSession(profileId: string) {
-    const profile = DEMO_PROFILES.find(item => item.id === profileId)
-    if (!profile) return
-    setSessionProfil(profile)
-    setSessionRole(profile.role)
-  }
-
   function openSupabaseUserSession(profile: SessionUser) {
     resetSessionProfil()
     setSessionProfil({
@@ -188,7 +182,7 @@ export default function SessionPicker() {
           <h1 className="mt-3 text-3xl font-semibold">Choisir une session admin</h1>
           <p className="mt-3 text-sm text-slate-400">
             Connecte en tant que <span className="font-medium text-slate-100">{user?.email}</span>.
-            Ouvre une vue metier, un profil demo ou une session utilisateur Supabase.
+            Ouvre une vue metier ou une session utilisateur Supabase.
           </p>
         </div>
 
@@ -235,46 +229,6 @@ export default function SessionPicker() {
                 </button>
               )
             })}
-          </div>
-        </section>
-
-        <section className="mt-8 rounded-3xl border border-sky-500/20 bg-sky-500/10 p-6 shadow-2xl">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-200/70">Profils demo</p>
-              <h2 className="mt-2 text-xl font-semibold text-white">Agir en tant que faux utilisateur</h2>
-              <p className="mt-2 max-w-3xl text-sm text-slate-300">
-                Ces profils n utilisent pas Supabase Auth. Ils servent a tester la messagerie et les mises en situation metier depuis ton compte admin.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-sky-400/20 bg-slate-950/50 px-4 py-3 text-sm text-slate-300">
-              9 profils metier prets a l emploi
-            </div>
-          </div>
-
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {DEMO_PROFILES.map(profile => (
-              <button
-                key={profile.id}
-                type="button"
-                onClick={() => openDemoSession(profile.id)}
-                className="flex items-start gap-4 rounded-3xl border border-white/10 bg-slate-950/60 p-5 text-left transition-colors hover:border-sky-400/40 hover:bg-slate-900"
-              >
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-500/15 text-sm font-semibold text-sky-200">
-                  {initials(profile.prenom, profile.nom)}
-                </div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-semibold text-white">{[profile.prenom, profile.nom].filter(Boolean).join(' ')}</p>
-                    <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.16em] text-slate-300">
-                      {ROLE_LABELS[profile.role]}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-400">{profile.domain}</p>
-                  <p className="mt-2 text-xs text-slate-500">{profile.email}</p>
-                </div>
-              </button>
-            ))}
           </div>
         </section>
 
@@ -328,6 +282,7 @@ export default function SessionPicker() {
                         </span>
                       </div>
                       <p className="mt-1 text-xs text-slate-400">{profile.email ?? 'Email indisponible'}</p>
+                      <p className="mt-1 text-xs font-mono text-emerald-200/80">{profile.matricule ?? 'Matricule a generer'}</p>
                       <p className="mt-2 text-xs text-slate-500">
                         {isCurrentAccount
                           ? 'Compte actuellement connecte'

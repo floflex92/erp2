@@ -55,7 +55,7 @@ export function drawPdfBranding(doc: jsPDF, options: PdfDocumentOptions = {}, st
   const mergedOptions = resolvePdfOptions(options)
   const pageWidth = doc.internal.pageSize.getWidth()
   let textStartX = 40
-  let cursorY = startY
+  const cursorY = startY
 
   if (mergedOptions.companyLogoDataUrl) {
     try {

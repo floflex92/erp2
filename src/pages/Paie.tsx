@@ -22,9 +22,9 @@ export default function Paie() {
   const { profil, accountProfil } = useAuth()
   const staff = useMemo(() => buildStaffDirectory([profil, accountProfil]), [profil, accountProfil])
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
-  const [recordsVersion, setRecordsVersion] = useState(0)
-  const [payrollVersion, setPayrollVersion] = useState(0)
-  const [expensesVersion, setExpensesVersion] = useState(0)
+  const [, setRecordsVersion] = useState(0)
+  const [, setPayrollVersion] = useState(0)
+  const [, setExpensesVersion] = useState(0)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -66,28 +66,21 @@ export default function Paie() {
   }, [])
 
   const employee = findStaffMember(staff, selectedEmployeeId)
-  const employeeRecord = useMemo(() => {
-    if (!employee) return null
-    return getEmployeeRecord(employee.id) ?? ensureEmployeeRecord({
-      employeeId: employee.id,
-      role: employee.role,
-      firstName: employee.prenom,
-      lastName: employee.nom,
-      professionalEmail: employee.email,
-      loginEmail: employee.email,
-      jobTitle: employee.domain,
-    })
-  }, [employee, recordsVersion])
-  const slips = useMemo(() => listPayrollSlips(selectedEmployeeId || null), [selectedEmployeeId, payrollVersion])
-  const employeeRecords = useMemo(() => listEmployeeRecords(), [recordsVersion])
-  const autoExpenseAmount = useMemo(
-    () => employee ? sumApprovedExpenseReimbursements(employee.id, form.periodLabel) : 0,
-    [employee?.id, form.periodLabel, expensesVersion],
-  )
-  const approvedExpenseTickets = useMemo(
-    () => employee ? listApprovedExpenseTicketsForPeriod(employee.id, form.periodLabel) : [],
-    [employee?.id, form.periodLabel, expensesVersion],
-  )
+  const employeeRecord = !employee
+    ? null
+    : getEmployeeRecord(employee.id) ?? ensureEmployeeRecord({
+        employeeId: employee.id,
+        role: employee.role,
+        firstName: employee.prenom,
+        lastName: employee.nom,
+        professionalEmail: employee.email,
+        loginEmail: employee.email,
+        jobTitle: employee.domain,
+      })
+  const slips = listPayrollSlips(selectedEmployeeId || null)
+  const employeeRecords = listEmployeeRecords()
+  const autoExpenseAmount = employee ? sumApprovedExpenseReimbursements(employee.id, form.periodLabel) : 0
+  const approvedExpenseTickets = employee ? listApprovedExpenseTicketsForPeriod(employee.id, form.periodLabel) : []
 
   useEffect(() => {
     if (!employeeRecord) return
@@ -100,7 +93,7 @@ export default function Paie() {
       contractType: employeeRecord.contractType ?? current.contractType,
       jobTitle: employeeRecord.jobTitle ?? current.jobTitle,
     }))
-  }, [employeeRecord?.employeeId, employeeRecord?.updatedAt])
+  }, [employeeRecord])
 
   const preview = useMemo(() => {
     if (!employeeRecord) return null
@@ -182,7 +175,7 @@ export default function Paie() {
           <Field label="Collaborateur">
             <select className={inp} value={selectedEmployeeId} onChange={event => setSelectedEmployeeId(event.target.value)}>
               {staff.map(member => (
-                <option key={member.id} value={member.id}>{staffDisplayName(member)}</option>
+                <option key={member.id} value={member.id}>{staffDisplayName(member)} - {member.matricule}</option>
               ))}
             </select>
           </Field>
@@ -190,6 +183,7 @@ export default function Paie() {
           {employeeRecord && (
             <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
               <p className="text-sm font-semibold text-white">{employeeRecord.firstName} {employeeRecord.lastName}</p>
+              <p className="mt-1 text-xs font-mono text-slate-300">Matricule: {employeeRecord.matricule}</p>
               <p className="mt-1 text-xs text-slate-400">{employeeRecord.professionalEmail}</p>
               <p className="mt-1 text-xs text-slate-500">{employeeRecord.conventionCollective}</p>
             </div>
