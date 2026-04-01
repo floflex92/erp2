@@ -9,7 +9,26 @@ import { buildStaffDirectory, findStaffMember, staffDisplayName } from '@/lib/st
 
 const RH_UPLOAD_CATEGORIES = ['carte_vitale', 'carte_identite', 'justificatif_domicile', 'scan_complementaire'] as const
 const inp = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-slate-400'
-type RhTab = 'employes' | 'documents'
+type RhTab = 'employes' | 'documents' | 'entretiens'
+
+type EntretienRh = {
+  id: string
+  employe_id: string
+  type: 'evaluation_annuelle' | 'entretien_professionnel' | 'bilan_competences' | 'reunion_management' | 'autre'
+  titre: string
+  description: string | null
+  date_planifiee: string
+  heure_debut: string | null
+  duree_minutes: number
+  evaluateur_id: string | null
+  statut: 'planifie' | 'effectue' | 'reporte' | 'annule'
+  resultat: string | null
+  notes_evaluation: string | null
+  suivi_requis: boolean
+  date_suivi_prevu: string | null
+  created_at: string
+  updated_at: string
+}
 
 export default function Rh() {
   const { profil, accountProfil } = useAuth()
@@ -24,6 +43,16 @@ export default function Rh() {
   const [uploadCategory, setUploadCategory] = useState<(typeof RH_UPLOAD_CATEGORIES)[number]>('carte_vitale')
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  
+  // Entretiens RH
+  const [entretiens] = useState<EntretienRh[]>([])
+  const [entretienForm, setEntretienForm] = useState<Partial<EntretienRh>>({
+    type: 'entretien_professionnel',
+    duree_minutes: 60,
+    statut: 'planifie',
+    suivi_requis: false,
+  })
+  const [showEntretienForm, setShowEntretienForm] = useState(false)
 
   const staff = useMemo(() => buildStaffDirectory([profil, accountProfil]), [profil, accountProfil])
   const selectedEmployee = findStaffMember(staff, selectedEmployeeId || profil?.id)
@@ -277,6 +306,13 @@ export default function Rh() {
           >
             Onboarding et documents
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('entretiens')}
+            className={`rounded-lg px-4 py-2 text-sm font-medium ${activeTab === 'entretiens' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+          >
+            Entretiens professionnels
+          </button>
         </div>
 
         {activeTab === 'employes' && (
@@ -450,6 +486,213 @@ export default function Rh() {
           </div>
         </div>
         </>
+        )}
+
+        {activeTab === 'entretiens' && (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Suivi RH</p>
+            <h3 className="mt-2 text-lg font-semibold text-slate-900">Entretiens professionnels</h3>
+            <p className="mt-1 text-sm text-slate-500">Planification et suivi des entretiens d'évaluation, bilan de compétences et réunions management.</p>
+
+            <div className="mt-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 flex-1">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-2xl font-bold text-slate-900">{entretiens.length}</p>
+                    <p className="text-xs text-slate-600 mt-1">Entretiens</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-2xl font-bold text-slate-900">{entretiens.filter(e => e.statut === 'planifie').length}</p>
+                    <p className="text-xs text-slate-600 mt-1">Planifiés</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-2xl font-bold text-slate-900">{entretiens.filter(e => e.statut === 'effectue').length}</p>
+                    <p className="text-xs text-slate-600 mt-1">Effectués</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-2xl font-bold text-amber-700">{entretiens.filter(e => e.suivi_requis && e.statut === 'effectue').length}</p>
+                    <p className="text-xs text-slate-600 mt-1">Suivi requis</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowEntretienForm(!showEntretienForm)}
+                  className="ml-4 h-fit rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white whitespace-nowrap"
+                >
+                  {showEntretienForm ? 'Annuler' : '+ Ajouter'}
+                </button>
+              </div>
+
+              {showEntretienForm && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Field label="Collaborateur">
+                      <select
+                        className={inp}
+                        value={entretienForm.employe_id || ''}
+                        onChange={e => setEntretienForm({ ...entretienForm, employe_id: e.target.value })}
+                      >
+                        <option value="">Sélectionner...</option>
+                        {staff.map(member => (
+                          <option key={member.id} value={member.id}>
+                            {staffDisplayName(member)}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Type d'entretien">
+                      <select
+                        className={inp}
+                        value={entretienForm.type || 'entretien_professionnel'}
+                        onChange={e => setEntretienForm({ ...entretienForm, type: e.target.value as EntretienRh['type'] })}
+                      >
+                        <option value="evaluation_annuelle">Évaluation annuelle</option>
+                        <option value="entretien_professionnel">Entretien professionnel</option>
+                        <option value="bilan_competences">Bilan de compétences</option>
+                        <option value="reunion_management">Réunion management</option>
+                        <option value="autre">Autre</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <Field label="Titre / Objet">
+                    <input
+                      className={inp}
+                      placeholder="Ex: Évaluation performance Q1 2026"
+                      value={entretienForm.titre || ''}
+                      onChange={e => setEntretienForm({ ...entretienForm, titre: e.target.value })}
+                    />
+                  </Field>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Field label="Date planifiée">
+                      <input
+                        className={inp}
+                        type="date"
+                        value={entretienForm.date_planifiee || ''}
+                        onChange={e => setEntretienForm({ ...entretienForm, date_planifiee: e.target.value })}
+                      />
+                    </Field>
+                    <Field label="Heure">
+                      <input
+                        className={inp}
+                        type="time"
+                        value={entretienForm.heure_debut || ''}
+                        onChange={e => setEntretienForm({ ...entretienForm, heure_debut: e.target.value })}
+                      />
+                    </Field>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Field label="Durée (minutes)">
+                      <input
+                        className={inp}
+                        type="number"
+                        min="15"
+                        step="15"
+                        value={entretienForm.duree_minutes || 60}
+                        onChange={e => setEntretienForm({ ...entretienForm, duree_minutes: parseInt(e.target.value) })}
+                      />
+                    </Field>
+                    <Field label="Statut">
+                      <select
+                        className={inp}
+                        value={entretienForm.statut || 'planifie'}
+                        onChange={e => setEntretienForm({ ...entretienForm, statut: e.target.value as EntretienRh['statut'] })}
+                      >
+                        <option value="planifie">Planifié</option>
+                        <option value="effectue">Effectué</option>
+                        <option value="reporte">Reporté</option>
+                        <option value="annule">Annulé</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={entretienForm.suivi_requis || false}
+                      onChange={e => setEntretienForm({ ...entretienForm, suivi_requis: e.target.checked })}
+                      className="rounded border border-slate-200"
+                    />
+                    <span className="text-sm text-slate-700">Suivi requis</span>
+                  </label>
+                  {entretienForm.suivi_requis && (
+                    <Field label="Date de suivi prévue">
+                      <input
+                        className={inp}
+                        type="date"
+                        value={entretienForm.date_suivi_prevu || ''}
+                        onChange={e => setEntretienForm({ ...entretienForm, date_suivi_prevu: e.target.value })}
+                      />
+                    </Field>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEntretienForm(false)
+                      setEntretienForm({ type: 'entretien_professionnel', duree_minutes: 60, statut: 'planifie', suivi_requis: false })
+                      setNotice('Entretien ajouté. (Mock - non sauvegardé en DB)')
+                    }}
+                    className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white"
+                  >
+                    Enregistrer
+                  </button>
+                </div>
+              )}
+
+              {entretiens.length === 0 ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
+                  <p className="text-sm text-slate-500">Aucun entretien pour le moment.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {entretiens
+                    .sort((a, b) => new Date(b.date_planifiee).getTime() - new Date(a.date_planifiee).getTime())
+                    .map(entretien => {
+                      const employee = staff.find(m => m.id === entretien.employe_id)
+                      const statusColors: Record<string, string> = {
+                        planifie: 'bg-blue-50 border-blue-200 text-blue-700',
+                        effectue: 'bg-green-50 border-green-200 text-green-700',
+                        reporte: 'bg-yellow-50 border-yellow-200 text-yellow-700',
+                        annule: 'bg-slate-50 border-slate-200 text-slate-600',
+                      }
+                      return (
+                        <div key={entretien.id} className={`rounded-lg border p-4 ${statusColors[entretien.statut] || statusColors.planifie}`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-sm">{entretien.titre}</h4>
+                              {employee && <p className="text-xs mt-1 opacity-75">{staffDisplayName(employee)}</p>}
+                              <div className="flex gap-2 mt-2 flex-wrap">
+                                <span className="text-xs px-2 py-0.5 rounded bg-white/50 font-medium">
+                                  {new Date(entretien.date_planifiee).toLocaleDateString('fr-FR')}
+                                </span>
+                                {entretien.heure_debut && (
+                                  <span className="text-xs px-2 py-0.5 rounded bg-white/50 font-medium">
+                                    {entretien.heure_debut}
+                                  </span>
+                                )}
+                                <span className="text-xs px-2 py-0.5 rounded bg-white/50 font-medium">
+                                  {entretien.duree_minutes} min
+                                </span>
+                              </div>
+                              {entretien.description && <p className="text-xs mt-2 opacity-75">{entretien.description}</p>}
+                              {entretien.suivi_requis && entretien.date_suivi_prevu && (
+                                <p className="text-xs mt-2 opacity-75">
+                                  📌 Suivi prévu: {new Date(entretien.date_suivi_prevu).toLocaleDateString('fr-FR')}
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              className="text-xs px-2 py-1 rounded border bg-white/30 hover:bg-white/50 transition"
+                            >
+                              Éditer
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </section>
     </div>
