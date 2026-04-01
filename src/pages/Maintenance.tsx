@@ -11,6 +11,12 @@ type FlotteEntretien = Tables<'flotte_entretiens'>
 type FlotteDocument = Tables<'flotte_documents'>
 type FlotteAlerte = Tables<'vue_alertes_flotte'>
 
+// Extended type for entretiens with new fields (mecanicien_assign, priority)
+type FlotteEntretienEtendu = FlotteEntretien & {
+  mecanicien_assign?: string | null
+  priority?: 'urgente' | 'haute' | 'normale' | 'planifiee'
+}
+
 // ── Types métier (in-memory) ──────────────────────────────────────────────────
 type OTPriorite = 'urgente' | 'haute' | 'normale' | 'planifiee'
 type OTStatut = 'ouvert' | 'en_cours' | 'en_attente_pieces' | 'termine' | 'facture'
@@ -104,7 +110,7 @@ type AlertSettings = {
   toleranceDepasseJours: number
 }
 
-type Tab = 'dashboard' | 'ot' | 'planning' | 'stock' | 'fournisseurs' | 'index' | 'alertes' | 'reglages' | 'couts'
+type Tab = 'dashboard' | 'ot' | 'planning' | 'programmesmeca' | 'stock' | 'fournisseurs' | 'index' | 'alertes' | 'reglages' | 'couts'
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 const MAINTENANCE_TYPES = ['vidange', 'revision', 'pneus', 'freinage', 'controle_technique', 'tachygraphe', 'reparation', 'electricite', 'embrayage', 'prestation_exterieure', 'autre'] as const
@@ -331,15 +337,16 @@ function KPI({ label, value, sub, color = 'slate' }: { label: string; value: str
 
 function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'dashboard',   label: 'Vue d\'ensemble' },
-    { key: 'ot',          label: 'Ordres de travaux' },
-    { key: 'planning',    label: 'Planification' },
-    { key: 'stock',       label: 'Pièces & Stock' },
-    { key: 'fournisseurs',label: 'Fournisseurs' },
-    { key: 'index',       label: 'Index entretien' },
-    { key: 'alertes',     label: 'Alertes atelier' },
-    { key: 'reglages',    label: 'Réglage alertes' },
-    { key: 'couts',       label: 'Coûts & Analyses' },
+    { key: 'dashboard',      label: 'Vue d\'ensemble' },
+    { key: 'ot',             label: 'Ordres de travaux' },
+    { key: 'planning',       label: 'Planification' },
+    { key: 'programmesmeca', label: 'Programmes Mécaniciens' },
+    { key: 'stock',          label: 'Pièces & Stock' },
+    { key: 'fournisseurs',   label: 'Fournisseurs' },
+    { key: 'index',          label: 'Index entretien' },
+    { key: 'alertes',        label: 'Alertes atelier' },
+    { key: 'reglages',       label: 'Réglage alertes' },
+    { key: 'couts',          label: 'Coûts & Analyses' },
   ]
   return (
     <div className="flex gap-1 mb-6 border-b border-slate-200">
@@ -755,6 +762,29 @@ export default function Maintenance() {
     )).sort((a, b) => a.localeCompare(b, 'fr'))
     return ['' as string, ...names]
   }, [staff])
+
+  // ── Programmes par mécanicien ──────────────────────────────────────────────
+  const mecaniciensProgrammes = useMemo(() => {
+    const mecaniciens = new Map<string, FlotteEntretienEtendu[]>()
+    ;(entretiens as FlotteEntretienEtendu[]).forEach(e => {
+      const assignee = e.mecanicien_assign || 'Non assigné'
+      if (!mecaniciens.has(assignee)) {
+        mecaniciens.set(assignee, [])
+      }
+      mecaniciens.get(assignee)!.push(e)
+    })
+    return Array.from(mecaniciens.entries())
+      .map(([name, tasks]) => ({
+        name,
+        tasks: tasks.sort((a, b) => new Date(b.next_due_date || b.service_date).getTime() - new Date(a.next_due_date || a.service_date).getTime()),
+        urgent: tasks.filter(t => {
+          const days = daysDiff(t.next_due_date || t.service_date)
+          return days < 0 || days <= 7
+        }).length,
+        totalCount: tasks.length,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+  }, [entretiens])
 
   // ── Helpers lookup ──────────────────────────────────────────────────────────
   const vehiculeLabel = useCallback((id: string | null) => id ? (vehicules.find(v => v.id === id)?.immatriculation ?? 'Véhicule') : null, [vehicules])
@@ -1435,6 +1465,92 @@ export default function Maintenance() {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ══ TAB: PROGRAMMES MÉCANICIENS ════════════════════════════════════════ */}
+      {tab === 'programmesmeca' && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <KPI label="Mécaniciens actifs" value={mecaniciensProgrammes.filter(m => m.totalCount > 0).length} color="slate" />
+            <KPI label="Total interventions" value={entretiens.length} color="blue" />
+            <KPI label="À faire d'ici 7j" value={entretiens.filter(e => {
+              const days = daysDiff(e.next_due_date || e.service_date)
+              return days >= 0 && days <= 7
+            }).length} color="orange" />
+            <KPI label="En retard" value={entretiens.filter(e => daysDiff(e.next_due_date || e.service_date) < 0).length} color="red" />
+          </div>
+
+          {mecaniciensProgrammes.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-10 text-center">
+              <p className="text-slate-400 text-sm">Aucun programme. Assignez des mécaniciens aux interventions.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {mecaniciensProgrammes.map(({ name, tasks, urgent, totalCount }) => {
+                const inProgress = tasks.filter(t => {
+                  const e = t as FlotteEntretienEtendu
+                  return e.priority === 'urgente' || e.priority === 'haute'
+                }).length
+                return (
+                  <div key={name} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                    <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center font-bold text-slate-700">
+                          {name.split(' ').map(part => part[0]).join('').substring(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-semibold text-slate-800">{name}</h3>
+                          <p className="text-xs text-slate-500">{totalCount} intervention{totalCount > 1 ? 's' : ''}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        {urgent > 0 && <Badge color="bg-red-100 text-red-700">{urgent} urgent{urgent > 1 ? 's' : ''}</Badge>}
+                        {inProgress > 0 && <Badge color="bg-orange-100 text-orange-700">{inProgress} prioritaire{inProgress > 1 ? 's' : ''}</Badge>}
+                      </div>
+                    </div>
+
+                    <div className="divide-y divide-slate-200">
+                      {tasks.slice(0, 10).map(task => {
+                        const daysToGo = daysDiff(task.next_due_date || task.service_date)
+                        const isUrgent = daysToGo < 0 || daysToGo <= 7
+                        const isOverdue = daysToGo < 0
+                        return (
+                          <div key={task.id} className={`px-5 py-3 flex items-center justify-between ${isOverdue ? 'bg-red-50' : isUrgent ? 'bg-orange-50' : 'bg-white'}`}>
+                            <div className="flex items-center gap-3">
+                              <span className="font-mono text-xs font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+                                {assetLabel(task)}
+                              </span>
+                              <div>
+                                <p className="text-sm font-medium text-slate-800">
+                                  {MAINTENANCE_LABELS[task.maintenance_type] ?? task.maintenance_type}
+                                </p>
+                                {task.notes && <p className="text-xs text-slate-500 truncate">{task.notes}</p>}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className={`text-sm font-semibold ${isOverdue ? 'text-red-700' : isUrgent ? 'text-orange-700' : 'text-slate-700'}`}>
+                                {fmtDate(task.next_due_date || task.service_date)}
+                              </p>
+                              <p className={`text-xs ${isOverdue ? 'text-red-600' : isUrgent ? 'text-orange-600' : 'text-slate-400'}`}>
+                                {isOverdue ? `${Math.abs(daysToGo)} j. de retard` : daysToGo === 0 ? "Aujourd'hui" : `J−${daysToGo}`}
+                              </p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {tasks.length > 10 && (
+                      <div className="bg-slate-50 px-5 py-2 text-center text-xs text-slate-500 border-t border-slate-200">
+                        +{tasks.length - 10} intervention{tasks.length - 10 > 1 ? 's' : ''}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 
