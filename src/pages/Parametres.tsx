@@ -38,7 +38,7 @@ function IconModules() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
 }
 
-const inp = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-slate-400'
+const inp = 'w-full rounded-xl border bg-[color:var(--surface)] px-3 py-2.5 text-sm text-[color:var(--text)] outline-none focus:border-[color:var(--primary)]'
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -59,7 +59,7 @@ function readFileAsDataUrl(file: File) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-const DEPLOYED_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.6.1'
+const DEPLOYED_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.9.0'
 
 export default function Parametres() {
   const { role, sessionRole, isAdmin, isDemoSession, profil, accountProfil } = useAuth()
@@ -442,19 +442,22 @@ export default function Parametres() {
                   <li>Dashboard (widgets role et personnalisation)</li>
                   <li>Tasks (CRUD, tri et filtres)</li>
                   <li>Transports (OT, statuts transport, affretement, reference auto, sites logistiques, historique)</li>
-                  <li>Planning (cockpit exploitation ABC: vues jour/semaine, drag-and-drop, dock operations, urgences priorisees)</li>
+                  <li>Planning (cockpit exploitation ABC: vues jour/semaine, drag-and-drop, dock operations, urgences priorisees et retraction locale du bandeau haut)</li>
                   <li>Feuille de route</li>
-                  <li>Map live</li>
+                  <li>Map live (simulation GPS coherente avec statuts, lecture ponctualite et bascule points / itineraires)</li>
                   <li>Chauffeurs</li>
                   <li>Remorques</li>
-                  <li>Maintenance (index constructeur RMI, auto-remontee des periodicites, alertes km/temps et vue mecanicien par vehicule)</li>
+                  <li>Maintenance (index constructeur RMI, auto-remontee des periodicites, alertes km/temps et vue mecanicien par vehicule, assignation mecanicien et priorites, programmes mecaniciens avec assignation des entretiens)</li>
+                  <li>Entretiens RH (CRUD Supabase complet, evaluations, suivi professionnel, alertes planification, onglet entretiens professionnels)</li>
+                  <li>Navigation rapide Ctrl+K (recherche modules instantanee, navigation clavier, raccourci global)</li>
                   <li>Demandes clients (workflow de validation)</li>
                   <li>Login / Auth / roles (5 roles metier, session admin, profils)</li>
                   <li>Parametres (menus par role, entreprise, juridique, aide, modules, developpement)</li>
-                  <li>Site vitrine public (accueil, solution, planning intelligent, ROI, secteur transport, a propos, demonstration, contact, SEO ERP)</li>
+                  <li>Site vitrine public (accueil, solution, planning intelligent, ROI, secteur transport, a propos, demonstration, contact, SEO ERP et galerie de captures produit avec zoom)</li>
                   <li>SEO technique du site public (meta, canonicals, sitemap, robots et FAQ structuree)</li>
                   <li>Parcours legal public (mentions legales, politique de confidentialite, CGU, bandeau cookies et reouverture des preferences)</li>
                   <li>Qualite front release (warnings ESLint resolus, socle PWA installable avec manifest/service worker et optimisations de chargement initial)</li>
+                  <li>Durcissement securite backend (separation stricte client authentifie RLS et client systeme service role par endpoint, JWT, ownership checks, headers HTTP securises)</li>
                   <li>Normalisation de marque NEXORA Truck sur l ERP et le site public</li>
                 </ul>
               </Card>
@@ -477,7 +480,7 @@ export default function Parametres() {
                     <li>Tchat / Communication (canal exploitation/conducteur v1.1)</li>
                     <li>Coffre numerique</li>
                     <li>Utilisateurs (administration basique, workflow complet a finaliser)</li>
-                    <li>Site vitrine public (integration future de vraies captures produit, medias et preuves client)</li>
+                    <li>Site vitrine public (medias, preuves client et enrichissement commercial encore en cours)</li>
                   </ul>
                 </Card>
                 <Card>
@@ -493,11 +496,20 @@ export default function Parametres() {
             {devTab === 'features' && (
               <div className="space-y-4">
                 <Card>
+                  <CardLabel>Features maintenues (reference)</CardLabel>
+                  <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
+                    <li>Connectivite et discussion inter-ERP</li>
+                    <li>Planning affreteur dedie</li>
+                    <li>Groupage multi-courses figeable et deliable avec courses independantes</li>
+                  </ul>
+                </Card>
+                <Card>
                   <CardLabel>Features a ajouter</CardLabel>
                   <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
                     <li>Connectivite et discussion inter-ERP</li>
                     <li>Planning affreteur dedie dans un onglet specifique</li>
                     <li>Groupage multi-courses figeable et deliable en gardant les courses independantes</li>
+                    <li>Workflow commercial complet pour demandes demo, prospection et qualification compte</li>
                   </ul>
                 </Card>
                 <Card>
@@ -506,7 +518,7 @@ export default function Parametres() {
                     <li>Messagerie et mail 100% persistes en base (multi appareils)</li>
                     <li>Couverture de tests end-to-end multi roles</li>
                     <li>Finalisation Tachygraphe et Amendes en mode production</li>
-                    <li>Durcissement securite et cloisonnement RLS sur modules sensibles</li>
+                    <li>Durcissement securite avance (audit continu des endpoints publics et minimisation des surfaces service role)</li>
                     <li>Observabilite (erreurs, journaux, traces)</li>
                     <li>Workflow admin complet de gestion des utilisateurs</li>
                     <li>Migration progressive statut_transport sur tous les ecrans (vagues 2 a 4)</li>

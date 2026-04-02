@@ -1,11 +1,12 @@
 {
   "name": "nexora-truck",
   "private": true,
-  "version": "1.6.1",
+  "version": "1.10.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:full": "netlify dev",
+    "serv:dev": "netlify dev",
+    "dev:full": "npm run serv:dev",
     "typecheck": "tsc -b --pretty false",
     "lint:src": "eslint src",
     "build": "tsc -b && vite build",
@@ -13,7 +14,8 @@
     "test:watch": "vitest",
     "lint": "npm run lint:src",
     "preview": "vite preview",
-    "security:db": "npx supabase migration list"
+    "security:db": "npx supabase migration list",
+    "gen:types": "npx supabase gen types typescript --linked --schema public | node -e \"let d='';process.stdin.setEncoding('utf8');process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>require('fs').writeFileSync('src/lib/database.types.ts',d,'utf8'));\""
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.100.1",
