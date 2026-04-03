@@ -16,14 +16,14 @@ export default function PromoReelCard({ title, audience, duration, summary, outc
       </div>
 
       <div className="mt-5 rounded-[1.25rem] border border-slate-200 bg-[linear-gradient(145deg,#fff1f2,#ffffff)] p-4">
-        <div className="flex items-center justify-between gap-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+        <div className="flex items-center justify-between gap-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#627078]">
           <span>Storyboard</span>
           <span>{audience}</span>
         </div>
         <div className="site-reel-track mt-4 h-2 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
           <div className="site-reel-progress h-full w-full rounded-full bg-[linear-gradient(90deg,#fb7185,#f97316,#38bdf8)]" />
         </div>
-        <p className="mt-4 text-sm leading-7 text-slate-600">{summary}</p>
+        <p className="mt-4 text-sm leading-7 text-[var(--site-text-secondary)]">{summary}</p>
         <div className="mt-4 grid gap-3">
           {chapters.map((chapter, index) => (
             <div key={chapter} className="flex items-center gap-3 rounded-[1rem] border border-slate-200 bg-white px-4 py-3">
@@ -34,7 +34,7 @@ export default function PromoReelCard({ title, audience, duration, summary, outc
         </div>
       </div>
 
-      <p className="mt-4 text-sm leading-7 text-slate-600">{outcome}</p>
+      <p className="mt-4 text-sm leading-7 text-[var(--site-text-secondary)]">{outcome}</p>
     </article>
   )
 }

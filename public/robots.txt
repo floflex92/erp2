@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
+Host: nexora-truck.fr
 
 Sitemap: https://nexora-truck.fr/sitemap.xml

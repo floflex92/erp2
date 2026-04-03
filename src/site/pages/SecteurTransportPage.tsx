@@ -1,98 +1,94 @@
 import { Link } from 'react-router-dom'
-import SiteSection from '@/site/components/SiteSection'
 import useSiteMeta from '@/site/hooks/useSiteMeta'
+import { sitePhotos } from '@/site/lib/sitePhotos'
 
-const marketFacts = [
-  'Pression sur les marges, coûts variables et attentes clients en hausse.',
-  'Fragmentation des outils qui ralentit la décision opérationnelle.',
-  'Besoin croissant de visibilité temps réel sur l exécution terrain.',
-  'Obligations réglementaires plus complexes à suivre au quotidien.',
+const sectionPx: React.CSSProperties = { paddingInline: 'clamp(24px, 8vw, 160px)' }
+const sectionPy: React.CSSProperties = { paddingBlock: 'clamp(80px, 12vw, 160px)' }
+
+const challenges = [
+  { title: 'Marges sous pression', body: 'Coûts variables en hausse, attentes clients plus exigeantes et concurrence accrue sur les prix.' },
+  { title: 'Outils fragmentés', body: 'Planning, flotte et finance vivent dans 3 à 4 outils déconnectés qui ralentissent la décision.' },
+  { title: 'Visibilité insuffisante', body: 'Besoin croissant de suivi temps réel sur l\'exécution terrain et la disponibilité des ressources.' },
+  { title: 'Conformité complexe', body: 'Obligations réglementaires (tachygraphe, HSE, documents) plus complexes à suivre au quotidien.' },
 ] as const
 
 const regions = [
-  {
-    title: 'France',
-    body: 'Marché dense et concurrentiel, avec un besoin fort de digitalisation opérationnelle et de fiabilisation de la marge.',
-  },
-  {
-    title: 'Belgique & Suisse',
-    body: 'Structures exigeantes sur la qualité de service, la conformité et la traçabilité des opérations transfrontalières.',
-  },
-  {
-    title: 'Canada francophone',
-    body: 'Enjeu de coordination multi-sites et de pilotage de la performance dans des territoires logistiques étendus.',
-  },
-  {
-    title: 'Afrique francophone',
-    body: 'Potentiel élevé pour des solutions robustes, simples à déployer et capables de structurer une croissance rapide.',
-  },
+  { title: 'France', body: 'Marché dense et concurrentiel, avec un besoin fort de digitalisation opérationnelle et de fiabilisation de la marge.' },
+  { title: 'Belgique & Suisse', body: 'Structures exigeantes sur la qualité de service, la conformité et la traçabilité des opérations transfrontalières.' },
+  { title: 'Canada francophone', body: 'Enjeu de coordination multi-sites et de pilotage de la performance dans des territoires logistiques étendus.' },
+  { title: 'Afrique francophone', body: 'Potentiel élevé pour des solutions robustes, simples à déployer et capables de structurer une croissance rapide.' },
 ] as const
 
 export default function SecteurTransportPage() {
   useSiteMeta({
-    title: 'Secteur Transport Francophone',
+    title: 'Secteur Transport Francophone — NEXORA Truck',
     description: 'Analyse du marché transport francophone, défis du secteur routier et vision NEXORA Truck pour moderniser le pilotage des entreprises.',
     canonicalPath: '/secteur-transport',
     keywords: 'marché transport francophone, transformation digitale transport routier, enjeux transporteurs, innovation logistique',
   })
 
   return (
-    <div className="space-y-8">
-      <section className="rounded-[2rem] border border-[#dbeafe] bg-[linear-gradient(145deg,#0f172a_0%,#1e3a8a_45%,#0f172a_100%)] p-7 text-white shadow-[0_28px_90px_rgba(15,23,42,0.35)] sm:p-10">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#fb923c]">Secteur transport</p>
-        <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight sm:text-[3.1rem] sm:leading-[1.06]">
-          Une industrie en mutation rapide qui cherche enfin des outils à la hauteur
-        </h1>
-        <p className="mt-5 max-w-3xl text-base leading-8 text-slate-100">
-          Le transport routier francophone fait face à une équation complexe: plus d exigences, plus de pression et des outils encore
-          trop éclatés. NEXORA Truck apporte une réponse unifiée, pensée métier.
-        </p>
-      </section>
-
-      <SiteSection
-        eyebrow="Constat"
-        title="Les défis structurels du secteur"
-        description="Comprendre les points de friction permet de prioriser les leviers qui créent un impact immédiat."
-      >
-        <div className="grid gap-4 md:grid-cols-2">
-          {marketFacts.map(item => (
-            <article key={item} className="rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-[0_16px_45px_rgba(15,23,42,0.06)]">
-              <p className="text-sm leading-7 text-slate-700">{item}</p>
-            </article>
-          ))}
-        </div>
-      </SiteSection>
-
-      <SiteSection
-        eyebrow="Marché cible"
-        title="Une stratégie orientée pays francophones"
-        description="NEXORA Truck est conçu à Marseille pour répondre aux réalités de terrain dans tout l espace francophone."
-        muted
-      >
-        <div className="grid gap-4 md:grid-cols-2">
-          {regions.map(item => (
-            <article key={item.title} className="rounded-[1.5rem] border border-slate-200 bg-white p-6">
-              <h2 className="text-xl font-semibold tracking-tight text-slate-950">{item.title}</h2>
-              <p className="mt-3 text-sm leading-7 text-slate-600">{item.body}</p>
-            </article>
-          ))}
-        </div>
-      </SiteSection>
-
-      <section className="rounded-[1.8rem] border border-[#fed7aa] bg-[#fff7ed] p-7 sm:p-9">
-        <h2 className="text-3xl font-semibold tracking-tight text-slate-950">Positionner NEXORA Truck comme la référence technologique sectorielle</h2>
-        <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-700">
-          Notre approche combine content marketing métier, SEO ciblé transport et démonstrations personnalisées pour convertir des dirigeants qualifiés.
-        </p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link to="/demonstration" className="rounded-full bg-[#1d4ed8] px-5 py-3 text-sm font-semibold text-white hover:bg-[#1e40af]">
-            Demander une démonstration
-          </Link>
-          <Link to="/a-propos" className="rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-white">
-            Découvrir notre vision
-          </Link>
+    <>
+      {/* ── HERO ── */}
+      <section className="relative flex min-h-[75vh] w-full flex-col items-center justify-center overflow-hidden text-center" style={{ ...sectionPx, ...sectionPy }}>
+        <img src={sitePhotos.truckRoadWide.src(1600)} alt="Poids lourds sur un corridor de transport sans logos visibles" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" style={{ opacity: 0.5 }} />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 100%)' }} />
+        <div className="relative">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#6E6E73' }}>Secteur transport</p>
+          <h1 className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]" style={{ fontSize: 'clamp(2.2rem, 5vw, 4rem)', color: '#000000', letterSpacing: '-0.025em' }}>
+            Une industrie en mutation rapide qui cherche enfin des outils à la hauteur
+          </h1>
+          <p className="mx-auto mt-6 max-w-2xl" style={{ color: '#6E6E73', fontSize: '20px', lineHeight: 1.6 }}>
+            Le transport routier francophone fait face à une équation complexe : plus d'exigences, plus de pression et des outils encore trop éclatés.
+          </p>
         </div>
       </section>
-    </div>
+
+      {/* ── DÉFIS ── */}
+      <section className="w-full" style={{ background: '#F5F5F7', ...sectionPx, ...sectionPy }}>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#6E6E73' }}>Constat</p>
+        <h2 className="mt-4 max-w-3xl font-semibold leading-tight" style={{ fontSize: 'clamp(1.8rem, 4vw, 3rem)', color: '#000000' }}>
+          Les défis structurels du secteur
+        </h2>
+        <div className="mt-16 grid gap-x-20 gap-y-12 md:grid-cols-2">
+          {challenges.map(c => (
+            <div key={c.title}>
+              <h3 className="text-xl font-semibold" style={{ color: '#000000' }}>{c.title}</h3>
+              <p className="mt-3" style={{ color: '#6E6E73' }}>{c.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── RÉGIONS ── */}
+      <section className="w-full bg-white" style={{ ...sectionPx, ...sectionPy }}>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#6E6E73' }}>Marché cible</p>
+        <h2 className="mt-4 max-w-3xl font-semibold leading-tight" style={{ fontSize: 'clamp(1.8rem, 4vw, 3rem)', color: '#000000' }}>
+          Une stratégie orientée pays francophones
+        </h2>
+        <p className="mt-4 max-w-2xl" style={{ color: '#6E6E73' }}>
+          NEXORA Truck est conçu à Marseille pour répondre aux réalités de terrain dans tout l'espace francophone.
+        </p>
+        <div className="mt-16 grid gap-x-20 gap-y-12 md:grid-cols-2">
+          {regions.map(r => (
+            <div key={r.title}>
+              <h3 className="text-xl font-semibold" style={{ color: '#000000' }}>{r.title}</h3>
+              <p className="mt-3" style={{ color: '#6E6E73' }}>{r.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── CTA ── */}
+      <section className="w-full text-center" style={{ background: '#F5F5F7', ...sectionPx, paddingBlock: 'clamp(100px, 14vw, 200px)' }}>
+        <h2 className="mx-auto max-w-3xl text-balance font-semibold leading-tight" style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', color: '#000000' }}>
+          Positionner NEXORA Truck comme la référence technologique sectorielle.
+        </h2>
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+          <Link to="/demonstration" className="site-btn-primary px-6 py-3 text-sm transition-colors">Demander une démonstration</Link>
+          <Link to="/a-propos" className="text-sm font-semibold" style={{ color: '#2563EB' }}>Découvrir notre vision</Link>
+        </div>
+      </section>
+    </>
   )
 }

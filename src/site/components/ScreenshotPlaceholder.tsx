@@ -14,7 +14,7 @@ export default function ScreenshotPlaceholder({ title, caption, format, label, s
       <div className="relative">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-200">Capture produit guidee</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-200">Capture produit guidée</p>
             <h3 className="mt-3 text-xl font-semibold tracking-tight">{title}</h3>
           </div>
           <span className="rounded-full border border-white/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-200">
@@ -30,7 +30,7 @@ export default function ScreenshotPlaceholder({ title, caption, format, label, s
             <div className="space-y-4">
               <div className="rounded-[1.1rem] border border-white/10 bg-slate-950/60 p-4">
                 <div className="flex items-center justify-between gap-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-300">
-                  <span>Lecture ecran</span>
+                  <span>Lecture écran</span>
                   <span>NEXORA Truck</span>
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -49,7 +49,7 @@ export default function ScreenshotPlaceholder({ title, caption, format, label, s
                 </div>
                 <div className="rounded-[1rem] border border-white/10 bg-white/5 p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-300">Usage public</p>
-                  <p className="mt-3 text-sm leading-7 text-slate-200">Cette frame joue le role du screenshot reel a inserer ensuite quand les captures finales seront exportees.</p>
+                  <p className="mt-3 text-sm leading-7 text-slate-200">Cette frame joue le rôle du screenshot réel à insérer ensuite quand les captures finales seront exportées.</p>
                 </div>
               </div>
             </div>
@@ -57,7 +57,7 @@ export default function ScreenshotPlaceholder({ title, caption, format, label, s
             <div className="rounded-[1.1rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.72),rgba(30,41,59,0.28))] p-4">
               <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-300">
                 <span>Indices visibles</span>
-                <span>Temps reel</span>
+                <span>Temps réel</span>
               </div>
               <div className="mt-4 space-y-3">
                 {highlights.map((item, index) => (

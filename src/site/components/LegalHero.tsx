@@ -16,7 +16,7 @@ export default function LegalHero({ eyebrow, title, description, lastUpdate, hig
           <p className="mt-5 max-w-3xl text-base leading-8 text-slate-700">{description}</p>
         </div>
         <div className="rounded-[1.4rem] border border-[#bfdbfe] bg-white/80 px-5 py-4 text-sm text-slate-700 shadow-sm backdrop-blur">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Mise a jour</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#627078]">Mise a jour</p>
           <p className="mt-2 font-medium text-slate-900">{lastUpdate}</p>
         </div>
       </div>

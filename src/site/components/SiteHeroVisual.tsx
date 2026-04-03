@@ -63,7 +63,7 @@ export default function SiteHeroVisual() {
             {/* Liste transports */}
             <div className="rounded-[1.15rem] border border-white/8 bg-white/4">
               <div className="border-b border-white/8 px-4 py-2.5">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-300">Ordres de transport — aujourd hui</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-300">Ordres de transport — aujourd’hui</p>
               </div>
               <div className="divide-y divide-white/6">
                 {transports.map(t => (

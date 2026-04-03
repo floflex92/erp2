@@ -39,31 +39,35 @@ export default function CookieBanner() {
   if (!visible) return null
 
   return (
-    <div className="fixed inset-x-0 bottom-4 z-50 px-4 sm:px-6 lg:px-8">
-      <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-4 rounded-[1.6rem] border border-white/70 bg-[rgba(15,23,42,0.94)] px-5 py-4 text-white shadow-[0_24px_80px_rgba(15,23,42,0.35)] backdrop-blur sm:flex-row sm:items-end sm:justify-between sm:px-6">
-        <div className="max-w-3xl">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-200">Cookies</p>
-          <p className="mt-2 text-sm leading-7 text-slate-200">
-            NEXORA Truck utilise des cookies et stockages techniques necessaires au fonctionnement du site, a la
-            conservation de vos preferences et a la mesure technique d audience. Vous pouvez consulter le detail dans la{' '}
-            <Link to="/politique-confidentialite" className="font-semibold text-white underline underline-offset-2 hover:text-sky-200">
-              politique de confidentialite
+    <div className="fixed inset-x-0 bottom-4 z-50" style={{ paddingInline: 'clamp(16px, 4vw, 80px)' }}>
+      <div
+        className="mx-auto flex w-full max-w-3xl flex-col gap-3 rounded-xl px-5 py-4 shadow-[0_8px_30px_rgba(0,0,0,0.08)] sm:flex-row sm:items-center sm:justify-between"
+        style={{ background: '#FFFFFF', border: '1px solid #E5E5E5' }}
+      >
+        <div className="max-w-xl">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: '#1D1D1F' }}>Cookies</p>
+          <p className="mt-1 text-sm leading-6" style={{ color: '#6E6E73' }}>
+            Ce site utilise des cookies techniques pour assurer son bon fonctionnement. Détails dans notre{' '}
+            <Link to="/politique-confidentialite" className="font-semibold underline underline-offset-2" style={{ color: '#2563EB' }}>
+              politique de confidentialité
             </Link>
             .
           </p>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex shrink-0 flex-wrap gap-2">
           <button
             type="button"
             onClick={closeBanner}
-            className="rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10"
+            className="rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+            style={{ color: '#6E6E73', border: '1px solid #E5E5E5' }}
           >
             Plus tard
           </button>
           <button
             type="button"
             onClick={acceptCookies}
-            className="rounded-full bg-[#fb923c] px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-[#fdba74]"
+            className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors"
+            style={{ background: '#2563EB' }}
           >
             Accepter
           </button>

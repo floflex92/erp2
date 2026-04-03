@@ -7,6 +7,9 @@ type SiteMetaInput = {
   robots?: string
   keywords?: string
   ogType?: 'website' | 'article'
+  ogImage?: string
+  twitterImage?: string
+  author?: string
 }
 
 function setMetaByName(name: string, value: string) {
@@ -46,6 +49,9 @@ export default function useSiteMeta({
   robots = 'index,follow',
   keywords,
   ogType = 'website',
+  ogImage = 'https://nexora-truck.fr/site/screenshots/planning-dark.png',
+  twitterImage,
+  author,
 }: SiteMetaInput) {
   useEffect(() => {
     document.title = `${title} | NEXORA Truck`
@@ -59,6 +65,9 @@ export default function useSiteMeta({
     if (keywords) {
       setMetaByName('keywords', keywords)
     }
+    if (author) {
+      setMetaByName('author', author)
+    }
     upsertCanonical(canonicalUrl)
 
     setMetaByProperty('og:title', `${title} | NEXORA Truck`)
@@ -67,9 +76,13 @@ export default function useSiteMeta({
     setMetaByProperty('og:url', canonicalUrl)
     setMetaByProperty('og:locale', 'fr_FR')
     setMetaByProperty('og:site_name', 'NEXORA Truck')
+    setMetaByProperty('og:image', ogImage)
+    setMetaByProperty('og:image:alt', 'NEXORA Truck ERP transport')
 
     setMetaByName('twitter:card', 'summary_large_image')
     setMetaByName('twitter:title', `${title} | NEXORA Truck`)
     setMetaByName('twitter:description', description)
-  }, [canonicalPath, description, keywords, ogType, robots, title])
+    setMetaByName('twitter:url', canonicalUrl)
+    setMetaByName('twitter:image', twitterImage ?? ogImage)
+  }, [author, canonicalPath, description, keywords, ogImage, ogType, robots, title, twitterImage])
 }

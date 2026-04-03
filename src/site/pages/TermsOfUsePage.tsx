@@ -1,138 +1,132 @@
 import { Link } from 'react-router-dom'
-import LegalHero from '@/site/components/LegalHero'
-import SiteSection from '@/site/components/SiteSection'
 import useSiteMeta from '@/site/hooks/useSiteMeta'
+
+const sectionPx: React.CSSProperties = { paddingInline: 'clamp(24px, 8vw, 160px)' }
+const sectionPy: React.CSSProperties = { paddingBlock: 'clamp(60px, 8vw, 120px)' }
 
 const LAST_UPDATE = '31 mars 2026'
 
-const cguPrinciples = [
-  'Le site public presente l offre, les fonctionnalites, les contenus d information et les modalites de contact de NEXORA Truck.',
-  'La plateforme ERP est reservee aux utilisateurs autorises et peut faire l objet de limitations d acces selon les habilitations attribuees.',
-  'Toute utilisation du site ou de la plateforme doit demeurer licite, loyale et compatible avec la securite generale du service.',
-] as const
-
-const prohibitedUses = [
-  'Tenter de contourner les mecanismes d authentification, de securite, de controle d acces ou de journalisation.',
-  'Extraire, copier, reutiliser ou redistribuer sans autorisation des contenus, donnees, maquettes, documentations ou elements du produit.',
-  'Utiliser le site ou la plateforme pour diffuser un contenu illicite, trompeur, malveillant, diffamatoire ou portant atteinte aux droits de tiers.',
-] as const
-
 export default function TermsOfUsePage() {
   useSiteMeta({
-    title: 'Conditions generales d utilisation',
-    description: 'Consultez les conditions generales d utilisation du site public et de la plateforme NEXORA Truck.',
+    title: 'Conditions générales d\'utilisation — NEXORA Truck',
+    description: 'Conditions générales d\'utilisation du site public et de la plateforme NEXORA Truck.',
     canonicalPath: '/conditions-generales-utilisation',
-    keywords: 'CGU, conditions generales d utilisation, NEXORA Truck, ERP transport',
+    keywords: 'CGU, conditions générales d\'utilisation, NEXORA Truck, ERP transport',
   })
 
   return (
-    <div className="space-y-8">
-      <LegalHero
-        eyebrow="CGU"
-        title="Conditions generales d utilisation du site et de la plateforme NEXORA Truck"
-        description="Les presentes conditions encadrent l acces au site public, aux formulaires de contact et, le cas echeant, a la plateforme ERP accessible aux utilisateurs habilites. Elles definissent les regles generales applicables a l utilisation du service."
-        lastUpdate={LAST_UPDATE}
-        highlights={['Acces', 'Usages autorises', 'Responsabilites']}
-      />
-
-      <SiteSection
-        eyebrow="Objet"
-        title="Un cadre d utilisation simple et clair"
-        description="Ces conditions precisent les regles generales d acces, d utilisation et de responsabilite applicables au site et a la plateforme."
-      >
-        <div className="grid gap-3">
-          {cguPrinciples.map(item => (
-            <div key={item} className="rounded-[1.2rem] border border-slate-200 bg-white px-4 py-3 text-sm leading-7 text-slate-700">
-              {item}
-            </div>
-          ))}
-        </div>
-      </SiteSection>
-
-      <SiteSection
-        eyebrow="Acces"
-        title="Disponibilite et acces au service"
-        description="L editeur s efforce d assurer un acces normal au site et a la plateforme, sous reserve des operations techniques necessaires."
-        muted
-      >
-        <div className="grid gap-4 md:grid-cols-2">
-          <article className="rounded-[1.45rem] border border-slate-200 bg-white p-6 shadow-[0_16px_45px_rgba(15,23,42,0.06)]">
-            <h2 className="text-xl font-semibold tracking-tight text-slate-950">Site public</h2>
-            <p className="mt-3 text-sm leading-7 text-slate-600">
-              Le site public est accessible librement. Certaines rubriques peuvent toutefois etre temporairement indisponibles pour des raisons de maintenance, de securisation, de mise a jour ou d evolution technique.
-            </p>
-          </article>
-          <article className="rounded-[1.45rem] border border-slate-200 bg-white p-6 shadow-[0_16px_45px_rgba(15,23,42,0.06)]">
-            <h2 className="text-xl font-semibold tracking-tight text-slate-950">Plateforme ERP</h2>
-            <p className="mt-3 text-sm leading-7 text-slate-600">
-              La plateforme ERP est reservee aux utilisateurs disposant d un compte actif et de droits d acces adaptes. L editeur peut suspendre, restreindre ou desactiver un acces en cas d anomalie, de suspicion d usage abusif ou de non-respect des presentes conditions.
-            </p>
-          </article>
-        </div>
-      </SiteSection>
-
-      <SiteSection
-        eyebrow="Usages interdits"
-        title="Ce qui n est pas autorise"
-        description="Tout usage portant atteinte a l integrite du service, aux droits de l editeur ou aux droits de tiers est prohibe."
-      >
-        <div className="grid gap-4 md:grid-cols-3">
-          {prohibitedUses.map(item => (
-            <article key={item} className="rounded-[1.45rem] border border-slate-200 bg-white p-6 shadow-[0_16px_45px_rgba(15,23,42,0.06)]">
-              <p className="text-sm leading-7 text-slate-700">{item}</p>
-            </article>
-          ))}
-        </div>
-      </SiteSection>
-
-      <SiteSection
-        eyebrow="Responsabilites"
-        title="Limites et obligations de chacun"
-        description="L editeur fournit un environnement numerique evolutif, mais l utilisateur conserve une part de responsabilite dans la verification et l usage des informations."
-        muted
-      >
-        <div className="grid gap-4 md:grid-cols-2">
-          <article className="rounded-[1.45rem] border border-slate-200 bg-white p-6 shadow-[0_16px_45px_rgba(15,23,42,0.06)]">
-            <h2 className="text-xl font-semibold tracking-tight text-slate-950">Engagement de l editeur</h2>
-            <p className="mt-3 text-sm leading-7 text-slate-600">
-              L editeur met en oeuvre des moyens raisonnables pour assurer la disponibilite, la securite et la coherence generale du service, sans pouvoir garantir une absence totale d interruption, d indisponibilite ou d erreur.
-            </p>
-          </article>
-          <article className="rounded-[1.45rem] border border-slate-200 bg-white p-6 shadow-[0_16px_45px_rgba(15,23,42,0.06)]">
-            <h2 className="text-xl font-semibold tracking-tight text-slate-950">Engagement de l utilisateur</h2>
-            <p className="mt-3 text-sm leading-7 text-slate-600">
-              L utilisateur s engage a proteger ses identifiants, a verifier les informations critiques avant toute decision operationnelle et a utiliser le service conformement a sa destination, aux droits qui lui sont attribues et aux lois applicables.
-            </p>
-          </article>
-        </div>
-      </SiteSection>
-
-      <SiteSection
-        eyebrow="Cadre juridique"
-        title="Droit applicable"
-        description="Les presentes conditions sont soumises au droit francais, sous reserve des dispositions imperatives applicables."
-      >
-        <div className="rounded-[1.45rem] border border-slate-200 bg-white p-6 shadow-[0_16px_45px_rgba(15,23,42,0.06)]">
-          <p className="text-sm leading-7 text-slate-700">
-            En cas de question relative a l interpretation ou a l application des presentes conditions, vous pouvez prendre contact avec l editeur via la page contact ou consulter les documents juridiques complementaires du site.
-          </p>
-        </div>
-      </SiteSection>
-
-      <section className="rounded-[1.8rem] border border-slate-200 bg-slate-950 p-7 text-white sm:p-9">
-        <h2 className="text-3xl font-semibold tracking-tight">Documents lies</h2>
-        <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-200">
-          Pour une lecture complete du cadre legal, consultez egalement les mentions legales et la politique de confidentialite de NEXORA Truck.
+    <>
+      {/* ── HERO ── */}
+      <section className="w-full bg-white" style={{ ...sectionPx, ...sectionPy }}>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#6E6E73' }}>
+          CGU
         </p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link to="/mentions-legales-public" className="rounded-full bg-[#fb923c] px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-[#fdba74]">
-            Mentions legales
+        <h1
+          className="mt-4 max-w-4xl font-bold leading-[1.08]"
+          style={{ fontSize: 'clamp(2rem, 4.5vw, 3.5rem)', color: '#000000', letterSpacing: '-0.02em' }}
+        >
+          Conditions générales d'utilisation du site et de la plateforme NEXORA Truck
+        </h1>
+        <p className="mt-4 max-w-3xl" style={{ color: '#6E6E73' }}>
+          Les présentes conditions encadrent l'accès au site public, aux formulaires de contact et à la plateforme ERP accessible aux utilisateurs habilités.
+        </p>
+        <p className="mt-3 text-sm" style={{ color: '#86868B' }}>Mise à jour : {LAST_UPDATE}</p>
+      </section>
+
+      {/* ── OBJET ── */}
+      <section className="w-full" style={{ background: '#F5F5F7', ...sectionPx, ...sectionPy }}>
+        <LegalTitle>Objet</LegalTitle>
+        <div className="mt-6 max-w-3xl grid gap-6">
+          {([
+            'Le site public présente l\'offre, les fonctionnalités, les contenus d\'information et les modalités de contact de NEXORA Truck.',
+            'La plateforme ERP est réservée aux utilisateurs autorisés et peut faire l\'objet de limitations d\'accès selon les habilitations attribuées.',
+            'Toute utilisation du site ou de la plateforme doit demeurer licite, loyale et compatible avec la sécurité générale du service.',
+          ] as const).map(item => (
+            <p key={item} style={{ color: '#1D1D1F', borderLeft: '2px solid #E5E5E5', paddingLeft: '16px' }}>{item}</p>
+          ))}
+        </div>
+      </section>
+
+      {/* ── ACCÈS ── */}
+      <section className="w-full bg-white" style={{ ...sectionPx, ...sectionPy }}>
+        <LegalTitle>Disponibilité et accès au service</LegalTitle>
+        <div className="mt-6 max-w-3xl grid gap-8 md:grid-cols-2">
+          <div>
+            <p className="font-semibold" style={{ color: '#000000' }}>Site public</p>
+            <p className="mt-2" style={{ color: '#6E6E73' }}>
+              Accessible librement. Certaines rubriques peuvent être temporairement indisponibles pour des raisons de maintenance ou de mise à jour.
+            </p>
+          </div>
+          <div>
+            <p className="font-semibold" style={{ color: '#000000' }}>Plateforme ERP</p>
+            <p className="mt-2" style={{ color: '#6E6E73' }}>
+              Réservée aux utilisateurs disposant d'un compte actif. L'éditeur peut suspendre un accès en cas d'anomalie ou d'usage abusif.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── USAGES INTERDITS ── */}
+      <section className="w-full" style={{ background: '#F5F5F7', ...sectionPx, ...sectionPy }}>
+        <LegalTitle>Usages interdits</LegalTitle>
+        <p className="mt-3" style={{ color: '#6E6E73' }}>Tout usage portant atteinte à l'intégrité du service ou aux droits de tiers est prohibé.</p>
+        <div className="mt-8 max-w-3xl grid gap-6">
+          {([
+            'Tenter de contourner les mécanismes d\'authentification, de sécurité ou de contrôle d\'accès.',
+            'Extraire, copier, réutiliser ou redistribuer sans autorisation des contenus, données ou éléments du produit.',
+            'Utiliser le site ou la plateforme pour diffuser un contenu illicite, trompeur ou malveillant.',
+          ] as const).map(item => (
+            <p key={item} style={{ color: '#1D1D1F', borderLeft: '2px solid #E5E5E5', paddingLeft: '16px' }}>{item}</p>
+          ))}
+        </div>
+      </section>
+
+      {/* ── RESPONSABILITÉS ── */}
+      <section className="w-full bg-white" style={{ ...sectionPx, ...sectionPy }}>
+        <LegalTitle>Responsabilités</LegalTitle>
+        <div className="mt-6 max-w-3xl grid gap-8 md:grid-cols-2">
+          <div>
+            <p className="font-semibold" style={{ color: '#000000' }}>Engagement de l'éditeur</p>
+            <p className="mt-2" style={{ color: '#6E6E73' }}>
+              L'éditeur met en œuvre des moyens raisonnables pour assurer la disponibilité, la sécurité et la cohérence du service, sans pouvoir garantir une absence totale d'interruption.
+            </p>
+          </div>
+          <div>
+            <p className="font-semibold" style={{ color: '#000000' }}>Engagement de l'utilisateur</p>
+            <p className="mt-2" style={{ color: '#6E6E73' }}>
+              L'utilisateur s'engage à protéger ses identifiants, vérifier les informations critiques et utiliser le service conformément à sa destination et aux lois applicables.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── DROIT APPLICABLE ── */}
+      <section className="w-full" style={{ background: '#F5F5F7', ...sectionPx, ...sectionPy }}>
+        <LegalTitle>Droit applicable</LegalTitle>
+        <p className="mt-6 max-w-3xl" style={{ color: '#6E6E73' }}>
+          Les présentes conditions sont soumises au droit français. En cas de question, contactez l'éditeur via la page contact ou consultez les documents juridiques complémentaires.
+        </p>
+      </section>
+
+      {/* ── DOCUMENTS LIÉS ── */}
+      <section className="w-full bg-white" style={{ ...sectionPx, ...sectionPy }}>
+        <LegalTitle>Documents complémentaires</LegalTitle>
+        <div className="mt-6 flex flex-wrap gap-4">
+          <Link to="/mentions-legales-public" className="text-sm font-semibold" style={{ color: '#2563EB' }}>
+            Mentions légales
           </Link>
-          <Link to="/politique-confidentialite" className="rounded-full border border-white/25 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10">
-            Politique de confidentialite
+          <Link to="/politique-confidentialite" className="text-sm font-semibold" style={{ color: '#2563EB' }}>
+            Politique de confidentialité
+          </Link>
+          <Link to="/contact" className="text-sm font-semibold" style={{ color: '#2563EB' }}>
+            Contact
           </Link>
         </div>
       </section>
-    </div>
+    </>
   )
+}
+
+function LegalTitle({ children }: { children: React.ReactNode }) {
+  return <h2 className="text-2xl font-semibold" style={{ color: '#000000' }}>{children}</h2>
 }

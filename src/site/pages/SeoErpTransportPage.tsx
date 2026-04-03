@@ -3,70 +3,35 @@ import { useEffect } from 'react'
 import SiteSection from '@/site/components/SiteSection'
 import useSiteMeta from '@/site/hooks/useSiteMeta'
 
-const mainKeywords = [
-  'ERP transport routier',
-  'logiciel transport',
-  'TMS transport',
-  'gestion flotte camions',
-  'planning chauffeurs',
-  'suivi livraison en temps réel',
-  'gestion exploitation transport',
-]
-
-const targetQueries = [
-  'Quel ERP choisir pour une entreprise de transport routier ?',
-  'Comment centraliser planning, flotte, chauffeurs et facturation ?',
-  'Quel logiciel transport pour suivre les courses en temps réel ?',
-  'Comment limiter la ressaisie entre exploitation et facturation ?',
-]
-
-const seoFaq = [
-  {
-    q: 'À quoi sert un ERP transport pour une PME de transport routier ?',
-    a: 'Un ERP transport permet de centraliser l exploitation quotidienne: ordres de transport, planning, affectations chauffeurs, flotte, documents, conformite et facturation. L objectif est de reduire les doubles saisies et d accelerer les decisions.',
-  },
-  {
-    q: 'Quelle différence entre un TMS et un ERP transport ?',
-    a: 'Un TMS couvre souvent le pilotage transport. Un ERP transport va plus loin en reliant aussi RH, conformite, documents et suivi financier dans un meme socle. Cela evite de multiplier les outils non relies.',
-  },
-  {
-    q: 'Le logiciel convient-il à une exploitation avec groupage et affretement ?',
-    a: 'Oui. Le socle NEXORA Truck couvre la gestion des courses et du planning, avec une feuille de route orientee groupage multi-courses et espaces dedies comme l espace affreteur.',
-  },
-  {
-    q: 'Comment améliorer le suivi des livraisons et des statuts client ?',
-    a: 'Le suivi temps reel des statuts, alertes et preuves de livraison aide a fiabiliser la communication interne et client. Les donnees restent dans le meme outil pour conserver une trace exploitable.',
-  },
-]
+const inlineLinkClassName = 'font-semibold text-[#2563EB]'
 
 export default function SeoErpTransportPage() {
   useSiteMeta({
-    title: 'ERP transport routier et logiciel TMS',
+    title: 'ERP transport',
     description:
-      'Page SEO NEXORA Truck: ERP transport routier pour exploitation, planning chauffeurs, flotte, conformite et facturation. Comparez les usages et identifiez le bon logiciel transport.',
-    canonicalPath: '/erp-transport-tms',
-    keywords: mainKeywords.join(', '),
+      'Page SEO NEXORA Truck sur l’ERP transport pour relier exploitation transport, planning transport, gestion flotte et suivi métier.',
+    canonicalPath: '/erp-transport',
+    keywords:
+      'ERP transport, logiciel transport, TMS transport, exploitation transport, gestion flotte, planning transport',
     ogType: 'article',
+    author: 'NEXORA Truck',
   })
 
   useEffect(() => {
-    const structuredData = {
-      '@context': 'https://schema.org',
-      '@type': 'FAQPage',
-      mainEntity: seoFaq.map(item => ({
-        '@type': 'Question',
-        name: item.q,
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: item.a,
-        },
-      })),
-    }
-
     const script = document.createElement('script')
     script.type = 'application/ld+json'
-    script.id = 'seo-faq-jsonld'
-    script.text = JSON.stringify(structuredData)
+    script.id = 'erp-transport-jsonld'
+    script.text = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: 'NEXORA Truck',
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web',
+      inLanguage: 'fr-FR',
+      url: 'https://nexora-truck.fr/erp-transport',
+      description:
+        'ERP transport pour relier exploitation transport, planning transport, gestion flotte, suivi des missions et facturation.',
+    })
     document.head.appendChild(script)
 
     return () => {
@@ -76,108 +41,172 @@ export default function SeoErpTransportPage() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-[2.2rem] border border-white/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(240,249,255,0.94))] px-6 py-8 shadow-[0_24px_80px_rgba(15,23,42,0.1)] sm:px-8 sm:py-10">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-sky-800">Guide SEO métier</p>
-        <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-[3.2rem] sm:leading-[1.04]">
-          ERP transport routier: comment choisir un logiciel vraiment utile à l exploitation
+      <section className="rounded-[2.2rem] border border-white/80 bg-white px-6 py-8 shadow-[0_24px_80px_rgba(15,23,42,0.1)] sm:px-8 sm:py-10">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-sky-800">Page SEO canonique</p>
+        <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight text-[var(--site-text)] sm:text-[3.2rem] sm:leading-[1.04]">
+          ERP transport : solution complète pour gérer votre exploitation
         </h1>
-        <p className="mt-5 max-w-3xl text-base leading-8 text-slate-600">
-          Cette page répond aux recherches les plus fréquentes autour des mots-clés ERP transport, logiciel transport et TMS transport. L objectif est simple: donner des critères concrets pour choisir une plateforme qui relie terrain, planning, conformité et pilotage financier.
-        </p>
-        <div className="mt-6 flex flex-wrap gap-2">
-          {mainKeywords.map(keyword => (
-            <span key={keyword} className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-900">
-              {keyword}
-            </span>
-          ))}
-        </div>
-        <div className="mt-7 flex flex-wrap gap-3">
-          <Link to="/solution" className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800">
-            Voir la vision produit
-          </Link>
-          <Link to="/demonstration" className="rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-white">
-            Demander une démonstration
-          </Link>
-        </div>
-      </section>
-
-      <SiteSection
-        eyebrow="Intentions de recherche"
-        title="Les questions que les transporteurs posent vraiment à Google"
-        description="Les requêtes ci-dessous correspondent aux besoins opérationnels d une entreprise de transport qui veut mieux piloter son activité."
-      >
-        <div className="grid gap-4 md:grid-cols-2">
-          {targetQueries.map(query => (
-            <article key={query} className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
-              <h2 className="text-lg font-semibold tracking-tight text-slate-950">{query}</h2>
-            </article>
-          ))}
-        </div>
-      </SiteSection>
-
-      <SiteSection
-        eyebrow="Choisir un logiciel"
-        title="7 critères SEO + métier pour choisir un ERP transport"
-        description="Une bonne page SEO doit aussi apporter de la valeur réelle. Cette grille vous aide à évaluer rapidement un logiciel transport."
-      >
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <article className="rounded-[1.6rem] border border-slate-200/80 bg-white p-6">
-            <h3 className="text-lg font-semibold text-slate-950">1. Couverture exploitation</h3>
-            <p className="mt-3 text-sm leading-7 text-slate-600">Ordres de transport, statuts, alertes et priorisation doivent etre visibles dans une lecture unique.</p>
-          </article>
-          <article className="rounded-[1.6rem] border border-slate-200/80 bg-white p-6">
-            <h3 className="text-lg font-semibold text-slate-950">2. Planning et affectations</h3>
-            <p className="mt-3 text-sm leading-7 text-slate-600">Le planning flotte/chauffeurs doit rester relie a la realite des courses et non dans un outil separe.</p>
-          </article>
-          <article className="rounded-[1.6rem] border border-slate-200/80 bg-white p-6">
-            <h3 className="text-lg font-semibold text-slate-950">3. Conformite transport</h3>
-            <p className="mt-3 text-sm leading-7 text-slate-600">Tachygraphe, documents, amendes, suivi RH et obligations reglementaires doivent etre traces.</p>
-          </article>
-          <article className="rounded-[1.6rem] border border-slate-200/80 bg-white p-6">
-            <h3 className="text-lg font-semibold text-slate-950">4. Trace de livraison</h3>
-            <p className="mt-3 text-sm leading-7 text-slate-600">Chaque mission doit laisser une preuve exploitable pour le client, l exploitation et la facturation.</p>
-          </article>
-          <article className="rounded-[1.6rem] border border-slate-200/80 bg-white p-6">
-            <h3 className="text-lg font-semibold text-slate-950">5. Continuite finance</h3>
-            <p className="mt-3 text-sm leading-7 text-slate-600">Le passage execution vers facturation doit limiter les ressaisies et fiabiliser les marges.</p>
-          </article>
-          <article className="rounded-[1.6rem] border border-slate-200/80 bg-white p-6">
-            <h3 className="text-lg font-semibold text-slate-950">6. Evolutivite API</h3>
-            <p className="mt-3 text-sm leading-7 text-slate-600">Portails clients, interconnexions et automatismes doivent etre prevus sans refondre le socle.</p>
-          </article>
-        </div>
-      </SiteSection>
-
-      <SiteSection
-        eyebrow="FAQ SEO"
-        title="Questions fréquentes sur ERP transport et TMS"
-        description="Un format FAQ bien structuré aide les utilisateurs et renforce la pertinence sémantique de la page."
-        muted
-      >
-        <div className="space-y-4">
-          {seoFaq.map(item => (
-            <article key={item.q} className="rounded-[1.5rem] border border-slate-200/80 bg-white p-6">
-              <h2 className="text-xl font-semibold tracking-tight text-slate-950">{item.q}</h2>
-              <p className="mt-3 text-sm leading-7 text-slate-600">{item.a}</p>
-            </article>
-          ))}
-        </div>
-      </SiteSection>
-
-      <section className="rounded-[2rem] border border-white/70 bg-[linear-gradient(145deg,#0f172a,#111827)] px-6 py-8 text-white shadow-[0_28px_80px_rgba(15,23,42,0.2)] sm:px-8 sm:py-10">
-        <h2 className="text-3xl font-semibold tracking-tight sm:text-[2.45rem]">Aller plus loin sur votre cas transport</h2>
-        <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300 sm:text-base">
-          Si vous cherchez un ERP transport pour structurer l exploitation et fluidifier la communication entre équipes, la meilleure étape reste une démonstration basée sur vos contraintes réelles.
-        </p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link to="/contact" className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-slate-100">
-            Contacter l équipe
-          </Link>
-          <Link to="/planning-intelligent" className="rounded-full border border-white/20 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10">
-            Découvrir le planning intelligent
-          </Link>
+        <div className="mt-5 max-w-3xl space-y-4 text-base leading-8 text-[var(--site-text-secondary)]">
+          <p>
+            Un ERP transport permet de piloter l’exploitation transport dans un seul environnement, sans découper le travail
+            entre plusieurs outils qui se contredisent. Pour un exploitant, le gain principal n’est pas théorique: c’est la
+            capacité à décider plus vite avec des données fiables. Les ordres de transport, le planning transport, la gestion
+            flotte, les statuts de mission et la facturation restent dans le même flux de travail, ce qui réduit les
+            ressaisies et les pertes de contexte.
+          </p>
+          <p>
+            Cette page détaille une approche concrète, terrain et orientée exploitation. Si vous souhaitez comparer avec une
+            lecture complémentaire, consultez aussi la page{' '}
+            <Link to="/logiciel-transport" className={inlineLinkClassName}>
+              logiciel transport
+            </Link>{' '}
+            et les <Link to="/articles" className={inlineLinkClassName}>articles transport</Link> pour approfondir les cas
+            d’usage métier.
+          </p>
         </div>
       </section>
+
+      <SiteSection
+        eyebrow="Définition"
+        title="Qu’est-ce qu’un ERP transport"
+        description="Un ERP transport est un système de gestion intégré qui relie les opérations, les ressources et la continuité financière."
+      >
+        <div className="space-y-4 text-sm leading-7 text-[var(--site-text-secondary)] sm:text-base">
+          <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Un socle unique pour les décisions quotidiennes</h3>
+          <p>
+            Un ERP transport n’est pas un simple logiciel de suivi. C’est un cadre de pilotage qui relie les ordres, les
+            statuts, les ressources, les événements terrain et les impacts financiers. Dans une entreprise de transport, cela
+            veut dire que l’exploitation, le planning transport et la gestion flotte consultent la même réalité au même
+            moment. Au lieu de multiplier les vérifications manuelles, l’équipe voit immédiatement ce qui est confirmé, ce qui
+            bloque et ce qui doit être arbitré.
+          </p>
+          <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Une continuité de la mission jusqu’à la facturation</h3>
+          <p>
+            La valeur réelle d’un ERP transport apparaît quand une mission suit un fil logique complet: création de l’ordre,
+            affectation, exécution, preuve, contrôle puis facturation. Sans continuité, les équipes recopient les mêmes
+            informations et perdent du temps sur des tâches de coordination. Avec continuité, la traçabilité progresse, la
+            communication interne s’allège et les litiges se traitent plus vite.
+          </p>
+        </div>
+      </SiteSection>
+
+      <SiteSection
+        eyebrow="Intérêt"
+        title="Pourquoi utiliser un logiciel transport"
+        description="Le besoin naît quand la coordination quotidienne devient plus coûteuse que l’exécution elle-même."
+      >
+        <div className="space-y-4 text-sm leading-7 text-[var(--site-text-secondary)] sm:text-base">
+          <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Limiter la dispersion des outils</h3>
+          <p>
+            Un logiciel transport devient indispensable quand les opérations passent par plusieurs canaux non synchronisés.
+            Dans ce cas, chaque changement génère des messages, des vérifications et des ressaisies. L’exploitant perd du
+            temps sur la consolidation au lieu de piloter la journée. Le système doit donc centraliser l’information utile,
+            avec des statuts compréhensibles et une lecture actionnable.
+          </p>
+          <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Améliorer la qualité de service sans ajouter de complexité</h3>
+          <p>
+            Utiliser un logiciel transport ne consiste pas à empiler des fonctions. Le but est d’améliorer la fiabilité des
+            engagements: affecter la bonne ressource, anticiper les blocages, informer les parties prenantes et garder la
+            trace des arbitrages. C’est précisément cette logique qui rapproche la fonction TMS d’un pilotage ERP complet,
+            comme expliqué dans{' '}
+            <Link to="/articles/tms-transport-definition-simple-et-complete" className={inlineLinkClassName}>
+              l’article dédié au TMS transport
+            </Link>
+            .
+          </p>
+        </div>
+      </SiteSection>
+
+      <SiteSection
+        eyebrow="Organisation"
+        title="Gestion du planning transport"
+        description="Le planning transport est le cœur de l’exploitation: il doit rester fiable malgré les changements de la journée."
+      >
+        <div className="space-y-4 text-sm leading-7 text-[var(--site-text-secondary)] sm:text-base">
+          <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Planifier avec une vue de charge réelle</h3>
+          <p>
+            Un bon planning transport ne se limite pas à remplir des créneaux. Il doit intégrer les contraintes ressources,
+            les priorités clients et la faisabilité opérationnelle. Sans cette lecture, les affectations sont fragiles et les
+            corrections de dernière minute deviennent permanentes.
+          </p>
+          <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Absorber les urgences sans casser la journée</h3>
+          <p>
+            L’exploitation subit des imprévus permanents: annulation, retard, indisponibilité, changement de priorité. Le
+            système doit permettre des réaffectations rapides et traçables, sans effacer l’historique des décisions. Cette
+            capacité distingue un planning opérationnel d’un tableau de saisie.
+          </p>
+          <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Relier le planning au reste du flux</h3>
+          <p>
+            Le planning transport doit alimenter le suivi terrain, la preuve d’exécution et la facturation. Dès que le
+            planning vit en silo, l’entreprise reconstitue l’information à la main. Pour une approche détaillée, consultez
+            aussi{' '}
+            <Link to="/articles/comment-organiser-un-planning-transport-efficacement" className={inlineLinkClassName}>
+              l’article sur l’organisation du planning transport
+            </Link>
+            .
+          </p>
+        </div>
+      </SiteSection>
+
+      <SiteSection
+        eyebrow="Ressources"
+        title="Optimisation de la flotte"
+        description="La gestion flotte doit rester connectée à l’exploitation pour éviter les affectations irréalistes."
+      >
+        <div className="space-y-4 text-sm leading-7 text-[var(--site-text-secondary)] sm:text-base">
+          <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Voir la disponibilité avant l’affectation</h3>
+          <p>
+            Une flotte bien pilotée ne se résume pas au nombre de véhicules dans le parc. Ce qui compte, c’est la
+            disponibilité réellement mobilisable selon les contraintes techniques, réglementaires et terrain. Cette
+            visibilité doit exister avant de confirmer une mission, sinon le planning se dégrade en chaîne.
+          </p>
+          <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Relier atelier, conformité et exploitation</h3>
+          <p>
+            Les opérations atelier, les alertes de conformité et les indisponibilités documentaires doivent être lisibles dans
+            la même vue que le pilotage quotidien. Quand ces informations circulent séparément, les arbitrages arrivent trop
+            tard. La flotte doit être un sujet de décision en temps réel, pas un reporting différé.
+          </p>
+          <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Mesurer l’impact opérationnel et financier</h3>
+          <p>
+            Optimiser la flotte, c’est aussi mesurer son impact sur la marge: immobilisations non planifiées, temps morts,
+            réaffectations d’urgence, surcoûts de coordination. Vous pouvez approfondir ce sujet avec{' '}
+            <Link to="/articles/gestion-de-flotte-poids-lourd-erreurs-courantes" className={inlineLinkClassName}>
+              l’article sur les erreurs de gestion de flotte poids lourd
+            </Link>
+            .
+          </p>
+        </div>
+      </SiteSection>
+
+      <SiteSection
+        eyebrow="Exécution"
+        title="Suivi des opérations en temps réel"
+        description="Le suivi des opérations transforme les données terrain en décisions immédiates et traçables."
+      >
+        <div className="space-y-4 text-sm leading-7 text-[var(--site-text-secondary)] sm:text-base">
+          <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Passer du constat tardif à l’action immédiate</h3>
+          <p>
+            Le suivi des opérations en temps réel donne à l’exploitant une lecture claire de l’avancement, des écarts et des
+            risques. L’objectif n’est pas de surveiller davantage, mais d’agir au bon moment. Un incident traité tôt coûte
+            moins cher et dégrade moins la relation client qu’un incident découvert en fin de chaîne.
+          </p>
+          <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Donner de la traçabilité aux arbitrages</h3>
+          <p>
+            Chaque décision d’exploitation doit laisser une trace: qui a décidé, pourquoi, avec quel impact. Cette mémoire
+            métier réduit les litiges internes, fiabilise les retours d’expérience et améliore la qualité de service au fil du
+            temps. C’est aussi un levier important pour relier pilotage opérationnel et rentabilité réelle.
+          </p>
+          <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Renforcer le maillage interne du site</h3>
+          <p>
+            Pour prolonger cette lecture, consultez la page <Link to="/logiciel-transport" className={inlineLinkClassName}>logiciel transport</Link>,
+            la rubrique <Link to="/articles" className={inlineLinkClassName}>articles</Link> et l’article{' '}
+            <Link to="/articles/comment-ameliorer-la-rentabilite-d-une-entreprise-de-transport" className={inlineLinkClassName}>
+              sur la rentabilité d’une entreprise de transport
+            </Link>
+            .
+          </p>
+        </div>
+      </SiteSection>
     </div>
   )
 }

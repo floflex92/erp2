@@ -26,7 +26,7 @@ export default function SiteSection({
           ) : null}
           <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 sm:text-[2rem]">{title}</h2>
           {description ? (
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">{description}</p>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--site-text-secondary)] sm:text-base">{description}</p>
           ) : null}
         </div>
         {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
