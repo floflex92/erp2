@@ -79,10 +79,10 @@ export default function Prospection() {
     setLoading(true)
     setError(null)
     try {
-      const { data, error: loadError } = await supabase
-        .from('prospects')
+      const { data, error: loadError } = await (supabase
+        .from('prospects' as any)
         .select('*')
-        .order('updated_at', { ascending: false })
+        .order('updated_at', { ascending: false }) as any)
       if (loadError) throw loadError
       setProspects((data ?? []) as ProspectRow[])
     } catch (err) {
@@ -152,7 +152,7 @@ export default function Prospection() {
         throw new Error('Montant mensuel invalide.')
       }
 
-      const { error: insertError } = await supabase.from('prospects').insert({
+      const { error: insertError } = await (supabase.from('prospects' as any) as any).insert({
         nom_entreprise: form.nom_entreprise.trim(),
         statut: form.statut,
         montant_mensuel_estime: amount,
@@ -175,10 +175,10 @@ export default function Prospection() {
   async function handleStatusChange(id: string, statut: ProspectStatus) {
     setError(null)
     setNotice(null)
-    const { error: updateError } = await supabase
-      .from('prospects')
+    const { error: updateError } = await ((supabase
+      .from('prospects' as any)
       .update({ statut })
-      .eq('id', id)
+      .eq('id', id)) as any)
     if (updateError) {
       setError(updateError.message)
       return
@@ -190,7 +190,7 @@ export default function Prospection() {
   async function handleDeleteProspect(id: string) {
     setError(null)
     setNotice(null)
-    const { error: deleteError } = await supabase.from('prospects').delete().eq('id', id)
+    const { error: deleteError } = await ((supabase.from('prospects' as any).delete().eq('id', id)) as any)
     if (deleteError) {
       setError(deleteError.message)
       return

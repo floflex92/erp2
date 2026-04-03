@@ -64,8 +64,10 @@ async function aggregateFromTachyEntries(dbClient, conducteurId) {
   }
 }
 
-async function resolveActivity(dbClient, tenantKey, conducteurId) {
-  const { data, error } = await dbClient
+// NOTE SECURITE: systemClient pour erp_v11_driver_activity (table systeme).
+// dbClient pour aggregateFromTachyEntries (tachygraphe_entrees - donnees metier, RLS actif).
+async function resolveActivity(systemClient, dbClient, tenantKey, conducteurId) {
+  const { data, error } = await systemClient
     .from('erp_v11_driver_activity')
     .select('*')
     .eq('tenant_key', tenantKey)
@@ -78,14 +80,15 @@ async function resolveActivity(dbClient, tenantKey, conducteurId) {
   return aggregateFromTachyEntries(dbClient, conducteurId)
 }
 
-async function maybeEnrichWithProvider(dbClient, tenantKey, moduleConfig, conducteurId, fallbackPayload) {
+// NOTE SECURITE: utilise systemClient car loadProviders/logApiEvent/loadMappingRules/erp_v11_driver_activity sont tables systeme.
+async function maybeEnrichWithProvider(systemClient, tenantKey, moduleConfig, conducteurId, fallbackPayload) {
   if (moduleConfig.mode === 'internal_only') return { activity: fallbackPayload, providerUsed: null }
-  const providers = await loadProviders(dbClient, tenantKey, 'tachy')
+  const providers = await loadProviders(systemClient, tenantKey, 'tachy')
   const provider = providers[0]
   if (!provider) return { activity: fallbackPayload, providerUsed: null }
 
   const providerResponse = await callProvider(provider, '/tachy/status', { conducteur_id: conducteurId })
-  await logApiEvent(dbClient, {
+  await logApiEvent(systemClient, {
     tenant_key: tenantKey,
     module_key: 'tachy',
     provider_key: provider.provider_key,
@@ -101,7 +104,7 @@ async function maybeEnrichWithProvider(dbClient, tenantKey, moduleConfig, conduc
     return { activity: fallbackPayload, providerUsed: null }
   }
 
-  const rules = await loadMappingRules(dbClient, tenantKey, provider.provider_key, 'DrivingTimeStatus')
+  const rules = await loadMappingRules(systemClient, tenantKey, provider.provider_key, 'DrivingTimeStatus')
   const mapped = normalizeMapping(providerResponse.data, rules, {
     conducteur_id: conducteurId,
     driving_minutes_remaining: fallbackPayload.driving_minutes_remaining,
@@ -126,7 +129,7 @@ async function maybeEnrichWithProvider(dbClient, tenantKey, moduleConfig, conduc
     raw_payload: providerResponse.data,
   }
 
-  await dbClient.from('erp_v11_driver_activity').insert(next)
+  await systemClient.from('erp_v11_driver_activity').insert(next)
   return { activity: next, providerUsed: provider.provider_key }
 }
 
@@ -143,11 +146,13 @@ export async function handler(event) {
   if (!conducteurId) return json(400, { error: 'conducteur_id is required.' })
 
   const action = (event.queryStringParameters?.action ?? body.action ?? 'status').toLowerCase()
-  const moduleConfig = await moduleState(auth.dbClient, tenantKey, 'tachy')
+  // NOTE SECURITE: moduleState/cache/enrichissement → systemClient (tables systeme).
+  // tachygraphe_entrees (donnees metier) → dbClient via resolveActivity/aggregateFromTachyEntries (RLS actif).
+  const moduleConfig = await moduleState(auth.systemClient, tenantKey, 'tachy')
   if (!moduleConfig.enabled) return json(423, { error: 'Tachy module disabled for tenant.' })
 
   const cacheKey = `tachy:${conducteurId}:${action}`
-  const cacheResult = await readCache(auth.dbClient, tenantKey, cacheKey)
+  const cacheResult = await readCache(auth.systemClient, tenantKey, cacheKey)
   if (cacheResult.hit) {
     return json(200, {
       tenant_key: tenantKey,
@@ -156,10 +161,10 @@ export async function handler(event) {
     })
   }
 
-  const fallbackActivity = await resolveActivity(auth.dbClient, tenantKey, conducteurId)
+  const fallbackActivity = await resolveActivity(auth.systemClient, auth.dbClient, tenantKey, conducteurId)
   if (!fallbackActivity) return json(404, { error: 'No activity found for conducteur.' })
 
-  const enriched = await maybeEnrichWithProvider(auth.dbClient, tenantKey, moduleConfig, conducteurId, fallbackActivity)
+  const enriched = await maybeEnrichWithProvider(auth.systemClient, tenantKey, moduleConfig, conducteurId, fallbackActivity)
   const activity = enriched.activity
   const driverStatus = buildDriverStatus(activity)
   const drivingTimeStatus = buildDrivingTimeStatus(activity)
@@ -172,7 +177,7 @@ export async function handler(event) {
   }
 
   const ttl = Math.max(15, Number(moduleConfig.refresh_interval_sec ?? 60))
-  await writeCache(auth.dbClient, tenantKey, cacheKey, 'tachy', payload, ttl, Math.floor(ttl / 2), enriched.providerUsed ? 'provider' : 'internal')
+  await writeCache(auth.systemClient, tenantKey, cacheKey, 'tachy', payload, ttl, Math.floor(ttl / 2), enriched.providerUsed ? 'provider' : 'internal')
 
   if (action === 'driving-time') {
     return json(200, {

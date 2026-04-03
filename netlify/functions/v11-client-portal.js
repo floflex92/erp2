@@ -25,7 +25,9 @@ async function readPortalByToken(dbClient, tenantKey, token) {
   return { client_id: data.client_id, ot_id: data.ot_id }
 }
 
-async function fetchTrackingPayload(dbClient, tenantKey, clientId, otId) {
+// NOTE SECURITE: ordres_transport (metier) → dbClient (RLS actif).
+// erp_v11_eta_predictions / erp_v11_vehicle_positions (systeme) → systemClient.
+async function fetchTrackingPayload(dbClient, systemClient, tenantKey, clientId, otId) {
   const { data: order, error: orderError } = await dbClient
     .from('ordres_transport')
     .select('id, reference, client_id, vehicule_id, conducteur_id, statut, statut_operationnel, date_livraison_prevue')
@@ -36,7 +38,7 @@ async function fetchTrackingPayload(dbClient, tenantKey, clientId, otId) {
   if (orderError || !order) return { error: 'Mission not found for client.' }
 
   const [{ data: eta }, { data: position }] = await Promise.all([
-    dbClient
+    systemClient
       .from('erp_v11_eta_predictions')
       .select('eta_at, confidence, delay_minutes, prediction_at')
       .eq('tenant_key', tenantKey)
@@ -45,7 +47,7 @@ async function fetchTrackingPayload(dbClient, tenantKey, clientId, otId) {
       .limit(1)
       .maybeSingle(),
     order.vehicule_id
-      ? dbClient
+        ? systemClient
           .from('erp_v11_vehicle_positions')
           .select('position_at, latitude, longitude, speed_kmh')
           .eq('tenant_key', tenantKey)
@@ -114,7 +116,8 @@ export async function handler(event) {
 
       const portal = await readPortalByToken(client, tenantKey, token)
       if (portal.error) return json(401, { error: portal.error })
-      const payload = await fetchTrackingPayload(client, tenantKey, portal.client_id, portal.ot_id)
+      // Flux non authentifie (token public) : client = service role, valide car gated par readPortalByToken.
+      const payload = await fetchTrackingPayload(client, client, tenantKey, portal.client_id, portal.ot_id)
       if (payload.error) return json(404, { error: payload.error })
       return json(200, {
         tenant_key: tenantKey,
@@ -125,13 +128,14 @@ export async function handler(event) {
 
     const auth = await authorize(event, { allowedRoles: ADMIN_ROLES })
     if (auth.error) return auth.error
-    const moduleConfig = await moduleState(auth.dbClient, tenantKey, 'client_portal')
+    // NOTE SECURITE: moduleState → systemClient. fetchTrackingPayload : ordres_transport via dbClient (RLS), infra via systemClient.
+    const moduleConfig = await moduleState(auth.systemClient, tenantKey, 'client_portal')
     if (!moduleConfig.enabled) return json(423, { error: 'Client portal module disabled for tenant.' })
 
     const clientId = query.client_id ?? body.client_id
     const otId = query.ot_id ?? body.ot_id
     if (!clientId || !otId) return json(400, { error: 'client_id and ot_id are required when token is not provided.' })
-    const payload = await fetchTrackingPayload(auth.dbClient, tenantKey, clientId, otId)
+    const payload = await fetchTrackingPayload(auth.dbClient, auth.systemClient, tenantKey, clientId, otId)
     if (payload.error) return json(404, { error: payload.error })
     return json(200, {
       tenant_key: tenantKey,
@@ -142,17 +146,18 @@ export async function handler(event) {
 
   const auth = await authorize(event, { allowedRoles: ADMIN_ROLES })
   if (auth.error) return auth.error
-  const moduleConfig = await moduleState(auth.dbClient, tenantKey, 'client_portal')
+  // NOTE SECURITE: erp_v11_client_portal_access (tokens admin) est une table systeme → systemClient.
+  const moduleConfig = await moduleState(auth.systemClient, tenantKey, 'client_portal')
   if (!moduleConfig.enabled) return json(423, { error: 'Client portal module disabled for tenant.' })
 
   const action = (query.action ?? body.action ?? 'grant').toLowerCase()
   if (event.httpMethod === 'POST' && action === 'grant') {
-    return grantPortalAccess(auth.dbClient, tenantKey, auth.user.id, body)
+    return grantPortalAccess(auth.systemClient, tenantKey, auth.user.id, body)
   }
 
   if (event.httpMethod === 'POST' && action === 'revoke') {
     if (typeof body.access_token !== 'string') return json(400, { error: 'access_token is required.' })
-    const { error } = await auth.dbClient
+    const { error } = await auth.systemClient
       .from('erp_v11_client_portal_access')
       .update({ enabled: false, updated_at: new Date().toISOString() })
       .eq('tenant_key', tenantKey)

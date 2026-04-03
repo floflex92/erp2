@@ -133,7 +133,7 @@ export default function Communication() {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Messages internes" value={String(chatUnread)} detail="Non lus" tone="blue" />
         <StatCard label="Mails" value={String(mailUnread)} detail="Non lus" tone="amber" />
         <StatCard label="Personnes importantes" value={String(settings.peopleIds.length)} detail="Surveillees" tone="emerald" />
@@ -142,14 +142,14 @@ export default function Communication() {
 
       <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
         <section className="rounded-3xl border p-5" style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(15,23,42,0.7)' }}>
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Hub communication</p>
               <h2 className="mt-2 text-xl font-semibold text-white">Ce qui doit remonter tout de suite</h2>
             </div>
-            <div className="flex gap-2">
-              <Link to="/tchat" className="rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-200 transition-colors hover:bg-white/5">Ouvrir Messagerie</Link>
-              <Link to="/mail" className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500">Ouvrir Mail</Link>
+            <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto">
+              <Link to="/tchat" className="rounded-xl border border-white/10 px-3 py-2 text-center text-sm text-slate-200 transition-colors hover:bg-white/5">Ouvrir Messagerie</Link>
+              <Link to="/mail" className="rounded-xl bg-blue-600 px-3 py-2 text-center text-sm font-medium text-white transition-colors hover:bg-blue-500">Ouvrir Mail</Link>
             </div>
           </div>
 

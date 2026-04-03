@@ -106,7 +106,11 @@ async function closeSession(dbClient, tenantKey, body, auth) {
 }
 
 async function listMissions(dbClient, tenantKey, auth, query, body) {
-  const conducteurId = query.conducteur_id ?? body.conducteur_id ?? await resolveConducteurId(dbClient, body, auth)
+  const requestedConducteurId = query.conducteur_id ?? body.conducteur_id ?? null
+  const ownConducteurId = await resolveConducteurId(dbClient, body, auth)
+  const conducteurId = auth.profile.role === 'conducteur'
+    ? ownConducteurId
+    : (requestedConducteurId ?? ownConducteurId)
   if (!conducteurId) return json(400, { error: 'conducteur_id is required.' })
 
   const { data, error } = await dbClient
@@ -136,7 +140,9 @@ export async function handler(event) {
 
   const query = event.queryStringParameters ?? {}
   const tenantKey = readTenantKey(event, body)
-  const moduleConfig = await moduleState(auth.dbClient, tenantKey, 'driver_session')
+  // NOTE SECURITE: moduleState lit erp_v11_modules (table systeme) → systemClient.
+  // Toutes les requetes metier (conducteur_sessions, ordres_transport) utilisent dbClient (RLS actif).
+  const moduleConfig = await moduleState(auth.systemClient, tenantKey, 'driver_session')
   if (!moduleConfig.enabled) return json(423, { error: 'Driver session module disabled for tenant.' })
 
   const action = (query.action ?? body.action ?? (event.httpMethod === 'GET' ? 'missions' : 'open')).toLowerCase()
@@ -144,12 +150,16 @@ export async function handler(event) {
   if (event.httpMethod === 'GET') {
     if (action === 'missions') return listMissions(auth.dbClient, tenantKey, auth, query, body)
     if (action === 'sessions') {
-      const { data, error } = await auth.dbClient
+      let sessionsQuery = auth.dbClient
         .from('erp_v11_driver_sessions')
         .select('id, conducteur_id, status, started_at, ended_at, last_seen_at')
         .eq('tenant_key', tenantKey)
         .order('started_at', { ascending: false })
         .limit(200)
+
+      sessionsQuery = applySessionOwnershipFilter(sessionsQuery, auth)
+
+      const { data, error } = await sessionsQuery
       if (error) return json(500, { error: error.message })
       return json(200, { tenant_key: tenantKey, sessions: data ?? [] })
     }

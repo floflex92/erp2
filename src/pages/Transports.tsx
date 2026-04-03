@@ -93,7 +93,7 @@ const EMPTY_OT: TablesInsert<'ordres_transport'> = {
   instructions: null, notes_internes: null,
 }
 
-const inp = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-300'
+const inp = 'w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary-soft)]'
 
 const EMPTY_SITE_DRAFT: SiteDraft = {
   entreprise_id: '',
@@ -772,7 +772,7 @@ export default function Transports() {
                     </td>
                     <td className="px-4 py-3 text-slate-700">{clientMap[ot.client_id] ?? '—'}</td>
                     <td className="px-4 py-3 text-slate-600 font-mono text-xs">{ot.reference_transport ?? 'Générée à l insertion'}</td>
-                    <td className="px-4 py-3 text-slate-600">{clientMap[ot.donneur_ordre_id] ?? '—'}</td>
+                    <td className="px-4 py-3 text-slate-600">{ot.donneur_ordre_id ? (clientMap[ot.donneur_ordre_id] ?? '—') : '—'}</td>
                     <td className="px-4 py-3 text-slate-600">{TYPE_TRANSPORT_LABELS[ot.type_transport] ?? ot.type_transport}</td>
                     <td className="px-4 py-3 text-slate-600">
                       {ot.date_livraison_prevue ? new Date(ot.date_livraison_prevue).toLocaleDateString('fr-FR') : '—'}
@@ -1035,7 +1035,7 @@ export default function Transports() {
               <Info label="Référence transport" value={selected.reference_transport} />
               <Info label="Référence externe" value={selected.reference_externe} />
               <Info label="Source course" value={selected.source_course} />
-              <Info label="Donneur d ordre" value={clientMap[selected.donneur_ordre_id]} />
+              <Info label="Donneur d ordre" value={selected.donneur_ordre_id ? (clientMap[selected.donneur_ordre_id] ?? null) : null} />
               <Info label="Chargement" value={selected.chargement_site_id ? `${siteMap[selected.chargement_site_id]?.nom ?? ''} - ${siteMap[selected.chargement_site_id]?.adresse ?? ''}` : null} />
               <Info label="Livraison" value={selected.livraison_site_id ? `${siteMap[selected.livraison_site_id]?.nom ?? ''} - ${siteMap[selected.livraison_site_id]?.adresse ?? ''}` : null} />
               <Info label="Chargement prévu" value={selected.date_chargement_prevue ? new Date(selected.date_chargement_prevue).toLocaleDateString('fr-FR') : null} />

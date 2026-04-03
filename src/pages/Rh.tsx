@@ -6,29 +6,11 @@ import { ensureEmployeeJobSheets, ensurePolicyDocuments, generateEmploymentContr
 import { importEmployeeIntakeForm, provisionEmployeeOnboarding } from '@/lib/onboarding'
 import { createPayrollSlip } from '@/lib/payroll'
 import { buildStaffDirectory, findStaffMember, staffDisplayName } from '@/lib/staffDirectory'
+import { createEntretienRh, deleteEntretienRh, fetchEntretienRh, fetchUpcomingEntretiens, updateEntretienRh, type EntretienRh } from '@/lib/entretienRh'
 
 const RH_UPLOAD_CATEGORIES = ['carte_vitale', 'carte_identite', 'justificatif_domicile', 'scan_complementaire'] as const
-const inp = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-slate-400'
+const inp = 'w-full rounded-xl border bg-[color:var(--surface)] px-3 py-2.5 text-sm text-[color:var(--text)] outline-none focus:border-[color:var(--primary)]'
 type RhTab = 'employes' | 'documents' | 'entretiens'
-
-type EntretienRh = {
-  id: string
-  employe_id: string
-  type: 'evaluation_annuelle' | 'entretien_professionnel' | 'bilan_competences' | 'reunion_management' | 'autre'
-  titre: string
-  description: string | null
-  date_planifiee: string
-  heure_debut: string | null
-  duree_minutes: number
-  evaluateur_id: string | null
-  statut: 'planifie' | 'effectue' | 'reporte' | 'annule'
-  resultat: string | null
-  notes_evaluation: string | null
-  suivi_requis: boolean
-  date_suivi_prevu: string | null
-  created_at: string
-  updated_at: string
-}
 
 export default function Rh() {
   const { profil, accountProfil } = useAuth()
@@ -45,7 +27,10 @@ export default function Rh() {
   const [error, setError] = useState<string | null>(null)
   
   // Entretiens RH
-  const [entretiens] = useState<EntretienRh[]>([])
+  const [entretiens, setEntretiens] = useState<EntretienRh[]>([])
+  const [upcomingEntretiens, setUpcomingEntretiens] = useState<EntretienRh[]>([])
+  const [isLoadingEntretiens, setIsLoadingEntretiens] = useState(false)
+  const [editingEntretienId, setEditingEntretienId] = useState<string | null>(null)
   const [entretienForm, setEntretienForm] = useState<Partial<EntretienRh>>({
     type: 'entretien_professionnel',
     duree_minutes: 60,
@@ -90,6 +75,10 @@ export default function Rh() {
     return unique.sort((left, right) => (ROLE_LABELS[left] ?? left).localeCompare(ROLE_LABELS[right] ?? right, 'fr'))
   }, [staff])
 
+  const evaluatorsOptions = useMemo(() => {
+    return staff.filter(member => member.role === 'rh' || member.role === 'dirigeant' || member.role === 'admin')
+  }, [staff])
+
   useEffect(() => {
     if (!profil) return
     staff.forEach(member => {
@@ -126,6 +115,43 @@ export default function Rh() {
     }
     setEmployeeDraft(selectedEmployeeRecord)
   }, [selectedEmployeeRecord])
+
+  // Load entretiens RH from Supabase
+  useEffect(() => {
+    const loadEntretiens = async () => {
+      setIsLoadingEntretiens(true)
+      const data = await fetchEntretienRh()
+      setEntretiens(data)
+      setIsLoadingEntretiens(false)
+    }
+    void loadEntretiens()
+  }, [])
+
+  // Load upcoming entretiens for dashboard
+  useEffect(() => {
+    const loadUpcoming = async () => {
+      const data = await fetchUpcomingEntretiens(7)
+      setUpcomingEntretiens(data)
+    }
+    void loadUpcoming()
+  }, [])
+
+  // Reset form when not editing
+  useEffect(() => {
+    if (!editingEntretienId) {
+      setEntretienForm({
+        type: 'entretien_professionnel',
+        duree_minutes: 60,
+        statut: 'planifie',
+        suivi_requis: false,
+      })
+    } else {
+      const editing = entretiens.find(e => e.id === editingEntretienId)
+      if (editing) {
+        setEntretienForm(editing)
+      }
+    }
+  }, [editingEntretienId, entretiens])
 
   if (!profil) return null
   const actor = profil
@@ -265,6 +291,73 @@ export default function Rh() {
     }, actor)
     setNotice(`Dossier d integration regenere pour ${staffDisplayName(selectedEmployee)}.`)
     setError(null)
+  }
+
+  // Entretiens RH handlers
+  async function handleSaveEntretien() {
+    if (!entretienForm.employe_id || !entretienForm.titre || !entretienForm.date_planifiee) {
+      setError('Collaborateur, titre et date sont obligatoires.')
+      return
+    }
+
+    try {
+      if (editingEntretienId) {
+        const updated = await updateEntretienRh(editingEntretienId, entretienForm as Partial<EntretienRh>)
+        if (updated) {
+          setEntretiens(entretiens.map(e => e.id === editingEntretienId ? updated : e))
+          setNotice('Entretien mis à jour.')
+          resetEntretienForm()
+        } else {
+          setError('Erreur lors de la mise à jour.')
+        }
+      } else {
+        const created = await createEntretienRh(entretienForm as Omit<EntretienRh, 'id' | 'created_at' | 'updated_at'>)
+        if (created) {
+          setEntretiens([...entretiens, created])
+          setNotice('Entretien créé.')
+          resetEntretienForm()
+        } else {
+          setError('Erreur lors de la création.')
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors de l\'enregistrement.')
+    }
+  }
+
+  async function handleDeleteEntretien(id: string) {
+    if (!confirm('Supprimer cet entretien ?')) return
+    try {
+      const success = await deleteEntretienRh(id)
+      if (success) {
+        setEntretiens(entretiens.filter(e => e.id !== id))
+        setNotice('Entretien supprimé.')
+        if (editingEntretienId === id) {
+          resetEntretienForm()
+        }
+      } else {
+        setError('Erreur lors de la suppression.')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors de la suppression.')
+    }
+  }
+
+  function resetEntretienForm() {
+    setEditingEntretienId(null)
+    setShowEntretienForm(false)
+    setEntretienForm({
+      type: 'entretien_professionnel',
+      duree_minutes: 60,
+      statut: 'planifie',
+      suivi_requis: false,
+    })
+  }
+
+  function handleEditEntretien(entretien: EntretienRh) {
+    setEditingEntretienId(entretien.id)
+    setEntretienForm(entretien)
+    setShowEntretienForm(true)
   }
 
   return (
@@ -494,6 +587,35 @@ export default function Rh() {
             <h3 className="mt-2 text-lg font-semibold text-slate-900">Entretiens professionnels</h3>
             <p className="mt-1 text-sm text-slate-500">Planification et suivi des entretiens d'évaluation, bilan de compétences et réunions management.</p>
 
+            {upcomingEntretiens.length > 0 && (
+              <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0">
+                    <span className="text-2xl">⏰</span>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-blue-900">Entretiens à planifier</h4>
+                    <p className="text-sm text-blue-700 mt-1">
+                      {upcomingEntretiens.length} entretien{upcomingEntretiens.length > 1 ? 's' : ''} planifié{upcomingEntretiens.length > 1 ? 's' : ''} au cours des 7 prochains jours
+                    </p>
+                    <ul className="mt-2 space-y-1">
+                      {upcomingEntretiens.slice(0, 3).map(e => {
+                        const emp = staff.find(m => m.id === e.employe_id)
+                        return (
+                          <li key={e.id} className="text-xs text-blue-800">
+                            • {new Date(e.date_planifiee).toLocaleDateString('fr-FR')} - {emp ? staffDisplayName(emp) : 'Employé inconnu'} ({e.titre})
+                          </li>
+                        )
+                      })}
+                      {upcomingEntretiens.length > 3 && (
+                        <li className="text-xs text-blue-700 italic">et {upcomingEntretiens.length - 3} autre{upcomingEntretiens.length - 3 > 1 ? 's' : ''}...</li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="mt-5 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 flex-1">
@@ -540,6 +662,22 @@ export default function Rh() {
                         ))}
                       </select>
                     </Field>
+                    <Field label="Évaluateur">
+                      <select
+                        className={inp}
+                        value={entretienForm.evaluateur_id || ''}
+                        onChange={e => setEntretienForm({ ...entretienForm, evaluateur_id: e.target.value || null })}
+                      >
+                        <option value="">Non assigné</option>
+                        {evaluatorsOptions.map(member => (
+                          <option key={member.id} value={member.id}>
+                            {staffDisplayName(member)}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
                     <Field label="Type d'entretien">
                       <select
                         className={inp}
@@ -560,6 +698,15 @@ export default function Rh() {
                       placeholder="Ex: Évaluation performance Q1 2026"
                       value={entretienForm.titre || ''}
                       onChange={e => setEntretienForm({ ...entretienForm, titre: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Description (optionnel)">
+                    <textarea
+                      className={inp}
+                      rows={2}
+                      placeholder="Notes supplémentaires..."
+                      value={entretienForm.description || ''}
+                      onChange={e => setEntretienForm({ ...entretienForm, description: e.target.value || null })}
                     />
                   </Field>
                   <div className="grid gap-3 md:grid-cols-2">
@@ -623,17 +770,26 @@ export default function Rh() {
                       />
                     </Field>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowEntretienForm(false)
-                      setEntretienForm({ type: 'entretien_professionnel', duree_minutes: 60, statut: 'planifie', suivi_requis: false })
-                      setNotice('Entretien ajouté. (Mock - non sauvegardé en DB)')
-                    }}
-                    className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white"
-                  >
-                    Enregistrer
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveEntretien()}
+                      disabled={isLoadingEntretiens}
+                      className="flex-1 rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+                    >
+                      {editingEntretienId ? 'Mettre à jour' : 'Créer'}
+                    </button>
+                    {editingEntretienId && (
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteEntretien(editingEntretienId)}
+                        disabled={isLoadingEntretiens}
+                        className="rounded-xl bg-red-100 px-4 py-3 text-sm font-medium text-red-700 disabled:opacity-50"
+                      >
+                        Supprimer
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -681,6 +837,7 @@ export default function Rh() {
                             </div>
                             <button
                               type="button"
+                              onClick={() => handleEditEntretien(entretien)}
                               className="text-xs px-2 py-1 rounded border bg-white/30 hover:bg-white/50 transition"
                             >
                               Éditer

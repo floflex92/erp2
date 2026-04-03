@@ -166,7 +166,7 @@ export default function Coffre() {
   }
 
   return (
-    <div className="space-y-5 p-5 md:p-6">
+    <div className="space-y-5 p-4 md:p-6">
       <div className="nx-panel px-6 py-5" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #111827 55%, #164e63 100%)' }}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -187,7 +187,7 @@ export default function Coffre() {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
         <MetricCard label="A signer" value={String(docsToSign.length)} detail="Action immediate" />
         <MetricCard label="Paie & contrats" value={String(paieAndContracts.length)} detail="Parcours salarie" />
         <MetricCard label="Identite & RH" value={String(identityDocs.length)} detail="Pieces admin" />
@@ -203,7 +203,7 @@ export default function Coffre() {
               <p className="mt-1 text-xs text-slate-400">Utilise les vues ci-dessous pour lire le dossier par intention, pas par ordre technique.</p>
             </div>
 
-            <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <div className="flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-end">
               <label className="flex min-w-[260px] items-center gap-3 rounded-2xl border px-4 py-3 text-sm text-slate-200" style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.04)' }}>
                 <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <circle cx="11" cy="11" r="7" />
@@ -221,7 +221,7 @@ export default function Coffre() {
                 <select
                   value={selectedEmployeeId}
                   onChange={event => setSelectedEmployeeId(event.target.value)}
-                  className="rounded-xl border px-3 py-2 text-sm text-slate-100"
+                  className="w-full rounded-xl border px-3 py-2 text-sm text-slate-100 md:w-auto"
                   style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.04)' }}
                 >
                   <option value="all">Tous les collaborateurs</option>

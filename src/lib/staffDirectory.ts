@@ -54,7 +54,7 @@ export function buildStaffDirectory(extraProfiles: Array<Profil | null | undefin
 }
 
 export function staffDisplayName(member: Pick<StaffMember, 'prenom' | 'nom' | 'role'>) {
-  const fullName = [member.prenom, member.nom].filter(Boolean).join(' ').trim()
+  const fullName = [member.prenom, member.nom].filter((x): x is string => typeof x === 'string').join(' ').trim()
   return fullName || ROLE_LABELS[member.role]
 }
 

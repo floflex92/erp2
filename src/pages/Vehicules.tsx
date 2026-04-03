@@ -5,14 +5,73 @@ import { looseSupabase } from '@/lib/supabaseLoose'
 import type { Tables, TablesInsert } from '@/lib/database.types'
 
 type Vehicule = Tables<'vehicules'>
-type VehiculeRow = Vehicule & { numero_parc: string | null }
-type FlotteDocument = Tables<'flotte_documents'>
+type VehiculeRow = Vehicule & {
+  numero_parc: string | null
+  numero_carte_grise?: string | null
+  vin?: string | null
+  date_mise_en_circulation?: string | null
+  date_achat?: string | null
+  cout_achat_ht?: number | null
+  type_propriete?: string | null
+  garantie_expiration?: string | null
+  contrat_entretien?: boolean | null
+  prestataire_entretien?: string | null
+  garage_entretien?: string | null
+}
+type VehiculeForm = TablesInsert<'vehicules'> & {
+  numero_carte_grise?: string | null
+  vin?: string | null
+  date_mise_en_circulation?: string | null
+  date_achat?: string | null
+  cout_achat_ht?: number | null
+  type_propriete?: string | null
+  garantie_expiration?: string | null
+  contrat_entretien?: boolean | null
+  prestataire_entretien?: string | null
+  garage_entretien?: string | null
+}
+type FlotteDocument = {
+  id: string
+  category: string | null
+  title: string
+  file_name: string
+  storage_bucket: string
+  storage_path: string
+  issued_at: string | null
+  expires_at: string | null
+  notes: string | null
+}
 type FlotteEntretien = Tables<'flotte_entretiens'>
-type VehiculeKm = Tables<'vehicule_releves_km'>
-type FlotteAlerte = Tables<'vue_alertes_flotte'>
-type FlotteCoutMensuel = Tables<'vue_couts_flotte_mensuels'>
-type VehiculeCoutKm = Tables<'vue_cout_kilometrique_vehicules'>
-type KmForm = Omit<TablesInsert<'vehicule_releves_km'>, 'vehicule_id'>
+type VehiculeKm = {
+  id: string
+  vehicule_id: string
+  reading_date: string
+  km_compteur: number
+  source: string | null
+  notes: string | null
+}
+type FlotteAlerte = {
+  id: string | null
+  asset_id: string | null
+  asset_label: string | null
+  alert_type: string | null
+  days_remaining: number | null
+  due_on: string | null
+}
+type FlotteCoutMensuel = {
+  month: string | null
+  total_cout_ht: number | null
+}
+type VehiculeCoutKm = {
+  month: string | null
+  cout_km_ht: number | null
+}
+type KmForm = {
+  reading_date: string
+  km_compteur: number
+  source: string | null
+  notes: string | null
+}
 
 const TYPE_LABELS: Record<string, string> = {
   tracteur: 'Tracteur',
@@ -70,7 +129,7 @@ const MAINTENANCE_TYPE_LABELS: Record<(typeof MAINTENANCE_TYPES)[number], string
   autre: 'Autre',
 }
 
-const EMPTY: TablesInsert<'vehicules'> = {
+const EMPTY: VehiculeForm = {
   immatriculation: '',
   marque: null,
   modele: null,
@@ -197,7 +256,7 @@ function isMissingOptionalFlotteFeature(err: unknown) {
   )
 }
 
-function normalizeVehiculePayload(form: TablesInsert<'vehicules'>): TablesInsert<'vehicules'> {
+function normalizeVehiculePayload(form: VehiculeForm): VehiculeForm {
   return {
     ...form,
     immatriculation: form.immatriculation.trim().toUpperCase(),
@@ -220,7 +279,7 @@ export default function Vehicules() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState<TablesInsert<'vehicules'>>(EMPTY)
+  const [form, setForm] = useState<VehiculeForm>(EMPTY)
   const [numeroParc, setNumeroParc] = useState('')
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
@@ -257,14 +316,14 @@ export default function Vehicules() {
 
       setList(((vehiculesRes.data ?? []) as unknown as VehiculeRow[]))
 
-      const alertsRes = await supabase.from('vue_alertes_flotte').select('*').eq('asset_type', 'vehicule')
+      const alertsRes = await looseSupabase.from('vue_alertes_flotte').select('*').eq('asset_type', 'vehicule')
       if (alertsRes.error) {
         setGlobalAlerts([])
         if (!isMissingOptionalFlotteFeature(alertsRes.error)) {
           setError(flotteFeatureError(alertsRes.error, 'Chargement partiel du parc.'))
         }
       } else {
-        setGlobalAlerts(alertsRes.data ?? [])
+        setGlobalAlerts((alertsRes.data ?? []) as FlotteAlerte[])
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Chargement impossible.')
@@ -392,7 +451,7 @@ export default function Vehicules() {
     void loadDossier(vehicle.id)
   }
 
-  function set<K extends keyof TablesInsert<'vehicules'>>(key: K, value: TablesInsert<'vehicules'>[K]) {
+  function set<K extends keyof VehiculeForm>(key: K, value: VehiculeForm[K]) {
     setForm(current => ({ ...current, [key]: value }))
   }
 
@@ -402,28 +461,28 @@ export default function Vehicules() {
 
     try {
       const [documentsRes, entretiensRes, kmRes] = await Promise.all([
-        supabase.from('flotte_documents').select('*').eq('vehicule_id', vehiculeId).is('archived_at', null).order('created_at', { ascending: false }),
+        looseSupabase.from('flotte_documents').select('*').eq('vehicule_id', vehiculeId).is('archived_at', null).order('created_at', { ascending: false }),
         supabase.from('flotte_entretiens').select('*').eq('vehicule_id', vehiculeId).order('service_date', { ascending: false }),
-        supabase.from('vehicule_releves_km').select('*').eq('vehicule_id', vehiculeId).order('reading_date', { ascending: false }),
+        looseSupabase.from('vehicule_releves_km').select('*').eq('vehicule_id', vehiculeId).order('reading_date', { ascending: false }),
       ])
 
       if (documentsRes.error) throw documentsRes.error
       if (entretiensRes.error) throw entretiensRes.error
       if (kmRes.error) throw kmRes.error
 
-      setDocuments(documentsRes.data ?? [])
+      setDocuments((documentsRes.data ?? []) as FlotteDocument[])
       setEntretiens(entretiensRes.data ?? [])
-      setKmReadings(kmRes.data ?? [])
+      setKmReadings((kmRes.data ?? []) as VehiculeKm[])
 
       const [alertsRes, costsRes, costKmRes] = await Promise.all([
-        supabase.from('vue_alertes_flotte').select('*').eq('asset_type', 'vehicule').eq('asset_id', vehiculeId).order('due_on', { ascending: true }),
-        supabase.from('vue_couts_flotte_mensuels').select('*').eq('asset_type', 'vehicule').eq('asset_id', vehiculeId).order('month', { ascending: true }),
-        supabase.from('vue_cout_kilometrique_vehicules').select('*').eq('vehicule_id', vehiculeId).order('month', { ascending: true }),
+        looseSupabase.from('vue_alertes_flotte').select('*').eq('asset_type', 'vehicule').eq('asset_id', vehiculeId).order('due_on', { ascending: true }),
+        looseSupabase.from('vue_couts_flotte_mensuels').select('*').eq('asset_type', 'vehicule').eq('asset_id', vehiculeId).order('month', { ascending: true }),
+        looseSupabase.from('vue_cout_kilometrique_vehicules').select('*').eq('vehicule_id', vehiculeId).order('month', { ascending: true }),
       ])
 
-      setAssetAlerts(alertsRes.error ? [] : (alertsRes.data ?? []))
-      setCostSeries(costsRes.error ? [] : (costsRes.data ?? []))
-      setCostKmSeries(costKmRes.error ? [] : (costKmRes.data ?? []))
+      setAssetAlerts(alertsRes.error ? [] : ((alertsRes.data ?? []) as FlotteAlerte[]))
+      setCostSeries(costsRes.error ? [] : ((costsRes.data ?? []) as FlotteCoutMensuel[]))
+      setCostKmSeries(costKmRes.error ? [] : ((costKmRes.data ?? []) as VehiculeCoutKm[]))
 
       if (alertsRes.error || costsRes.error || costKmRes.error) {
         setDossierError('Le dossier flotte est charge partiellement. Les vues d alertes ou de couts ne sont pas encore disponibles.')
@@ -512,7 +571,7 @@ export default function Vehicules() {
       })
       if (uploadError) throw uploadError
 
-      const { error: insertError } = await supabase.from('flotte_documents').insert({
+      const { error: insertError } = await looseSupabase.from('flotte_documents').insert({
         vehicule_id: editingId,
         remorque_id: null,
         category: documentForm.category,
@@ -541,7 +600,7 @@ export default function Vehicules() {
   async function archiveDocument(id: string) {
     if (!editingId) return
     try {
-      const { error: updateError } = await supabase.from('flotte_documents').update({ archived_at: new Date().toISOString() }).eq('id', id)
+      const { error: updateError } = await looseSupabase.from('flotte_documents').update({ archived_at: new Date().toISOString() }).eq('id', id)
       if (updateError) throw updateError
       setNotice('Document flotte archive.')
       await loadDossier(editingId)
@@ -618,7 +677,7 @@ export default function Vehicules() {
     setDossierError(null)
 
     try {
-      const payload: TablesInsert<'vehicule_releves_km'> = {
+      const payload = {
         vehicule_id: editingId,
         reading_date: kmForm.reading_date,
         km_compteur: kmForm.km_compteur,
@@ -626,7 +685,7 @@ export default function Vehicules() {
         notes: kmForm.notes?.trim() || null,
       }
 
-      const { error: kmError } = await supabase.from('vehicule_releves_km').upsert(payload, { onConflict: 'vehicule_id,reading_date' })
+      const { error: kmError } = await looseSupabase.from('vehicule_releves_km').upsert(payload, { onConflict: 'vehicule_id,reading_date' })
       if (kmError) throw kmError
 
       const { error: vehiculeError } = await supabase.from('vehicules').update({ km_actuel: payload.km_compteur }).eq('id', editingId)
@@ -647,7 +706,7 @@ export default function Vehicules() {
   async function deleteKmReading(id: string) {
     if (!editingId) return
     try {
-      const { error: deleteError } = await supabase.from('vehicule_releves_km').delete().eq('id', id)
+      const { error: deleteError } = await looseSupabase.from('vehicule_releves_km').delete().eq('id', id)
       if (deleteError) throw deleteError
       setNotice('Releve kilometrique supprime.')
       await loadDossier(editingId)
@@ -1005,7 +1064,7 @@ export default function Vehicules() {
                           <p className="text-xs text-slate-400">Aucune alerte active.</p>
                         ) : assetAlerts.map(alert => (
                           <div key={alert.id ?? `${alert.alert_type}-${alert.due_on}`} className="rounded-lg border border-slate-200 bg-white p-3">
-                            <div className="text-sm font-medium text-slate-800">{alert.label ?? alert.alert_type}</div>
+                            <div className="text-sm font-medium text-slate-800">{alert.alert_type ?? 'Alerte flotte'}</div>
                             <div className={`text-xs ${expColor(alert.due_on)}`}>{formatDate(alert.due_on)}{typeof alert.days_remaining === 'number' ? ` · ${alert.days_remaining} j` : ''}</div>
                             <div className="text-xs text-slate-400">{alert.asset_label}</div>
                           </div>
@@ -1030,7 +1089,7 @@ export default function Vehicules() {
   )
 }
 
-const inp = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-300'
+const inp = 'w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary-soft)]'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

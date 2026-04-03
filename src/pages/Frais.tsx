@@ -17,7 +17,7 @@ import {
 import { createExpensePreset, deleteExpensePreset, listExpensePresets, subscribeExpensePresets, type ExpensePreset } from '@/lib/expensePresets'
 import { buildStaffDirectory, findStaffMember, staffDisplayName } from '@/lib/staffDirectory'
 
-const inp = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-slate-400'
+const inp = 'w-full rounded-xl border bg-[color:var(--surface)] px-3 py-2.5 text-sm text-[color:var(--text)] outline-none focus:border-[color:var(--primary)]'
 const CATEGORIES = Object.keys(EXPENSE_CATEGORY_LABELS) as ExpenseCategory[]
 const CUSTOM_PRESET = '__custom__'
 

@@ -36,7 +36,9 @@ export async function handler(event) {
 
   const query = event.queryStringParameters ?? {}
   const tenantKey = readTenantKey(event, body)
-  const moduleConfig = await moduleState(auth.dbClient, tenantKey, 'chat')
+  // NOTE SECURITE: moduleState lit erp_v11_modules (table systeme) → systemClient.
+  // Les requetes metier (erp_v11_chat_messages) utilisent dbClient pour activer le RLS.
+  const moduleConfig = await moduleState(auth.systemClient, tenantKey, 'chat')
   if (!moduleConfig.enabled) return json(423, { error: 'Chat module disabled for tenant.' })
 
   if (event.httpMethod === 'GET') {

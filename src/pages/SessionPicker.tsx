@@ -4,10 +4,10 @@ import { ROLE_ACCESS, ROLE_LABELS, type Role, useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
 
-const ROLES: Role[] = ['dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable', 'rh', 'conducteur', 'conducteur_affreteur', 'client', 'affreteur']
-const ROLE_SET = new Set<Role>(['admin', ...ROLES])
+const ROLES: Role[] = ['dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable', 'rh', 'conducteur', 'conducteur_affreteur', 'client', 'affreteur', 'administratif', 'facturation', 'flotte', 'maintenance', 'observateur', 'demo', 'investisseur']
+const ROLE_SET = new Set<Role>(Object.keys(ROLE_LABELS) as Role[])
 
-const ROLE_META: Record<Role, { accent: string; desc: string }> = {
+const ROLE_META: Partial<Record<Role, { accent: string; desc: string }>> = {
   admin: { accent: 'from-slate-700 to-slate-900', desc: 'Toutes les vues visibles sans restriction.' },
   dirigeant: { accent: 'from-violet-700 to-violet-900', desc: 'Pilotage global et supervision.' },
   exploitant: { accent: 'from-blue-700 to-blue-900', desc: 'Planning, OT et flux terrain.' },
@@ -19,6 +19,13 @@ const ROLE_META: Record<Role, { accent: string; desc: string }> = {
   conducteur_affreteur: { accent: 'from-orange-700 to-orange-900', desc: 'Suivi de route affrete sans acces frais internes.' },
   client: { accent: 'from-cyan-700 to-cyan-900', desc: 'Demandes transport, suivi et facturation.' },
   affreteur: { accent: 'from-teal-700 to-teal-900', desc: 'Contrats affretes et gestion des ressources externes.' },
+  administratif: { accent: 'from-indigo-700 to-indigo-900', desc: 'Gestion administrative et conformite.' },
+  facturation: { accent: 'from-yellow-700 to-yellow-900', desc: 'Factures, devis et suivi commercial.' },
+  flotte: { accent: 'from-red-700 to-red-900', desc: 'Gestion flotte et maintenance.' },
+  maintenance: { accent: 'from-red-700 to-red-900', desc: 'Entretien, interventions et carnet d\'atelier.' },
+  observateur: { accent: 'from-gray-700 to-gray-900', desc: 'Acces en lecture seule, pas de modification.' },
+  demo: { accent: 'from-emerald-600 to-emerald-800', desc: 'Acces complet a la plateforme de demonstration.' },
+  investisseur: { accent: 'from-amber-600 to-amber-800', desc: 'Dashboard financier et indicateurs cles.' },
 }
 
 type ManagedUser = Tables<'profils'> & {
@@ -29,7 +36,7 @@ type ManagedUser = Tables<'profils'> & {
 
 type SessionUser = {
   id: string
-  user_id: string
+  user_id: string | null
   matricule: string | null
   role: Role
   nom: string | null
@@ -203,7 +210,7 @@ export default function SessionPicker() {
 
           <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {ROLES.map(role => {
-              const meta = ROLE_META[role]
+              const meta = ROLE_META[role] ?? { accent: 'from-slate-700 to-slate-900', desc: 'Acces personnalise selon les permissions configurees.' }
               const pages = ROLE_ACCESS[role]
               return (
                 <button

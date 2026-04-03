@@ -324,6 +324,23 @@ function findStageByType(steps: EtapeMission[], stageType: 'chargement' | 'livra
   return steps.find(step => step.type_etape === stageType) ?? null
 }
 
+function compareOrdersByAssignment(left: OT, right: OT, conducteurNameById: Record<string, string>) {
+  const leftAssigned = Boolean(left.conducteur_id)
+  const rightAssigned = Boolean(right.conducteur_id)
+  if (leftAssigned !== rightAssigned) {
+    return leftAssigned ? -1 : 1
+  }
+
+  if (leftAssigned && rightAssigned) {
+    const leftName = conducteurNameById[left.conducteur_id ?? ''] ?? ''
+    const rightName = conducteurNameById[right.conducteur_id ?? ''] ?? ''
+    const byName = leftName.localeCompare(rightName, 'fr', { sensitivity: 'base' })
+    if (byName !== 0) return byName
+  }
+
+  return 0
+}
+
 export default function FeuilleRoute() {
   const { profil, role } = useAuth()
   const [loading, setLoading] = useState(true)
@@ -752,22 +769,30 @@ export default function FeuilleRoute() {
   }, [clientsMap, orders, searchQuery, stepsByOtId, vehiculeMap])
 
   const sections = useMemo(() => {
-    const sorted = [...filteredOrders]
-    sorted.sort((left, right) => {
+    const buckets: Record<RouteBucket, OT[]> = { past: [], current: [], future: [] }
+    for (const order of filteredOrders) buckets[routeBucket(order)].push(order)
+
+    const sortByAssignmentThenDateAsc = (left: OT, right: OT) => {
+      const assignment = compareOrdersByAssignment(left, right, conducteurNameById)
+      if (assignment !== 0) return assignment
       const leftTs = new Date(left.date_chargement_prevue ?? left.created_at).getTime()
       const rightTs = new Date(right.date_chargement_prevue ?? right.created_at).getTime()
       return leftTs - rightTs
-    })
+    }
 
-    const buckets: Record<RouteBucket, OT[]> = { past: [], current: [], future: [] }
-    for (const order of sorted) buckets[routeBucket(order)].push(order)
-    buckets.past.sort((a, b) => {
-      const aTs = new Date(a.date_livraison_prevue ?? a.date_chargement_prevue ?? a.created_at).getTime()
-      const bTs = new Date(b.date_livraison_prevue ?? b.date_chargement_prevue ?? b.created_at).getTime()
-      return bTs - aTs
-    })
+    const sortByAssignmentThenDateDesc = (left: OT, right: OT) => {
+      const assignment = compareOrdersByAssignment(left, right, conducteurNameById)
+      if (assignment !== 0) return assignment
+      const leftTs = new Date(left.date_livraison_prevue ?? left.date_chargement_prevue ?? left.created_at).getTime()
+      const rightTs = new Date(right.date_livraison_prevue ?? right.date_chargement_prevue ?? right.created_at).getTime()
+      return rightTs - leftTs
+    }
+
+    buckets.current.sort(sortByAssignmentThenDateAsc)
+    buckets.future.sort(sortByAssignmentThenDateAsc)
+    buckets.past.sort(sortByAssignmentThenDateDesc)
     return buckets
-  }, [filteredOrders])
+  }, [conducteurNameById, filteredOrders])
 
   const stats = {
     total: filteredOrders.length,
@@ -776,18 +801,20 @@ export default function FeuilleRoute() {
     future: sections.future.length,
   }
 
+  const isProfileNotice = (notice ?? '').toLowerCase().includes('profil conducteur')
+
   return (
     <div className="space-y-5 p-4 md:p-6">
-      <div className="nx-panel border border-slate-700/60 bg-slate-900/80 px-5 py-5">
+      <div className="nx-panel px-4 py-5 sm:px-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-300/70">Conduite terrain</p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">Feuille de route</h2>
-            <p className="mt-1 text-sm text-slate-300">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--primary)]">Conduite terrain</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Feuille de route</h2>
+            <p className="mt-1 text-sm text-slate-600">
               Courses passees, en cours et a venir avec toutes les infos terrain utiles.
             </p>
             {isConducteurSession && (
-              <p className="mt-2 text-xs text-cyan-200/80">
+              <p className="mt-2 text-xs text-slate-500">
                 Session conducteur: {conducteur ? `${conducteur.prenom} ${conducteur.nom}` : [profil?.prenom, profil?.nom].filter(Boolean).join(' ') || 'Conducteur affreteur'}
               </p>
             )}
@@ -795,7 +822,7 @@ export default function FeuilleRoute() {
           <button
             type="button"
             onClick={() => void loadData()}
-            className="rounded-2xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/15"
+            className="nx-btn nx-btn-primary w-full rounded-2xl px-4 py-2 text-sm font-medium sm:w-auto"
           >
             Actualiser
           </button>
@@ -803,7 +830,13 @@ export default function FeuilleRoute() {
       </div>
 
       {notice && (
-        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+        <div
+          className={`rounded-2xl border px-4 py-3 text-sm ${
+            isProfileNotice
+              ? 'border-orange-500/45 bg-orange-100 text-orange-900'
+              : 'border-amber-500/45 bg-amber-100 text-amber-900'
+          }`}
+        >
           {notice}
         </div>
       )}
@@ -816,23 +849,23 @@ export default function FeuilleRoute() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Total courses" value={String(stats.total)} />
         <MetricCard label="Passees" value={String(stats.past)} />
-        <MetricCard label="En cours" value={String(stats.current)} accent="text-amber-300" />
-        <MetricCard label="A venir" value={String(stats.future)} accent="text-cyan-300" />
+        <MetricCard label="En cours" value={String(stats.current)} accent="text-amber-600" />
+        <MetricCard label="A venir" value={String(stats.future)} accent="text-cyan-700" />
       </div>
 
-      <div className="nx-panel border border-slate-700/60 bg-slate-900/70 p-4">
-        <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+      <div className="nx-panel p-4">
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
           <input
             type="search"
             value={searchQuery}
             onChange={event => setSearchQuery(event.target.value)}
             placeholder="Rechercher: OT, client, CMR, BL, adresse, immatriculation..."
-            className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-cyan-500 focus:outline-none"
+            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-500 focus:border-cyan-500 focus:outline-none"
           />
           <select
             value={bucketFilter}
             onChange={event => setBucketFilter(event.target.value as 'all' | RouteBucket)}
-            className="rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-white focus:border-cyan-500 focus:outline-none"
+            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-cyan-500 focus:outline-none"
           >
             <option value="all">Toutes les sections</option>
             <option value="current">En cours</option>
@@ -912,9 +945,9 @@ export default function FeuilleRoute() {
       )}
 
       {toasts.length > 0 && (
-        <div className="fixed right-4 top-20 z-[120] space-y-2">
+        <div className="fixed left-3 right-3 top-20 z-[120] space-y-2 sm:left-auto sm:right-4">
           {toasts.map(toast => (
-            <div key={toast.id} className="max-w-sm rounded-xl border border-cyan-500/25 bg-slate-900/95 px-4 py-3 text-xs text-cyan-100 shadow-2xl">
+            <div key={toast.id} className="w-full max-w-sm rounded-xl border border-cyan-500/25 bg-slate-900/95 px-4 py-3 text-xs text-cyan-100 shadow-2xl">
               {toast.message}
             </div>
           ))}
@@ -926,9 +959,9 @@ export default function FeuilleRoute() {
 
 function MetricCard({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
-    <div className="nx-panel border border-slate-700/60 bg-slate-900/70 px-4 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold text-white ${accent ?? ''}`}>{value}</p>
+    <div className="nx-panel px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">{label}</p>
+      <p className={`mt-1 text-2xl font-semibold text-slate-900 ${accent ?? ''}`}>{value}</p>
     </div>
   )
 }
@@ -968,61 +1001,106 @@ function RouteSection({
   onSaveDriverProgress: (order: OT, steps: EtapeMission[], progressKey: DriverProgressKey) => Promise<void>
   onSignCmr: (order: OT) => Promise<void>
 }) {
+  const groupedOrders = useMemo(() => {
+    const assignedByDriver: Record<string, OT[]> = {}
+    const unassigned: OT[] = []
+
+    for (const order of orders) {
+      if (!order.conducteur_id) {
+        unassigned.push(order)
+        continue
+      }
+      assignedByDriver[order.conducteur_id] = [...(assignedByDriver[order.conducteur_id] ?? []), order]
+    }
+
+    const assignedGroups = Object.entries(assignedByDriver)
+      .sort((left, right) => {
+        const leftName = conducteurNameById[left[0]] ?? 'Conducteur non renseigne'
+        const rightName = conducteurNameById[right[0]] ?? 'Conducteur non renseigne'
+        return leftName.localeCompare(rightName, 'fr', { sensitivity: 'base' })
+      })
+      .map(([driverId, groupOrders]) => ({
+        key: `driver-${driverId}`,
+        label: conducteurNameById[driverId] ?? 'Conducteur non renseigne',
+        orders: groupOrders,
+      }))
+
+    if (unassigned.length > 0) {
+      assignedGroups.push({
+        key: 'unassigned',
+        label: 'OT non affecte',
+        orders: unassigned,
+      })
+    }
+
+    return assignedGroups
+  }, [conducteurNameById, orders])
+
   return (
     <section className="space-y-3">
       <div>
-        <h3 className="text-lg font-semibold text-white">{title}</h3>
-        <p className="text-xs text-slate-400">{subtitle}</p>
+        <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+        <p className="text-xs text-slate-500">{subtitle}</p>
       </div>
       {orders.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 px-4 py-6 text-sm text-slate-400">
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
           Aucune course dans cette section.
         </div>
       ) : (
-        <div className="grid gap-3 xl:grid-cols-2">
-          {orders.map(order => {
-            const steps = stepsByOtId[order.id] ?? []
-            const loadStep = findStageByType(steps, 'chargement')
-            const unloadStep = findStageByType(steps, 'livraison')
-            const loadAddress = formatAddress(loadStep)
-            const unloadAddress = formatAddress(unloadStep)
-            const gpsLink = buildGpsUrl(loadAddress, unloadAddress)
-            const contactLoad = [loadStep?.contact_nom, loadStep?.contact_tel].filter(Boolean).join(' - ') || 'N/A'
-            const contactUnload = [unloadStep?.contact_nom, unloadStep?.contact_tel].filter(Boolean).join(' - ') || 'N/A'
-            const duration = plannedDurationMinutes(order)
-            const routeReference = loadStep?.reference_marchandise ?? unloadStep?.reference_marchandise ?? order.numero_cmr ?? order.numero_bl ?? 'N/A'
-            const crmPrefill = [
-              `OT ${order.reference}`,
-              clientsMap[order.client_id] ?? 'Client non renseigne',
-              `CMR ${order.numero_cmr ?? 'N/A'}`,
-              `${loadAddress} -> ${unloadAddress}`,
-            ].join(' | ')
-            const driverEvents = (historyByOtId[order.id] ?? [])
-              .map(extractDriverEvent)
-              .filter((event): event is DriverEvent => event !== null)
-            const cmrEvents = (historyByOtId[order.id] ?? [])
-              .map(entry => {
-                const parsed = safeParseJson(entry.commentaire)
-                const source = typeof parsed?.source === 'string' ? parsed.source : null
-                if (source !== 'signature_cmr') return null
-                const signedBy = typeof parsed?.signed_by === 'string' ? parsed.signed_by : 'Signature numerique'
-                const signedAt = typeof parsed?.signed_at === 'string' ? parsed.signed_at : entry.created_at
-                return {
-                  id: entry.id,
-                  label: signedBy,
-                  signedAt,
-                } satisfies CmrSignatureEvent
-              })
-              .filter((event): event is CmrSignatureEvent => event !== null)
-            const activeDriverStep = driverEvents[0]?.key ?? null
-            const savingStep = savingProgressByOtId[order.id]
-            const signingCmr = Boolean(signingCmrByOtId[order.id])
-            const conducteurName = order.conducteur_id ? (conducteurNameById[order.conducteur_id] ?? '') : ''
-            const recipientProfileId = order.conducteur_id ? conducteurProfileIdByConducteurId[order.conducteur_id] : undefined
-            const tchatHref = `/tchat?autostart=1${recipientProfileId ? `&recipientId=${encodeURIComponent(recipientProfileId)}` : ''}${conducteurName ? `&recipient=${encodeURIComponent(conducteurName)}` : ''}&ot=${encodeURIComponent(order.reference)}`
+        <div className="space-y-4">
+          {groupedOrders.map(group => (
+            <div key={group.key} className="space-y-3">
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-300 bg-slate-100/90 px-3 py-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">{group.label}</p>
+                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                  {group.orders.length} OT
+                </span>
+              </div>
 
-            return (
-              <article key={order.id} className="nx-panel border border-slate-700/60 bg-slate-900/80 p-4">
+              <div className="grid gap-3 xl:grid-cols-2">
+                {group.orders.map(order => {
+                  const steps = stepsByOtId[order.id] ?? []
+                  const loadStep = findStageByType(steps, 'chargement')
+                  const unloadStep = findStageByType(steps, 'livraison')
+                  const loadAddress = formatAddress(loadStep)
+                  const unloadAddress = formatAddress(unloadStep)
+                  const gpsLink = buildGpsUrl(loadAddress, unloadAddress)
+                  const contactLoad = [loadStep?.contact_nom, loadStep?.contact_tel].filter(Boolean).join(' - ') || 'N/A'
+                  const contactUnload = [unloadStep?.contact_nom, unloadStep?.contact_tel].filter(Boolean).join(' - ') || 'N/A'
+                  const duration = plannedDurationMinutes(order)
+                  const routeReference = loadStep?.reference_marchandise ?? unloadStep?.reference_marchandise ?? order.numero_cmr ?? order.numero_bl ?? 'N/A'
+                  const crmPrefill = [
+                    `OT ${order.reference}`,
+                    clientsMap[order.client_id] ?? 'Client non renseigne',
+                    `CMR ${order.numero_cmr ?? 'N/A'}`,
+                    `${loadAddress} -> ${unloadAddress}`,
+                  ].join(' | ')
+                  const driverEvents = (historyByOtId[order.id] ?? [])
+                    .map(extractDriverEvent)
+                    .filter((event): event is DriverEvent => event !== null)
+                  const cmrEvents = (historyByOtId[order.id] ?? [])
+                    .map(entry => {
+                      const parsed = safeParseJson(entry.commentaire)
+                      const source = typeof parsed?.source === 'string' ? parsed.source : null
+                      if (source !== 'signature_cmr') return null
+                      const signedBy = typeof parsed?.signed_by === 'string' ? parsed.signed_by : 'Signature numerique'
+                      const signedAt = typeof parsed?.signed_at === 'string' ? parsed.signed_at : entry.created_at
+                      return {
+                        id: entry.id,
+                        label: signedBy,
+                        signedAt,
+                      } satisfies CmrSignatureEvent
+                    })
+                    .filter((event): event is CmrSignatureEvent => event !== null)
+                  const activeDriverStep = driverEvents[0]?.key ?? null
+                  const savingStep = savingProgressByOtId[order.id]
+                  const signingCmr = Boolean(signingCmrByOtId[order.id])
+                  const conducteurName = order.conducteur_id ? (conducteurNameById[order.conducteur_id] ?? '') : ''
+                  const recipientProfileId = order.conducteur_id ? conducteurProfileIdByConducteurId[order.conducteur_id] : undefined
+                  const tchatHref = `/tchat?autostart=1${recipientProfileId ? `&recipientId=${encodeURIComponent(recipientProfileId)}` : ''}${conducteurName ? `&recipient=${encodeURIComponent(conducteurName)}` : ''}&ot=${encodeURIComponent(order.reference)}`
+
+                  return (
+                    <article key={order.id} className="nx-panel border border-slate-700/60 bg-slate-900/80 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="font-mono text-xs text-slate-500">{order.reference}</p>
@@ -1059,16 +1137,16 @@ function RouteSection({
                       href={gpsLink}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-xl bg-[color:var(--primary)] px-3 py-2 text-xs font-semibold text-white hover:opacity-90"
+                      className="w-full rounded-xl bg-[color:var(--primary)] px-3 py-2 text-center text-xs font-semibold text-white hover:opacity-90 sm:w-auto"
                     >
                       Lancer le GPS
                     </a>
                   ) : (
-                    <span className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-400">GPS indisponible (adresses manquantes)</span>
+                    <span className="w-full rounded-xl border border-slate-700 px-3 py-2 text-center text-xs text-slate-400 sm:w-auto">GPS indisponible (adresses manquantes)</span>
                   )}
                   <a
                     href={tchatHref}
-                    className="rounded-xl border border-slate-700/80 bg-slate-900/70 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-cyan-500/45 hover:text-cyan-100"
+                    className="w-full rounded-xl border border-slate-700/80 bg-slate-900/70 px-3 py-2 text-center text-xs font-semibold text-white hover:border-cyan-500/45 hover:text-cyan-100 sm:w-auto"
                   >
                     Ouvrir messagerie
                   </a>
@@ -1089,7 +1167,7 @@ function RouteSection({
                         await navigator.clipboard.writeText(dispatchSummary)
                       }
                     }}
-                    className="rounded-xl border border-slate-700/80 bg-slate-900/70 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-cyan-500/45 hover:text-cyan-100"
+                    className="w-full rounded-xl border border-slate-700/80 bg-slate-900/70 px-3 py-2 text-center text-xs font-semibold text-white hover:border-cyan-500/45 hover:text-cyan-100 sm:w-auto"
                   >
                     Copier briefing mission
                   </button>
@@ -1097,15 +1175,15 @@ function RouteSection({
                     type="button"
                     onClick={() => { void onSignCmr(order) }}
                     disabled={signingCmr}
-                    className="rounded-xl border border-slate-700/80 bg-slate-900/70 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-cyan-500/45 hover:text-cyan-100 disabled:opacity-60"
+                    className="w-full rounded-xl border border-slate-700/80 bg-slate-900/70 px-3 py-2 text-center text-xs font-semibold text-white hover:border-cyan-500/45 hover:text-cyan-100 disabled:opacity-60 sm:w-auto"
                   >
                     {signingCmr ? 'Signature CMR...' : 'Signer CMR'}
                   </button>
                 </div>
 
                 <div className="mt-3 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/80">CRM mission pre-rempli</p>
-                  <p className="mt-1 text-[11px] text-cyan-100/90">{crmPrefill}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">CRM mission pre-rempli</p>
+                  <p className="mt-1 text-[11px] text-slate-700">{crmPrefill}</p>
 
                   {canManageProgress && (
                     <>
@@ -1127,7 +1205,7 @@ function RouteSection({
                             className={`rounded-xl border px-3 py-2 text-[11px] font-semibold transition-colors ${
                               activeDriverStep === action.key
                                 ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-100'
-                                : 'border-slate-700/80 bg-slate-900/70 text-slate-200 hover:border-cyan-500/45 hover:text-cyan-100'
+                                : 'border-slate-700/80 bg-slate-900/70 text-white hover:border-cyan-500/45 hover:text-cyan-100'
                             } ${savingStep ? 'opacity-70' : ''}`}
                           >
                             {savingStep === action.key ? 'Enregistrement...' : action.label}
@@ -1141,7 +1219,7 @@ function RouteSection({
                   )}
 
                   <div className="mt-3 space-y-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/70">Journal CRM mission</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">Journal CRM mission</p>
                     {driverEvents.length === 0 ? (
                       <p className="text-xs text-slate-400">Aucun evenement conducteur enregistre pour cette course.</p>
                     ) : (
@@ -1169,7 +1247,7 @@ function RouteSection({
                   </div>
 
                   <div className="mt-3 space-y-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/70">Signatures CMR</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">Signatures CMR</p>
                     {cmrEvents.length === 0 ? (
                       <p className="text-xs text-slate-400">Aucune signature CMR enregistree.</p>
                     ) : (
@@ -1184,9 +1262,12 @@ function RouteSection({
                     )}
                   </div>
                 </div>
-              </article>
-            )
-          })}
+                    </article>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </section>
@@ -1197,7 +1278,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
-      <p className="mt-0.5 text-xs leading-5 text-slate-200">{value}</p>
+      <p className="mt-0.5 break-words text-xs leading-5 text-slate-200">{value}</p>
     </div>
   )
 }

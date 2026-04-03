@@ -1,14 +1,26 @@
-﻿import { useState } from 'react'
+import { useState, type DragEventHandler } from 'react'
+import type { WidgetSize } from '@/lib/dashboardPrefs'
 
 interface Props {
   title: string
   subtitle?: string
-  colSpan?: 'full' | 'half' | 'third'
+  colSpan?: WidgetSize
   children: React.ReactNode
   onMoveUp?: () => void
   onMoveDown?: () => void
   onHide?: () => void
+  onShrink?: () => void
+  onGrow?: () => void
+  canShrink?: boolean
+  canGrow?: boolean
   isCustomizing?: boolean
+  draggable?: boolean
+  onDragStart?: DragEventHandler<HTMLDivElement>
+  onDragOver?: DragEventHandler<HTMLDivElement>
+  onDrop?: DragEventHandler<HTMLDivElement>
+  onDragEnd?: DragEventHandler<HTMLDivElement>
+  isDragging?: boolean
+  dropPosition?: 'before' | 'after' | null
 }
 
 export function WidgetShell({
@@ -19,24 +31,51 @@ export function WidgetShell({
   onMoveUp,
   onMoveDown,
   onHide,
+  onShrink,
+  onGrow,
+  canShrink = false,
+  canGrow = false,
   isCustomizing = false,
+  draggable = false,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  isDragging = false,
+  dropPosition = null,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false)
 
   const colClass = colSpan === 'full' ? 'col-span-3' : colSpan === 'half' ? 'col-span-3 lg:col-span-2' : 'col-span-3 lg:col-span-1'
+  const dropGlow = dropPosition === 'before'
+    ? 'inset 0 3px 0 var(--primary)'
+    : dropPosition === 'after'
+      ? 'inset 0 -3px 0 var(--primary)'
+      : ''
 
   return (
     <div
-      className={`${colClass} flex flex-col overflow-hidden rounded-2xl border`}
-      style={{ borderColor: 'var(--border)', background: 'var(--surface)', boxShadow: 'var(--shadow-card)' }}
+      className={`${colClass} nx-card flex flex-col overflow-hidden transition-[opacity,transform] duration-150 ${
+        isCustomizing ? 'cursor-grab active:cursor-grabbing' : ''
+      } ${isDragging ? 'opacity-55 scale-[0.99]' : ''}`}
+      style={{
+        borderColor: 'var(--border)',
+        background: 'var(--surface)',
+        boxShadow: dropGlow ? `${dropGlow}, var(--shadow-card)` : 'var(--shadow-card)',
+      }}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
     >
       <div
         className="flex items-center justify-between border-b px-4 py-3"
         style={{ borderColor: 'var(--border)', background: 'var(--surface-soft)' }}
       >
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-950">{title}</p>
-          {subtitle && <p className="truncate text-xs text-slate-600">{subtitle}</p>}
+          <p className="truncate text-sm font-semibold" style={{ color: 'var(--text-heading)' }}>{title}</p>
+          {subtitle && <p className="truncate text-xs" style={{ color: 'var(--text-secondary)' }}>{subtitle}</p>}
         </div>
         <div className="ml-2 flex shrink-0 items-center gap-1">
           {isCustomizing && (
@@ -44,7 +83,7 @@ export function WidgetShell({
               {onMoveUp && (
                 <button
                   onClick={onMoveUp}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-700"
+                  className="nx-btn nx-btn-ghost flex h-7 w-7 items-center justify-center rounded-lg p-0"
                   title="Monter"
                 >
                   <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -55,7 +94,7 @@ export function WidgetShell({
               {onMoveDown && (
                 <button
                   onClick={onMoveDown}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-700"
+                  className="nx-btn nx-btn-ghost flex h-7 w-7 items-center justify-center rounded-lg p-0"
                   title="Descendre"
                 >
                   <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -66,7 +105,8 @@ export function WidgetShell({
               {onHide && (
                 <button
                   onClick={onHide}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-500 transition-colors hover:bg-rose-50"
+                  className="nx-btn nx-btn-ghost flex h-7 w-7 items-center justify-center rounded-lg p-0"
+                  style={{ color: 'var(--danger)' }}
                   title="Masquer"
                 >
                   <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -74,11 +114,35 @@ export function WidgetShell({
                   </svg>
                 </button>
               )}
+              {onShrink && (
+                <button
+                  onClick={onShrink}
+                  className="nx-btn nx-btn-ghost flex h-7 w-7 items-center justify-center rounded-lg p-0 disabled:opacity-45"
+                  title="Reduire la taille"
+                  disabled={!canShrink}
+                >
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M5 12h14" />
+                  </svg>
+                </button>
+              )}
+              {onGrow && (
+                <button
+                  onClick={onGrow}
+                  className="nx-btn nx-btn-ghost flex h-7 w-7 items-center justify-center rounded-lg p-0 disabled:opacity-45"
+                  title="Agrandir la taille"
+                  disabled={!canGrow}
+                >
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                </button>
+              )}
             </>
           )}
           <button
             onClick={() => setCollapsed(v => !v)}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-700"
+            className="nx-btn nx-btn-ghost flex h-7 w-7 items-center justify-center rounded-lg p-0"
             title={collapsed ? 'Developper' : 'Reduire'}
           >
             <svg

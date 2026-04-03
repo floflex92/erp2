@@ -91,13 +91,14 @@ function serializePoint(point) {
   return [Number(point.latitude.toFixed(6)), Number(point.longitude.toFixed(6))]
 }
 
-async function tryConfiguredProvider(dbClient, tenantKey, payload, fallbackRoute, fallbackTraffic) {
-  const providers = await loadProviders(dbClient, tenantKey, 'routing')
+// NOTE SECURITE: toutes ces fonctions n'accedent qu'a des tables systeme erp_v11_* → systemClient.
+async function tryConfiguredProvider(systemClient, tenantKey, payload, fallbackRoute, fallbackTraffic) {
+  const providers = await loadProviders(systemClient, tenantKey, 'routing')
   const provider = providers[0]
   if (!provider) return null
 
   const providerResponse = await callProvider(provider, '/routing/route', payload)
-  await logApiEvent(dbClient, {
+  await logApiEvent(systemClient, {
     tenant_key: tenantKey,
     module_key: 'routing',
     provider_key: provider.provider_key,
@@ -113,8 +114,8 @@ async function tryConfiguredProvider(dbClient, tenantKey, payload, fallbackRoute
     return null
   }
 
-  const routeRules = await loadMappingRules(dbClient, tenantKey, provider.provider_key, 'RoutePlan')
-  const trafficRules = await loadMappingRules(dbClient, tenantKey, provider.provider_key, 'TrafficStatus')
+  const routeRules = await loadMappingRules(systemClient, tenantKey, provider.provider_key, 'RoutePlan')
+  const trafficRules = await loadMappingRules(systemClient, tenantKey, provider.provider_key, 'TrafficStatus')
 
   const mappedRoute = normalizeMapping(providerResponse.data, routeRules, {
     distance_km: fallbackRoute.distance_km,
@@ -149,7 +150,7 @@ async function tryConfiguredProvider(dbClient, tenantKey, payload, fallbackRoute
   }
 }
 
-async function tryOpenRouteService(dbClient, tenantKey, payload, fallbackTraffic) {
+async function tryOpenRouteService(systemClient, tenantKey, payload, fallbackTraffic) {
   const config = readOpenRouteServiceConfig(payload.options)
   if (!config) return null
 
@@ -230,7 +231,7 @@ async function tryOpenRouteService(dbClient, tenantKey, payload, fallbackTraffic
     clearTimeout(timer)
   }
 
-  await logApiEvent(dbClient, {
+  await logApiEvent(systemClient, {
     tenant_key: tenantKey,
     module_key: 'routing',
     provider_key: ORS_PROVIDER_KEY,
@@ -265,15 +266,15 @@ async function tryOpenRouteService(dbClient, tenantKey, payload, fallbackTraffic
   }
 }
 
-async function maybeEnrichWithProvider(dbClient, tenantKey, moduleConfig, payload, fallbackRoute, fallbackTraffic) {
+async function maybeEnrichWithProvider(systemClient, tenantKey, moduleConfig, payload, fallbackRoute, fallbackTraffic) {
   if (moduleConfig.mode === 'internal_only') {
     return { routePlan: fallbackRoute, trafficStatus: fallbackTraffic, providerUsed: null }
   }
 
-  const configuredProvider = await tryConfiguredProvider(dbClient, tenantKey, payload, fallbackRoute, fallbackTraffic)
+  const configuredProvider = await tryConfiguredProvider(systemClient, tenantKey, payload, fallbackRoute, fallbackTraffic)
   if (configuredProvider) return configuredProvider
 
-  const orsProvider = await tryOpenRouteService(dbClient, tenantKey, payload, fallbackTraffic)
+  const orsProvider = await tryOpenRouteService(systemClient, tenantKey, payload, fallbackTraffic)
   if (orsProvider) return orsProvider
 
   return { routePlan: fallbackRoute, trafficStatus: fallbackTraffic, providerUsed: null }
@@ -289,7 +290,9 @@ export async function handler(event) {
 
   const query = event.queryStringParameters ?? {}
   const tenantKey = readTenantKey(event, body)
-  const moduleConfig = await moduleState(auth.dbClient, tenantKey, 'routing')
+  // NOTE SECURITE: toutes les operations de ce handler touchent des tables systeme erp_v11_* → systemClient.
+  // Aucune table metier utilisateur n'est accedee dans ce module.
+  const moduleConfig = await moduleState(auth.systemClient, tenantKey, 'routing')
   if (!moduleConfig.enabled) return json(423, { error: 'Routing module disabled for tenant.' })
 
   const origin = toPoint(body.origin, 'origin') ?? readPointFromQuery(query, 'origin')
@@ -313,7 +316,7 @@ export async function handler(event) {
   }).slice(0, 10)
 
   const routeKey = `routing:${serializePoint(origin).join(',')}:${serializePoint(destination).join(',')}:${cacheOptionsHash}`
-  const cacheResult = await readCache(auth.dbClient, tenantKey, routeKey)
+  const cacheResult = await readCache(auth.systemClient, tenantKey, routeKey)
   if (cacheResult.hit) {
     return json(200, {
       tenant_key: tenantKey,
@@ -334,7 +337,7 @@ export async function handler(event) {
   }
 
   const enriched = await maybeEnrichWithProvider(
-    auth.dbClient,
+    auth.systemClient,
     tenantKey,
     moduleConfig,
     providerPayload,
@@ -362,7 +365,7 @@ export async function handler(event) {
   }
 
   const ttl = Math.max(30, Number(moduleConfig.refresh_interval_sec ?? 180))
-  await writeCache(auth.dbClient, tenantKey, routeKey, 'routing', payload, ttl, Math.floor(ttl / 2), enriched.providerUsed ? 'provider' : 'internal')
+  await writeCache(auth.systemClient, tenantKey, routeKey, 'routing', payload, ttl, Math.floor(ttl / 2), enriched.providerUsed ? 'provider' : 'internal')
 
   return json(200, {
     tenant_key: tenantKey,

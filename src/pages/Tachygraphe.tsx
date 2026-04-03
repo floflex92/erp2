@@ -202,10 +202,10 @@ function toISO(d: Date) {
 // ─── DB helpers ───────────────────────────────────────────────────────────────
 
 async function loadConfig(): Promise<Record<string, string>> {
-  const { data } = await supabase.from('config_entreprise').select('cle, valeur')
+  const { data } = await (supabase.from('config_entreprise' as any).select('cle, valeur') as any)
   if (!data) return {}
   return Object.fromEntries(
-    data.map(r => [r.cle, typeof r.valeur === 'string' ? r.valeur.replace(/^"|"$/g, '') : String(r.valeur ?? '')]),
+    (data as Array<{ cle: string; valeur: unknown }>).map(r => [r.cle, typeof r.valeur === 'string' ? r.valeur.replace(/^"|"$/g, '') : String(r.valeur ?? '')]),
   )
 }
 
@@ -216,8 +216,8 @@ async function saveRapport(
   contenu: Record<string, unknown>,
   config: Record<string, string>,
 ): Promise<Rapport | null> {
-  const { data, error } = await supabase
-    .from('rapports_conducteurs')
+  const { data, error } = await (supabase
+    .from('rapports_conducteurs' as any)
     .insert({
       conducteur_id: conducteurId,
       type,
@@ -228,15 +228,15 @@ async function saveRapport(
       statut: 'genere',
     })
     .select()
-    .single()
+    .single() as any)
   if (error) { console.error(error); return null }
   return data as Rapport
 }
 
 async function markEnvoye(rapportId: string): Promise<void> {
-  await supabase.from('rapports_conducteurs')
+  await (supabase.from('rapports_conducteurs' as any)
     .update({ statut: 'envoye', envoye_at: new Date().toISOString() })
-    .eq('id', rapportId)
+    .eq('id', rapportId) as any)
 }
 
 function normalizeIdentity(value: string | null | undefined) {
@@ -1506,7 +1506,7 @@ export default function Tachygraphe() {
     setLoading(true)
     const [cRes, rRes, cfg] = await Promise.all([
       supabase.from('conducteurs').select('id,nom,prenom,numero_permis,carte_tachy_numero,carte_tachy_expiration,permis_expiration,fco_expiration,statut,email').eq('statut', 'actif'),
-      supabase.from('rapports_conducteurs').select('*').order('created_at', { ascending: false }),
+      (supabase.from('rapports_conducteurs' as any).select('*').order('created_at', { ascending: false }) as any),
       loadConfig(),
     ])
     const conds = (cRes.data ?? []) as ConducteurDB[]

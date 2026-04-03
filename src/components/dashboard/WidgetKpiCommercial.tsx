@@ -60,8 +60,8 @@ export function WidgetKpiCommercial() {
         supabase.from('vue_marge_ot').select('chiffre_affaires').gte('created_at', startOfMonth),
         supabase.from('ordres_transport').select('id', { count: 'exact', head: true }).eq('statut', 'en_cours'),
         supabase.from('factures').select('id', { count: 'exact', head: true }).eq('statut', 'en_retard'),
-        supabase.from('prospects').select('id', { count: 'exact', head: true }).in('statut', ['lead', 'qualification', 'devis_envoye', 'negociation', 'closing']),
-        supabase.from('prospects').select('id', { count: 'exact', head: true }).eq('statut', 'gagne'),
+        (supabase.from('prospects' as any).select('id', { count: 'exact', head: true }).in('statut', ['lead', 'qualification', 'devis_envoye', 'negociation', 'closing']) as any),
+        (supabase.from('prospects' as any).select('id', { count: 'exact', head: true }).eq('statut', 'gagne') as any),
       ])
 
       const ca = (margeRes.data ?? []).reduce((s, r) => s + (r.chiffre_affaires ?? 0), 0)

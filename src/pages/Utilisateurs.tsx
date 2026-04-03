@@ -1,36 +1,41 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useAuth, ROLE_LABELS, type Role } from '@/lib/auth'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ROLE_LABELS, type Role, useAuth } from '@/lib/auth'
 import type { Tables } from '@/lib/database.types'
-import { generateProfessionalEmail, generateProvisionalCode } from '@/lib/employeeRecords'
-import { provisionEmployeeOnboarding } from '@/lib/onboarding'
 
 type Profil = Tables<'profils'>
 type ManagedUser = Profil & {
   email: string | null
   email_confirmed_at: string | null
   last_sign_in_at: string | null
+  account_status?: string | null
+  account_type?: string | null
+  account_origin?: string | null
+  is_demo_account?: boolean | null
+  is_investor_account?: boolean | null
+  requested_from_public_form?: boolean | null
+  demo_expires_at?: string | null
+  notes_admin?: string | null
+  permissions?: string[] | null
+  max_concurrent_screens?: number | null
 }
 
-const ROLE_BADGE: Record<string, string> = {
-  admin: 'bg-yellow-100 text-yellow-700',
-  dirigeant: 'bg-violet-100 text-violet-700',
-  exploitant: 'bg-blue-100 text-blue-700',
-  mecanicien: 'bg-orange-100 text-orange-700',
-  commercial: 'bg-emerald-100 text-emerald-700',
-  comptable: 'bg-slate-100 text-slate-600',
-  rh: 'bg-rose-100 text-rose-700',
-  conducteur_affreteur: 'bg-orange-100 text-orange-700',
-  client: 'bg-cyan-100 text-cyan-700',
-  affreteur: 'bg-teal-100 text-teal-700',
+type AccessRequest = {
+  id: string
+  full_name: string
+  company_name: string
+  email: string
+  phone: string
+  need_type: string
+  request_status: string
+  lead_status: string
+  linked_profile_id: string | null
+  created_at: string
+  message: string | null
+  notes_admin: string | null
 }
 
-const inp = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-300'
-const DEFAULT_ROLE: Role = 'exploitant'
-
-function fallbackUserMatricule(profileId: string) {
-  const token = profileId.replace(/[^a-z0-9]/gi, '').slice(0, 8).toUpperCase() || 'UNKNOWN'
-  return `USR-${token}`
-}
+const inp = 'w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary-soft)]'
+const DEFAULT_ROLE: Role = 'dirigeant'
 
 async function adminRequest<T>(accessToken: string, method: 'GET' | 'POST' | 'PATCH', body?: unknown): Promise<T> {
   const response = await fetch('/.netlify/functions/admin-users', {
@@ -42,61 +47,56 @@ async function adminRequest<T>(accessToken: string, method: 'GET' | 'POST' | 'PA
     body: body ? JSON.stringify(body) : undefined,
   })
 
-  const contentType = response.headers.get('content-type') ?? ''
-  const payload = contentType.includes('application/json')
-    ? await response.json().catch(() => null)
-    : null
-
+  const payload = await response.json().catch(() => null)
   if (!response.ok) {
-    throw new Error(
-      payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string'
-        ? payload.error
-        : 'Operation impossible.',
-    )
+    throw new Error(payload?.error ?? 'Operation impossible.')
   }
-
-  if (!payload || typeof payload !== 'object') {
-    throw new Error('Service admin indisponible. En local, lance Netlify Dev pour servir les fonctions `/.netlify/functions/*`.')
-  }
-
   return payload as T
 }
 
 export default function Utilisateurs() {
-  const { session, profil } = useAuth()
+  const { session } = useAuth()
+
   const [users, setUsers] = useState<ManagedUser[]>([])
+  const [requests, setRequests] = useState<AccessRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
-  const [editId, setEditId] = useState<string | null>(null)
-  const [editRole, setEditRole] = useState<Role>(DEFAULT_ROLE)
-  const [editNom, setEditNom] = useState('')
-  const [editPrenom, setEditPrenom] = useState('')
-  const [savingEdit, setSavingEdit] = useState(false)
+  const [search, setSearch] = useState('')
+  const [filterRole, setFilterRole] = useState('all')
+  const [filterStatus, setFilterStatus] = useState('all')
 
   const [createEmail, setCreateEmail] = useState('')
   const [createPassword, setCreatePassword] = useState('')
   const [createRole, setCreateRole] = useState<Role>(DEFAULT_ROLE)
   const [createNom, setCreateNom] = useState('')
   const [createPrenom, setCreatePrenom] = useState('')
+  const [createAccountType, setCreateAccountType] = useState('test')
+  const [createMaxScreens, setCreateMaxScreens] = useState(1)
   const [creating, setCreating] = useState(false)
+
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editRole, setEditRole] = useState<Role>(DEFAULT_ROLE)
+  const [editStatus, setEditStatus] = useState('actif')
+  const [editType, setEditType] = useState('standard')
+  const [editMaxScreens, setEditMaxScreens] = useState(1)
+  const [editPermissions, setEditPermissions] = useState('')
+  const [editNotes, setEditNotes] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
     if (!session?.access_token) return
-
     setLoading(true)
     setError(null)
-
     try {
-      const data = await adminRequest<{ users: ManagedUser[] }>(session.access_token, 'GET')
-      if (!Array.isArray(data.users)) {
-        throw new Error('Format de reponse invalide pour la liste des utilisateurs.')
-      }
-      setUsers(data.users)
+      const data = await adminRequest<{ users: ManagedUser[]; requests: AccessRequest[] }>(session.access_token, 'GET')
+      setUsers(Array.isArray(data.users) ? data.users : [])
+      setRequests(Array.isArray(data.requests) ? data.requests : [])
     } catch (err) {
-      setUsers([])
       setError(err instanceof Error ? err.message : 'Chargement impossible.')
+      setUsers([])
+      setRequests([])
     } finally {
       setLoading(false)
     }
@@ -106,84 +106,93 @@ export default function Utilisateurs() {
     void load()
   }, [load])
 
+  const filteredUsers = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return users.filter(user => {
+      const fullname = `${user.prenom ?? ''} ${user.nom ?? ''}`.trim().toLowerCase()
+      const matchQuery = q.length === 0 || fullname.includes(q) || (user.email ?? '').toLowerCase().includes(q)
+      const matchRole = filterRole === 'all' || user.role === filterRole
+      const status = user.account_status ?? 'actif'
+      const matchStatus = filterStatus === 'all' || status === filterStatus
+      return matchQuery && matchRole && matchStatus
+    })
+  }, [filterRole, filterStatus, search, users])
+
   function startEdit(user: ManagedUser) {
-    if (session?.user?.id === user.user_id) {
-      setNotice('Le type de session du compte actuellement connecte ne peut pas etre modifie ici.')
-      return
-    }
     setEditId(user.id)
-    setEditRole(user.role as Role)
-    setEditNom(user.nom ?? '')
-    setEditPrenom(user.prenom ?? '')
-    setNotice(null)
-    setError(null)
+    setEditRole((user.role as Role) ?? DEFAULT_ROLE)
+    setEditStatus(user.account_status ?? 'actif')
+    setEditType(user.account_type ?? 'standard')
+    setEditMaxScreens(Math.max(1, Math.min(12, Number(user.max_concurrent_screens ?? 1))))
+    setEditPermissions((user.permissions ?? []).join(', '))
+    setEditNotes(user.notes_admin ?? '')
   }
 
   async function saveEdit() {
     if (!session?.access_token || !editId) return
-
-    setSavingEdit(true)
+    setSaving(true)
     setError(null)
     setNotice(null)
-
     try {
       await adminRequest(session.access_token, 'PATCH', {
         id: editId,
         role: editRole,
-        nom: editNom,
-        prenom: editPrenom,
+        account_status: editStatus,
+        account_type: editType,
+        max_concurrent_screens: editMaxScreens,
+        notes_admin: editNotes,
+        permissions: editPermissions.split(',').map(item => item.trim()).filter(Boolean),
       })
       setEditId(null)
-      setNotice('Profil mis a jour.')
+      setNotice('Compte mis a jour.')
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Mise a jour impossible.')
     } finally {
-      setSavingEdit(false)
+      setSaving(false)
+    }
+  }
+
+  async function applyAction(id: string, action: 'enable' | 'disable' | 'archive' | 'delete') {
+    if (!session?.access_token) return
+    setError(null)
+    setNotice(null)
+    try {
+      await adminRequest(session.access_token, 'PATCH', { id, action })
+      setNotice('Action appliquee.')
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Action impossible.')
     }
   }
 
   async function createUser(e: React.FormEvent) {
     e.preventDefault()
     if (!session?.access_token) return
-
     setCreating(true)
     setError(null)
     setNotice(null)
-
     try {
-      const provisionalCode = createPassword.trim() || generateProvisionalCode()
-      const payload = await adminRequest<{ user: { id: string; profile_id: string | null; email: string; role: Role; requires_email_confirmation?: boolean } }>(session.access_token, 'POST', {
+      const payload = await adminRequest<{ user: { email: string; role: string } }>(session.access_token, 'POST', {
         email: createEmail,
-        password: provisionalCode,
+        password: createPassword,
         role: createRole,
         nom: createNom,
         prenom: createPrenom,
+        account_type: createAccountType,
+        max_concurrent_screens: createMaxScreens,
+        account_origin: 'manuel_admin',
+        is_demo_account: createAccountType === 'test' || createAccountType === 'demo',
+        is_investor_account: createAccountType === 'investisseur',
       })
-
-      if (profil && payload.user.profile_id) {
-        const professionalEmail = generateProfessionalEmail(createPrenom || createRole, createNom || 'employee')
-        provisionEmployeeOnboarding({
-          profileId: payload.user.profile_id,
-          role: createRole,
-          firstName: createPrenom || createRole,
-          lastName: createNom || 'Employe',
-          loginEmail: createEmail,
-          professionalEmail,
-          provisionalCode,
-        }, profil)
-      }
-
       setCreateEmail('')
       setCreatePassword('')
       setCreateRole(DEFAULT_ROLE)
       setCreateNom('')
       setCreatePrenom('')
-      setNotice(
-        payload.user.requires_email_confirmation
-          ? `Compte cree pour ${payload.user.email}. Code provisoire ${provisionalCode}. Un livret d integration a ete genere.`
-          : `Compte cree pour ${payload.user.email} (${ROLE_LABELS[payload.user.role]}). Code provisoire ${provisionalCode}.`,
-      )
+      setCreateAccountType('test')
+      setCreateMaxScreens(1)
+      setNotice(`Compte cree pour ${payload.user.email} (${payload.user.role}).`)
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Creation impossible.')
@@ -192,13 +201,34 @@ export default function Utilisateurs() {
     }
   }
 
+  async function createFromRequest(request: AccessRequest) {
+    if (!session?.access_token) return
+    setError(null)
+    setNotice(null)
+    try {
+      await adminRequest(session.access_token, 'POST', {
+        email: request.email,
+        password: `Nx!${Math.random().toString(36).slice(2, 12)}A9`,
+        role: DEFAULT_ROLE,
+        nom: request.full_name.split(' ').slice(1).join(' ') || request.full_name,
+        prenom: request.full_name.split(' ')[0] || request.full_name,
+        account_type: request.need_type === 'investisseur' ? 'investisseur' : 'test',
+        account_origin: 'demande_page_connexion',
+        requested_from_public_form: true,
+        request_id: request.id,
+      })
+      setNotice('Compte cree depuis la demande.')
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Creation impossible depuis la demande.')
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-800">Utilisateurs</h2>
-        <p className="text-slate-500 text-sm mt-0.5">
-          Creez des comptes supplementaires et attribuez leur type de session depuis l&apos;ERP.
-        </p>
+        <h2 className="text-2xl font-bold text-slate-800">Comptes de demonstration et acces</h2>
+        <p className="mt-1 text-sm text-slate-500">Gestion complete des comptes, roles, droits et demandes publiques.</p>
       </div>
 
       {(error || notice) && (
@@ -207,183 +237,217 @@ export default function Utilisateurs() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h3 className="text-lg font-semibold text-slate-800">Creer un compte</h3>
-              <p className="text-sm text-slate-500">Le compte est cree dans Supabase Auth et son type de session est prepare dans `profils`.</p>
-            </div>
-          </div>
-
-          <div className="mb-5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Profils demo locaux</p>
-            <p className="mt-1 text-sm text-slate-600">
-              Pour tester la messagerie entre faux utilisateurs, ouvre le menu de session admin puis choisis un profil demo.
-              Aucun compte Supabase supplementaire n&apos;est necessaire.
-            </p>
-          </div>
-
-          <form onSubmit={createUser} className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <Field label="Email">
-                <input className={inp} type="email" value={createEmail} onChange={e => setCreateEmail(e.target.value)} required />
-              </Field>
-            </div>
-              <Field label="Mot de passe provisoire">
-              <input className={inp} type="text" value={createPassword} onChange={e => setCreatePassword(e.target.value)} minLength={8} placeholder="Laisser vide pour generation automatique" />
-            </Field>
-            <Field label="Type de session">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h3 className="text-lg font-semibold text-slate-800">Creer un compte</h3>
+          <p className="mt-1 text-sm text-slate-500">Tout nouveau compte est en role dirigeant par defaut.</p>
+          <form onSubmit={createUser} className="mt-4 grid grid-cols-2 gap-3">
+            <Field label="Email"><input className={inp} type="email" required value={createEmail} onChange={e => setCreateEmail(e.target.value)} /></Field>
+            <Field label="Mot de passe provisoire"><input className={inp} type="text" minLength={8} required value={createPassword} onChange={e => setCreatePassword(e.target.value)} /></Field>
+            <Field label="Prenom"><input className={inp} value={createPrenom} onChange={e => setCreatePrenom(e.target.value)} /></Field>
+            <Field label="Nom"><input className={inp} value={createNom} onChange={e => setCreateNom(e.target.value)} /></Field>
+            <Field label="Role">
               <select className={inp} value={createRole} onChange={e => setCreateRole(e.target.value as Role)}>
-                {(Object.entries(ROLE_LABELS) as [Role, string][]).map(([role, label]) => (
+                {(Object.entries(ROLE_LABELS) as Array<[Role, string]>).map(([role, label]) => (
                   <option key={role} value={role}>{label}</option>
                 ))}
               </select>
             </Field>
-            <Field label="Prenom">
-              <input className={inp} value={createPrenom} onChange={e => setCreatePrenom(e.target.value)} />
+            <Field label="Type de compte">
+              <select className={inp} value={createAccountType} onChange={e => setCreateAccountType(e.target.value)}>
+                <option value="standard">Standard</option>
+                <option value="test">Test</option>
+                <option value="prospect">Prospect</option>
+                <option value="investisseur">Investisseur</option>
+                <option value="demo">Demo</option>
+              </select>
             </Field>
-            <Field label="Nom">
-              <input className={inp} value={createNom} onChange={e => setCreateNom(e.target.value)} />
+            <Field label="Ecrans max simultanes">
+              <input
+                className={inp}
+                type="number"
+                min={1}
+                max={12}
+                value={createMaxScreens}
+                onChange={e => setCreateMaxScreens(Math.max(1, Math.min(12, Number(e.target.value || 1))))}
+              />
             </Field>
-
-            <div className="col-span-2 flex items-center justify-between border-t border-slate-100 pt-4">
-              <p className="text-xs text-slate-500">
-                Le role choisi devient le type de session attribue au compte. Un mail professionnel, un code provisoire et un livret d integration seront generes.
-              </p>
-              <button
-                type="submit"
-                disabled={creating}
-                className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
-              >
+            <div className="col-span-2 flex justify-end">
+              <button type="submit" disabled={creating} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
                 {creating ? 'Creation...' : 'Creer le compte'}
               </button>
             </div>
           </form>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-2">
-          {(Object.entries(ROLE_LABELS) as [Role, string][]).map(([role, label]) => (
-            <div key={role} className="bg-white rounded-xl border border-slate-200 p-4 text-center">
-              <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${ROLE_BADGE[role]}`}>
-                {label}
-              </span>
-              <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">
-                {role === 'admin' && 'Super administrateur'}
-                {role === 'dirigeant' && 'Acces complet'}
-                {role === 'exploitant' && 'Planning, OT, flotte'}
-                {role === 'mecanicien' && 'Vehicules, tachy'}
-                {role === 'commercial' && 'Clients, OT, facturation'}
-                {role === 'comptable' && 'Dashboard, facturation'}
-                {role === 'rh' && 'Dossiers chauffeurs, alertes RH'}
-                {role === 'conducteur_affreteur' && 'Feuille de route affretee, sans frais'}
-                {role === 'client' && 'Portail client et demandes transport'}
-                {role === 'affreteur' && 'Portail affretement et ressources externes'}
-              </p>
-            </div>
-          ))}
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h3 className="text-lg font-semibold text-slate-800">Filtres</h3>
+          <div className="mt-4 space-y-3">
+            <Field label="Recherche">
+              <input className={inp} placeholder="Nom, email" value={search} onChange={e => setSearch(e.target.value)} />
+            </Field>
+            <Field label="Role">
+              <select className={inp} value={filterRole} onChange={e => setFilterRole(e.target.value)}>
+                <option value="all">Tous</option>
+                {(Object.entries(ROLE_LABELS) as Array<[Role, string]>).map(([role, label]) => (
+                  <option key={role} value={role}>{label}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Statut">
+              <select className={inp} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                <option value="all">Tous</option>
+                <option value="actif">Actif</option>
+                <option value="suspendu">Suspendu</option>
+                <option value="desactive">Desactive</option>
+                <option value="archive">Archive</option>
+              </select>
+            </Field>
+          </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
         {loading ? (
-          <div className="p-8 text-center text-slate-400 text-sm">Chargement...</div>
-        ) : users.length === 0 ? (
-          <div className="p-8 text-center text-slate-400 text-sm">
-            Aucun utilisateur enregistre.
-          </div>
+          <div className="p-8 text-center text-sm text-slate-400">Chargement...</div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
-                {['Utilisateur', 'Matricule', 'Email', 'Type de session', 'Derniere connexion', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
+                {['Nom', 'Societe', 'Email', 'Telephone', 'Role', 'Statut', 'Type', 'Creation', 'Derniere connexion', 'Origine', 'Actions'].map(header => (
+                  <th key={header} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">{header}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {users.map((user, index) => {
-                const isCurrentUser = session?.user?.id === user.user_id
-                return (
-                <tr key={user.id} className={`border-t border-slate-100 ${index % 2 !== 0 ? 'bg-slate-50' : ''}`}>
-                  <td className="px-4 py-3">
+              {filteredUsers.map(user => (
+                <tr key={user.id} className="border-t border-slate-100">
+                  <td className="px-3 py-2 font-medium text-slate-700">{[user.prenom, user.nom].filter(Boolean).join(' ') || 'Non renseigne'}</td>
+                  <td className="px-3 py-2 text-slate-500">-</td>
+                  <td className="px-3 py-2 text-slate-600">{user.email ?? 'N/A'}</td>
+                  <td className="px-3 py-2 text-slate-500">-</td>
+                  <td className="px-3 py-2">
                     {editId === user.id ? (
-                      <div className="flex gap-2">
-                        <input className={inp} placeholder="Prenom" value={editPrenom} onChange={e => setEditPrenom(e.target.value)} />
-                        <input className={inp} placeholder="Nom" value={editNom} onChange={e => setEditNom(e.target.value)} />
-                      </div>
-                    ) : (
-                      <div>
-                        <div className="font-medium text-slate-800">
-                          {[user.prenom, user.nom].filter(Boolean).join(' ') || <span className="text-slate-400 italic">Non renseigne</span>}
-                        </div>
-                        <div className="text-xs text-slate-400 font-mono mt-0.5">{user.user_id.slice(0, 8)}...</div>
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs font-mono rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-slate-600">
-                      {user.matricule || fallbackUserMatricule(user.id)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">
-                    <div>{user.email ?? <span className="text-slate-400 italic">Email indisponible</span>}</div>
-                    <div className="text-xs text-slate-400 mt-0.5">
-                      {user.email_confirmed_at ? 'Confirme' : 'A confirmer'}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    {editId === user.id ? (
-                      <select
-                        className={inp}
-                        value={editRole}
-                        onChange={e => setEditRole(e.target.value as Role)}
-                        disabled={isCurrentUser}
-                      >
-                        {(Object.entries(ROLE_LABELS) as [Role, string][]).map(([role, label]) => (
+                      <select className={inp} value={editRole} onChange={e => setEditRole(e.target.value as Role)}>
+                        {(Object.entries(ROLE_LABELS) as Array<[Role, string]>).map(([role, label]) => (
                           <option key={role} value={role}>{label}</option>
                         ))}
                       </select>
                     ) : (
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${ROLE_BADGE[user.role] ?? 'bg-slate-100 text-slate-600'}`}>
-                        {ROLE_LABELS[user.role as Role] ?? user.role}
-                      </span>
+                      ROLE_LABELS[user.role as Role] ?? user.role
                     )}
                   </td>
-                  <td className="px-4 py-3 text-slate-400 text-xs">
-                    {user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString('fr-FR') : 'Jamais'}
-                  </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-3 py-2">
                     {editId === user.id ? (
-                      <div className="flex gap-2 justify-end">
-                        <button type="button" onClick={() => setEditId(null)} className="text-xs text-slate-400 hover:text-slate-600">
-                          Annuler
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void saveEdit()}
-                          disabled={savingEdit}
-                          className="rounded-lg bg-slate-800 px-3 py-1 text-xs text-white hover:bg-slate-700 disabled:opacity-50"
-                        >
-                          {savingEdit ? '...' : 'Sauvegarder'}
-                        </button>
+                      <select className={inp} value={editStatus} onChange={e => setEditStatus(e.target.value)}>
+                        <option value="actif">Actif</option>
+                        <option value="suspendu">Suspendu</option>
+                        <option value="desactive">Desactive</option>
+                        <option value="archive">Archive</option>
+                      </select>
+                    ) : (user.account_status ?? 'actif')}
+                  </td>
+                  <td className="px-3 py-2">
+                    {editId === user.id ? (
+                      <div className="space-y-2">
+                        <select className={inp} value={editType} onChange={e => setEditType(e.target.value)}>
+                          <option value="standard">Standard</option>
+                          <option value="test">Test</option>
+                          <option value="prospect">Prospect</option>
+                          <option value="investisseur">Investisseur</option>
+                          <option value="demo">Demo</option>
+                        </select>
+                        <input
+                          className={inp}
+                          type="number"
+                          min={1}
+                          max={12}
+                          value={editMaxScreens}
+                          onChange={e => setEditMaxScreens(Math.max(1, Math.min(12, Number(e.target.value || 1))))}
+                        />
                       </div>
                     ) : (
-                      isCurrentUser ? (
-                        <span className="text-xs text-slate-400">Compte actif</span>
-                      ) : (
-                        <button type="button" onClick={() => startEdit(user)} className="text-xs text-slate-400 hover:text-slate-700">
-                          Modifier
-                        </button>
-                      )
+                      <div className="space-y-1">
+                        <div>{user.account_type ?? 'standard'}</div>
+                        <div className="text-xs text-slate-500">{user.max_concurrent_screens ?? 1} ecran(s) max</div>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-slate-500">{new Date(user.created_at).toLocaleDateString('fr-FR')}</td>
+                  <td className="px-3 py-2 text-xs text-slate-500">{user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString('fr-FR') : 'Jamais'}</td>
+                  <td className="px-3 py-2 text-xs text-slate-500">{user.account_origin ?? 'manuel_admin'}</td>
+                  <td className="px-3 py-2">
+                    {editId === user.id ? (
+                      <div className="space-y-2">
+                        <textarea className={inp} rows={2} value={editPermissions} onChange={e => setEditPermissions(e.target.value)} placeholder="permissions (csv)" />
+                        <textarea className={inp} rows={2} value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="note interne" />
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => setEditId(null)} className="rounded border border-slate-300 px-2 py-1 text-xs">Annuler</button>
+                          <button type="button" disabled={saving} onClick={() => void saveEdit()} className="rounded bg-slate-800 px-2 py-1 text-xs text-white">Sauver</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => startEdit(user)} className="rounded border border-slate-300 px-2 py-1 text-xs">Editer</button>
+                        <button type="button" onClick={() => void applyAction(user.id, 'enable')} className="rounded border border-emerald-300 px-2 py-1 text-xs text-emerald-700">Activer</button>
+                        <button type="button" onClick={() => void applyAction(user.id, 'disable')} className="rounded border border-amber-300 px-2 py-1 text-xs text-amber-700">Desactiver</button>
+                        <button type="button" onClick={() => void applyAction(user.id, 'archive')} className="rounded border border-slate-300 px-2 py-1 text-xs">Archiver</button>
+                        <button type="button" onClick={() => void applyAction(user.id, 'delete')} className="rounded border border-red-300 px-2 py-1 text-xs text-red-700">Supprimer</button>
+                      </div>
                     )}
                   </td>
                 </tr>
-                )
-              })}
+              ))}
+              {filteredUsers.length === 0 && (
+                <tr>
+                  <td colSpan={11} className="px-3 py-8 text-center text-sm text-slate-400">Aucun compte ne correspond aux filtres.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         )}
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h3 className="text-lg font-semibold text-slate-800">Demandes "Parler de votre projet"</h3>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-slate-200 bg-slate-50">
+              <tr>
+                {['Nom', 'Societe', 'Email', 'Type besoin', 'Statut', 'Date', 'Actions'].map(header => (
+                  <th key={header} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map(request => (
+                <tr key={request.id} className="border-t border-slate-100">
+                  <td className="px-3 py-2">{request.full_name}</td>
+                  <td className="px-3 py-2">{request.company_name}</td>
+                  <td className="px-3 py-2">{request.email}</td>
+                  <td className="px-3 py-2">{request.need_type}</td>
+                  <td className="px-3 py-2">{request.request_status}</td>
+                  <td className="px-3 py-2 text-xs text-slate-500">{new Date(request.created_at).toLocaleString('fr-FR')}</td>
+                  <td className="px-3 py-2">
+                    <button
+                      type="button"
+                      disabled={Boolean(request.linked_profile_id)}
+                      onClick={() => void createFromRequest(request)}
+                      className="rounded border border-slate-300 px-2 py-1 text-xs disabled:opacity-40"
+                    >
+                      {request.linked_profile_id ? 'Compte deja cree' : 'Creer un compte depuis cette demande'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {requests.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-3 py-8 text-center text-sm text-slate-400">Aucune demande enregistree.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
@@ -391,9 +455,9 @@ export default function Utilisateurs() {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1">
-      <label className="text-xs font-medium text-slate-600">{label}</label>
+    <label className="space-y-1 text-xs font-medium text-slate-600">
+      <span>{label}</span>
       {children}
-    </div>
+    </label>
   )
 }

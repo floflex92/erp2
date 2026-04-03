@@ -2,21 +2,23 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { readCompanySettings } from '@/lib/companySettings'
 import { supabase } from '@/lib/supabase'
-import LegalHero from '@/site/components/LegalHero'
+
+const sectionPx: React.CSSProperties = { paddingInline: 'clamp(24px, 8vw, 160px)' }
+const sectionPy: React.CSSProperties = { paddingBlock: 'clamp(60px, 8vw, 120px)' }
 
 const LAST_UPDATE = '31 mars 2026'
 const NETLIFY_COMPANY = 'Netlify, Inc.'
-const NETLIFY_ADDRESS = '44 Montgomery Street, Suite 300, San Francisco, California 94104, Etats-Unis'
+const NETLIFY_ADDRESS = '44 Montgomery Street, Suite 300, San Francisco, California 94104, États-Unis'
 const SUPABASE_COMPANY = 'Supabase, Inc.'
 const SUPABASE_ADDRESS = '970 Toa Payoh North #07-04, Singapore 318992'
 const DEFAULT_COMPANY_NAME = 'NEXORA Truck'
-const DEFAULT_ADDRESS = 'Lieux mareille 13eme'
+const DEFAULT_ADDRESS = 'Marseille, 13e arrondissement'
 const DEFAULT_EMAIL = 'contact@nexora-truck.fr'
-const DEFAULT_PHONE = '0782711705'
+const DEFAULT_PHONE = '07 82 71 17 05'
 const DEFAULT_PUBLICATION_DIRECTOR = 'CHABRE Florent'
-const DEFAULT_LEGAL_FORM = 'Activite independante'
-const DEFAULT_SIRET = 'A renseigner si activite declaree'
-const DEFAULT_VAT = 'Non applicable a ce stade'
+const DEFAULT_LEGAL_FORM = 'Activité indépendante'
+const DEFAULT_SIRET = 'À renseigner si activité déclarée'
+const DEFAULT_VAT = 'Non applicable à ce stade'
 
 type LegalConfig = {
   companyName: string
@@ -30,14 +32,14 @@ type LegalConfig = {
   publicationContact: string
 }
 
-function emptyIfMissing(value: unknown, fallback = 'Non renseigne') {
+function emptyIfMissing(value: unknown, fallback = 'Non renseigné') {
   if (typeof value !== 'string') return fallback
   const trimmed = value.trim()
   return trimmed ? trimmed : fallback
 }
 
 function isProvided(value: string) {
-  return value.trim() !== '' && value.trim().toLowerCase() !== 'non renseigne' && value.trim().toLowerCase() !== 'non renseignee'
+  return value.trim() !== '' && !value.trim().toLowerCase().startsWith('non renseign')
 }
 
 function shouldDisplayLegalValue(value: string, hiddenSentinel: string) {
@@ -62,25 +64,16 @@ export default function MentionsLegales() {
     let active = true
     void (async () => {
       const keys = [
-        'societe_nom',
-        'societe_forme',
-        'societe_siret',
-        'societe_tva_intra',
-        'societe_adresse',
-        'societe_telephone',
-        'mail_from',
-        'responsable_exploitation_nom',
-        'responsable_exploitation_email',
+        'societe_nom', 'societe_forme', 'societe_siret', 'societe_tva_intra',
+        'societe_adresse', 'societe_telephone', 'mail_from',
+        'responsable_exploitation_nom', 'responsable_exploitation_email',
       ]
-
-      const { data, error } = await supabase
-        .from('config_entreprise')
+      const { data, error } = await (supabase
+        .from('config_entreprise' as any)
         .select('cle,valeur')
-        .in('cle', keys)
-
+        .in('cle', keys) as any)
       if (!active || error) return
-      const map = Object.fromEntries((data ?? []).map(row => [row.cle, row.valeur]))
-
+      const map = Object.fromEntries(((data ?? []) as Array<{ cle: string; valeur: unknown }>).map(row => [row.cle, row.valeur]))
       setLegalConfig({
         companyName: emptyIfMissing(map.societe_nom, company.companyName || DEFAULT_COMPANY_NAME),
         legalForm: emptyIfMissing(map.societe_forme, DEFAULT_LEGAL_FORM),
@@ -93,206 +86,154 @@ export default function MentionsLegales() {
         publicationContact: emptyIfMissing(map.responsable_exploitation_email, DEFAULT_EMAIL),
       })
     })()
-
-    return () => {
-      active = false
-    }
+    return () => { active = false }
   }, [company.companyName])
 
-  const currentHost = useMemo(() => {
-    if (typeof window === 'undefined') return 'Non disponible'
-    return window.location.origin
-  }, [])
-
-  const publicationLabel = isProvided(legalConfig.publicationDirector)
-    ? legalConfig.publicationDirector
-    : 'A completer par l exploitant'
-
-  const publicationContactLabel = isProvided(legalConfig.publicationContact)
-    ? legalConfig.publicationContact
-    : legalConfig.email
-
+  const currentHost = useMemo(() => typeof window !== 'undefined' ? window.location.origin : '', [])
   const showSiret = shouldDisplayLegalValue(legalConfig.siret, DEFAULT_SIRET)
   const showVat = shouldDisplayLegalValue(legalConfig.vat, DEFAULT_VAT)
 
   return (
-    <div className="space-y-6">
-      <LegalHero
-        eyebrow="Information legale"
-        title="Mentions legales"
-        description={`Informations legales relatives au site vitrine et a la plateforme ERP ${legalConfig.companyName}. Cette page presente l identite de l editeur, les informations d hebergement, les regles generales d usage du service et les principaux points lies a la protection des donnees.`}
-        lastUpdate={LAST_UPDATE}
-        highlights={['Editeur', 'Hebergement', 'Protection des donnees']}
-      />
-
-      <section className="grid gap-4 xl:grid-cols-2">
-        <LegalBlock title="Editeur du site et de la plateforme">
-          <p>{legalConfig.companyName}</p>
-          <p>Statut: {legalConfig.legalForm}</p>
-          {showSiret ? <p>SIRET: {legalConfig.siret}</p> : null}
-          {showVat ? <p>TVA intracommunautaire: {legalConfig.vat}</p> : null}
-          <p>Adresse de contact: {legalConfig.address}</p>
-          <p>Email de contact: {legalConfig.email}</p>
-          <p>Telephone: {legalConfig.phone}</p>
-          <p>URL de consultation: {currentHost}</p>
-          {!showSiret && !showVat ? (
-            <p>
-              Aucune immatriculation societaire n est affichee a ce stade. Le service est actuellement presente dans un
-              cadre de developpement et d exploitation autonome.
-            </p>
-          ) : null}
-        </LegalBlock>
-
-        <LegalBlock title="Directeur de publication">
-          <p>Responsable de publication: {publicationLabel}</p>
-          <p>Fonction: editeur / developpeur independant</p>
-          <p>Contact publication: {publicationContactLabel}</p>
-        </LegalBlock>
-
-        <LegalBlock title="Hebergement">
-          <p>Site vitrine et services frontend: {NETLIFY_COMPANY}</p>
-          <p>Adresse hebergeur frontend: {NETLIFY_ADDRESS}</p>
-          <p>Base de donnees et services associes: {SUPABASE_COMPANY}</p>
-          <p>Adresse hebergeur donnees: {SUPABASE_ADDRESS}</p>
-          <p>L editeur demeure responsable de la configuration du nom de domaine, des acces applicatifs et des contenus diffuses.</p>
-        </LegalBlock>
-
-        <LegalBlock title="Champ d application">
-          <p>
-            La presente page s applique au site public de presentation, aux formulaires de prise de contact et a la
-            plateforme ERP exploitee sous la marque {legalConfig.companyName}.
-          </p>
-          <p>
-            Certaines fonctionnalites peuvent etre reservees aux utilisateurs autorises, aux clients en phase de test ou
-            aux personnes expressement habilitees par l editeur.
-          </p>
-        </LegalBlock>
-
-        <LegalBlock title="Acces au service">
-          <p>
-            La plateforme est reservee aux utilisateurs autorises par l editeur ou, le cas echeant, par les structures utilisatrices du service, au moyen d un compte et de droits d acces definis par role.
-          </p>
-          <p>
-            L acces peut etre suspendu temporairement pour maintenance, securite, prevention d abus ou utilisation non conforme aux regles applicables.
-          </p>
-          <p>
-            Le site public reste accessible librement, sous reserve des interruptions techniques necessaires a son
-            exploitation ou a sa securisation.
-          </p>
-        </LegalBlock>
-
-        <LegalBlock title="Propriete intellectuelle">
-          <p>
-            Les contenus, marques, codes, bases de donnees et elements graphiques de la plateforme sont proteges par
-            les droits de propriete intellectuelle.
-          </p>
-          <p>
-            Toute reproduction, extraction, diffusion, adaptation ou exploitation non autorisee est interdite sauf accord
-            ecrit prealable de l editeur.
-          </p>
-          <p>
-            Les logos, maquettes, contenus marketing, textes, illustrations et captures presentes sur le site vitrine
-            relevent egalement de cette protection.
-          </p>
-        </LegalBlock>
-
-        <LegalBlock title="Protection des donnees">
-          <p>
-            Les donnees traitees dans l ERP le sont pour les finalites d exploitation transport, de gestion, de pilotage, de conformite et d administration des acces.
-          </p>
-          <p>
-            Chaque structure utilisatrice ou personne qui alimente l outil reste responsable des donnees qu elle saisit
-            et doit respecter les obligations RGPD applicables.
-          </p>
-          <p>
-            Les demandes relatives aux droits des personnes (acces, rectification, suppression) doivent etre adressees
-            au responsable de traitement concerne.
-          </p>
-          <p>
-            Les donnees transmises via les formulaires du site public sont utilisees pour recontacter les prospects,
-            qualifier les demandes et organiser une demonstration ou une prise de contact commerciale.
-          </p>
-          <p>
-            Pour le detail des traitements, des durees de conservation et des droits des personnes, consultez aussi la{' '}
-            <Link to="/politique-confidentialite" className="font-medium text-sky-700 underline underline-offset-2 hover:text-sky-900">
-              politique de confidentialite
-            </Link>
-            .
-          </p>
-        </LegalBlock>
-
-        <LegalBlock title="Cookies et traces techniques">
-          <p>
-            La plateforme peut utiliser des stockages techniques necessaires au fonctionnement (session, preferences,
-            configuration locale).
-          </p>
-          <p>
-            Ces mecanismes ne doivent pas etre desactives lorsqu ils sont indispensables a la securite et a
-            l authentification.
-          </p>
-          <p>
-            Le site public peut egalement deposer des cookies ou traceurs strictement necessaires a la mesure
-            d audience, a la qualification des demandes et au bon fonctionnement des parcours.
-          </p>
-          <p>
-            Pour plus de detail sur les categories de donnees et les modalites de consentement, consultez la{' '}
-            <Link to="/politique-confidentialite" className="font-medium text-sky-700 underline underline-offset-2 hover:text-sky-900">
-              politique de confidentialite
-            </Link>
-            .
-          </p>
-        </LegalBlock>
-
-        <LegalBlock title="Responsabilite">
-          <p>
-            L editeur met en oeuvre des moyens raisonnables pour assurer la disponibilite et la fiabilite de la
-            plateforme, sans garantie d absence totale d interruption ou d erreur.
-          </p>
-          <p>
-            L utilisateur demeure responsable de la verification des donnees critiques, notamment en matiere de reglementation, d ETA, de conduite et de facturation, avant toute decision operationnelle.
-          </p>
-          <p>
-            Les informations presentes sur le site public sont fournies a titre informatif et peuvent evoluer sans
-            preavis en fonction des mises a jour du produit, des offres et des contraintes legales.
-          </p>
-        </LegalBlock>
-
-        <LegalBlock title="Droit applicable et contact">
-          <p>Les presentes mentions legales sont regies par le droit francais, sauf disposition imperative contraire.</p>
-          <p>
-            Pour toute question sur les presentes mentions, vous pouvez contacter {legalConfig.companyName} a l adresse
-            {` `}
-            {legalConfig.email} ou par telephone au {legalConfig.phone}.
-          </p>
-          <p>
-            Si l activite devient officiellement declaree ou exploitee via une structure immatriculee, les informations
-            juridiques obligatoires devront etre completees avant toute mise en production ouverte au public.
-          </p>
-        </LegalBlock>
+    <>
+      {/* ── HERO ── */}
+      <section className="w-full bg-white" style={{ ...sectionPx, ...sectionPy }}>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#6E6E73' }}>
+          Information légale
+        </p>
+        <h1
+          className="mt-4 max-w-3xl font-bold leading-[1.08]"
+          style={{ fontSize: 'clamp(2rem, 4.5vw, 3.5rem)', color: '#000000', letterSpacing: '-0.02em' }}
+        >
+          Mentions légales
+        </h1>
+        <p className="mt-4 max-w-2xl" style={{ color: '#6E6E73' }}>
+          Informations légales relatives au site vitrine et à la plateforme ERP {legalConfig.companyName}.
+        </p>
+        <p className="mt-3 text-sm" style={{ color: '#86868B' }}>Mise à jour : {LAST_UPDATE}</p>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <Link to="/politique-confidentialite" className="rounded-[1.45rem] border border-slate-200 bg-white p-5 text-sm font-semibold text-slate-800 shadow-[0_16px_45px_rgba(15,23,42,0.06)] transition-colors hover:border-slate-300 hover:text-slate-950">
-          Consulter la politique de confidentialite
-        </Link>
-        <Link to="/conditions-generales-utilisation" className="rounded-[1.45rem] border border-slate-200 bg-white p-5 text-sm font-semibold text-slate-800 shadow-[0_16px_45px_rgba(15,23,42,0.06)] transition-colors hover:border-slate-300 hover:text-slate-950">
-          Consulter les CGU
-        </Link>
-        <Link to="/contact" className="rounded-[1.45rem] border border-slate-200 bg-white p-5 text-sm font-semibold text-slate-800 shadow-[0_16px_45px_rgba(15,23,42,0.06)] transition-colors hover:border-slate-300 hover:text-slate-950">
-          Contacter l editeur
-        </Link>
+      {/* ── ÉDITEUR ── */}
+      <section className="w-full" style={{ background: '#F5F5F7', ...sectionPx, ...sectionPy }}>
+        <LegalTitle>Éditeur du site et de la plateforme</LegalTitle>
+        <div className="mt-6 grid gap-1" style={{ color: '#1D1D1F' }}>
+          <p className="font-semibold">{legalConfig.companyName}</p>
+          <p>Statut : {legalConfig.legalForm}</p>
+          {showSiret && <p>SIRET : {legalConfig.siret}</p>}
+          {showVat && <p>TVA intracommunautaire : {legalConfig.vat}</p>}
+          <p>Adresse : {legalConfig.address}</p>
+          <p>Email : {legalConfig.email}</p>
+          <p>Téléphone : {legalConfig.phone}</p>
+          <p>URL : {currentHost}</p>
+        </div>
+        {!showSiret && !showVat && (
+          <p className="mt-4" style={{ color: '#6E6E73' }}>
+            Aucune immatriculation sociétaire n'est affichée à ce stade. Le service est présenté dans un cadre de développement et d'exploitation autonome.
+          </p>
+        )}
       </section>
-    </div>
+
+      {/* ── DIRECTEUR DE PUBLICATION ── */}
+      <section className="w-full bg-white" style={{ ...sectionPx, ...sectionPy }}>
+        <LegalTitle>Directeur de publication</LegalTitle>
+        <div className="mt-6 grid gap-1" style={{ color: '#1D1D1F' }}>
+          <p>Responsable : {isProvided(legalConfig.publicationDirector) ? legalConfig.publicationDirector : 'À compléter'}</p>
+          <p>Fonction : éditeur / développeur indépendant</p>
+          <p>Contact : {isProvided(legalConfig.publicationContact) ? legalConfig.publicationContact : legalConfig.email}</p>
+        </div>
+      </section>
+
+      {/* ── HÉBERGEMENT ── */}
+      <section className="w-full" style={{ background: '#F5F5F7', ...sectionPx, ...sectionPy }}>
+        <LegalTitle>Hébergement</LegalTitle>
+        <div className="mt-6 grid gap-6 md:grid-cols-2">
+          <div>
+            <p className="text-sm font-semibold" style={{ color: '#1D1D1F' }}>Site vitrine et services frontend</p>
+            <p className="mt-1" style={{ color: '#6E6E73' }}>{NETLIFY_COMPANY}</p>
+            <p style={{ color: '#6E6E73' }}>{NETLIFY_ADDRESS}</p>
+          </div>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: '#1D1D1F' }}>Base de données et services associés</p>
+            <p className="mt-1" style={{ color: '#6E6E73' }}>{SUPABASE_COMPANY}</p>
+            <p style={{ color: '#6E6E73' }}>{SUPABASE_ADDRESS}</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── PROPRIÉTÉ INTELLECTUELLE ── */}
+      <section className="w-full bg-white" style={{ ...sectionPx, ...sectionPy }}>
+        <LegalTitle>Propriété intellectuelle</LegalTitle>
+        <div className="mt-6 max-w-3xl grid gap-4" style={{ color: '#6E6E73' }}>
+          <p>Les contenus, marques, codes, bases de données et éléments graphiques de la plateforme sont protégés par les droits de propriété intellectuelle.</p>
+          <p>Toute reproduction, extraction, diffusion, adaptation ou exploitation non autorisée est interdite sauf accord écrit préalable de l'éditeur.</p>
+        </div>
+      </section>
+
+      {/* ── PROTECTION DES DONNÉES ── */}
+      <section className="w-full" style={{ background: '#F5F5F7', ...sectionPx, ...sectionPy }}>
+        <LegalTitle>Protection des données</LegalTitle>
+        <div className="mt-6 max-w-3xl grid gap-4" style={{ color: '#6E6E73' }}>
+          <p>Les données traitées dans l'ERP le sont pour les finalités d'exploitation transport, de gestion, de pilotage, de conformité et d'administration des accès.</p>
+          <p>Chaque structure utilisatrice reste responsable des données qu'elle saisit et doit respecter les obligations RGPD applicables.</p>
+          <p>Les données transmises via les formulaires du site public sont utilisées pour recontacter les prospects et organiser une démonstration.</p>
+          <p>
+            Pour le détail des traitements, consultez la{' '}
+            <Link to="/politique-confidentialite" className="font-medium underline underline-offset-2" style={{ color: '#2563EB' }}>
+              politique de confidentialité
+            </Link>.
+          </p>
+        </div>
+      </section>
+
+      {/* ── COOKIES ── */}
+      <section className="w-full bg-white" style={{ ...sectionPx, ...sectionPy }}>
+        <LegalTitle>Cookies et traces techniques</LegalTitle>
+        <div className="mt-6 max-w-3xl grid gap-4" style={{ color: '#6E6E73' }}>
+          <p>La plateforme utilise des stockages techniques nécessaires au fonctionnement (session, préférences, configuration locale).</p>
+          <p>Le site public peut déposer des cookies strictement nécessaires à la mesure d'audience et au bon fonctionnement des parcours.</p>
+        </div>
+      </section>
+
+      {/* ── RESPONSABILITÉ ── */}
+      <section className="w-full" style={{ background: '#F5F5F7', ...sectionPx, ...sectionPy }}>
+        <LegalTitle>Responsabilité</LegalTitle>
+        <div className="mt-6 max-w-3xl grid gap-4" style={{ color: '#6E6E73' }}>
+          <p>L'éditeur met en œuvre des moyens raisonnables pour assurer la disponibilité et la fiabilité de la plateforme, sans garantie d'absence totale d'interruption ou d'erreur.</p>
+          <p>L'utilisateur demeure responsable de la vérification des données critiques avant toute décision opérationnelle.</p>
+        </div>
+      </section>
+
+      {/* ── DROIT APPLICABLE ── */}
+      <section className="w-full bg-white" style={{ ...sectionPx, ...sectionPy }}>
+        <LegalTitle>Droit applicable et contact</LegalTitle>
+        <div className="mt-6 max-w-3xl grid gap-4" style={{ color: '#6E6E73' }}>
+          <p>Les présentes mentions légales sont régies par le droit français.</p>
+          <p>Contact : {legalConfig.email} — Téléphone : {legalConfig.phone}</p>
+        </div>
+      </section>
+
+      {/* ── DOCUMENTS LIÉS ── */}
+      <section className="w-full" style={{ background: '#F5F5F7', ...sectionPx, ...sectionPy }}>
+        <LegalTitle>Documents complémentaires</LegalTitle>
+        <div className="mt-6 flex flex-wrap gap-4">
+          <Link to="/politique-confidentialite" className="text-sm font-semibold" style={{ color: '#2563EB' }}>
+            Politique de confidentialité
+          </Link>
+          <Link to="/conditions-generales-utilisation" className="text-sm font-semibold" style={{ color: '#2563EB' }}>
+            Conditions générales d'utilisation
+          </Link>
+          <Link to="/contact" className="text-sm font-semibold" style={{ color: '#2563EB' }}>
+            Contact
+          </Link>
+        </div>
+      </section>
+    </>
   )
 }
 
-function LegalBlock({ title, children }: { title: string; children: React.ReactNode }) {
+function LegalTitle({ children }: { children: React.ReactNode }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="text-base font-semibold text-slate-900">{title}</h3>
-      <div className="mt-3 space-y-2 text-sm text-slate-600">
-        {children}
-      </div>
-    </article>
+    <h2 className="text-2xl font-semibold" style={{ color: '#000000' }}>
+      {children}
+    </h2>
   )
 }

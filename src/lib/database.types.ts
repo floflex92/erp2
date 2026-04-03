@@ -22,6 +22,8 @@ export type Database = {
           matricule: string
           nom: string | null
           prenom: string | null
+          tenant_key: string | null
+          max_concurrent_screens: number
           created_at: string
           updated_at: string
         }
@@ -32,6 +34,8 @@ export type Database = {
           matricule?: string
           nom?: string | null
           prenom?: string | null
+          tenant_key?: string | null
+          max_concurrent_screens?: number
           created_at?: string
           updated_at?: string
         }
@@ -42,6 +46,8 @@ export type Database = {
           matricule?: string
           nom?: string | null
           prenom?: string | null
+          tenant_key?: string | null
+          max_concurrent_screens?: number
           created_at?: string
           updated_at?: string
         }
@@ -52,6 +58,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "auth.users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profils_tenant_key_fk"
+            columns: ["tenant_key"]
+            isOneToOne: false
+            referencedRelation: "erp_v11_tenants"
+            referencedColumns: ["tenant_key"]
           },
         ]
       }
@@ -183,6 +196,8 @@ export type Database = {
           tenant_key: string
           display_name: string
           is_active: boolean
+          default_max_concurrent_screens: number
+          allowed_pages: Json
           created_at: string
           updated_at: string
         }
@@ -191,6 +206,8 @@ export type Database = {
           tenant_key: string
           display_name: string
           is_active?: boolean
+          default_max_concurrent_screens?: number
+          allowed_pages?: Json
           created_at?: string
           updated_at?: string
         }
@@ -199,6 +216,8 @@ export type Database = {
           tenant_key?: string
           display_name?: string
           is_active?: boolean
+          default_max_concurrent_screens?: number
+          allowed_pages?: Json
           created_at?: string
           updated_at?: string
         }

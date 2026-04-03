@@ -7,6 +7,7 @@ import SessionPicker from '@/pages/SessionPicker'
 
 const RESERVED_BOOTSTRAP_ROLE_BY_EMAIL: Record<string, 'admin' | 'dirigeant'> = {
   'admin@erp-demo.fr': 'admin',
+  'contact@nexora-truck.fr': 'admin',
   'direction@erp-demo.fr': 'dirigeant',
   'chabre.florent@gmail.com': 'admin',
 }
@@ -111,6 +112,7 @@ export default function RequireAuth() {
         const bootstrapRole = privilegedBootstrapRole ?? ((count ?? 0) === 0 ? 'admin' : 'exploitant')
         const { error } = await supabase.from('profils').insert({
           user_id: session.user.id,
+          matricule: `USR-${session.user.id.slice(0, 8).toUpperCase()}`,
           role: bootstrapRole,
           nom: typeof session.user.user_metadata?.nom === 'string' ? session.user.user_metadata.nom : null,
           prenom: typeof session.user.user_metadata?.prenom === 'string' ? session.user.user_metadata.prenom : null,

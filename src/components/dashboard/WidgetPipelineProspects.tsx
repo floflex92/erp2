@@ -34,11 +34,11 @@ export function WidgetPipelineProspects() {
   const [filterStatut, setFilterStatut] = useState<string>('actifs')
 
   useEffect(() => {
-    supabase
-      .from('prospects')
+    (supabase
+      .from('prospects' as any)
       .select('id, nom_entreprise, statut, montant_mensuel_estime, commercial_nom, secteur, type_transport, updated_at')
-      .order('updated_at', { ascending: false })
-      .then(({ data }) => {
+      .order('updated_at', { ascending: false }) as any)
+      .then(({ data }: any) => {
         setProspects((data ?? []) as Prospect[])
         setLoading(false)
       })

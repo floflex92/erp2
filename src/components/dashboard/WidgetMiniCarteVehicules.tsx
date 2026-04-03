@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
 interface Mission {
@@ -36,7 +36,7 @@ type HistoryRow = {
   commentaire: string | null
 }
 
-// Coordonnées hardcodées par ville pour les missions actives (fallback si pas de coords en DB)
+// CoordonnÃ©es hardcodÃ©es par ville pour les missions actives (fallback si pas de coords en DB)
 const CITY_COORDS: Record<string, [number, number]> = {
   paris: [48.8566, 2.3522], lyon: [45.7640, 4.8357], marseille: [43.2965, 5.3698],
   toulouse: [43.6047, 1.4442], bordeaux: [44.8378, -0.5792], lille: [50.6292, 3.0573],
@@ -84,25 +84,41 @@ function statusColor(statut: string) {
 
 export function WidgetMiniCarteVehicules() {
   const mapRef = useRef<HTMLDivElement>(null)
-  const mapInstanceRef = useRef<{ remove: () => void } | null>(null)
+  const mapInstanceRef = useRef<import('leaflet').Map | null>(null)
+  const markerLayerRef = useRef<import('leaflet').LayerGroup | null>(null)
+  const leafletRef = useRef<typeof import('leaflet') | null>(null)
+  const hasFittedBoundsRef = useRef(false)
   const [missions, setMissions] = useState<Mission[]>([])
   const [unavailableCount, setUnavailableCount] = useState(0)
+  const [activeCount, setActiveCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const recenterMap = useCallback(() => {
+    const L = leafletRef.current
+    const map = mapInstanceRef.current
+    if (!L || !map || missions.length === 0) return
+    const bounds = L.latLngBounds(missions.map(m => [m.lat, m.lng] as [number, number]))
+    map.fitBounds(bounds.pad(0.25))
+  }, [missions])
+
   useEffect(() => {
-    async function load() {
-      setLoading(true)
+    async function load(silent = false) {
+      if (!silent) setLoading(true)
+      else setRefreshing(true)
       setError(null)
       try {
         const { data: ordersData, error: ordersError } = await supabase
           .from('ordres_transport')
           .select('id, reference, statut_operationnel, conducteurs(nom, prenom), etapes_mission(ordre, ville, adresses(latitude, longitude, ville))')
-          .in('statut', ['planifie', 'en_cours'])
+          .in('statut', ['confirme', 'planifie', 'en_cours'])
           .limit(30)
 
         if (ordersError) throw ordersError
         const rows = (ordersData ?? []) as MissionOrderRow[]
+        setActiveCount(rows.length)
         const otIds = rows.map(row => row.id)
 
         const latestGpsByOt: Record<string, [number, number]> = {}
@@ -168,29 +184,62 @@ export function WidgetMiniCarteVehicules() {
 
         setMissions(result)
         setUnavailableCount(missing)
+        setLastUpdatedAt(new Date())
       } catch (loadError) {
         setMissions([])
         setUnavailableCount(0)
+        setActiveCount(0)
         setError(loadError instanceof Error ? loadError.message : 'Impossible de charger la carte des missions.')
       } finally {
-        setLoading(false)
+        if (!silent) setLoading(false)
+        else setRefreshing(false)
       }
     }
 
     void load()
+
+    const refreshTimer = window.setInterval(() => {
+      void load(true)
+    }, 30000)
+
+    return () => window.clearInterval(refreshTimer)
+  }, [])
+
+  const syncMarkers = useCallback((nextMissions: Mission[], fitBounds: boolean) => {
+    const L = leafletRef.current
+    const map = mapInstanceRef.current
+    const layer = markerLayerRef.current
+    if (!L || !map || !layer) return
+
+    layer.clearLayers()
+
+    nextMissions.forEach(m => {
+      const color = statusColor(m.statut)
+      const icon = L.divIcon({
+        html: `<div style="background:${color};width:10px;height:10px;border-radius:50%;border:2px solid rgba(255,255,255,0.6);box-shadow:0 0 6px ${color}80"></div>`,
+        iconSize: [10, 10],
+        iconAnchor: [5, 5],
+        className: '',
+      })
+      L.marker([m.lat, m.lng], { icon })
+        .addTo(layer)
+        .bindPopup(`<b>${m.reference}</b><br>${m.conducteurName}<br><small>${m.source === 'gps' ? 'Position GPS conducteur' : 'Position estimee par adresse'}</small>`)
+    })
+
+    if (fitBounds && nextMissions.length > 0) {
+      const bounds = L.latLngBounds(nextMissions.map(m => [m.lat, m.lng] as [number, number]))
+      map.fitBounds(bounds.pad(0.25))
+      hasFittedBoundsRef.current = true
+    }
   }, [])
 
   useEffect(() => {
-    if (loading || !mapRef.current) return
+    if (loading || error || missions.length === 0 || !mapRef.current || mapInstanceRef.current) return
 
     async function initMap() {
       const L = (await import('leaflet')).default
       await import('leaflet/dist/leaflet.css')
-
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove()
-        mapInstanceRef.current = null
-      }
+      leafletRef.current = L
 
       if (!mapRef.current) return
 
@@ -200,7 +249,7 @@ export function WidgetMiniCarteVehicules() {
         zoomControl: false,
         attributionControl: false,
         dragging: true,
-        scrollWheelZoom: false,
+        scrollWheelZoom: true,
       })
       mapInstanceRef.current = map
 
@@ -208,34 +257,41 @@ export function WidgetMiniCarteVehicules() {
         maxZoom: 18,
       }).addTo(map)
 
-      // Marqueurs pour chaque mission
-      missions.forEach(m => {
-        const color = statusColor(m.statut)
-        const icon = L.divIcon({
-          html: `<div style="background:${color};width:10px;height:10px;border-radius:50%;border:2px solid rgba(255,255,255,0.6);box-shadow:0 0 6px ${color}80"></div>`,
-          iconSize: [10, 10],
-          iconAnchor: [5, 5],
-          className: '',
-        })
-        L.marker([m.lat, m.lng], { icon })
-          .addTo(map)
-          .bindPopup(`<b>${m.reference}</b><br>${m.conducteurName}<br><small>${m.source === 'gps' ? 'Position GPS conducteur' : 'Position estimee par adresse'}</small>`)
-      })
-
-      if (missions.length > 0) {
-        const bounds = L.latLngBounds(missions.map(m => [m.lat, m.lng] as [number, number]))
-        map.fitBounds(bounds.pad(0.25))
-      }
+      markerLayerRef.current = L.layerGroup().addTo(map)
+      syncMarkers(missions, true)
+      window.setTimeout(() => map.invalidateSize(), 0)
     }
 
     void initMap()
+  }, [loading, error, missions, syncMarkers])
+
+  useEffect(() => {
+    if (!mapInstanceRef.current || !markerLayerRef.current || !leafletRef.current) return
+    syncMarkers(missions, false)
+  }, [missions, syncMarkers])
+
+  useEffect(() => {
+    if (!mapInstanceRef.current) return
+
+    function onResize() {
+      mapInstanceRef.current?.invalidateSize()
+    }
+
+    window.addEventListener('resize', onResize)
+    return () => {
+      window.removeEventListener('resize', onResize)
+    }
+  }, [])
+
+  useEffect(() => {
     return () => {
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove()
         mapInstanceRef.current = null
+        markerLayerRef.current = null
       }
     }
-  }, [loading, missions])
+  }, [])
 
   if (loading) return (
     <div className="flex items-center justify-center" style={{ height: 280 }}>
@@ -251,16 +307,35 @@ export function WidgetMiniCarteVehicules() {
 
   if (missions.length === 0) return (
     <div className="flex flex-col items-center justify-center" style={{ height: 280 }}>
-      <div className="text-4xl opacity-20 mb-2">🗺️</div>
-      <p className="text-sm text-slate-500">Aucune mission en cours</p>
+      <div className="mb-2 text-4xl opacity-20">MAP</div>
+      {activeCount > 0 ? (
+        <>
+          <p className="text-sm text-slate-500">{activeCount} mission{activeCount > 1 ? 's' : ''} active{activeCount > 1 ? 's' : ''}</p>
+          <p className="mt-1 text-xs text-slate-500">Aucune position GPS/adresse exploitable pour la carte.</p>
+        </>
+      ) : (
+        <p className="text-sm text-slate-500">Aucune mission en cours</p>
+      )}
     </div>
   )
 
   return (
     <div className="relative">
       <div ref={mapRef} style={{ height: 280, width: '100%' }} />
+      <button
+        type="button"
+        onClick={recenterMap}
+        className="absolute right-2 top-2 rounded-lg border border-white/20 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/10"
+        style={{ background: 'rgba(15,23,42,0.82)', backdropFilter: 'blur(8px)' }}
+      >
+        Recentrer
+      </button>
       <div className="absolute bottom-2 left-2 flex items-center gap-3 rounded-lg px-3 py-1.5 text-xs text-white/70"
         style={{ background: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(8px)' }}>
+        <span className="flex items-center gap-1.5">
+          <span className={`h-2 w-2 rounded-full ${refreshing ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+          {refreshing ? 'Actualisation...' : 'Actif'}
+        </span>
         <span className="flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-blue-500" />
           Normal
@@ -271,8 +346,11 @@ export function WidgetMiniCarteVehicules() {
         </span>
         <span className="font-medium text-white">{missions.length} mission{missions.length > 1 ? 's' : ''}</span>
         {unavailableCount > 0 && <span>{unavailableCount} sans position</span>}
+        {lastUpdatedAt && <span>maj {lastUpdatedAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>}
       </div>
     </div>
   )
 }
+
+
 

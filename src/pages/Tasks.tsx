@@ -1,10 +1,21 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useAuth } from '@/lib/auth'
-import { supabase } from '@/lib/supabase'
-import type { Tables, TablesInsert } from '@/lib/database.types'
+import { looseSupabase } from '@/lib/supabaseLoose'
 
-type Task = Tables<'tasks'>
-type TaskInsert = TablesInsert<'tasks'>
+type Task = {
+  id: string
+  user_id: string
+  title: string
+  notes: string | null
+  completed: boolean
+  due_date: string | null
+  priority: Priority
+  created_at: string
+  updated_at: string
+}
+type TaskInsert = Omit<Task, 'id' | 'created_at' | 'updated_at' | 'notes'> & {
+  notes?: string | null
+}
 
 const STORAGE_KEY = 'nexora_tasks_manager_tasks_v1'
 
@@ -53,7 +64,7 @@ export default function TasksPage() {
       }
 
       try {
-        const { data, error: supabaseError } = await supabase
+        const { data, error: supabaseError } = await looseSupabase
           .from('tasks')
           .select('*')
           .eq('user_id', profil.id)
@@ -61,7 +72,7 @@ export default function TasksPage() {
 
         if (supabaseError) throw supabaseError
 
-        setTasks(data ?? [])
+        setTasks((data ?? []) as Task[])
         setError(null)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Impossible de charger les tâches.')
@@ -110,7 +121,7 @@ export default function TasksPage() {
       due_date: newTaskDueDate || null,
     }
 
-    const { data, error: supabaseError } = await supabase.from('tasks').insert(payload).select('*').single()
+    const { data, error: supabaseError } = await looseSupabase.from('tasks').insert(payload).select('*').single()
     if (supabaseError) {
       setError(supabaseError.message)
       return
@@ -131,7 +142,7 @@ export default function TasksPage() {
     const updated = { completed: !task.completed, updated_at: new Date().toISOString() }
 
     if (profil) {
-      const { error: supabaseError } = await supabase.from('tasks').update(updated).eq('id', id)
+      const { error: supabaseError } = await looseSupabase.from('tasks').update(updated).eq('id', id)
       if (supabaseError) {
         setError(supabaseError.message)
         return
@@ -143,7 +154,7 @@ export default function TasksPage() {
 
   async function deleteTask(id: string) {
     if (profil) {
-      const { error: supabaseError } = await supabase.from('tasks').delete().eq('id', id)
+      const { error: supabaseError } = await looseSupabase.from('tasks').delete().eq('id', id)
       if (supabaseError) {
         setError(supabaseError.message)
         return
@@ -198,7 +209,7 @@ export default function TasksPage() {
   }
 
   return (
-    <div className="nx-panel p-5">
+    <div className="nx-panel p-4 sm:p-5">
       <h2 className="mb-4 text-xl font-semibold">Gestionnaire de tâches</h2>
 
       {error && <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
@@ -232,7 +243,7 @@ export default function TasksPage() {
           ))}
         </select>
 
-        <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark">
+        <button type="submit" className="w-full rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark md:w-auto">
           Ajouter
         </button>
       </form>
@@ -242,7 +253,7 @@ export default function TasksPage() {
           {completedCount}/{tasks.length} tâches complétées
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <select
             value={dueFilter}
             onChange={e => setDueFilter(e.target.value as DueFilter)}
@@ -284,7 +295,7 @@ export default function TasksPage() {
             const priorityMeta = PRIORITIES.find(p => p.value === (task.priority as Priority)) ?? PRIORITIES[1]
             return (
               <li key={task.id} className="flex flex-col gap-2 rounded-xl border px-3 py-2">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -298,7 +309,7 @@ export default function TasksPage() {
                   <button
                     type="button"
                     onClick={() => void deleteTask(task.id)}
-                    className="rounded-lg px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-100"
+                    className="self-start rounded-lg px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 sm:self-auto"
                   >
                     Supprimer
                   </button>

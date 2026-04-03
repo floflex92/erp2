@@ -70,6 +70,7 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Communication',
     items: [
       { to: '/communication', page: 'communication', label: 'Communication', icon: 'inbox' },
+      { to: '/inter-erp', page: 'inter-erp', label: 'Inter-ERP', icon: 'route' },
       { to: '/tchat', page: 'tchat', label: 'Messagerie', icon: 'chat' },
       { to: '/mail', page: 'mail', label: 'Mail', icon: 'mail' },
       { to: '/coffre', page: 'coffre', label: 'Coffre', icon: 'briefcase' },
@@ -80,7 +81,7 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Admin',
     items: [
       { to: '/parametres', page: 'parametres', label: 'Reglages', icon: 'settings' },
-      { to: '/utilisateurs', page: 'utilisateurs', label: 'Utilisateurs', icon: 'users' },
+      { to: '/utilisateurs', page: 'utilisateurs', label: 'Comptes', icon: 'users' },
       { to: '/mentions-legales', page: 'mentions-legales', label: 'Mentions legales', icon: 'shield' },
     ],
   },
@@ -117,14 +118,16 @@ function DockItem({
   item,
   collapsed,
   role,
+  tenantAllowedPages,
   notificationCount,
 }: {
   item: NavItem
   collapsed: boolean
   role: Role | null
+  tenantAllowedPages: string[] | null
   notificationCount: number
 }) {
-  if (!canAccess(role, item.page)) return null
+  if (!canAccess(role, item.page, tenantAllowedPages)) return null
 
   const showBadge = (item.page === 'tchat' || item.page === 'mail') && notificationCount > 0
 
@@ -133,11 +136,9 @@ function DockItem({
       <NavLink
         to={item.to}
         className={({ isActive }) => [
-          'flex items-center gap-3 rounded-xl border text-[13px] transition-colors',
+          'nx-sidebar-item flex items-center gap-3 rounded-xl border text-[13px] transition-colors',
           collapsed ? 'h-11 w-11 justify-center px-0' : 'w-full px-3 py-2',
-          isActive
-            ? 'border-white/20 bg-white/[0.12] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'
-            : 'border-transparent text-slate-300 hover:border-white/12 hover:bg-white/[0.06] hover:text-white',
+          isActive ? 'nx-sidebar-item-active' : '',
         ].join(' ')}
       >
         <span className="flex-shrink-0">
@@ -158,9 +159,9 @@ function DockItem({
 
       {collapsed && (
         <div className="pointer-events-none absolute left-full top-1/2 z-[200] ml-3 -translate-y-1/2 whitespace-nowrap opacity-0 transition-opacity duration-100 group-hover/nav-item:opacity-100">
-          <div className="rounded-lg border border-slate-600/70 bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-white shadow-xl">
+          <div className="rounded-lg border px-2.5 py-1.5 text-xs font-medium shadow-xl" style={{ borderColor: 'var(--sidebar-border)', background: 'var(--surface-sidebar)', color: 'var(--sidebar-text-strong)' }}>
             {item.label}
-            <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800" />
+            <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent" style={{ borderRightColor: 'var(--surface-sidebar)' }} />
           </div>
         </div>
       )}
@@ -215,7 +216,7 @@ function useBadgeCount(page: string, profilId: string | null, demoProfil: unknow
 }
 
 export default function Sidebar() {
-  const { profil, role, isDemoSession } = useAuth()
+  const { profil, role, isDemoSession, tenantAllowedPages } = useAuth()
   const profilId = profil?.id ?? null
   const demoProfil = isDemoSession && profil && isDemoProfil(profil) ? profil : null
 
@@ -243,10 +244,10 @@ export default function Sidebar() {
     NAV_SECTIONS
       .map(section => ({
         ...section,
-        items: section.items.filter(item => canAccess(role, item.page)),
+          items: section.items.filter(item => canAccess(role, item.page, tenantAllowedPages)),
       }))
       .filter(section => section.items.length > 0)
-  ), [role])
+        ), [role, tenantAllowedPages])
 
   function getBadge(page: string): number {
     if (page === 'tchat') return chatCount
@@ -269,11 +270,7 @@ export default function Sidebar() {
       >
         {!collapsed && (
           <div
-            className="flex h-full flex-col px-2 py-3 transition-all duration-200"
-            style={{
-              background: 'linear-gradient(180deg, rgba(15,23,42,0.98), rgba(15,23,42,0.95))',
-              borderRight: '1px solid rgba(255,255,255,0.08)',
-            }}
+            className="nx-sidebar-panel flex h-full flex-col px-2 py-3 transition-all duration-200"
           >
             <div className="mb-3 flex items-center px-2">
               <NexoraTruckLogo dark size="sm" subtitle="ERP transport" />
@@ -285,16 +282,16 @@ export default function Sidebar() {
                 return (
                   <div
                     key={section.key}
-                    className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-1.5"
+                    className="nx-sidebar-section p-1.5"
                   >
                     <button
                       type="button"
                       onClick={() => toggleSection(section.key)}
-                      className="mb-1 flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 transition-colors hover:bg-white/[0.05] hover:text-slate-200"
+                      className="mb-1 flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--sidebar-text)] transition-colors hover:bg-[color:var(--sidebar-item-hover)] hover:text-[color:var(--sidebar-text-strong)]"
                     >
                       <span className="truncate">{section.label}</span>
-                      <span className="ml-auto text-[10px] tracking-normal text-slate-500">{section.items.length}</span>
-                      <span className={`text-slate-500 transition-transform ${sectionOpen ? 'rotate-180' : ''}`}>
+                      <span className="ml-auto text-[10px] tracking-normal text-[color:var(--sidebar-text)]">{section.items.length}</span>
+                      <span className={`text-[color:var(--sidebar-text)] transition-transform ${sectionOpen ? 'rotate-180' : ''}`}>
                         <NavGlyph type="chevron-down" size={14} />
                       </span>
                     </button>
@@ -307,6 +304,7 @@ export default function Sidebar() {
                             item={item}
                             collapsed={false}
                             role={role}
+                            tenantAllowedPages={tenantAllowedPages}
                             notificationCount={getBadge(item.page)}
                           />
                         ))}
@@ -321,7 +319,8 @@ export default function Sidebar() {
               <button
                 type="button"
                 onClick={() => setCollapsed(true)}
-                className="flex w-full items-center gap-2.5 rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2 text-slate-300 transition-colors hover:bg-white/[0.08] hover:text-white"
+                className="flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-[color:var(--sidebar-text)] transition-colors hover:bg-[color:var(--sidebar-item-hover)] hover:text-[color:var(--sidebar-text-strong)]"
+                style={{ borderColor: 'var(--sidebar-border)' }}
                 title="Replier completement"
               >
                 <NavGlyph type="collapse" size={17} />
@@ -336,7 +335,8 @@ export default function Sidebar() {
         <button
           type="button"
           onClick={() => setCollapsed(true)}
-          className="fixed left-[222px] top-3 z-[95] hidden h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-slate-900/90 text-slate-200 shadow-lg backdrop-blur transition-colors hover:bg-slate-800 hover:text-white lg:flex"
+          className="fixed left-[222px] top-3 z-[95] hidden h-10 w-10 items-center justify-center rounded-xl border text-[color:var(--sidebar-text)] shadow-lg backdrop-blur transition-colors hover:text-[color:var(--sidebar-text-strong)] lg:flex"
+          style={{ borderColor: 'var(--sidebar-border)', background: 'color-mix(in srgb, var(--sidebar-grad-end) 90%, transparent)' }}
           title="Replier le menu"
           aria-label="Replier le menu"
         >
@@ -348,7 +348,8 @@ export default function Sidebar() {
         <button
           type="button"
           onClick={() => setCollapsed(false)}
-          className="fixed left-2 top-3 z-[95] flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-slate-900/90 text-slate-200 shadow-lg backdrop-blur transition-colors hover:bg-slate-800 hover:text-white"
+          className="fixed left-2 top-3 z-[95] flex h-11 w-11 items-center justify-center rounded-xl border text-[color:var(--sidebar-text)] shadow-lg backdrop-blur transition-colors hover:text-[color:var(--sidebar-text-strong)]"
+          style={{ borderColor: 'var(--sidebar-border)', background: 'color-mix(in srgb, var(--sidebar-grad-end) 90%, transparent)' }}
           title="Afficher le menu"
           aria-label="Afficher le menu"
         >

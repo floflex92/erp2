@@ -588,6 +588,7 @@ export default function Chauffeurs() {
         category: documentForm.category,
         title: documentForm.title.trim() || documentFile.name,
         file_name: documentFile.name,
+        file_path: storagePath,
         mime_type: documentFile.type || 'application/pdf',
         storage_bucket: 'conducteur-documents',
         storage_path: storagePath,
@@ -629,10 +630,17 @@ export default function Chauffeurs() {
   }
 
   async function openRhDocument(doc: ConducteurDocument) {
+    const bucket = doc.storage_bucket || 'conducteur-documents'
+    const path = doc.storage_path || (doc as ConducteurDocument & { file_path?: string }).file_path
+    if (!path) {
+      setRhError('Document RH invalide: chemin de stockage manquant.')
+      return
+    }
+
     try {
       const { data, error: urlError } = await supabase.storage
-        .from(doc.storage_bucket)
-        .createSignedUrl(doc.storage_path, 60)
+        .from(bucket)
+        .createSignedUrl(path, 60)
 
       if (urlError) throw urlError
       if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
@@ -711,7 +719,7 @@ export default function Chauffeurs() {
       />
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="nx-table-shell">
         {loading ? (
           <div className="p-8 text-center text-slate-400 text-sm">Chargement...</div>
         ) : filtered.length === 0 ? (
@@ -1202,7 +1210,7 @@ export default function Chauffeurs() {
   )
 }
 
-const inp = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-300'
+const inp = 'w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary-soft)]'
 
 function StatCard({ label, value, tone }: { label: string; value: number; tone: 'emerald' | 'amber' }) {
   const toneClass = tone === 'emerald'

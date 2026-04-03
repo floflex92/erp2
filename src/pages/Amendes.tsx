@@ -442,7 +442,7 @@ export default function Amendes() {
   }
 
   return (
-    <div className="space-y-5 p-5 md:p-6">
+    <div className="space-y-5 p-4 md:p-6">
       <div className="nx-panel px-6 py-5" style={{ background: 'linear-gradient(135deg, #140b0d 0%, #111827 55%, #1f2937 100%)' }}>
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
@@ -485,7 +485,7 @@ export default function Amendes() {
       <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
         <div className="nx-panel overflow-hidden">
           <div className="border-b px-5 py-4" style={{ borderColor: 'var(--border)' }}>
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-slate-950">Registre des amendes</p>
                 <p className="mt-1 text-xs text-slate-400">{visibleFines.length} dossier(s)</p>
@@ -494,7 +494,7 @@ export default function Amendes() {
                 value={search}
                 onChange={event => setSearch(event.target.value)}
                 placeholder="Rechercher plaque, lieu, reference"
-                className="w-full max-w-[180px] rounded-xl border bg-transparent px-3 py-2 text-xs outline-none"
+                className="w-full rounded-xl border bg-transparent px-3 py-2 text-xs outline-none sm:max-w-[220px]"
                 style={{ borderColor: 'var(--border)' }}
               />
             </div>

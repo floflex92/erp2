@@ -5,11 +5,56 @@ import { looseSupabase } from '@/lib/supabaseLoose'
 import type { Tables, TablesInsert } from '@/lib/database.types'
 
 type Remorque = Tables<'remorques'>
-type RemorqueRow = Remorque & { numero_parc: string | null }
-type FlotteDocument = Tables<'flotte_documents'>
+type RemorqueRow = Remorque & {
+  numero_parc: string | null
+  numero_carte_grise?: string | null
+  vin?: string | null
+  date_mise_en_circulation?: string | null
+  date_achat?: string | null
+  cout_achat_ht?: number | null
+  type_propriete?: string | null
+  garantie_expiration?: string | null
+  contrat_entretien?: boolean | null
+  prestataire_entretien?: string | null
+  garage_entretien?: string | null
+}
+type RemorqueForm = TablesInsert<'remorques'> & {
+  numero_carte_grise?: string | null
+  vin?: string | null
+  date_mise_en_circulation?: string | null
+  date_achat?: string | null
+  cout_achat_ht?: number | null
+  type_propriete?: string | null
+  garantie_expiration?: string | null
+  contrat_entretien?: boolean | null
+  prestataire_entretien?: string | null
+  garage_entretien?: string | null
+}
+type FlotteDocument = {
+  id: string
+  category: string | null
+  title: string
+  file_name: string
+  storage_bucket: string
+  storage_path: string
+  issued_at: string | null
+  expires_at: string | null
+  notes: string | null
+}
 type FlotteEntretien = Tables<'flotte_entretiens'>
-type FlotteAlerte = Tables<'vue_alertes_flotte'>
-type FlotteCoutMensuel = Tables<'vue_couts_flotte_mensuels'>
+type FlotteAlerte = {
+  id: string
+  asset_id: string | null
+  asset_label?: string | null
+  due_on: string | null
+  label?: string | null
+  alert_type?: string | null
+  days_remaining?: number | null
+}
+type FlotteCoutMensuel = {
+  month: string | null
+  total_cout_ht: number | null
+}
 type RemorqueKm = {
   id: string
   remorque_id: string
@@ -70,7 +115,7 @@ const MAINTENANCE_TYPE_LABELS: Record<(typeof MAINTENANCE_TYPES)[number], string
   autre: 'Autre',
 }
 
-const EMPTY: TablesInsert<'remorques'> = {
+const EMPTY: RemorqueForm = {
   immatriculation: '',
   type_remorque: 'fourgon',
   marque: null,
@@ -178,7 +223,7 @@ function isMissingOptionalFlotteFeature(err: unknown) {
   )
 }
 
-function normalizePayload(form: TablesInsert<'remorques'>): TablesInsert<'remorques'> {
+function normalizePayload(form: RemorqueForm): RemorqueForm {
   return {
     ...form,
     immatriculation: form.immatriculation.trim().toUpperCase(),
@@ -201,7 +246,7 @@ export default function Remorques() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState<TablesInsert<'remorques'>>(EMPTY)
+  const [form, setForm] = useState<RemorqueForm>(EMPTY)
   const [numeroParc, setNumeroParc] = useState('')
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
@@ -241,14 +286,14 @@ export default function Remorques() {
       })
       setLatestKmByRemorque(latestMap)
 
-      const alertsRes = await supabase.from('vue_alertes_flotte').select('*').eq('asset_type', 'remorque')
+      const alertsRes = await looseSupabase.from('vue_alertes_flotte').select('*').eq('asset_type', 'remorque')
       if (alertsRes.error) {
         setGlobalAlerts([])
         if (!isMissingOptionalFlotteFeature(alertsRes.error)) {
           setError(flotteFeatureError(alertsRes.error, 'Chargement partiel des remorques.'))
         }
       } else {
-        setGlobalAlerts(alertsRes.data ?? [])
+        setGlobalAlerts((alertsRes.data ?? []) as FlotteAlerte[])
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Chargement impossible.')
@@ -360,7 +405,7 @@ export default function Remorques() {
     void loadDossier(remorque.id)
   }
 
-  function set<K extends keyof TablesInsert<'remorques'>>(key: K, value: TablesInsert<'remorques'>[K]) {
+  function set<K extends keyof RemorqueForm>(key: K, value: RemorqueForm[K]) {
     setForm(current => ({ ...current, [key]: value }))
   }
 
@@ -369,7 +414,7 @@ export default function Remorques() {
     setDossierError(null)
     try {
       const [documentsRes, entretiensRes, kmRes] = await Promise.all([
-        supabase.from('flotte_documents').select('*').eq('remorque_id', remorqueId).is('archived_at', null).order('created_at', { ascending: false }),
+        looseSupabase.from('flotte_documents').select('*').eq('remorque_id', remorqueId).is('archived_at', null).order('created_at', { ascending: false }),
         supabase.from('flotte_entretiens').select('*').eq('remorque_id', remorqueId).order('service_date', { ascending: false }),
         looseSupabase.from('remorque_releves_km').select('*').eq('remorque_id', remorqueId).order('reading_date', { ascending: false }),
       ])
@@ -377,7 +422,7 @@ export default function Remorques() {
       if (entretiensRes.error) throw entretiensRes.error
       if (kmRes.error && !isMissingOptionalFlotteFeature(kmRes.error)) throw kmRes.error
 
-      setDocuments(documentsRes.data ?? [])
+      setDocuments((documentsRes.data ?? []) as FlotteDocument[])
       setEntretiens(entretiensRes.data ?? [])
       const readings = (kmRes.data ?? []) as unknown as RemorqueKm[]
       setKmReadings(readings)
@@ -388,11 +433,11 @@ export default function Remorques() {
       }
 
       const [alertsRes, costsRes] = await Promise.all([
-        supabase.from('vue_alertes_flotte').select('*').eq('asset_type', 'remorque').eq('asset_id', remorqueId).order('due_on', { ascending: true }),
-        supabase.from('vue_couts_flotte_mensuels').select('*').eq('asset_type', 'remorque').eq('asset_id', remorqueId).order('month', { ascending: true }),
+        looseSupabase.from('vue_alertes_flotte').select('*').eq('asset_type', 'remorque').eq('asset_id', remorqueId).order('due_on', { ascending: true }),
+        looseSupabase.from('vue_couts_flotte_mensuels').select('*').eq('asset_type', 'remorque').eq('asset_id', remorqueId).order('month', { ascending: true }),
       ])
-      setAssetAlerts(alertsRes.error ? [] : (alertsRes.data ?? []))
-      setCostSeries(costsRes.error ? [] : (costsRes.data ?? []))
+      setAssetAlerts(alertsRes.error ? [] : ((alertsRes.data ?? []) as FlotteAlerte[]))
+      setCostSeries(costsRes.error ? [] : ((costsRes.data ?? []) as FlotteCoutMensuel[]))
       if (alertsRes.error || costsRes.error) {
         setDossierError('Le dossier remorque est charge partiellement. Les vues d alertes ou de couts ne sont pas encore disponibles.')
       }
@@ -465,7 +510,7 @@ export default function Remorques() {
     try {
       const { error: uploadError } = await supabase.storage.from('flotte-documents').upload(storagePath, documentFile, { contentType: documentFile.type || 'application/pdf', upsert: false })
       if (uploadError) throw uploadError
-      const { error: insertError } = await supabase.from('flotte_documents').insert({
+      const { error: insertError } = await looseSupabase.from('flotte_documents').insert({
         vehicule_id: null,
         remorque_id: editingId,
         category: documentForm.category,
@@ -493,7 +538,7 @@ export default function Remorques() {
   async function archiveDocument(id: string) {
     if (!editingId) return
     try {
-      const { error: updateError } = await supabase.from('flotte_documents').update({ archived_at: new Date().toISOString() }).eq('id', id)
+      const { error: updateError } = await looseSupabase.from('flotte_documents').update({ archived_at: new Date().toISOString() }).eq('id', id)
       if (updateError) throw updateError
       setNotice('Document remorque archive.')
       await loadDossier(editingId)
@@ -901,7 +946,7 @@ export default function Remorques() {
   )
 }
 
-const inp = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-300'
+const inp = 'w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary-soft)]'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

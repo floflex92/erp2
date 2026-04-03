@@ -132,13 +132,14 @@ async function callOpenAiIfEnabled(model, apiKey, action, payload, fallback) {
   }
 }
 
-async function loadAiSettings(dbClient) {
+// NOTE SECURITE: config_entreprise et erp_v11_ai_logs sont des tables systeme → systemClient.
+async function loadAiSettings(systemClient) {
   const keys = [
     'v11.ai.enabled',
     'v11.ai.model',
     'v11.ai.cache_ttl_sec',
   ]
-  const { data } = await dbClient
+  const { data } = await systemClient
     .from('config_entreprise')
     .select('cle, valeur')
     .in('cle', keys)
@@ -150,9 +151,9 @@ async function loadAiSettings(dbClient) {
   }
 }
 
-async function insertAiLog(dbClient, tenantKey, payload) {
+async function insertAiLog(systemClient, tenantKey, payload) {
   try {
-    await dbClient.from('erp_v11_ai_logs').insert({
+    await systemClient.from('erp_v11_ai_logs').insert({
       tenant_key: tenantKey,
       module_key: 'ai',
       context_type: payload.context_type,
@@ -181,7 +182,8 @@ export async function handler(event) {
   if (body === null) return json(400, { error: 'Invalid JSON payload.' })
 
   const tenantKey = readTenantKey(event, body)
-  const moduleConfig = await moduleState(auth.dbClient, tenantKey, 'ai')
+  // NOTE SECURITE: toutes les tables de ce module sont systeme (config_entreprise, erp_v11_*) → systemClient.
+  const moduleConfig = await moduleState(auth.systemClient, tenantKey, 'ai')
   if (!moduleConfig.enabled) return json(423, { error: 'AI module disabled for tenant.' })
 
   const action = String(body.action ?? 'analyse_eta').toLowerCase()
@@ -191,8 +193,8 @@ export async function handler(event) {
   const payload = body.payload && typeof body.payload === 'object' ? body.payload : {}
   const promptHash = hashPayload({ action, payload })
   const cacheKey = `ai:${action}:${promptHash}`
-  const aiSettings = await loadAiSettings(auth.dbClient)
-  const cacheResult = await readCache(auth.dbClient, tenantKey, cacheKey)
+  const aiSettings = await loadAiSettings(auth.systemClient)
+  const cacheResult = await readCache(auth.systemClient, tenantKey, cacheKey)
   if (cacheResult.hit) {
     return json(200, {
       tenant_key: tenantKey,
@@ -219,7 +221,7 @@ export async function handler(event) {
     },
   }
 
-  await insertAiLog(auth.dbClient, tenantKey, {
+  await insertAiLog(auth.systemClient, tenantKey, {
     context_type: action,
     context_id: typeof payload.ot_id === 'string' ? payload.ot_id : null,
     prompt_hash: promptHash,
@@ -229,7 +231,7 @@ export async function handler(event) {
   })
 
   const ttl = Math.max(60, Math.floor(aiSettings.cacheTtlSec))
-  await writeCache(auth.dbClient, tenantKey, cacheKey, 'ai', result, ttl, Math.floor(ttl / 2), provider.used ? 'provider' : 'internal')
+  await writeCache(auth.systemClient, tenantKey, cacheKey, 'ai', result, ttl, Math.floor(ttl / 2), provider.used ? 'provider' : 'internal')
 
   return json(200, {
     tenant_key: tenantKey,

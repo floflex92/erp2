@@ -144,7 +144,7 @@ const EMPTY_ADDRESS: Omit<TablesInsert<'adresses'>, 'client_id'> = {
   actif: true,
 }
 
-const inp = 'w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-300'
+const inp = 'w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary-soft)]'
 
 function formatCurrency(value: number | null | undefined) {
   if (value === null || value === undefined) return 'Non renseigne'
@@ -819,7 +819,7 @@ export default function Clients() {
         className="w-full max-w-md rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-300"
       />
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="nx-table-shell">
         {loading ? (
           <div className="p-8 text-center text-sm text-slate-400">Chargement...</div>
         ) : filtered.length === 0 ? (

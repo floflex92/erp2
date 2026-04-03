@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { STATUT_OPS, type StatutOps } from '@/lib/statut-ops'
@@ -9,14 +10,15 @@ import type { Tables } from '@/lib/database.types'
 type MissionRow = {
   id: string
   reference: string
+  statut: string
   vehicule_id: string | null
   statut_operationnel: string | null
   date_livraison_prevue: string | null
   distance_km: number | null
   nature_marchandise: string | null
   clients: { nom: string } | { nom: string }[] | null
-  conducteurs: { prenom: string; nom: string } | { prenom: string; nom: string }[] | null
-  vehicules: { immatriculation: string; marque: string | null } | { immatriculation: string; marque: string | null }[] | null
+  conducteurs: { prenom: string; nom: string; statut: string | null } | { prenom: string; nom: string; statut: string | null }[] | null
+  vehicules: { immatriculation: string; marque: string | null; statut: string | null } | { immatriculation: string; marque: string | null; statut: string | null }[] | null
 }
 
 type AddressRow = {
@@ -65,7 +67,17 @@ type LiveMission = {
   driverStepLabel: string | null
   driverUpdateAt: string | null
   driverHasGps: boolean
+  scheduleStatusLabel: string
+  fuelPercent: number
+  fuelLevel: 'ok' | 'low' | 'critical'
+  tachyStatusLabel: string
+  tachyDriveLeftMinutes: number
+  driverStatusLabel: string
+  vehicleStatusLabel: string
+  punctualityBand: 'avance' | 'a_heure' | 'retard_surveillance' | 'retard_critique'
 }
+
+type MapRenderMode = 'points' | 'itineraires'
 
 type TrackingLivePayload = {
   lat: number
@@ -161,6 +173,152 @@ const ORS_SMOKE_ROUTE = {
   destination: { lat: 49.420318, lng: 8.687872 },
 }
 
+const STATUS_BLOCKED_VEHICLE = new Set(['maintenance', 'hs', 'hors_service', 'vendu'])
+const STATUS_BLOCKED_DRIVER = new Set(['inactif', 'conge', 'arret_maladie'])
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value))
+}
+
+function normalizeStatus(value: string | null | undefined) {
+  return (value ?? '').toLowerCase().trim()
+}
+
+function buildFallbackRoute(seed: string): GeoPoint[] {
+  const pool = Object.values(CITY_COORDS)
+  if (pool.length < 2) return [{ lat: 46.6034, lng: 1.8883, label: 'France' }]
+
+  const hash = hashString(seed)
+  const start = pool[hash % pool.length]
+  let end = pool[(Math.floor(hash / 7) + 11) % pool.length]
+  if (start.label === end.label) {
+    end = pool[(Math.floor(hash / 11) + 17) % pool.length]
+  }
+  return [start, end]
+}
+
+function withDeterministicJitter(point: GeoPoint, seed: number, intensity = 0.006): GeoPoint {
+  const latOffset = (((seed % 17) - 8) / 8) * intensity
+  const lngOffset = ((((Math.floor(seed / 17)) % 17) - 8) / 8) * intensity
+  return {
+    lat: point.lat + latOffset,
+    lng: point.lng + lngOffset,
+    label: point.label,
+  }
+}
+
+function getSimulatedProgress(
+  transportStatus: string,
+  statutOperationnel: StatutOps | null,
+  vehicleStatus: string,
+  driverStatus: string,
+  hash: number,
+) {
+  if (transportStatus === 'livre' || transportStatus === 'facture' || statutOperationnel === 'termine') return 100
+
+  const vehicleBlocked = STATUS_BLOCKED_VEHICLE.has(vehicleStatus)
+  const driverBlocked = STATUS_BLOCKED_DRIVER.has(driverStatus)
+  if (vehicleBlocked || driverBlocked) {
+    const parkedBase = statutOperationnel === 'prise_en_charge' ? 34 : statutOperationnel === 'a_l_heure' ? 48 : 18
+    return clamp(parkedBase + (hash % 8) - 3, 8, 64)
+  }
+
+  if (transportStatus === 'planifie' || statutOperationnel === 'en_attente') return 14 + (hash % 11)
+  if (statutOperationnel === 'prise_en_charge') return 34 + (hash % 14)
+  if (statutOperationnel === 'retard_majeur') return 52 + (hash % 9)
+  if (statutOperationnel === 'retard_mineur') return 60 + (hash % 9)
+  if (statutOperationnel === 'a_l_heure') return 68 + (hash % 12)
+
+  const base = statutOperationnel ? (STATUS_PROGRESS[statutOperationnel] ?? 38) : 38
+  return clamp(base + (hash % 10) - 4, 10, 90)
+}
+
+function getSimulatedLivePosition(
+  routePoints: GeoPoint[],
+  progress: number,
+  transportStatus: string,
+  vehicleStatus: string,
+  driverStatus: string,
+  hash: number,
+) {
+  const safeRoute = routePoints.length > 0 ? routePoints : [{ lat: 46.6034, lng: 1.8883, label: 'France' }]
+  const first = safeRoute[0]
+  const last = safeRoute[safeRoute.length - 1]
+  const vehicleBlocked = STATUS_BLOCKED_VEHICLE.has(vehicleStatus)
+  const driverBlocked = STATUS_BLOCKED_DRIVER.has(driverStatus)
+
+  if (transportStatus === 'livre' || transportStatus === 'facture' || progress >= 99) {
+    return withDeterministicJitter(last, hash, 0.003)
+  }
+
+  if (vehicleBlocked || driverBlocked) {
+    return withDeterministicJitter(first, hash, 0.004)
+  }
+
+  return withDeterministicJitter(interpolateRoute(safeRoute, progress), hash, 0.005)
+}
+
+function toStatusLabel(value: string, fallback: string) {
+  if (!value) return fallback
+  const normalized = value.replace(/_/g, ' ')
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1)
+}
+
+function buildScheduleStatusLabel(delayMinutes: number | null) {
+  if (delayMinutes == null) return 'Ponctualite non estimee'
+  if (delayMinutes <= -10) return `Avance ${Math.abs(delayMinutes)} min`
+  if (delayMinutes <= 5) return 'A l heure'
+  return `Retard ${delayMinutes} min`
+}
+
+function estimatePunctuality(
+  delayMinutes: number | null,
+  statutOperationnel: StatutOps | null,
+  transportStatus: string,
+) {
+  if (delayMinutes != null) {
+    if (delayMinutes <= -8) return { band: 'avance' as const, alertLevel: 'normal' as const, label: `En avance (${Math.abs(delayMinutes)} min)` }
+    if (delayMinutes <= 7) return { band: 'a_heure' as const, alertLevel: 'normal' as const, label: 'A l heure' }
+    if (delayMinutes <= 25) return { band: 'retard_surveillance' as const, alertLevel: 'warning' as const, label: `En retard (${delayMinutes} min)` }
+    return { band: 'retard_critique' as const, alertLevel: 'critical' as const, label: `Retard critique (${delayMinutes} min)` }
+  }
+
+  if (transportStatus === 'livre' || transportStatus === 'facture' || statutOperationnel === 'termine') {
+    return { band: 'a_heure' as const, alertLevel: 'normal' as const, label: 'Livraison terminee' }
+  }
+  if (statutOperationnel === 'retard_majeur') {
+    return { band: 'retard_critique' as const, alertLevel: 'critical' as const, label: 'Retard critique estime' }
+  }
+  if (statutOperationnel === 'retard_mineur' || statutOperationnel === 'en_attente') {
+    return { band: 'retard_surveillance' as const, alertLevel: 'warning' as const, label: 'Sous surveillance ponctualite' }
+  }
+  if (statutOperationnel === 'a_l_heure') {
+    return { band: 'a_heure' as const, alertLevel: 'normal' as const, label: 'A l heure (statut exploitation)' }
+  }
+
+  return { band: 'retard_surveillance' as const, alertLevel: 'warning' as const, label: 'Ponctualite a confirmer' }
+}
+
+function buildFuelTelemetry(progress: number, delayMinutes: number | null, alertLevel: LiveMission['alertLevel'], hash: number) {
+  const delayPenalty = delayMinutes && delayMinutes > 0 ? Math.min(16, Math.round(delayMinutes / 4)) : 0
+  const severityPenalty = alertLevel === 'critical' ? 10 : alertLevel === 'warning' ? 4 : 0
+  const baseFuel = 92 - Math.round(progress * 0.58) - delayPenalty - severityPenalty + ((hash % 7) - 3)
+  const fuelPercent = clamp(baseFuel, 7, 98)
+  const fuelLevel: LiveMission['fuelLevel'] = fuelPercent <= 15 ? 'critical' : fuelPercent <= 30 ? 'low' : 'ok'
+  return { fuelPercent, fuelLevel }
+}
+
+function buildTachyTelemetry(progress: number, driverStatus: string, hash: number) {
+  if (STATUS_BLOCKED_DRIVER.has(driverStatus)) {
+    return { tachyStatusLabel: 'Conducteur indisponible', tachyDriveLeftMinutes: 0 }
+  }
+
+  const consumed = Math.round(progress * 2.7) + (hash % 40)
+  const driveLeft = clamp(270 - consumed, 0, 270)
+  const tachyStatusLabel = driveLeft <= 25 ? 'Pause reglementaire requise' : driveLeft <= 70 ? 'Pause proche' : 'Conduite conforme'
+  return { tachyStatusLabel, tachyDriveLeftMinutes: driveLeft }
+}
+
 function pickSingle<T>(value: T | T[] | null): T | null {
   if (!value) return null
   return Array.isArray(value) ? value[0] ?? null : value
@@ -206,12 +364,6 @@ function resolveGeoPoint(step: StepRow, seed: string): GeoPoint | null {
     lng: -1.7 + (Math.floor(hash / 37) % 900) / 100,
     label: cityLabel,
   }
-}
-
-function getAlertLevel(statutOperationnel: string | null): LiveMission['alertLevel'] {
-  if (statutOperationnel === 'retard_majeur') return 'critical'
-  if (statutOperationnel === 'retard_mineur' || statutOperationnel === 'en_attente') return 'warning'
-  return 'normal'
 }
 
 function formatEta(value: string | null): string {
@@ -454,16 +606,23 @@ function buildMission(
   const conducteur = pickSingle(row.conducteurs)
   const vehicule = pickSingle(row.vehicules)
   const sortedSteps = [...steps].sort((left, right) => left.ordre - right.ordre)
-  const routePoints = sortedSteps
+  const routePointsFromSteps = sortedSteps
     .map(step => resolveGeoPoint(step, row.id))
     .filter((point): point is GeoPoint => Boolean(point))
+  const routePoints = routePointsFromSteps.length > 0 ? routePointsFromSteps : buildFallbackRoute(`${row.reference}:${row.id}`)
 
   const statusKey = row.statut_operationnel && row.statut_operationnel in STATUT_OPS ? (row.statut_operationnel as StatutOps) : null
   const hash = hashString(`${row.reference}:${row.id}`)
+  const transportStatus = normalizeStatus(row.statut)
+  const vehicleStatus = normalizeStatus(vehicule?.statut)
+  const driverStatus = normalizeStatus(conducteur?.statut)
   const nextStep = sortedSteps.find(step => step.statut === 'en_cours' || step.statut === 'en_attente') ?? sortedSteps[sortedSteps.length - 1] ?? null
-  const progressBase = statusKey ? STATUS_PROGRESS[statusKey] ?? 32 : 32
-  const progress = statusKey === 'termine' ? 100 : Math.max(8, Math.min(92, progressBase + (hash % 9) - 4))
-  const fallbackLivePosition = interpolateRoute(routePoints, progress)
+  const progress = getSimulatedProgress(transportStatus, statusKey, vehicleStatus, driverStatus, hash)
+  const fallbackLivePosition = getSimulatedLivePosition(routePoints, progress, transportStatus, vehicleStatus, driverStatus, hash)
+  const punctuality = estimatePunctuality(eta?.delayMinutes ?? null, statusKey, transportStatus)
+  const scheduleStatusLabel = eta?.delayMinutes != null ? buildScheduleStatusLabel(eta.delayMinutes) : punctuality.label
+  const { fuelPercent, fuelLevel } = buildFuelTelemetry(progress, eta?.delayMinutes ?? null, punctuality.alertLevel, hash)
+  const { tachyStatusLabel, tachyDriveLeftMinutes } = buildTachyTelemetry(progress, driverStatus, hash)
   const driverLat = driverLive?.lat ?? null
   const driverLng = driverLive?.lng ?? null
   const hasDriverGps = driverLat != null && driverLng != null
@@ -495,28 +654,41 @@ function buildMission(
     etaDelayMinutes: eta?.delayMinutes ?? null,
     etaConfidence: eta?.confidence ?? null,
     progress,
-    alertLevel: getAlertLevel(statusKey),
+    alertLevel: punctuality.alertLevel,
     routePoints,
     livePosition,
     nextStopLabel: nextStep?.ville ?? nextStep?.adresse_libre ?? routePoints[routePoints.length - 1]?.label ?? 'Prochaine etape',
     driverStepLabel: driverLive?.stepLabel ?? null,
     driverUpdateAt: driverLive?.timestamp ?? null,
     driverHasGps: hasDriverGps,
+    scheduleStatusLabel,
+    fuelPercent,
+    fuelLevel,
+    tachyStatusLabel,
+    tachyDriveLeftMinutes,
+    driverStatusLabel: toStatusLabel(driverStatus, 'Statut inconnu'),
+    vehicleStatusLabel: toStatusLabel(vehicleStatus, 'Statut inconnu'),
+    punctualityBand: punctuality.band,
   }
 }
 
 export default function MapLive() {
+  const [searchParams] = useSearchParams()
   const [missions, setMissions] = useState<LiveMission[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['key']>('active')
+  const [renderMode, setRenderMode] = useState<MapRenderMode>('points')
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [incidentAiByMission, setIncidentAiByMission] = useState<Record<string, IncidentAiInsight>>({})
   const [incidentsRefreshing, setIncidentsRefreshing] = useState(false)
   const [routingSmokeRunning, setRoutingSmokeRunning] = useState(false)
   const [routingSmokeResult, setRoutingSmokeResult] = useState<RoutingSmokeResult | null>(null)
   const [routingSmokeError, setRoutingSmokeError] = useState<string | null>(null)
+  const requestedOtId = searchParams.get('ot')
+  const requestedRef = (searchParams.get('ref') ?? '').trim().toUpperCase()
+  const requestedFilter = searchParams.get('filter')
 
   const mapFrameRef = useRef<HTMLDivElement | null>(null)
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
@@ -593,14 +765,15 @@ export default function MapLive() {
       .select(`
         id,
         reference,
+        statut,
         vehicule_id,
         statut_operationnel,
         date_livraison_prevue,
         distance_km,
         nature_marchandise,
         clients!ordres_transport_client_id_fkey(nom),
-        conducteurs(prenom, nom),
-        vehicules(immatriculation, marque)
+        conducteurs(prenom, nom, statut),
+        vehicules(immatriculation, marque, statut)
       `)
       .in('statut', ['planifie', 'en_cours', 'livre', 'facture'])
       .neq('statut', 'annule')
@@ -611,7 +784,7 @@ export default function MapLive() {
       // Fallback sans FK joins
       const bareR = await supabase
         .from('ordres_transport')
-        .select('id, reference, vehicule_id, statut_operationnel, date_livraison_prevue, distance_km, nature_marchandise')
+        .select('id, reference, statut, vehicule_id, statut_operationnel, date_livraison_prevue, distance_km, nature_marchandise')
         .in('statut', ['planifie', 'en_cours', 'livre', 'facture'])
         .neq('statut', 'annule')
         .order('updated_at', { ascending: false })
@@ -726,6 +899,28 @@ export default function MapLive() {
   }, [loadData])
 
   useEffect(() => {
+    const key = requestedFilter as (typeof FILTERS)[number]['key'] | null
+    if (!key) return
+    if (FILTERS.some(item => item.key === key)) setFilter(key)
+  }, [requestedFilter])
+
+  useEffect(() => {
+    if (!missions.length) return
+
+    if (requestedOtId) {
+      const byId = missions.find(mission => mission.id === requestedOtId)
+      if (byId && selectedId !== byId.id) setSelectedId(byId.id)
+      return
+    }
+
+    if (requestedRef) {
+      const byRef = missions.find(mission => mission.reference.toUpperCase() === requestedRef)
+      if (byRef && selectedId !== byRef.id) setSelectedId(byRef.id)
+      return
+    }
+  }, [missions, requestedOtId, requestedRef, selectedId])
+
+  useEffect(() => {
     const db = looseSupabase
     let timerId: number | null = null
     const scheduleReload = () => {
@@ -837,9 +1032,9 @@ export default function MapLive() {
   }, [filtered, selectedId])
 
   const selected = filtered.find(mission => mission.id === selectedId) ?? filtered[0] ?? null
-  const missionsInDelay = missions.filter(mission => mission.alertLevel !== 'normal').length
-  const missionsOnTime = missions.filter(mission => mission.statutOperationnel === 'a_l_heure' || mission.statutOperationnel === 'prise_en_charge').length
-  const criticalCount = missions.filter(mission => mission.alertLevel === 'critical').length
+  const missionsOnTime = missions.filter(mission => mission.punctualityBand === 'a_heure' || mission.punctualityBand === 'avance').length
+  const missionsInDelay = missions.filter(mission => mission.punctualityBand === 'retard_surveillance').length
+  const criticalCount = missions.filter(mission => mission.punctualityBand === 'retard_critique').length
   const prioritizedIncidents = useMemo(() => {
     return missions
       .filter(mission => mission.alertLevel !== 'normal')
@@ -851,6 +1046,12 @@ export default function MapLive() {
       .sort((left, right) => right.score - left.score)
       .slice(0, 4)
   }, [incidentAiByMission, missions])
+
+  useEffect(() => {
+    if (filtered.length > 12 && renderMode === 'itineraires') {
+      setRenderMode('points')
+    }
+  }, [filtered.length, renderMode])
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return
@@ -912,12 +1113,14 @@ export default function MapLive() {
     if (!filtered.length) return
 
     const allBounds = L.latLngBounds([])
+    const drawRoutes = renderMode === 'itineraires' && filtered.length <= 12
+
     for (const mission of filtered) {
       const isSelected = selected?.id === mission.id
       const color = mission.alertLevel === 'critical' ? '#e11d48' : mission.alertLevel === 'warning' ? '#f59e0b' : '#0ea5e9'
       const routeCoords: L.LatLngExpression[] = mission.routePoints.map(point => [point.lat, point.lng])
 
-      if (routeCoords.length >= 2) {
+      if (drawRoutes && routeCoords.length >= 2) {
         L.polyline(routeCoords, {
           color,
           weight: isSelected ? 6 : 4,
@@ -942,19 +1145,29 @@ export default function MapLive() {
         offset: [0, -20],
         opacity: 0.94,
       })
+      marker.bindPopup(
+        `<div style="min-width:220px">
+          <div style="font-weight:700;color:#0f172a">${mission.reference}</div>
+          <div style="margin-top:4px;color:#334155">${mission.livePosition.label}</div>
+          <div style="margin-top:6px;font-size:12px;color:#475569">${mission.scheduleStatusLabel}</div>
+          <div style="margin-top:4px;font-size:12px;color:#475569">Essence: ${mission.fuelPercent}%</div>
+          <div style="margin-top:4px;font-size:12px;color:#475569">Tachy: ${mission.tachyStatusLabel}</div>
+        </div>`,
+        { closeButton: true },
+      )
     }
 
     if (selected) {
       const firstPoint = selected.routePoints[0]
       const lastPoint = selected.routePoints[selected.routePoints.length - 1]
 
-      if (firstPoint) {
+      if (drawRoutes && firstPoint) {
         L.marker([firstPoint.lat, firstPoint.lng], { icon: createStopIcon('#0f172a') })
           .bindTooltip(`Depart - ${firstPoint.label}`, { direction: 'right', opacity: 0.94 })
           .addTo(stopLayer)
       }
 
-      if (lastPoint) {
+      if (drawRoutes && lastPoint) {
         L.marker([lastPoint.lat, lastPoint.lng], { icon: createStopIcon('#16a34a') })
           .bindTooltip(`Arrivee - ${lastPoint.label}`, { direction: 'left', opacity: 0.94 })
           .addTo(stopLayer)
@@ -966,7 +1179,7 @@ export default function MapLive() {
       }
       selectedBounds.extend([selected.livePosition.lat, selected.livePosition.lng])
 
-      const focusKey = `${selected.id}:${selected.progress}:${filter}`
+      const focusKey = `${selected.id}:${selected.progress}:${filter}:${renderMode}`
       if (selectedBounds.isValid() && focusKeyRef.current !== focusKey) {
         map.flyToBounds(selectedBounds.pad(0.28), { duration: 0.65 })
         focusKeyRef.current = focusKey
@@ -974,12 +1187,12 @@ export default function MapLive() {
       return
     }
 
-    const focusKey = `all:${filter}:${filtered.length}`
+    const focusKey = `all:${filter}:${filtered.length}:${renderMode}`
     if (allBounds.isValid() && focusKeyRef.current !== focusKey) {
       map.flyToBounds(allBounds.pad(0.22), { duration: 0.65 })
       focusKeyRef.current = focusKey
     }
-  }, [filter, filtered, selected])
+  }, [filter, filtered, renderMode, selected])
 
   async function toggleFullscreen() {
     if (!mapFrameRef.current) return
@@ -1114,9 +1327,9 @@ export default function MapLive() {
 
         <div className="mt-6 grid gap-3 md:grid-cols-4">
           <MetricCard label="Missions suivies" value={String(missions.length)} detail="Vehicules et routes visibles" />
-          <MetricCard label="A l'heure" value={String(missionsOnTime)} detail="Flux sous controle" />
-          <MetricCard label="Sous surveillance" value={String(missionsInDelay)} detail="Attente ou retard" />
-          <MetricCard label="Critiques" value={String(criticalCount)} detail="Rupture imminente exploitation" />
+          <MetricCard label="A l'heure / avance" value={String(missionsOnTime)} detail="Ponctualite tenue" />
+          <MetricCard label="Sous surveillance" value={String(missionsInDelay)} detail="Retard modere a surveiller" />
+          <MetricCard label="Critiques" value={String(criticalCount)} detail="Retard majeur prioritaire" />
         </div>
       </section>
 
@@ -1125,7 +1338,7 @@ export default function MapLive() {
           <div className="flex flex-col gap-4 border-b px-5 py-4 md:flex-row md:items-center md:justify-between" style={{ borderColor: 'var(--border)' }}>
             <div>
               <p className="text-sm font-semibold">Carte navigation</p>
-              <p className="mt-1 text-xs nx-subtle">Fond OpenStreetMap, routes terrain et positions dispatch.</p>
+              <p className="mt-1 text-xs nx-subtle">Mode points pour forte densite, ou itineraires quand la charge carte est faible.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {FILTERS.map(item => (
@@ -1152,6 +1365,26 @@ export default function MapLive() {
               >
                 {isFullscreen ? 'Quitter plein ecran' : 'Plein ecran'}
               </button>
+              <button
+                type="button"
+                onClick={() => setRenderMode('points')}
+                className="rounded-full border px-3 py-1.5 text-xs font-medium transition"
+                style={renderMode === 'points'
+                  ? { borderColor: '#0f172a', background: '#0f172a', color: '#fff' }
+                  : { borderColor: 'var(--border)', background: 'var(--surface)' }}
+              >
+                Points
+              </button>
+              <button
+                type="button"
+                onClick={() => setRenderMode('itineraires')}
+                className="rounded-full border px-3 py-1.5 text-xs font-medium transition"
+                style={renderMode === 'itineraires'
+                  ? { borderColor: '#0f172a', background: '#0f172a', color: '#fff' }
+                  : { borderColor: 'var(--border)', background: 'var(--surface)' }}
+              >
+                Itineraires
+              </button>
             </div>
           </div>
 
@@ -1176,9 +1409,9 @@ export default function MapLive() {
             <div className="rounded-2xl border px-4 py-4" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
               <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Code couleur</p>
               <div className="mt-2 flex flex-wrap items-center gap-4 text-xs">
-                <LegendDot color="bg-sky-400" label="Stable" />
-                <LegendDot color="bg-amber-400" label="Risque" />
-                <LegendDot color="bg-rose-500" label="Critique" />
+                <LegendDot color="bg-sky-400" label="A l'heure / En avance" />
+                <LegendDot color="bg-amber-400" label="En retard" />
+                <LegendDot color="bg-rose-500" label="Retard critique" />
               </div>
             </div>
           </div>
@@ -1222,6 +1455,15 @@ export default function MapLive() {
                   <LiveInfo label="Prochaine etape" value={selected.nextStopLabel} />
                   <LiveInfo label="ETA livraison" value={selected.etaLabel} />
                   <LiveInfo label="Progression" value={`${selected.progress}%`} />
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                  <StatusChip label="Lieu" value={selected.livePosition.label} tone="neutral" />
+                  <StatusChip label="Avance/Retard" value={selected.scheduleStatusLabel} tone={selected.alertLevel === 'critical' ? 'critical' : selected.alertLevel === 'warning' ? 'warning' : 'ok'} />
+                  <StatusChip label="Essence" value={`${selected.fuelPercent}%`} tone={selected.fuelLevel === 'critical' ? 'critical' : selected.fuelLevel === 'low' ? 'warning' : 'ok'} />
+                  <StatusChip label="Chronotachygraphe" value={selected.tachyStatusLabel} tone={selected.tachyDriveLeftMinutes <= 25 ? 'critical' : selected.tachyDriveLeftMinutes <= 70 ? 'warning' : 'ok'} />
+                  <StatusChip label="Conducteur" value={selected.driverStatusLabel} tone="neutral" />
+                  <StatusChip label="Camion" value={selected.vehicleStatusLabel} tone="neutral" />
                 </div>
               </div>
             </div>
@@ -1271,7 +1513,13 @@ export default function MapLive() {
                             ? 'bg-amber-100 text-amber-700'
                             : 'bg-emerald-100 text-emerald-700'
                       }`}>
-                        {mission.alertLevel === 'critical' ? 'Alerte' : mission.alertLevel === 'warning' ? 'Surveille' : 'Stable'}
+                        {mission.punctualityBand === 'retard_critique'
+                          ? 'Retard critique'
+                          : mission.punctualityBand === 'retard_surveillance'
+                            ? 'En retard'
+                            : mission.punctualityBand === 'avance'
+                              ? 'En avance'
+                              : 'A l heure'}
                       </span>
                     </div>
 
@@ -1280,6 +1528,12 @@ export default function MapLive() {
                       <span>{mission.lastPingMinutes} min</span>
                       <span>{mission.nextStopLabel}</span>
                       <span>{mission.etaLabel}</span>
+                    </div>
+                    <div className="mt-2 grid gap-2 text-[11px] sm:grid-cols-2">
+                      <span className="nx-subtle">{mission.scheduleStatusLabel}</span>
+                      <span className={mission.fuelLevel === 'critical' ? 'text-rose-600' : mission.fuelLevel === 'low' ? 'text-amber-600' : 'text-emerald-600'}>
+                        Essence {mission.fuelPercent}%
+                      </span>
                     </div>
                     {mission.driverStepLabel && (
                       <p className="mt-2 text-xs text-cyan-700">
@@ -1386,5 +1640,30 @@ function LegendDot({ color, label }: { color: string; label: string }) {
       <span className={`h-2.5 w-2.5 rounded-full ${color}`} />
       {label}
     </span>
+  )
+}
+
+function StatusChip({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: string
+  tone: 'neutral' | 'ok' | 'warning' | 'critical'
+}) {
+  const palette = tone === 'critical'
+    ? 'border-rose-400/30 bg-rose-500/12 text-rose-100'
+    : tone === 'warning'
+      ? 'border-amber-400/30 bg-amber-500/12 text-amber-100'
+      : tone === 'ok'
+        ? 'border-emerald-400/30 bg-emerald-500/12 text-emerald-100'
+        : 'border-white/12 bg-white/5 text-slate-100'
+
+  return (
+    <div className={`rounded-xl border px-3 py-2 ${palette}`}>
+      <p className="text-[10px] uppercase tracking-[0.18em] opacity-80">{label}</p>
+      <p className="mt-1 text-xs font-medium">{value}</p>
+    </div>
   )
 }

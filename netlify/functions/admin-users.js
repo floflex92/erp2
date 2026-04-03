@@ -1,8 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 
-const ROLE_VALUES = ['admin', 'dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable', 'rh', 'conducteur', 'conducteur_affreteur', 'client', 'affreteur']
+const ROLE_VALUES = ['admin', 'dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable', 'rh', 'conducteur', 'conducteur_affreteur', 'client', 'affreteur', 'administratif', 'facturation', 'flotte', 'maintenance', 'observateur', 'demo', 'investisseur', 'super_admin']
 const ROLE_SET = new Set(ROLE_VALUES)
 const ADMIN_ROLES = new Set(['admin', 'dirigeant'])
+const DEFAULT_ROLE = 'dirigeant'
+const ACCOUNT_TYPES = new Set(['standard', 'test', 'prospect', 'investisseur', 'demo'])
+const ACCOUNT_STATUSES = new Set(['actif', 'suspendu', 'archive', 'desactive'])
+const REQUEST_STATUSES = new Set(['nouveau', 'contacte', 'qualifie', 'compte_cree', 'refuse', 'archive'])
+const LEAD_STATUSES = new Set(['nouveau', 'contacte', 'qualifie', 'compte_cree', 'refuse'])
 const ROLE_ALIASES = {
   administrateur: 'admin',
   administrator: 'admin',
@@ -24,6 +29,7 @@ const ROLE_ALIASES = {
 }
 const RESERVED_ADMIN_EMAIL_ROLE = {
   'admin@erp-demo.fr': 'admin',
+  'contact@nexora-truck.fr': 'admin',
   'direction@erp-demo.fr': 'dirigeant',
 }
 
@@ -81,7 +87,47 @@ function normalizeRole(value) {
   if (typeof value !== 'string') return null
   const token = normalizeRoleToken(value)
   if (ROLE_SET.has(token)) return token
-  return ROLE_ALIASES[token] ?? null
+  const aliased = ROLE_ALIASES[token]
+  if (aliased) return aliased
+  return /^[a-z0-9_]{2,64}$/.test(token) ? token : null
+}
+
+function sanitizeAccountType(value, fallback = 'standard') {
+  const token = normalizeRoleToken(value ?? '')
+  return ACCOUNT_TYPES.has(token) ? token : fallback
+}
+
+function sanitizeAccountStatus(value, fallback = 'actif') {
+  const token = normalizeRoleToken(value ?? '')
+  return ACCOUNT_STATUSES.has(token) ? token : fallback
+}
+
+function sanitizeRequestStatus(value, fallback = 'nouveau') {
+  const token = normalizeRoleToken(value ?? '')
+  return REQUEST_STATUSES.has(token) ? token : fallback
+}
+
+function sanitizeLeadStatus(value, fallback = 'nouveau') {
+  const token = normalizeRoleToken(value ?? '')
+  return LEAD_STATUSES.has(token) ? token : fallback
+}
+
+function sanitizePermissions(value) {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter(item => typeof item === 'string')
+    .map(item => normalizeRoleToken(item))
+    .filter(item => item.length >= 2 && item.length <= 64)
+}
+
+function sanitizeMaxConcurrentScreens(value, fallback = 1) {
+  if (value === null || value === undefined || value === '') return fallback
+  const n = Number(value)
+  if (!Number.isFinite(n)) return fallback
+  const asInt = Math.trunc(n)
+  if (asInt < 1) return 1
+  if (asInt > 12) return 12
+  return asInt
 }
 
 function generateUserMatricule(profileId) {
@@ -165,14 +211,20 @@ async function authorize(event) {
 }
 
 async function listAdminUsers({ admin, sessionClient }) {
+  const dbClient = admin ?? sessionClient
+
   if (admin) {
-    const [{ data: profileData, error: profileError }, { data: authData, error: authError }] = await Promise.all([
-      admin.from('profils').select('*').order('created_at'),
+    const [{ data: profileData, error: profileError }, { data: authData, error: authError }, { data: requestData, error: requestError }, { data: roleLogData, error: roleLogError }] = await Promise.all([
+      dbClient.from('profils').select('*').order('created_at', { ascending: false }),
       admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+      dbClient.from('project_access_requests').select('*').order('created_at', { ascending: false }).limit(500),
+      dbClient.from('user_role_change_log').select('*').order('changed_at', { ascending: false }).limit(500),
     ])
 
     if (profileError) return { error: profileError.message }
     if (authError) return { error: authError.message }
+    if (requestError) return { error: requestError.message }
+    if (roleLogError) return { error: roleLogError.message }
 
     const authById = new Map((authData?.users ?? []).map(user => [user.id, user]))
     const users = (profileData ?? []).map(profile => {
@@ -187,11 +239,22 @@ async function listAdminUsers({ admin, sessionClient }) {
       }
     })
 
-    return { users }
+    return {
+      users,
+      requests: requestData ?? [],
+      role_changes: roleLogData ?? [],
+    }
   }
 
-  const { data, error } = await sessionClient.from('profils').select('*').order('created_at')
+  const [{ data, error }, { data: requestData, error: requestError }, { data: roleLogData, error: roleLogError }] = await Promise.all([
+    dbClient.from('profils').select('*').order('created_at', { ascending: false }),
+    dbClient.from('project_access_requests').select('*').order('created_at', { ascending: false }).limit(500),
+    dbClient.from('user_role_change_log').select('*').order('changed_at', { ascending: false }).limit(500),
+  ])
+
   if (error) return { error: error.message }
+  if (requestError) return { error: requestError.message }
+  if (roleLogError) return { error: roleLogError.message }
 
   const users = (data ?? []).map(profile => ({
     ...profile,
@@ -201,16 +264,31 @@ async function listAdminUsers({ admin, sessionClient }) {
     last_sign_in_at: null,
   }))
 
-  return { users }
+  return {
+    users,
+    requests: requestData ?? [],
+    role_changes: roleLogData ?? [],
+  }
 }
 
 async function createAdminUser(clients, rawBody) {
   const body = typeof rawBody === 'string' && rawBody.length > 0 ? JSON.parse(rawBody) : {}
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
   const password = typeof body.password === 'string' ? body.password : ''
-  const role = normalizeRole(body.role)
+  const role = normalizeRole(body.role) ?? DEFAULT_ROLE
   const nom = typeof body.nom === 'string' ? body.nom.trim() : ''
   const prenom = typeof body.prenom === 'string' ? body.prenom.trim() : ''
+  const accountType = sanitizeAccountType(body.account_type ?? body.accountType, 'test')
+  const accountStatus = sanitizeAccountStatus(body.account_status ?? body.accountStatus, 'actif')
+  const isDemoAccount = body.is_demo_account === true || body.isDemoAccount === true || accountType === 'demo' || accountType === 'test'
+  const isInvestorAccount = body.is_investor_account === true || body.isInvestorAccount === true || accountType === 'investisseur'
+  const accountOrigin = typeof body.account_origin === 'string' ? normalizeRoleToken(body.account_origin) : 'manuel_admin'
+  const requestedFromPublicForm = body.requested_from_public_form === true || body.requestedFromPublicForm === true
+  const demoExpiresAt = typeof body.demo_expires_at === 'string' && body.demo_expires_at ? body.demo_expires_at : null
+  const notesAdmin = typeof body.notes_admin === 'string' ? body.notes_admin.trim() : null
+  const requestId = typeof body.request_id === 'string' ? body.request_id : null
+  const permissions = sanitizePermissions(body.permissions)
+  const maxConcurrentScreens = sanitizeMaxConcurrentScreens(body.max_concurrent_screens ?? body.maxConcurrentScreens, 1)
 
   if (!email) return json(400, { error: 'Email is required.' })
   if (!password || password.length < 8) return json(400, { error: 'Password must be at least 8 characters.' })
@@ -223,9 +301,14 @@ async function createAdminUser(clients, rawBody) {
       email,
       password,
       email_confirm: true,
+      app_metadata: {
+        role,
+      },
       user_metadata: {
         nom: nom || null,
         prenom: prenom || null,
+        account_type: accountType,
+        account_origin: accountOrigin,
       },
     })
 
@@ -242,6 +325,9 @@ async function createAdminUser(clients, rawBody) {
         data: {
           nom: nom || null,
           prenom: prenom || null,
+          role,
+          account_type: accountType,
+          account_origin: accountOrigin,
         },
       },
     })
@@ -259,6 +345,17 @@ async function createAdminUser(clients, rawBody) {
     role,
     nom: nom || null,
     prenom: prenom || null,
+    account_type: accountType,
+    account_status: accountStatus,
+    is_demo_account: isDemoAccount,
+    is_investor_account: isInvestorAccount,
+    account_origin: accountOrigin,
+    requested_from_public_form: requestedFromPublicForm,
+    demo_expires_at: demoExpiresAt,
+    notes_admin: notesAdmin,
+    permissions,
+    max_concurrent_screens: maxConcurrentScreens,
+    assigned_by_admin: clients.currentProfile?.id ?? null,
   }, {
     onConflict: 'user_id',
   }).select('id,user_id,matricule').single()
@@ -278,6 +375,27 @@ async function createAdminUser(clients, rawBody) {
     }
   }
 
+  if (requestId) {
+    const { error: requestUpdateError } = await dbClient
+      .from('project_access_requests')
+      .update({
+        request_status: 'compte_cree',
+        lead_status: 'compte_cree',
+        linked_user_id: createdUser.id,
+        linked_profile_id: profileRow?.id ?? null,
+        linked_role: role,
+        created_account_email: createdUser.email ?? email,
+        account_created: true,
+        requested_role: role,
+        assigned_by_admin: clients.currentProfile?.id ?? null,
+      })
+      .eq('id', requestId)
+
+    if (requestUpdateError) {
+      return json(500, { error: requestUpdateError.message })
+    }
+  }
+
   return json(201, {
     user: {
       id: createdUser.id,
@@ -287,6 +405,11 @@ async function createAdminUser(clients, rawBody) {
       matricule: ensuredMatricule,
       nom: nom || null,
       prenom: prenom || null,
+      account_type: accountType,
+      account_status: accountStatus,
+      is_demo_account: isDemoAccount,
+      is_investor_account: isInvestorAccount,
+      max_concurrent_screens: maxConcurrentScreens,
       requires_email_confirmation: !clients.admin,
     },
   })
@@ -298,27 +421,65 @@ async function updateAdminUser({ admin, sessionClient, currentUser }, rawBody) {
   const role = normalizeRole(body.role)
   const nom = typeof body.nom === 'string' ? body.nom.trim() : null
   const prenom = typeof body.prenom === 'string' ? body.prenom.trim() : null
+  const requestId = typeof body.request_id === 'string' ? body.request_id : null
+  const action = typeof body.action === 'string' ? normalizeRoleToken(body.action) : null
+  const permissions = Array.isArray(body.permissions) ? sanitizePermissions(body.permissions) : null
+  const accountType = typeof body.account_type === 'string' ? sanitizeAccountType(body.account_type, 'standard') : null
+  const accountStatus = typeof body.account_status === 'string' ? sanitizeAccountStatus(body.account_status, 'actif') : null
+  const notesAdmin = typeof body.notes_admin === 'string' ? body.notes_admin.trim() : null
+  const demoExpiresAt = typeof body.demo_expires_at === 'string' ? body.demo_expires_at : null
+  const updateRequestStatus = typeof body.request_status === 'string' ? sanitizeRequestStatus(body.request_status) : null
+  const updateLeadStatus = typeof body.lead_status === 'string' ? sanitizeLeadStatus(body.lead_status) : null
+  const requestNotes = typeof body.request_notes_admin === 'string' ? body.request_notes_admin.trim() : null
+  const maxConcurrentScreens = body.max_concurrent_screens !== undefined || body.maxConcurrentScreens !== undefined
+    ? sanitizeMaxConcurrentScreens(body.max_concurrent_screens ?? body.maxConcurrentScreens, 1)
+    : null
 
   if (!id) return json(400, { error: 'Profile id is required.' })
-  if (!role) return json(400, { error: 'Invalid role.' })
 
   const dbClient = admin ?? sessionClient
   const { data: targetProfile, error: targetProfileError } = await dbClient
     .from('profils')
-    .select('id, user_id, role')
+    .select('id, user_id, role, account_status')
     .eq('id', id)
     .maybeSingle()
 
   if (targetProfileError) return json(400, { error: targetProfileError.message })
   if (!targetProfile) return json(404, { error: 'Profile not found.' })
 
+  if (action === 'delete') {
+    if (!admin) return json(400, { error: 'Service role required to delete auth users.' })
+    if (targetProfile.user_id === currentUser.id) return json(400, { error: 'You cannot delete your own account.' })
+
+    if (targetProfile.user_id) {
+      const { error: deleteAuthError } = await admin.auth.admin.deleteUser(targetProfile.user_id)
+      if (deleteAuthError) return json(400, { error: deleteAuthError.message })
+    }
+
+    const { error: archiveAfterDeleteError } = await dbClient
+      .from('profils')
+      .update({
+        account_status: 'archive',
+        archived_at: new Date().toISOString(),
+        notes_admin: notesAdmin || 'Compte supprime via administration',
+      })
+      .eq('id', id)
+
+    if (archiveAfterDeleteError) return json(400, { error: archiveAfterDeleteError.message })
+
+    return json(200, { ok: true, deleted: true })
+  }
+
+  const effectiveRole = role ?? normalizeRole(targetProfile.role)
+  if (!effectiveRole) return json(400, { error: 'Invalid role.' })
+
   const targetRole = normalizeRole(targetProfile.role)
 
-  if (targetProfile.user_id === currentUser.id && !ADMIN_ROLES.has(role)) {
+  if (targetProfile.user_id === currentUser.id && !ADMIN_ROLES.has(effectiveRole)) {
     return json(400, { error: 'You cannot remove your own admin/dirigeant access.' })
   }
 
-  if (targetRole && ADMIN_ROLES.has(targetRole) && !ADMIN_ROLES.has(role)) {
+  if (targetRole && ADMIN_ROLES.has(targetRole) && !ADMIN_ROLES.has(effectiveRole)) {
     const { data: privilegedProfiles, error: privilegedProfilesError } = await dbClient
       .from('profils')
       .select('id, role')
@@ -335,13 +496,63 @@ async function updateAdminUser({ admin, sessionClient, currentUser }, rawBody) {
     }
   }
 
-  const { error } = await dbClient.from('profils').update({
-    role,
+  const patch = {
+    role: effectiveRole,
     nom: nom || null,
     prenom: prenom || null,
-  }).eq('id', id)
+    account_type: accountType ?? undefined,
+    account_status: accountStatus ?? undefined,
+    notes_admin: notesAdmin,
+    demo_expires_at: demoExpiresAt,
+    permissions: permissions ?? undefined,
+    is_demo_account: body.is_demo_account === true || body.isDemoAccount === true ? true : undefined,
+    is_investor_account: body.is_investor_account === true || body.isInvestorAccount === true ? true : undefined,
+    last_role_change_at: targetRole !== effectiveRole ? new Date().toISOString() : undefined,
+    max_concurrent_screens: maxConcurrentScreens ?? undefined,
+  }
+
+  if (action === 'archive') {
+    patch.account_status = 'archive'
+    patch.archived_at = new Date().toISOString()
+  } else if (action === 'disable') {
+    patch.account_status = 'desactive'
+  } else if (action === 'enable') {
+    patch.account_status = 'actif'
+  }
+
+  const { error } = await dbClient.from('profils').update(patch).eq('id', id)
 
   if (error) return json(400, { error: error.message })
+
+  if (targetRole !== effectiveRole) {
+    await dbClient.from('user_role_change_log').insert({
+      actor_profile_id: null,
+      target_profile_id: id,
+      previous_role: targetRole ?? 'inconnu',
+      new_role: effectiveRole,
+      source: 'admin_users_function',
+      change_reason: typeof body.change_reason === 'string' ? body.change_reason : null,
+    })
+
+    if (admin && targetProfile.user_id) {
+      await admin.auth.admin.updateUserById(targetProfile.user_id, {
+        app_metadata: { role: effectiveRole },
+      })
+    }
+  }
+
+  if (requestId && (updateRequestStatus || updateLeadStatus || requestNotes !== null)) {
+    const { error: requestUpdateError } = await dbClient
+      .from('project_access_requests')
+      .update({
+        request_status: updateRequestStatus ?? undefined,
+        lead_status: updateLeadStatus ?? undefined,
+        notes_admin: requestNotes,
+      })
+      .eq('id', requestId)
+
+    if (requestUpdateError) return json(400, { error: requestUpdateError.message })
+  }
 
   return json(200, { ok: true })
 }

@@ -12,6 +12,7 @@ import {
 } from '@/lib/affretementPortal'
 import { validatePlanningDropAudit, type CEAlert } from '@/lib/ce561Validation'
 import { createLogisticSite, updateLogisticSite, type LogisticSite } from '@/lib/transportCourses'
+import { useAuth } from '@/lib/auth'
 
 // â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -39,6 +40,7 @@ type Affectation = {
 }
 type Tab        = 'conducteurs' | 'camions' | 'remorques'
 type ViewMode   = 'semaine' | 'jour'
+type PlanningScope = 'principal' | 'affretement'
 type ColorMode  = 'statut' | 'conducteur' | 'type' | 'client'
 type AssignForm = {
   ot: OT; conducteur_id: string; vehicule_id: string; remorque_id: string
@@ -383,8 +385,10 @@ const COMPLIANCE_BLOCK_RULES_KEY = 'nexora_planning_compliance_block_rules_v1'
 const SIMULATION_MODE_KEY = 'nexora_planning_simulation_mode_v1'
 const AUTO_HABILLAGE_KEY = 'nexora_planning_auto_habillage_v1'
 const AUTO_PAUSE_KEY = 'nexora_planning_auto_pause_v1'
+const PLANNING_HEADER_COLLAPSED_KEY = 'nexora_planning_header_collapsed_v1'
 const BOTTOM_DOCK_HEIGHT_KEY = 'nexora_planning_bottom_dock_height_v1'
 const BOTTOM_DOCK_COLLAPSED_KEY = 'nexora_planning_bottom_dock_collapsed_v1'
+const PLANNING_SCOPE_KEY = 'nexora_planning_scope_v1'
 const BOTTOM_DOCK_VIEWPORT_OFFSET = 8
 
 const COMPLIANCE_RULE_LABELS: Record<string, string> = {
@@ -486,10 +490,20 @@ function uid(): string { return Math.random().toString(36).slice(2) + Date.now()
 // â”€â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function Planning() {
+  const { role } = useAuth()
   const [weekStart,   setWeekStart]   = useState(() => getMonday(new Date()))
   const [selectedDay, setSelectedDay] = useState(() => toISO(new Date()))
   const [tab,         setTab]         = useState<Tab>('conducteurs')
   const [viewMode,    setViewMode]    = useState<ViewMode>('semaine')
+  const [planningScope, setPlanningScope] = useState<PlanningScope>(() => {
+    try {
+      const raw = localStorage.getItem(PLANNING_SCOPE_KEY)
+      if (raw === 'principal' || raw === 'affretement') return raw
+    } catch {
+      // ignore localStorage access issues
+    }
+    return 'principal'
+  })
 
   const [pool,        setPool]        = useState<OT[]>([])
   const [ganttOTs,    setGanttOTs]    = useState<OT[]>([])
@@ -573,6 +587,7 @@ export default function Planning() {
   const [simulationMode, setSimulationMode] = useState<boolean>(() => loadBooleanSetting(SIMULATION_MODE_KEY, false))
   const [autoHabillage, setAutoHabillage] = useState<boolean>(() => loadBooleanSetting(AUTO_HABILLAGE_KEY, true))
   const [autoPauseReglementaire, setAutoPauseReglementaire] = useState<boolean>(() => loadBooleanSetting(AUTO_PAUSE_KEY, true))
+  const [planningHeaderCollapsed, setPlanningHeaderCollapsed] = useState<boolean>(() => loadBooleanSetting(PLANNING_HEADER_COLLAPSED_KEY, false))
   const [bottomDockHeight, setBottomDockHeight] = useState<number>(() => loadNumberSetting(BOTTOM_DOCK_HEIGHT_KEY, 260))
   const [bottomDockCollapsed, setBottomDockCollapsed] = useState<boolean>(() => loadBooleanSetting(BOTTOM_DOCK_COLLAPSED_KEY, false))
   const [isResizingBottomDock, setIsResizingBottomDock] = useState(false)
@@ -650,6 +665,24 @@ export default function Planning() {
   useEffect(() => {
     saveBooleanSetting(BOTTOM_DOCK_COLLAPSED_KEY, bottomDockCollapsed)
   }, [bottomDockCollapsed])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PLANNING_SCOPE_KEY, planningScope)
+    } catch {
+      // ignore localStorage access issues
+    }
+  }, [planningScope])
+
+  useEffect(() => {
+    if (role !== 'affreteur') return
+    setPlanningScope(current => current === 'principal' ? 'affretement' : current)
+  }, [role])
+
+  useEffect(() => {
+    saveBooleanSetting(PLANNING_HEADER_COLLAPSED_KEY, planningHeaderCollapsed)
+    window.dispatchEvent(new Event('nexora:planning-header-visibility-change'))
+  }, [planningHeaderCollapsed])
 
   function buildGeneratedInlineEvents(ot: OT, rowId: string): GeneratedInlineEvent[] {
     if (!autoHabillage) return []
@@ -1029,14 +1062,15 @@ export default function Planning() {
         groupage_id: r.groupage_id ?? null, groupage_fige: Boolean(r.groupage_fige),
         est_affretee: Boolean(r.est_affretee),
       }))
-      const cancelled = ots.filter(o => o.statut === 'annule')
-      const principalPlanning = ots.filter(o => !o.est_affretee && o.statut !== 'annule')
+      const scopedPlanning = ots.filter(o => planningScope === 'affretement' ? o.est_affretee : !o.est_affretee)
+      const cancelled = scopedPlanning.filter(o => o.statut === 'annule')
+      const principalPlanning = scopedPlanning.filter(o => o.statut !== 'annule')
       const isDraftStatut = (ot: OT) => ot.statut === 'brouillon' || ot.statut === 'confirme'
       const hasAssignedResource = (ot: OT) => Boolean(ot.conducteur_id || ot.vehicule_id || ot.remorque_id)
       setCancelledOTs(cancelled)
       setPool(principalPlanning.filter(o => isDraftStatut(o) && !hasAssignedResource(o)))
       setGanttOTs(principalPlanning.filter(o => !isDraftStatut(o) || hasAssignedResource(o)))
-      setSelected(current => current ? (ots.find(ot => ot.id === current.id) ?? null) : current)
+      setSelected(current => current ? (scopedPlanning.find(ot => ot.id === current.id) ?? null) : current)
     }
     if (cR.error) setConducteurs([])
     else if (cR.data) setConducteurs(cR.data)
@@ -1055,7 +1089,7 @@ export default function Planning() {
 
     if (aR.error) setAffectations([])
     else if (aR.data) setAffectations(aR.data)
-  }, [])
+  }, [planningScope])
 
   useEffect(() => { void loadAll() }, [loadAll])
 
@@ -2524,10 +2558,10 @@ export default function Planning() {
     if (!selected) return []
     return [...pool, ...ganttOTs]
       .filter(ot => ot.id !== selected.id)
-      .filter(ot => !ot.est_affretee)
+      .filter(ot => planningScope === 'affretement' ? ot.est_affretee : !ot.est_affretee)
       .filter(ot => !ot.groupage_fige)
       .sort((left, right) => left.reference.localeCompare(right.reference, 'fr-FR'))
-  }, [ganttOTs, pool, selected])
+  }, [ganttOTs, planningScope, pool, selected])
 
   const bottomDockAnnulees = useMemo(
     () => cancelledOTs.filter(ot => !centerFilter || ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter),
@@ -3060,7 +3094,7 @@ export default function Planning() {
 
   return (
     <div
-      className={`relative flex min-h-full bg-slate-950 ${isResizingBottomDock ? 'cursor-ns-resize' : ''}`}
+      className={`nx-planning relative flex min-h-full bg-slate-950 ${isResizingBottomDock ? 'cursor-ns-resize' : ''}`}
       style={{ paddingBottom: `${BOTTOM_DOCK_VIEWPORT_OFFSET}px` }}
     >
       {planningNotice && (
@@ -3224,11 +3258,28 @@ export default function Planning() {
           <div className="flex items-center gap-3 min-w-0">
             <h1 className="text-base font-bold text-white flex-shrink-0">Planning</h1>
 
+            <div className="flex rounded-lg border border-slate-700 overflow-hidden flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setPlanningScope('principal')}
+                className={`px-3 py-1 text-xs font-medium transition-colors ${planningScope === 'principal' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+              >
+                Principal
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlanningScope('affretement')}
+                className={`px-3 py-1 text-xs font-medium transition-colors ${planningScope === 'affretement' ? 'bg-blue-600/30 text-blue-100' : 'text-slate-400 hover:text-white'}`}
+              >
+                Affreteur dedie
+              </button>
+            </div>
+
             {/* View mode */}
             <div className="flex rounded-lg border border-slate-700 overflow-hidden flex-shrink-0">
               {(['semaine','jour'] as ViewMode[]).map(v => (
                 <button key={v} onClick={() => setViewMode(v)}
-                  className={`px-3 py-1 text-xs font-medium transition-colors ${viewMode===v ? 'bg-white text-slate-900' : 'text-slate-400 hover:text-white'}`}>
+                  className={`px-3 py-1 text-xs font-medium transition-colors ${viewMode===v ? 'bg-indigo-500/25 text-indigo-100' : 'text-slate-400 hover:text-white'}`}>
                   {v === 'semaine' ? '7 jours' : 'Journee'}
                 </button>
               ))}
@@ -3413,6 +3464,10 @@ export default function Planning() {
             <span className="text-[10px] text-slate-500 whitespace-nowrap">CA planifie</span>
             <span className="text-sm font-bold text-emerald-400">{kpi.caPlanning > 0 ? `${(kpi.caPlanning/1000).toFixed(0)}k EUR` : '-'}</span>
           </div>
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/40 flex-shrink-0">
+            <span className="text-[10px] text-slate-500 whitespace-nowrap">Scope</span>
+            <span className="text-sm font-bold text-white">{planningScope === 'affretement' ? 'Affretement' : 'Principal'}</span>
+          </div>
         </div>
 
         {/* Day view - mini week selector */}
@@ -3435,7 +3490,7 @@ export default function Planning() {
                 return (
                   <button key={i} onClick={() => setSelectedDay(iso)}
                     className={`flex-1 flex flex-col items-center py-1 rounded-lg text-[10px] font-medium transition-all ${
-                      isSel  ? 'bg-white text-slate-900'
+                      isSel  ? 'bg-indigo-500/25 text-indigo-100 border border-indigo-400/45'
                       : isT  ? 'border border-blue-500/40 text-blue-400 hover:bg-slate-800'
                       : isWE ? 'text-slate-600 hover:bg-slate-800'
                                : 'text-slate-400 hover:bg-slate-800'
@@ -4243,6 +4298,13 @@ export default function Planning() {
                 className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${autoPauseReglementaire ? 'bg-amber-500/20 border-amber-600/40 text-amber-200' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
               >
                 Pause 45 min {autoPauseReglementaire ? 'activee' : 'off'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlanningHeaderCollapsed(current => !current)}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${planningHeaderCollapsed ? 'bg-indigo-600/25 border-indigo-500/50 text-indigo-200' : 'border-slate-700 text-slate-300 hover:text-white'}`}
+              >
+                {planningHeaderCollapsed ? 'Afficher bandeau haut' : 'Retracter bandeau haut'}
               </button>
               <button
                 type="button"

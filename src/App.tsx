@@ -16,6 +16,7 @@ const Maintenance = lazy(() => import('@/pages/Maintenance'))
 const Transports = lazy(() => import('@/pages/Transports'))
 const Clients = lazy(() => import('@/pages/Clients'))
 const Facturation = lazy(() => import('@/pages/Facturation'))
+const Comptabilite = lazy(() => import('@/pages/Comptabilite'))
 const Paie = lazy(() => import('@/pages/Paie'))
 const Frais = lazy(() => import('@/pages/Frais'))
 const Prospection = lazy(() => import('@/pages/Prospection'))
@@ -33,29 +34,36 @@ const Rh = lazy(() => import('@/pages/Rh'))
 const Tchat = lazy(() => import('@/pages/Tchat'))
 const Mail = lazy(() => import('@/pages/Mail'))
 const Communication = lazy(() => import('@/pages/Communication'))
+const InterErp = lazy(() => import('@/pages/InterErp'))
 const Coffre = lazy(() => import('@/pages/Coffre'))
 const MentionsLegales = lazy(() => import('@/pages/MentionsLegales'))
 const Tasks = lazy(() => import('@/pages/Tasks'))
 const HomePage = lazy(() => import('@/site/pages/HomePage'))
 const SolutionPage = lazy(() => import('@/site/pages/SolutionPage'))
+const FeaturesPage = lazy(() => import('@/site/pages/FeaturesPage'))
+const AllFeaturesPage = lazy(() => import('@/site/pages/AllFeaturesPage'))
 const PlanningIntelligentPage = lazy(() => import('@/site/pages/PlanningIntelligentPage'))
 const RoiPage = lazy(() => import('@/site/pages/RoiPage'))
 const SecteurTransportPage = lazy(() => import('@/site/pages/SecteurTransportPage'))
 const AboutPage = lazy(() => import('@/site/pages/AboutPage'))
 const SeoErpTransportPage = lazy(() => import('@/site/pages/SeoErpTransportPage'))
+const LogicielTransportPage = lazy(() => import('@/site/pages/LogicielTransportPage'))
+const ArticlesPage = lazy(() => import('@/site/pages/ArticlesPage'))
+const ArticlePage = lazy(() => import('@/site/pages/articles/ArticlePage'))
 const DemoPage = lazy(() => import('@/site/pages/DemoPage'))
 const ContactPage = lazy(() => import('@/site/pages/ContactPage'))
 const ERPLoginPage = lazy(() => import('@/site/pages/ERPLoginPage'))
 const PrivacyPolicyPage = lazy(() => import('@/site/pages/PrivacyPolicyPage'))
 const TermsOfUsePage = lazy(() => import('@/site/pages/TermsOfUsePage'))
+const DemoAccess = lazy(() => import('@/pages/DemoAccess'))
 
 function RequireRole({ page, children }: { page: string; children: React.ReactNode }) {
-  const { role, loading } = useAuth()
+  const { role, loading, tenantAllowedPages } = useAuth()
   if (loading) return null
   // Pas encore de rôle (profil en cours de chargement) → on attend sans rediriger
   if (!role) return null
   // Rôle chargé mais pas accès à cette page → rediriger vers la première page accessible
-  if (!canAccess(role as Role, page)) return <Navigate to={firstPage(role as Role)} replace />
+  if (!canAccess(role as Role, page, tenantAllowedPages)) return <Navigate to={firstPage(role as Role, tenantAllowedPages)} replace />
   return <>{children}</>
 }
 
@@ -81,19 +89,28 @@ export default function App() {
                 <Route path="avantages-roi" element={<RoiPage />} />
                 <Route path="secteur-transport" element={<SecteurTransportPage />} />
                 <Route path="a-propos" element={<AboutPage />} />
-                <Route path="erp-transport-tms" element={<SeoErpTransportPage />} />
+                <Route path="erp-transport" element={<SeoErpTransportPage />} />
+                <Route path="erp-transport-tms" element={<Navigate to="/erp-transport" replace />} />
+                <Route path="erp" element={<Navigate to="/erp-transport" replace />} />
+                <Route path="logiciel-transport" element={<LogicielTransportPage />} />
+                <Route path="articles" element={<ArticlesPage />} />
+                <Route path="articles/:slug" element={<ArticlePage />} />
                 <Route path="demonstration" element={<DemoPage />} />
                 <Route path="contact" element={<ContactPage />} />
                 <Route path="politique-confidentialite" element={<PrivacyPolicyPage />} />
                 <Route path="conditions-generales-utilisation" element={<TermsOfUsePage />} />
                 <Route path="connexion-erp" element={<ERPLoginPage />} />
+                <Route path="nexora" element={<Navigate to="/" replace />} />
+                <Route path="nexora-truck" element={<Navigate to="/" replace />} />
                 <Route path="produit" element={<Navigate to="/solution" replace />} />
-                <Route path="fonctionnalites" element={<Navigate to="/solution" replace />} />
+                <Route path="fonctionnalites" element={<FeaturesPage />} />
+                <Route path="toutes-les-fonctionnalites" element={<AllFeaturesPage />} />
                 <Route path="demo" element={<Navigate to="/demonstration" replace />} />
+              <Route path="mentions-legales-public" element={<MentionsLegales />} />
               </Route>
               <Route path="/login" element={<Login />} />
-              <Route path="/mentions-legales-public" element={<MentionsLegales />} />
               <Route element={<RequireAuth />}>
+                <Route path="demo-access" element={<DemoAccess />} />
                 <Route element={<AppLayout />}>
                   <Route path="dashboard"    element={<RequireRole page="dashboard"><Dashboard /></RequireRole>} />
                   <Route path="tasks"        element={<RequireRole page="tasks"><Tasks /></RequireRole>} />
@@ -105,6 +122,7 @@ export default function App() {
                   <Route path="transports"   element={<RequireRole page="transports"><Transports /></RequireRole>} />
                   <Route path="clients"      element={<RequireRole page="clients"><Clients /></RequireRole>} />
                   <Route path="facturation"  element={<RequireRole page="facturation"><Facturation /></RequireRole>} />
+                  <Route path="comptabilite" element={<RequireRole page="comptabilite"><Comptabilite /></RequireRole>} />
                   <Route path="paie"         element={<RequireRole page="paie"><Paie /></RequireRole>} />
                   <Route path="frais"        element={<RequireRole page="frais"><Frais /></RequireRole>} />
                   <Route path="prospection"  element={<RequireRole page="prospection"><Prospection /></RequireRole>} />
@@ -120,6 +138,7 @@ export default function App() {
                   <Route path="rh"           element={<RequireRole page="rh"><Rh /></RequireRole>} />
                   <Route path="parametres"   element={<RequireRole page="parametres"><Parametres /></RequireRole>} />
                   <Route path="communication" element={<RequireRole page="communication"><Communication /></RequireRole>} />
+                  <Route path="inter-erp" element={<RequireRole page="inter-erp"><InterErp /></RequireRole>} />
                   <Route path="tchat"        element={<RequireRole page="tchat"><Tchat /></RequireRole>} />
                   <Route path="mail"         element={<RequireRole page="mail"><Mail /></RequireRole>} />
                   <Route path="coffre"       element={<RequireRole page="coffre"><Coffre /></RequireRole>} />

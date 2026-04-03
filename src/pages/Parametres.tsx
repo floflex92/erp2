@@ -4,9 +4,10 @@ import { canAccess, ROLE_LABELS, useAuth } from '@/lib/auth'
 import { DEFAULT_COMPANY_NAME, readCompanySettings, subscribeCompanySettings, updateCompanySettings } from '@/lib/companySettings'
 import { getDigitalSignature, subscribeDigitalSignatures, upsertDigitalSignature } from '@/lib/signatureStore'
 import { ErpV11Settings } from '@/components/settings/ErpV11Settings'
+import { ErpClientsSettings } from '@/components/settings/ErpClientsSettings'
 
 // ── Menu items ────────────────────────────────────────────────────────────────
-type MenuId = 'compte' | 'entreprise' | 'signature' | 'rgpd' | 'utilisateurs' | 'aide' | 'modules' | 'developpement'
+type MenuId = 'compte' | 'entreprise' | 'signature' | 'rgpd' | 'utilisateurs' | 'aide' | 'modules' | 'developpement' | 'clients-erp'
 
 type MenuItem = {
   id: MenuId
@@ -59,10 +60,10 @@ function readFileAsDataUrl(file: File) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-const DEPLOYED_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.9.0'
+const DEPLOYED_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.10.6'
 
 export default function Parametres() {
-  const { role, sessionRole, isAdmin, isDemoSession, profil, accountProfil } = useAuth()
+  const { role, sessionRole, isAdmin, isDemoSession, profil, accountProfil, tenantAllowedPages } = useAuth()
   const location = useLocation()
   const logoInputRef = useRef<HTMLInputElement | null>(null)
   const signatureInputRef = useRef<HTMLInputElement | null>(null)
@@ -79,7 +80,8 @@ export default function Parametres() {
   const assignedRole = profil?.role ?? null
   const assignedLabel = assignedRole ? ROLE_LABELS[assignedRole] : 'Non defini'
   const accountLabel = accountProfil?.role ? ROLE_LABELS[accountProfil.role] : 'Non defini'
-  const isCompanyManager = role === 'admin' || role === 'dirigeant'
+  const isCompanyManager = role === 'admin' || role === 'super_admin' || role === 'dirigeant'
+  const canManageErpClients = role === 'admin' || role === 'super_admin' || accountProfil?.role === 'admin' || accountProfil?.role === 'super_admin'
 
   useEffect(() => {
     function refreshCompany() { setCompany(readCompanySettings()) }
@@ -168,7 +170,8 @@ export default function Parametres() {
     { id: 'entreprise',   label: 'Entreprise',        icon: <IconEntreprise /> },
     { id: 'signature',    label: 'Signature',         icon: <IconSignature /> },
     { id: 'rgpd',         label: 'RGPD & Reglement',  icon: <IconRGPD /> },
-    { id: 'utilisateurs', label: 'Utilisateurs',      icon: <IconUtilisateurs />, roleRequired: 'admin' },
+    { id: 'utilisateurs', label: 'Utilisateurs',      icon: <IconUtilisateurs />, adminOnly: true },
+    { id: 'clients-erp',  label: 'Clients ERP',       icon: <IconEntreprise />, adminOnly: true },
     { id: 'aide',         label: 'Aide',              icon: <IconAide /> },
     { id: 'developpement', label: 'Developpement',     icon: <IconModules /> },
     ...(isCompanyManager ? [{ id: 'modules' as MenuId, label: 'Modules ERP', icon: <IconModules /> }] : []),
@@ -197,7 +200,9 @@ export default function Parametres() {
 
         <nav className="p-2 space-y-0.5">
           {MENU.map(item => {
-            if (item.roleRequired && !canAccess(role, item.roleRequired)) return null
+            if (item.id === 'clients-erp' && !canManageErpClients) return null
+            if (item.adminOnly && !isAdmin) return null
+            if (item.roleRequired && !canAccess(role, item.roleRequired, tenantAllowedPages)) return null
             const active = activeMenu === item.id
             return (
               <button
@@ -304,7 +309,7 @@ export default function Parametres() {
                 </Field>
               </div>
             </Card>
-            {canAccess(role, 'rh') && (
+            {canAccess(role, 'rh', tenantAllowedPages) && (
               <Card>
                 <CardLabel>Gestion RH</CardLabel>
                 <p className="mt-2 text-sm nx-subtle">Les contrats, onboarding et suivi RH sont dans l onglet dedie.</p>
@@ -400,11 +405,18 @@ export default function Parametres() {
           </div>
         )}
 
+        {activeMenu === 'clients-erp' && canManageErpClients && (
+          <div className="space-y-4">
+            <SectionHeader title="Clients ERP" subtitle="Administrer chaque client ERP, ses fonctionnalites et ses employes" />
+            <ErpClientsSettings />
+          </div>
+        )}
+
         {/* ─ Aide ──────────────────────────────────────────────────────── */}
         {activeMenu === 'aide' && (
           <div className="space-y-4">
             <SectionHeader title="Aide & tutoriels" subtitle="Guides d utilisation selon vos droits d acces" />
-            <TutorialList role={role} />
+            <TutorialList role={role} tenantAllowedPages={tenantAllowedPages} />
           </div>
         )}
 
@@ -447,18 +459,21 @@ export default function Parametres() {
                   <li>Map live (simulation GPS coherente avec statuts, lecture ponctualite et bascule points / itineraires)</li>
                   <li>Chauffeurs</li>
                   <li>Remorques</li>
-                  <li>Maintenance (index constructeur RMI, auto-remontee des periodicites, alertes km/temps et vue mecanicien par vehicule, assignation mecanicien et priorites, programmes mecaniciens avec assignation des entretiens)</li>
-                  <li>Entretiens RH (CRUD Supabase complet, evaluations, suivi professionnel, alertes planification, onglet entretiens professionnels)</li>
+                  <li>Maintenance (index constructeur RMI, auto-remontee des periodicites, alertes km/temps et vue mecanicien par vehicule, assignation mecanicien et priorites)</li>
+                  <li>Entretiens RH (CRUD Supabase complet, evaluations, suivi professionnel, alertes planification)</li>
                   <li>Navigation rapide Ctrl+K (recherche modules instantanee, navigation clavier, raccourci global)</li>
                   <li>Demandes clients (workflow de validation)</li>
                   <li>Login / Auth / roles (5 roles metier, session admin, profils)</li>
                   <li>Parametres (menus par role, entreprise, juridique, aide, modules, developpement)</li>
                   <li>Site vitrine public (accueil, solution, planning intelligent, ROI, secteur transport, a propos, demonstration, contact, SEO ERP et galerie de captures produit avec zoom)</li>
                   <li>SEO technique du site public (meta, canonicals, sitemap, robots et FAQ structuree)</li>
+                  <li>SEO contenu et structure accueil (Hn logiques, contenu metier et optimisation images hero WebP)</li>
+                  <li>Base editoriale SEO et maillage interne (pages ERP/logiciel + 8 articles metier publies, navigation Blog dans le site public)</li>
                   <li>Parcours legal public (mentions legales, politique de confidentialite, CGU, bandeau cookies et reouverture des preferences)</li>
                   <li>Qualite front release (warnings ESLint resolus, socle PWA installable avec manifest/service worker et optimisations de chargement initial)</li>
-                  <li>Durcissement securite backend (separation stricte client authentifie RLS et client systeme service role par endpoint, JWT, ownership checks, headers HTTP securises)</li>
+                  <li>Durcissement securite backend (separation stricte client authentifie RLS et client systeme service role par endpoint)</li>
                   <li>Normalisation de marque NEXORA Truck sur l ERP et le site public</li>
+                  <li>Google Analytics 4 (ID G-4QQVY1DQT2, script head index.html)</li>
                 </ul>
               </Card>
             )}
@@ -619,8 +634,8 @@ const TUTORIALS = [
   },
 ]
 
-function TutorialList({ role }: { role: ReturnType<typeof useAuth>['role'] }) {
-  const tutorials = TUTORIALS.filter(t => canAccess(role, t.page))
+function TutorialList({ role, tenantAllowedPages }: { role: ReturnType<typeof useAuth>['role']; tenantAllowedPages: string[] | null }) {
+  const tutorials = TUTORIALS.filter(t => canAccess(role, t.page, tenantAllowedPages))
   if (tutorials.length === 0) {
     return <p className="text-sm nx-subtle">Aucun tutoriel disponible pour votre acces.</p>
   }

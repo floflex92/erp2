@@ -22,6 +22,7 @@ const ROLE_ALIASES = {
 }
 const RESERVED_ADMIN_EMAIL_ROLE = {
   'admin@erp-demo.fr': 'admin',
+  'contact@nexora-truck.fr': 'admin',
   'direction@erp-demo.fr': 'dirigeant',
 }
 
@@ -160,8 +161,10 @@ export async function authorize(event, options = {}) {
   const sessionClient = createServerClient(env.url, env.anonKey, token)
   const publicClient = createServerClient(env.url, env.anonKey)
   const admin = env.serviceRoleKey ? createServerClient(env.url, env.serviceRoleKey) : null
+  // NOTE SECURITE: authClient utilise le service role pour verifier le JWT (pratique recommandee Supabase).
+  // profileClient utilise sessionClient : l'utilisateur authentifie peut lire son propre profil via RLS.
   const authClient = admin ?? sessionClient
-  const profileClient = admin ?? sessionClient
+  const profileClient = sessionClient
 
   const { data: authData, error: authError } = await authClient.auth.getUser(token)
   if (authError || !authData.user) {
@@ -207,7 +210,10 @@ export async function authorize(event, options = {}) {
     admin,
     sessionClient,
     publicClient,
-    dbClient: admin ?? sessionClient,
+    // NOTE SECURITE: dbClient = sessionClient (RLS actif, client authentifie uniquement).
+    // Pour les tables systeme erp_v11_*, utiliser explicitement systemClient.
+    dbClient: sessionClient,
+    systemClient: admin ?? sessionClient,
     user: authData.user,
     profile: { ...profile, role: effectiveRole },
   }

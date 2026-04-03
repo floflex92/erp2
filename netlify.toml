@@ -10,7 +10,7 @@
 
 [build.environment]
   NODE_VERSION = "20"
-  VITE_APP_VERSION = "1.6.1"
+  VITE_APP_VERSION = "1.10.2"
 
 [[headers]]
   for = "/*"

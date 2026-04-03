@@ -193,20 +193,21 @@ export async function handler(event) {
   const scope = (event.queryStringParameters?.scope ?? body.scope ?? 'all').toLowerCase()
 
   if (event.httpMethod === 'GET') {
-    const result = await loadScope(auth.dbClient, tenantKey, scope)
+    // NOTE SECURITE: v11-admin-config n'accede qu'a des tables systeme (erp_v11_*, config_entreprise) → systemClient.
+    const result = await loadScope(auth.systemClient, tenantKey, scope)
     if (result.error) return json(400, { error: result.error })
     return json(200, { tenant_key: tenantKey, scope, data: result.data })
   }
 
   if (event.httpMethod === 'POST' || event.httpMethod === 'PUT' || event.httpMethod === 'PATCH') {
-    const result = await upsertScope(auth.dbClient, tenantKey, scope, body)
+    const result = await upsertScope(auth.systemClient, tenantKey, scope, body)
     if (result.error) return json(400, { error: result.error })
     return json(200, { tenant_key: tenantKey, scope, ...result })
   }
 
   if (event.httpMethod === 'DELETE') {
     if (scope === 'providers' && typeof body.provider_key === 'string') {
-      const { error } = await auth.dbClient
+      const { error } = await auth.systemClient
         .from('erp_v11_providers')
         .delete()
         .eq('tenant_key', tenantKey)
@@ -216,7 +217,7 @@ export async function handler(event) {
     }
 
     if (scope === 'mappings' && typeof body.provider_key === 'string' && typeof body.object_name === 'string') {
-      const { error } = await auth.dbClient
+      const { error } = await auth.systemClient
         .from('erp_v11_api_mappings')
         .delete()
         .eq('tenant_key', tenantKey)

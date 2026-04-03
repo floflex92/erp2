@@ -23,9 +23,11 @@ function parseLimit(value, fallback) {
   return Math.max(1, Math.min(500, parsed))
 }
 
-async function resolveLivePosition(dbClient, tenantKey, vehicleId) {
+// NOTE SECURITE: systemClient pour erp_v11_vehicle_positions (table systeme GPS).
+// dbClient pour vehicules (table metier, RLS actif) via resolveFallbackPosition.
+async function resolveLivePosition(systemClient, tenantKey, vehicleId) {
   if (vehicleId) {
-    const { data, error } = await dbClient
+    const { data, error } = await systemClient
       .from('erp_v11_vehicle_positions')
       .select('*')
       .eq('tenant_key', tenantKey)
@@ -37,7 +39,7 @@ async function resolveLivePosition(dbClient, tenantKey, vehicleId) {
     if (!error && data) return data
   }
 
-  const query = dbClient
+  const query = systemClient
     .from('erp_v11_vehicle_positions')
     .select('*')
     .eq('tenant_key', tenantKey)
@@ -105,15 +107,16 @@ function toVehiclePosition(payload) {
   }
 }
 
-async function maybeEnrichWithProvider(dbClient, tenantKey, moduleConfig, vehiclePosition) {
+// NOTE SECURITE: utilise systemClient car loadProviders/logApiEvent/loadMappingRules/erp_v11_vehicle_positions sont tables systeme.
+async function maybeEnrichWithProvider(systemClient, tenantKey, moduleConfig, vehiclePosition) {
   if (moduleConfig.mode === 'internal_only') return { vehiclePosition, providerUsed: null }
 
-  const providers = await loadProviders(dbClient, tenantKey, 'tracking')
+  const providers = await loadProviders(systemClient, tenantKey, 'tracking')
   const provider = providers[0]
   if (!provider) return { vehiclePosition, providerUsed: null }
 
   const providerResponse = await callProvider(provider, '/tracking/live', { vehicle_id: vehiclePosition.vehicle_id })
-  await logApiEvent(dbClient, {
+  await logApiEvent(systemClient, {
     tenant_key: tenantKey,
     module_key: 'tracking',
     provider_key: provider.provider_key,
@@ -129,7 +132,7 @@ async function maybeEnrichWithProvider(dbClient, tenantKey, moduleConfig, vehicl
     return { vehiclePosition, providerUsed: null }
   }
 
-  const rules = await loadMappingRules(dbClient, tenantKey, provider.provider_key, 'VehiclePosition')
+  const rules = await loadMappingRules(systemClient, tenantKey, provider.provider_key, 'VehiclePosition')
   const mapped = normalizeMapping(providerResponse.data, rules, {
     vehicle_id: vehiclePosition.vehicle_id,
     timestamp: nowIso(),
@@ -156,7 +159,7 @@ async function maybeEnrichWithProvider(dbClient, tenantKey, moduleConfig, vehicl
     source: provider.provider_key,
   }
 
-  await dbClient.from('erp_v11_vehicle_positions').insert({
+  await systemClient.from('erp_v11_vehicle_positions').insert({
     tenant_key: tenantKey,
     vehicle_id: next.vehicle_id,
     provider_key: provider.provider_key,
@@ -185,7 +188,9 @@ export async function handler(event) {
   const tenantKey = readTenantKey(event, body)
   const action = (event.queryStringParameters?.action ?? body.action ?? 'live').toLowerCase()
   const vehicleId = event.queryStringParameters?.vehicle_id ?? body.vehicle_id ?? null
-  const moduleConfig = await moduleState(auth.dbClient, tenantKey, 'tracking')
+  // NOTE SECURITE: erp_v11_vehicle_positions/cache/moduleState → systemClient (tables systeme).
+  // vehicules (fallback position) → dbClient (RLS actif).
+  const moduleConfig = await moduleState(auth.systemClient, tenantKey, 'tracking')
 
   if (!moduleConfig.enabled) {
     return json(423, { error: 'Tracking module disabled for tenant.', tenant_key: tenantKey })
@@ -193,7 +198,7 @@ export async function handler(event) {
 
   if (action === 'historique' || action === 'history') {
     const limit = parseLimit(event.queryStringParameters?.limit ?? body.limit, 120)
-    let query = auth.dbClient
+    let query = auth.systemClient
       .from('erp_v11_vehicle_positions')
       .select('*')
       .eq('tenant_key', tenantKey)
@@ -214,7 +219,7 @@ export async function handler(event) {
   }
 
   const cacheKey = `tracking:live:${vehicleId ?? 'latest'}`
-  const cacheResult = await readCache(auth.dbClient, tenantKey, cacheKey)
+  const cacheResult = await readCache(auth.systemClient, tenantKey, cacheKey)
   if (cacheResult.hit) {
     return json(200, {
       tenant_key: tenantKey,
@@ -225,20 +230,20 @@ export async function handler(event) {
     })
   }
 
-  let row = await resolveLivePosition(auth.dbClient, tenantKey, vehicleId)
+  let row = await resolveLivePosition(auth.systemClient, tenantKey, vehicleId)
   if (!row) row = await resolveFallbackPosition(auth.dbClient, tenantKey, vehicleId)
   if (!row) return json(404, { error: 'No vehicle position could be resolved.' })
 
   let vehiclePosition = toVehiclePosition(row)
   let providerUsed = null
   if (moduleConfig.mode !== 'internal_only') {
-    const enriched = await maybeEnrichWithProvider(auth.dbClient, tenantKey, moduleConfig, vehiclePosition)
+    const enriched = await maybeEnrichWithProvider(auth.systemClient, tenantKey, moduleConfig, vehiclePosition)
     vehiclePosition = enriched.vehiclePosition
     providerUsed = enriched.providerUsed
   }
 
   const ttl = Math.max(10, Number(moduleConfig.refresh_interval_sec ?? 30))
-  await writeCache(auth.dbClient, tenantKey, cacheKey, 'tracking', vehiclePosition, ttl, Math.floor(ttl / 2), providerUsed ? 'provider' : 'internal')
+  await writeCache(auth.systemClient, tenantKey, cacheKey, 'tracking', vehiclePosition, ttl, Math.floor(ttl / 2), providerUsed ? 'provider' : 'internal')
 
   return json(200, {
     tenant_key: tenantKey,

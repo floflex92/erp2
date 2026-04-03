@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import NexoraTruckLogo from './NexoraTruckLogo'
 import { ROLE_LABELS, canAccess, useAuth } from '@/lib/auth'
 import { useTheme } from '@/lib/theme'
+
+const PLANNING_HEADER_COLLAPSED_KEY = 'nexora_planning_header_collapsed_v1'
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Vue d’ensemble',
@@ -25,12 +28,14 @@ const PAGE_TITLES: Record<string, string> = {
   '/tasks': 'Gestionnaire de tâches',
   '/clients': 'Clients',
   '/facturation': 'Comptabilité',
+  '/comptabilite': 'États légaux',
   '/paie': 'Paie',
   '/frais': 'Frais',
   '/prospection': 'Prospection',
   '/parametres': 'Reglages',
-  '/utilisateurs': 'Utilisateurs',
+  '/utilisateurs': 'Comptes et acces',
   '/communication': 'Communication',
+  '/inter-erp': 'Connectivite inter-ERP',
   '/mail': 'Mail',
   '/coffre': 'Coffre numerique',
   '/mentions-legales': 'Mentions legales',
@@ -63,6 +68,7 @@ export default function AppLayout() {
     profil,
     accountProfil,
     role,
+    tenantAllowedPages,
     canUseSessionPicker,
     isDemoSession,
     signOut,
@@ -74,9 +80,38 @@ export default function AppLayout() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchHighlightIndex, setSearchHighlightIndex] = useState(0)
+  const [planningHeaderCollapsed, setPlanningHeaderCollapsed] = useState(false)
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null)
   const searchRef = useRef<HTMLDivElement | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    try {
+      setPlanningHeaderCollapsed(localStorage.getItem(PLANNING_HEADER_COLLAPSED_KEY) === '1')
+    } catch {
+      setPlanningHeaderCollapsed(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    function syncPlanningHeaderState() {
+      try {
+        setPlanningHeaderCollapsed(localStorage.getItem(PLANNING_HEADER_COLLAPSED_KEY) === '1')
+      } catch {
+        setPlanningHeaderCollapsed(false)
+      }
+    }
+
+    window.addEventListener('storage', syncPlanningHeaderState)
+    window.addEventListener('nexora:planning-header-visibility-change', syncPlanningHeaderState)
+
+    return () => {
+      window.removeEventListener('storage', syncPlanningHeaderState)
+      window.removeEventListener('nexora:planning-header-visibility-change', syncPlanningHeaderState)
+    }
+  }, [])
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -90,6 +125,37 @@ export default function AppLayout() {
     window.addEventListener('mousedown', handleClickOutside)
     return () => window.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    if (!menuOpen) {
+      setMenuPosition(null)
+      return
+    }
+
+    function syncMenuPosition() {
+      const rect = menuButtonRef.current?.getBoundingClientRect()
+      if (!rect) return
+
+      const menuWidth = Math.max(rect.width, 280)
+      const left = Math.max(16, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 16))
+
+      setMenuPosition({
+        top: rect.bottom + 12,
+        left,
+        width: menuWidth,
+      })
+    }
+
+    syncMenuPosition()
+
+    window.addEventListener('resize', syncMenuPosition)
+    window.addEventListener('scroll', syncMenuPosition, true)
+
+    return () => {
+      window.removeEventListener('resize', syncMenuPosition)
+      window.removeEventListener('scroll', syncMenuPosition, true)
+    }
+  }, [menuOpen])
 
   useEffect(() => {
     setMenuOpen(false)
@@ -113,6 +179,7 @@ export default function AppLayout() {
   }, [])
 
   const pageTitle = PAGE_TITLES[location.pathname] ?? 'NEXORA truck'
+  const hidePlanningHeader = location.pathname === '/planning' && planningHeaderCollapsed
   const displayName = profil?.prenom || profil?.nom
     ? `${profil?.prenom ?? ''} ${profil?.nom ?? ''}`.trim()
     : user?.email ?? 'Equipe NEXORA truck'
@@ -120,18 +187,23 @@ export default function AppLayout() {
     ? `${accountProfil?.prenom ?? ''} ${accountProfil?.nom ?? ''}`.trim()
     : user?.email ?? 'Compte admin'
   const roleLabel = role ? ROLE_LABELS[role] ?? role : 'Utilisateur'
+  const todayLabel = new Intl.DateTimeFormat('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(new Date())
 
   const menuLinks = [
-    canAccess(role, 'parametres') ? { to: '/parametres', label: 'Reglages' } : null,
-    canAccess(role, 'parametres') ? { to: '/parametres#rgpd', label: 'Charte RGPD' } : null,
-    canAccess(role, 'parametres') ? { to: '/parametres#aide', label: 'Aide' } : null,
-    canAccess(role, 'mentions-legales') ? { to: '/mentions-legales', label: 'Mentions legales' } : null,
-    canAccess(role, 'utilisateurs') ? { to: '/utilisateurs', label: 'Utilisateurs' } : null,
+    canAccess(role, 'parametres', tenantAllowedPages) ? { to: '/parametres', label: 'Reglages' } : null,
+    canAccess(role, 'parametres', tenantAllowedPages) ? { to: '/parametres#rgpd', label: 'Charte RGPD' } : null,
+    canAccess(role, 'parametres', tenantAllowedPages) ? { to: '/parametres#aide', label: 'Aide' } : null,
+    canAccess(role, 'mentions-legales', tenantAllowedPages) ? { to: '/mentions-legales', label: 'Mentions legales' } : null,
+    canAccess(role, 'utilisateurs', tenantAllowedPages) ? { to: '/utilisateurs', label: 'Comptes et acces' } : null,
   ].filter(Boolean) as { to: string; label: string }[]
 
   const quickLinks = Object.entries(PAGE_TITLES)
     .map(([to, label]) => ({ to, label, page: to.slice(1) }))
-    .filter(link => canAccess(role, link.page))
+    .filter(link => canAccess(role, link.page, tenantAllowedPages))
 
   const normalizedQuery = searchQuery.trim().toLowerCase()
   const filteredQuickLinks = (normalizedQuery
@@ -184,28 +256,116 @@ export default function AppLayout() {
     setMenuOpen(false)
   }
 
+  const profileMenu = menuOpen && menuPosition
+    ? createPortal(
+      <div
+        className="fixed z-[260] rounded-2xl border p-2 shadow-2xl"
+        style={{
+          top: menuPosition.top,
+          left: menuPosition.left,
+          width: menuPosition.width,
+          borderColor: 'var(--border)',
+          background: 'var(--surface)',
+        }}
+      >
+        <div className="border-b px-3 py-3" style={{ borderColor: 'var(--border)' }}>
+          <p className="truncate text-sm font-semibold">{displayName}</p>
+          <p className="mt-1 truncate text-xs nx-subtle">{user?.email}</p>
+          {isDemoSession && (
+            <p className="mt-2 text-xs" style={{ color: 'var(--primary)' }}>
+              Session demo ouverte depuis {accountName}
+            </p>
+          )}
+          <div className="mt-3">
+            {canUseSessionPicker ? (
+              <button
+                type="button"
+                onClick={resetSessionView}
+                className="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium capitalize transition-colors hover:bg-[color:var(--primary-soft)]"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+                title="Changer de session"
+                aria-label="Changer de session"
+              >
+                {roleLabel}
+              </button>
+            ) : (
+              <span
+                className="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium capitalize"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+              >
+                {roleLabel}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="border-b px-3 py-2" style={{ borderColor: 'var(--border)' }}>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] nx-muted">Reglages</p>
+        </div>
+        <div className="space-y-1 p-1">
+          {menuLinks.map(link => (
+            <Link
+              key={link.to}
+              to={link.to}
+              className="block rounded-xl px-3 py-2 text-sm transition-colors hover:bg-[color:var(--primary-soft)]"
+            >
+              {link.label}
+            </Link>
+          ))}
+          {menuLinks.length === 0 && (
+            <p className="px-3 py-2 text-sm nx-subtle">Aucun acces disponible.</p>
+          )}
+          {canUseSessionPicker && (
+            <button
+              type="button"
+              onClick={resetSessionView}
+              className="block w-full rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-[color:var(--primary-soft)]"
+            >
+              {isDemoSession ? 'Changer de profil demo' : 'Changer de session'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={signOut}
+            className="block w-full rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-[color:var(--primary-soft)]"
+          >
+            Se deconnecter
+          </button>
+        </div>
+      </div>,
+      document.body,
+    )
+    : null
+
   return (
-    <div className="nx-shell lg:flex">
+    <div className="nx-shell nx-main lg:flex">
+      <a href="#app-main-content" className="nx-skip-link">
+        Aller au contenu principal
+      </a>
       <Sidebar />
 
       <div className="flex min-h-screen flex-1 flex-col px-4 pb-4 pt-4 sm:px-5 lg:px-6">
-        <header className="nx-panel relative z-[80] mb-5 overflow-visible px-4 py-4 sm:px-5">
+        {!hidePlanningHeader && (
+          <header className="nx-panel nx-glass-header nx-topbar mb-5 overflow-visible px-4 py-4 sm:px-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <div className="mb-3">
                 <NexoraTruckLogo size="sm" subtitle="Control center" />
               </div>
               <h1 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">{pageTitle}</h1>
-              {isDemoSession && (
-                <p className="mt-2 inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em]" style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--primary)' }}>
-                  Profil demo actif : {displayName}
-                </p>
-              )}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="nx-chip">{roleLabel}</span>
+                <span className="nx-chip capitalize">{todayLabel}</span>
+                {isDemoSession && (
+                  <span className="nx-chip" style={{ color: 'var(--primary)', borderColor: 'color-mix(in srgb, var(--primary) 35%, var(--border))' }}>
+                    Profil demo actif : {displayName}
+                  </span>
+                )}
+              </div>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div ref={searchRef} className="relative">
-                <label className="flex min-w-[280px] items-center gap-3 rounded-2xl border px-4 py-3 text-sm shadow-sm sm:min-w-[340px]" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+            <div className="flex w-full flex-col gap-3 xl:w-auto sm:flex-row sm:items-center sm:justify-end">
+              <div ref={searchRef} className="relative w-full sm:max-w-xl">
+                <label className="nx-input-shell flex w-full items-center gap-3 px-4 py-3 text-sm shadow-sm sm:min-w-[340px]" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                   <span className="nx-muted"><SearchIcon /></span>
                   <input
                     ref={searchInputRef}
@@ -221,7 +381,24 @@ export default function AppLayout() {
                     placeholder="Aller vers un module (Ctrl/Cmd + K)"
                     className="w-full border-0 bg-transparent p-0 text-sm outline-none placeholder:text-[color:var(--text-discreet)]"
                     aria-label="Navigation rapide"
+                    aria-expanded={searchOpen}
+                    aria-controls="quick-navigation-list"
                   />
+                  {searchQuery.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('')
+                        setSearchHighlightIndex(0)
+                        searchInputRef.current?.focus()
+                      }}
+                      className="rounded-md px-1.5 py-0.5 text-xs font-semibold transition-colors hover:bg-[color:var(--primary-soft)]"
+                      style={{ color: 'var(--text-discreet)' }}
+                      aria-label="Effacer la recherche"
+                    >
+                      Effacer
+                    </button>
+                  )}
                   <span className="hidden rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide sm:inline" style={{ borderColor: 'var(--border)', color: 'var(--text-discreet)' }}>
                     Ctrl+K
                   </span>
@@ -230,7 +407,7 @@ export default function AppLayout() {
                 {searchOpen && (
                   <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-[130] overflow-hidden rounded-2xl border shadow-2xl" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                     {hasSearchResults ? (
-                      <ul className="max-h-72 overflow-auto p-1 nx-scrollbar" role="listbox" aria-label="Resultats de navigation">
+                      <ul id="quick-navigation-list" className="max-h-72 overflow-auto p-1 nx-scrollbar" role="listbox" aria-label="Resultats de navigation">
                         {filteredQuickLinks.map((link, index) => {
                           const isActive = index === searchHighlightIndex
                           return (
@@ -258,17 +435,19 @@ export default function AppLayout() {
                         Aucun module ne correspond a cette recherche.
                       </div>
                     )}
+                    <div className="border-t px-3 py-2 text-[11px] nx-subtle" style={{ borderColor: 'var(--border)' }}>
+                      Astuce: utilisez les fleches ↑ ↓ puis Entree pour ouvrir rapidement.
+                    </div>
                   </div>
                 )}
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-end gap-2">
                 {canUseSessionPicker && (
                   <button
                     type="button"
                     onClick={resetSessionView}
-                    className="flex h-11 items-center gap-2 rounded-2xl border px-3 text-sm font-medium shadow-sm transition-colors"
-                    style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+                    className="nx-btn nx-btn-accent flex h-11 items-center gap-2 px-3 text-sm font-medium shadow-sm"
                     title="Changer de session"
                     aria-label="Changer de session"
                   >
@@ -280,7 +459,7 @@ export default function AppLayout() {
                 <button
                   type="button"
                   onClick={toggleTheme}
-                  className="flex h-11 w-11 items-center justify-center rounded-2xl border shadow-sm transition-colors"
+                  className="nx-btn flex h-11 w-11 items-center justify-center shadow-sm"
                   style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
                   aria-label="Basculer le theme"
                 >
@@ -289,7 +468,7 @@ export default function AppLayout() {
 
                 <button
                   type="button"
-                  className="relative flex h-11 w-11 items-center justify-center rounded-2xl border shadow-sm"
+                  className="nx-btn relative flex h-11 w-11 items-center justify-center shadow-sm"
                   style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
                   aria-label="Notifications"
                 >
@@ -299,9 +478,10 @@ export default function AppLayout() {
 
                 <div ref={menuRef} className="relative z-[90]">
                   <button
+                    ref={menuButtonRef}
                     type="button"
                     onClick={() => setMenuOpen(current => !current)}
-                    className="flex items-center gap-3 rounded-2xl border px-3 py-2 shadow-sm"
+                    className="nx-btn flex items-center gap-3 px-3 py-2 shadow-sm"
                     style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
                   >
                     <div
@@ -316,81 +496,15 @@ export default function AppLayout() {
                     </div>
                     <span className="nx-subtle"><ChevronIcon open={menuOpen} /></span>
                   </button>
-
-                  {menuOpen && (
-                    <div className="absolute right-0 top-[calc(100%+0.75rem)] z-[120] min-w-[260px] rounded-2xl border p-2 shadow-2xl" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-                      <div className="border-b px-3 py-3" style={{ borderColor: 'var(--border)' }}>
-                        <p className="truncate text-sm font-semibold">{displayName}</p>
-                        <p className="mt-1 truncate text-xs nx-subtle">{user?.email}</p>
-                        {isDemoSession && (
-                          <p className="mt-2 text-xs" style={{ color: 'var(--primary)' }}>
-                            Session demo ouverte depuis {accountName}
-                          </p>
-                        )}
-                        <div className="mt-3">
-                          {canUseSessionPicker ? (
-                            <button
-                              type="button"
-                              onClick={resetSessionView}
-                              className="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium capitalize transition-colors hover:bg-[color:var(--primary-soft)]"
-                              style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
-                              title="Changer de session"
-                              aria-label="Changer de session"
-                            >
-                              {roleLabel}
-                            </button>
-                          ) : (
-                            <span
-                              className="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium capitalize"
-                              style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
-                            >
-                              {roleLabel}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="border-b px-3 py-2" style={{ borderColor: 'var(--border)' }}>
-                        <p className="text-xs font-semibold uppercase tracking-[0.22em] nx-muted">Reglages</p>
-                      </div>
-                      <div className="space-y-1 p-1">
-                        {menuLinks.map(link => (
-                          <Link
-                            key={link.to}
-                            to={link.to}
-                            className="block rounded-xl px-3 py-2 text-sm transition-colors hover:bg-[color:var(--primary-soft)]"
-                          >
-                            {link.label}
-                          </Link>
-                        ))}
-                        {menuLinks.length === 0 && (
-                          <p className="px-3 py-2 text-sm nx-subtle">Aucun acces disponible.</p>
-                        )}
-                        {canUseSessionPicker && (
-                          <button
-                            type="button"
-                            onClick={resetSessionView}
-                            className="block w-full rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-[color:var(--primary-soft)]"
-                          >
-                            {isDemoSession ? 'Changer de profil demo' : 'Changer de session'}
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={signOut}
-                          className="block w-full rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-[color:var(--primary-soft)]"
-                        >
-                          Se deconnecter
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
+                {profileMenu}
               </div>
             </div>
           </div>
-        </header>
+          </header>
+        )}
 
-        <main className="relative z-0 flex-1 nx-scrollbar overflow-auto">
+        <main id="app-main-content" className="relative z-0 flex-1">
           <Outlet />
         </main>
       </div>

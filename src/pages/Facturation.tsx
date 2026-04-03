@@ -24,7 +24,7 @@ const MODE_PAIEMENT_LABELS: Record<string, string> = {
 const MOIS_FR = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
 const TAUX_TVA_OPTIONS = [0, 2.1, 5.5, 8.5, 10, 20]
 
-const inp = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-300'
+const inp = 'w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary-soft)]'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

@@ -281,7 +281,7 @@ const SEED_PIECES: Piece[] = [
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const inp = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-300 bg-white'
+const inp = 'w-full rounded-lg border bg-[color:var(--surface)] px-3 py-2 text-sm outline-none focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary-soft)]'
 const fmtEur = (n: number) => n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString('fr-FR') : '—'
 const daysDiff = (d: string) => Math.ceil((new Date(d).getTime() - Date.now()) / 86400000)

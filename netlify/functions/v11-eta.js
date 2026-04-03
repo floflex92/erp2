@@ -53,9 +53,10 @@ async function resolveMissionContext(dbClient, otId) {
   return { order, origin: points[0], destination: points[points.length - 1] }
 }
 
-async function resolveActivity(dbClient, tenantKey, conducteurId) {
+// NOTE SECURITE: utilise systemClient car erp_v11_driver_activity est une table systeme.
+async function resolveActivity(systemClient, tenantKey, conducteurId) {
   if (!conducteurId) return null
-  const { data } = await dbClient
+  const { data } = await systemClient
     .from('erp_v11_driver_activity')
     .select('*')
     .eq('tenant_key', tenantKey)
@@ -66,15 +67,16 @@ async function resolveActivity(dbClient, tenantKey, conducteurId) {
   return data ?? null
 }
 
-async function maybeEnrichWithProvider(dbClient, tenantKey, moduleConfig, payload, fallbackEta) {
+// NOTE SECURITE: utilise systemClient car loadProviders/logApiEvent/loadMappingRules sont des tables systeme.
+async function maybeEnrichWithProvider(systemClient, tenantKey, moduleConfig, payload, fallbackEta) {
   if (moduleConfig.mode === 'internal_only') return { eta: fallbackEta, providerUsed: null }
 
-  const providers = await loadProviders(dbClient, tenantKey, 'eta')
+  const providers = await loadProviders(systemClient, tenantKey, 'eta')
   const provider = providers[0]
   if (!provider) return { eta: fallbackEta, providerUsed: null }
 
   const providerResponse = await callProvider(provider, '/eta/predict', payload)
-  await logApiEvent(dbClient, {
+  await logApiEvent(systemClient, {
     tenant_key: tenantKey,
     module_key: 'eta',
     provider_key: provider.provider_key,
@@ -90,7 +92,7 @@ async function maybeEnrichWithProvider(dbClient, tenantKey, moduleConfig, payloa
     return { eta: fallbackEta, providerUsed: null }
   }
 
-  const rules = await loadMappingRules(dbClient, tenantKey, provider.provider_key, 'EtaPrediction')
+  const rules = await loadMappingRules(systemClient, tenantKey, provider.provider_key, 'EtaPrediction')
   const mapped = normalizeMapping(providerResponse.data, rules, {
     eta_at: fallbackEta.eta_at,
     duration_minutes: fallbackEta.duration_minutes,
@@ -124,14 +126,16 @@ export async function handler(event) {
 
   const query = event.queryStringParameters ?? {}
   const tenantKey = readTenantKey(event, body)
-  const moduleConfig = await moduleState(auth.dbClient, tenantKey, 'eta')
+  // NOTE SECURITE: tables systeme (moduleState, cache, eta_predictions) → systemClient.
+  // Tables metier (ordres_transport, etapes_mission via resolveMissionContext) → dbClient (RLS actif).
+  const moduleConfig = await moduleState(auth.systemClient, tenantKey, 'eta')
   if (!moduleConfig.enabled) return json(423, { error: 'ETA module disabled for tenant.' })
 
   const otId = query.ot_id ?? body.ot_id ?? null
   if (!otId) return json(400, { error: 'ot_id is required for ETA prediction.' })
 
   const cacheKey = `eta:${otId}`
-  const cacheResult = await readCache(auth.dbClient, tenantKey, cacheKey)
+  const cacheResult = await readCache(auth.systemClient, tenantKey, cacheKey)
   if (cacheResult.hit) {
     return json(200, {
       tenant_key: tenantKey,
@@ -149,7 +153,7 @@ export async function handler(event) {
 
   const routePlan = buildInternalRoutePlan(mission.origin, mission.destination, [])
   const trafficStatus = buildTrafficStatusFromRoute(routePlan)
-  const activity = await resolveActivity(auth.dbClient, tenantKey, mission.order.conducteur_id)
+  const activity = await resolveActivity(auth.systemClient, tenantKey, mission.order.conducteur_id)
   const driverStatus = buildDriverStatus(activity)
   const drivingTimeStatus = buildDrivingTimeStatus(activity)
   const etaInternal = buildEtaPrediction(routePlan, trafficStatus, drivingTimeStatus)
@@ -163,10 +167,10 @@ export async function handler(event) {
     planned_eta: mission.order.date_livraison_prevue,
   }
 
-  const enriched = await maybeEnrichWithProvider(auth.dbClient, tenantKey, moduleConfig, providerPayload, etaInternal)
+  const enriched = await maybeEnrichWithProvider(auth.systemClient, tenantKey, moduleConfig, providerPayload, etaInternal)
   const eta = enriched.eta
 
-  await auth.dbClient.from('erp_v11_eta_predictions').insert({
+  await auth.systemClient.from('erp_v11_eta_predictions').insert({
     tenant_key: tenantKey,
     ot_id: otId,
     vehicle_id: mission.order.vehicule_id,
@@ -197,7 +201,7 @@ export async function handler(event) {
   }
 
   const ttl = Math.max(20, Number(moduleConfig.refresh_interval_sec ?? 60))
-  await writeCache(auth.dbClient, tenantKey, cacheKey, 'eta', payload, ttl, Math.floor(ttl / 2), enriched.providerUsed ? 'provider' : 'internal')
+  await writeCache(auth.systemClient, tenantKey, cacheKey, 'eta', payload, ttl, Math.floor(ttl / 2), enriched.providerUsed ? 'provider' : 'internal')
 
   return json(200, {
     tenant_key: tenantKey,
