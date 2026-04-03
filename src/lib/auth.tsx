@@ -285,6 +285,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     if (!result.ok) {
+      if (result.code !== 'SCREEN_LIMIT_EXCEEDED') {
+        setScreenLimitError(null)
+        window.localStorage.removeItem(SCREEN_LIMIT_ERROR_STORAGE_KEY)
+        return { ok: true, error: null }
+      }
+
       const message = result.error ?? "Trop d'ecrans ouverts pour ce compte."
       setScreenLimitError(message)
       setAuthError(message)

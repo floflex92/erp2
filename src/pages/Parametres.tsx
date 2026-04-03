@@ -60,7 +60,7 @@ function readFileAsDataUrl(file: File) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-const DEPLOYED_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.10.6'
+const DEPLOYED_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.10.7'
 
 export default function Parametres() {
   const { role, sessionRole, isAdmin, isDemoSession, profil, accountProfil, tenantAllowedPages } = useAuth()
@@ -457,13 +457,19 @@ export default function Parametres() {
                   <li>Planning (cockpit exploitation ABC: vues jour/semaine, drag-and-drop, dock operations, urgences priorisees et retraction locale du bandeau haut)</li>
                   <li>Feuille de route</li>
                   <li>Map live (simulation GPS coherente avec statuts, lecture ponctualite et bascule points / itineraires)</li>
+                  <li>Inter-ERP (connectivite, discussion et espace dedie)</li>
                   <li>Chauffeurs</li>
                   <li>Remorques</li>
                   <li>Maintenance (index constructeur RMI, auto-remontee des periodicites, alertes km/temps et vue mecanicien par vehicule, assignation mecanicien et priorites)</li>
                   <li>Entretiens RH (CRUD Supabase complet, evaluations, suivi professionnel, alertes planification)</li>
+                  <li>Comptabilite lot A (socle SQL, journaux, ecritures, TVA, FEC et page dediee)</li>
+                  <li>Acces demo et onboarding public (formulaire, demandes d acces et comptes de test)</li>
+                  <li>Limitation du nombre d ecrans par utilisateur avec blocage de connexion au dela du quota</li>
+                  <li>Clients ERP multi-tenant (creation client ERP, ecrans max, pages autorisees, rattachement des employes)</li>
+                  <li>Connexion durcie face aux pannes du controle d ecrans (blocage reserve aux vrais depassements de quota)</li>
                   <li>Navigation rapide Ctrl+K (recherche modules instantanee, navigation clavier, raccourci global)</li>
                   <li>Demandes clients (workflow de validation)</li>
-                  <li>Login / Auth / roles (5 roles metier, session admin, profils)</li>
+                  <li>Login / Auth / roles (roles etendus, session admin, profils, restrictions de pages par client ERP)</li>
                   <li>Parametres (menus par role, entreprise, juridique, aide, modules, developpement)</li>
                   <li>Site vitrine public (accueil, solution, planning intelligent, ROI, secteur transport, a propos, demonstration, contact, SEO ERP et galerie de captures produit avec zoom)</li>
                   <li>SEO technique du site public (meta, canonicals, sitemap, robots et FAQ structuree)</li>
@@ -492,6 +498,7 @@ export default function Parametres() {
                     <li>Amendes</li>
                     <li>Espace client (portail tokenise v1.1 en place)</li>
                     <li>Espace affreteur</li>
+                    <li>Planning affreteur dedie (socle pose, experience specifique a finir)</li>
                     <li>Tchat / Communication (canal exploitation/conducteur v1.1)</li>
                     <li>Coffre numerique</li>
                     <li>Utilisateurs (administration basique, workflow complet a finaliser)</li>
@@ -525,6 +532,7 @@ export default function Parametres() {
                     <li>Planning affreteur dedie dans un onglet specifique</li>
                     <li>Groupage multi-courses figeable et deliable en gardant les courses independantes</li>
                     <li>Workflow commercial complet pour demandes demo, prospection et qualification compte</li>
+                    <li>Portail client ERP multi-tenant complet avec parametrage fin par client</li>
                   </ul>
                 </Card>
                 <Card>
