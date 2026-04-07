@@ -20,7 +20,7 @@ const outcomes = [
 
 export default function PlanningIntelligentPage() {
   useSiteMeta({
-    title: 'Planning Intelligent Transport — NEXORA Truck',
+    title: 'Planning transport intelligent : affectations, groupages et pilotage en temps réel',
     description: 'Découvrez le planning intelligent NEXORA Truck : affectations dynamiques, groupage maîtrisé et pilotage en temps réel des opérations transport.',
     canonicalPath: '/planning-intelligent',
     keywords: 'planning transport intelligent, optimisation tournées transport, planning chauffeurs camions, groupage transport routier',

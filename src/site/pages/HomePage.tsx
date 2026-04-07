@@ -12,6 +12,7 @@ type FeatureTab = {
   title: string
   description: string
   benefit: string
+  link?: string
 }
 
 const FEATURE_TABS: FeatureTab[] = [
@@ -19,31 +20,34 @@ const FEATURE_TABS: FeatureTab[] = [
     key: 'planning',
     title: 'Planning intelligent',
     description: 'Affectez véhicules et conducteurs en glisser-déposer, absorbez les urgences et gardez une vue claire sur la charge.',
-    benefit: '-31 % de temps passé sur le planning.',
+    benefit: '-31 % de temps passé sur le planning.',
+    link: '/planning-intelligent',
   },
   {
     key: 'flotte',
     title: 'Flotte en temps réel',
     description: 'Disponibilités, maintenance et alertes CT/VGP dans un seul cockpit pour limiter les immobilisations non planifiées.',
-    benefit: '98,7 % de disponibilité opérationnelle.',
+    benefit: '98,7 % de disponibilité opérationnelle.',
+    link: '/logiciel-gestion-flotte-camion',
   },
   {
     key: 'conducteurs',
     title: 'Gestion conducteurs',
     description: 'Documents, historique missions et conformité restent reliés au terrain pour agir avant le blocage.',
-    benefit: '-42 % de non-conformités documentaires.',
+    benefit: '-42 % de non-conformités documentaires.',
   },
   {
     key: 'facturation',
     title: 'Facturation sans friction',
     description: 'Générez vos factures depuis les ordres de transport, relances incluses et exports comptables prêts.',
-    benefit: '-60 % de temps sur la facturation.',
+    benefit: '-60 % de temps sur la facturation.',
   },
   {
     key: 'api',
     title: 'API et automatisation',
     description: 'Connectez Webfleet, tachygraphe et flux fret pour supprimer les tâches répétitives à faible valeur.',
-    benefit: '+14 % de marge opérationnelle moyenne.',
+    benefit: '+14 % de marge opérationnelle moyenne.',
+    link: '/telematique-transport',
   },
 ]
 
@@ -354,8 +358,14 @@ export default function HomePage() {
       name: 'NEXORA Truck',
       alternateName: ['NEXORA', 'NEXORA Truck ERP transport'],
       url: 'https://nexora-truck.fr',
+      logo: 'https://nexora-truck.fr/site/photos/logo-nexora-truck.png',
       description: 'ERP transport routier pour planning, flotte, conducteurs, finance et automatisation.',
       areaServed: ['FR', 'BE', 'CH', 'CA'],
+      sameAs: [
+        'https://www.linkedin.com/company/nexora-truck',
+        'https://twitter.com/nexoratruck',
+        'https://www.facebook.com/nexoratruck',
+      ],
     })
     document.head.appendChild(script)
     return () => { script.remove() }
@@ -554,6 +564,15 @@ export default function HomePage() {
             <h3 className="text-2xl font-semibold" style={{ color: '#000000' }}>{currentTab.title}</h3>
             <p className="mt-4 text-lg leading-8" style={{ color: '#6E6E73' }}>{currentTab.description}</p>
             <p className="mt-5 text-base font-semibold" style={{ color: '#2563EB' }}>{currentTab.benefit}</p>
+            {currentTab.link && (
+              <Link
+                to={currentTab.link}
+                className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-sky-700 transition-colors hover:text-sky-900"
+              >
+                En savoir plus
+                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 5l5 5-5 5"/></svg>
+              </Link>
+            )}
           </div>
           <div>
             <TabIllustration key={activeTab} tab={activeTab} />

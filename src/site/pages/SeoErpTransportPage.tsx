@@ -15,6 +15,30 @@ export default function SeoErpTransportPage() {
       'ERP transport, ERP transport routier, logiciel transport routier, TMS transport, exploitation transport, gestion flotte, planning transport, logiciel affrètement, portail client transport',
     ogType: 'article',
     author: 'NEXORA Truck',
+    breadcrumbs: [{ name: 'ERP transport', path: '/erp-transport' }],
+    faqItems: [
+      {
+        question: "Qu’est-ce qu’un ERP transport ?",
+        answer: "Un ERP transport est un logiciel de gestion intégré qui centralise toutes les fonctions d’une entreprise de transport routier : planification des missions, ordres de transport, suivi flotte, gestion des conducteurs, télématique, facturation et reporting dans un seul outil.",
+      },
+      {
+        question: "Quelle différence entre un ERP transport et un TMS ?",
+        answer: "Un TMS (Transport Management System) gère uniquement les ordres de transport et le dispatch. Un ERP transport intègre en plus la gestion flotte, les conducteurs, la télématique, la comptabilité et la facturation. L’ERP est un sur-ensemble du TMS.",
+      },
+      {
+        question: "Combien coûte un ERP transport ?",
+        answer: "Le coût d’un ERP transport varie selon la taille de la flotte et les modules activés. NEXORA Truck propose un modèle SaaS transparent, adapté aux transporteurs de 5 à plusieurs centaines de véhicules. Demandez une démonstration pour obtenir un tarif personnalisé.",
+      },
+      {
+        question: "Combien de temps dure l’installation d’un ERP transport ?",
+        answer: "Avec NEXORA Truck, la mise en production se compte en jours. La configuration initiale se fait en ligne ; les données flotte et conducteurs sont importées depuis vos fichiers existants.",
+      },
+      {
+        question: "Un ERP transport fonctionne-t-il avec la télématique existante ?",
+        answer: "Oui. NEXORA Truck s’intègre avec Webfleet, FleetBoard, Samsara et d’autres solutions pour remonter automatiquement positions GPS, statuts de conduite et données tachygraphe.",
+      },
+    ],
+  ogImage: 'https://nexora-truck.fr/site/screenshots/accueil-proof.png',
   })
 
   useEffect(() => {

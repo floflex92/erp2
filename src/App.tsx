@@ -55,6 +55,8 @@ const TelématiqueTransportPage = lazy(() => import('@/site/pages/TelématiqueTr
 const ChronotachygraphePage = lazy(() => import('@/site/pages/ChronotachygraphePage'))
 const IaTransportPage = lazy(() => import('@/site/pages/IaTransportPage'))
 const LogicielTransportPage = lazy(() => import('@/site/pages/LogicielTransportPage'))
+const FacturationTransportPage = lazy(() => import('@/site/pages/FacturationTransportPage'))
+const AffretementTransportPage = lazy(() => import('@/site/pages/AffretementTransportPage'))
 const ArticlesPage = lazy(() => import('@/site/pages/ArticlesPage'))
 const ArticlePage = lazy(() => import('@/site/pages/articles/ArticlePage'))
 const DemoPage = lazy(() => import('@/site/pages/DemoPage'))
@@ -122,7 +124,10 @@ export default function App() {
                 <Route path="gestion-flotte" element={<Navigate to="/logiciel-gestion-flotte-camion" replace />} />
                 <Route path="telematique-transport" element={<TelématiqueTransportPage />} />
                 <Route path="chronotachygraphe" element={<ChronotachygraphePage />} />
-                <Route path="ia-transport" element={<IaTransportPage />} />              <Route path="mentions-legales-public" element={<MentionsLegales />} />
+                <Route path="ia-transport" element={<IaTransportPage />} />
+                <Route path="facturation-transport" element={<FacturationTransportPage />} />
+                <Route path="affretement-transport" element={<AffretementTransportPage />} />
+              <Route path="mentions-legales-public" element={<MentionsLegales />} />
               </Route>
               <Route path="/login" element={<Login />} />
               <Route element={<RequireAuth />}>

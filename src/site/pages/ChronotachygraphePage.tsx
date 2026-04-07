@@ -47,6 +47,26 @@ export default function ChronotachygraphePage() {
       'chronotachygraphe, gestion tachygraphe, temps de conduite transport, conformité conducteur, carte tachygraphique numérique, logiciel gestion tachygraphe, ERP transport routier',
     ogType: 'article',
     author: 'NEXORA Truck',
+    breadcrumbs: [{ name: 'Chronotachygraphe', path: '/chronotachygraphe' }],
+    faqItems: [
+      {
+        question: 'Qu’est-ce que le chronotachygraphe numérique ?',
+        answer: 'Le chronotachygraphe numérique est un appareil de contrôle obligatoire sur les poids lourds > 3,5 t. Il enregistre les temps de conduite, coupures et repos conformément au règlement CE 561/2006.',
+      },
+      {
+        question: 'Qu’est-ce que le chronotachygraphe intelligent (G2) ?',
+        answer: 'Le chronotachygraphe intelligent G2 (obligatoire dès août 2023 sur les nouveaux véhicules) transmet les données en temps réel par satellite et facilite les contrôles mobiles.',
+      },
+      {
+        question: 'Comment analyser les données tachygraphe avec un ERP ?',
+        answer: 'NEXORA Truck lit les fichiers DDD ou reçoit les données via Webfleet / FleetBoard. Les infractions potentielles et les alertes réglementaires sont affichées dans le tableau de bord sans logiciel supplémentaire.',
+      },
+      {
+        question: 'Quelles amendes pour non-conformité tachygraphe ?',
+        answer: 'Les infractions entraînent des amendes de 750 € à plus de 15 000 € selon la gravité. Un suivi proactif via ERP réduit considérablement ce risque.',
+      },
+    ],
+  ogImage: 'https://nexora-truck.fr/site/screenshots/chronotachygraphe.png',
   })
 
   return (

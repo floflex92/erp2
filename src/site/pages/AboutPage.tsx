@@ -26,39 +26,41 @@ export default function AboutPage() {
     description: 'Découvrez l\'histoire, la vision et l\'expertise NEXORA Truck pour moderniser durablement le transport routier dans l\'espace francophone.',
     canonicalPath: '/a-propos',
     keywords: 'à propos Nexora Truck, startup transport Marseille, vision ERP transport, modernisation transport routier',
+  ogImage: 'https://nexora-truck.fr/site/screenshots/camions.png',
   })
 
   return (
     <>
       {/* ── HERO ── */}
       <section
-        className="relative w-full overflow-hidden text-center"
-        style={{ ...sectionPx, ...sectionPy }}
+        className="flex w-full flex-col items-center justify-center text-center"
+        style={{ background: '#0f172a', ...sectionPx, ...sectionPy }}
       >
-        <img
-          src={sitePhotos.aboutHero.src(1600)}
-          srcSet={sitePhotos.aboutHero.srcSet([768, 1200, 1600])}
-          sizes="100vw"
-          alt="Camions de transport sur une route ouverte avec paysage dégagé" aria-hidden="true"
-          className="absolute inset-0 h-full w-full object-cover"
-          style={{ opacity: 0.5 }}
-        />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 100%)' }} />
-        <div className="relative">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#6E6E73' }}>
+
+          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#94a3b8' }}>
             À propos
           </p>
           <h1
             className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]"
-            style={{ fontSize: 'clamp(2.2rem, 5vw, 4rem)', color: '#000000', letterSpacing: '-0.025em' }}
+            style={{ fontSize: 'clamp(2.2rem, 5vw, 4rem)', color: '#ffffff', letterSpacing: '-0.025em' }}
           >
             Construire depuis Marseille la référence technologique du transport francophone
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl" style={{ color: '#6E6E73', fontSize: '20px', lineHeight: 1.6 }}>
+          <p className="mx-auto mt-6 max-w-2xl" style={{ color: '#94a3b8', fontSize: '20px', lineHeight: 1.6 }}>
             NEXORA Truck naît d'une conviction forte : les transporteurs méritent un système d'exploitation moderne, unifié et orienté résultat.
           </p>
-        </div>
       </section>
+      {/* ── HERO IMAGE ── */}
+      <div className="w-full overflow-hidden" style={{ maxHeight: '380px' }}>
+        <img
+          src={sitePhotos.aboutHero.src(1600)}
+          srcSet={sitePhotos.aboutHero.srcSet([768, 1200, 1600])}
+          sizes="100vw"
+          alt="Camions de transport sur une route ouverte avec paysage dégagé"
+          className="h-[380px] w-full object-cover"
+          loading="eager"
+        />
+      </div>
 
       {/* ── IMAGE SECTION ── */}
       <section className="w-full" style={{ background: '#F5F5F7', ...sectionPy }}>

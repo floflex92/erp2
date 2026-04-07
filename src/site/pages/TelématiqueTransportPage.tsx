@@ -47,6 +47,26 @@ export default function TelématiqueTransportPage() {
       'télématique transport, télématique embarquée, géolocalisation transport, suivi GPS poids lourd, boitier télématique transport, ERP transport routier',
     ogType: 'article',
     author: 'NEXORA Truck',
+    breadcrumbs: [{ name: 'Télématique transport', path: '/telematique-transport' }],
+    faqItems: [
+      {
+        question: 'Qu’est-ce que la télématique transport ?',
+        answer: 'La télématique transport désigne les systèmes embarqués sur poids lourds transmettant en temps réel géolocalisation, statuts de conduite, kilométrage et alertes comportement à l’ERP de l’entreprise.',
+      },
+      {
+        question: 'Comment la télématique est-elle intégrée dans un ERP transport ?',
+        answer: 'NEXORA Truck se connecte aux principales boîtes noires (Webfleet, FleetBoard, Samsara) via API. Positions GPS, statuts et kilométrage remontent automatiquement dans le TMS sans saisie manuelle.',
+      },
+      {
+        question: 'La télématique transport est-elle obligatoire ?',
+        answer: 'Le chronotachygraphe numérique est obligatoire pour les PL > 3,5 t en transport professionnel. La télématique GPS n’est pas légalement obligatoire mais devient indispensable dès quelques véhicules pour piloter une exploitation sérieuse.',
+      },
+      {
+        question: 'Quelle différence entre télématique et chronotachygraphe ?',
+        answer: 'Le chronotachygraphe enregistre les temps de conduite pour la conformité réglementaire. La télématique couvre un périmètre plus large : GPS, alertes conduite, kilométrage, surveillance de zone. Les deux sont complémentaires dans NEXORA Truck.',
+      },
+    ],
+  ogImage: 'https://nexora-truck.fr/site/screenshots/map-live-vehicles.png',
   })
 
   return (

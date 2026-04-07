@@ -47,6 +47,26 @@ export default function LogicielGestionFlotteCamionPage() {
       'logiciel gestion flotte camion, gestion flotte transport, logiciel flotte poids lourds, fleet management transport, planning flotte transport, ERP transport routier, gestion parc poids lourds',
     ogType: 'article',
     author: 'NEXORA Truck',
+    breadcrumbs: [{ name: 'Gestion flotte camion', path: '/logiciel-gestion-flotte-camion' }],
+    faqItems: [
+      {
+        question: "Qu’est-ce qu’un logiciel de gestion de flotte camion ?",
+        answer: "Un logiciel de gestion de flotte camion centralise le suivi des véhicules poids lourds : disponibilités, localisation GPS, alertes de maintenance (CT, VGP, révisions), documents réglementaires et intégration avec le planning transport pour optimiser les affectations.",
+      },
+      {
+        question: "Comment éviter les immobilisations non planifiées dans un parc poids lourd ?",
+        answer: "En connectant la maintenance préventive au planning : NEXORA Truck alerte l’exploitant avant qu’un CT ou une révision devienne bloquant, et déconseille automatiquement l’affectation d’un véhicule non conforme.",
+      },
+      {
+        question: "Un logiciel flotte camion peut-il fonctionner sans GPS ?",
+        answer: "Oui. Les disponibilités véhicules, les statuts de maintenance et les documents sont gérés manuellement ou via l’application conducteur. L’intégration GPS enrichit le suivi mais n’est pas obligatoire.",
+      },
+      {
+        question: "Quelle différence entre un logiciel flotte et un TMS transport ?",
+        answer: "Le logiciel flotte gère le parc véhicules (maintenance, disponibilités, conformité). Le TMS gère les ordres de transport et le dispatch. NEXORA Truck intègre les deux : la disponibilité réelle du camion est visible au moment de l’affectation de la mission.",
+      },
+    ],
+  ogImage: 'https://nexora-truck.fr/site/screenshots/map-live-vehicles.png',
   })
 
   return (

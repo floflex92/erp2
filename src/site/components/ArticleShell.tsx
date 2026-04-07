@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import useSiteMeta from '@/site/hooks/useSiteMeta'
+import { articleIndex } from '@/site/content/articleIndex'
 
 type RelatedLink = {
   to: string
@@ -43,6 +44,7 @@ export default function ArticleShell({
   })
 
   useEffect(() => {
+    const entry = articleIndex.find(a => canonicalPath.endsWith(a.slug))
     const articleJsonLd = {
       '@context': 'https://schema.org',
       '@type': 'Article',
@@ -52,6 +54,8 @@ export default function ArticleShell({
       publisher: { '@type': 'Organization', name: 'NEXORA Truck' },
       mainEntityOfPage: `https://nexora-truck.fr${canonicalPath}`,
       inLanguage: 'fr-FR',
+      ...(entry?.datePublished ? { datePublished: entry.datePublished } : {}),
+      ...(entry?.dateModified ? { dateModified: entry.dateModified } : {}),
     }
     const script = document.createElement('script')
     script.type = 'application/ld+json'

@@ -20,13 +20,16 @@
     <meta name="twitter:title" content="ERP transport | NEXORA Truck" />
     <meta name="twitter:description" content="NEXORA Truck, ERP transport et logiciel TMS pour pilotage exploitation, planning, flotte et facturation." />
     <meta name="twitter:image" content="https://nexora-truck.fr/site/screenshots/planning-dark.png" />
-    <link rel="canonical" href="https://nexora-truck.fr/" />
     <meta name="theme-color" content="#0f172a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="NEXORA Truck" />
-    <!-- Préchargement hero LCP -->
-    <link rel="preload" as="image" href="/site/screenshots/planning-dark.png" fetchpriority="high" />
+    <!-- Préchargement hero LCP (image principale homepage) -->
+    <link rel="preload" as="image"
+      href="/site/photos/main-page-1400.jpg"
+      imagesrcset="/site/photos/main-page-768.jpg 768w, /site/photos/main-page-1400.jpg 1400w"
+      imagesizes="100vw"
+      fetchpriority="high" />
     <!-- DNS prefetch Supabase -->
     <link rel="dns-prefetch" href="https://rnbbxmdughpxovcnhrpz.supabase.co" />
     <link rel="preconnect" href="https://rnbbxmdughpxovcnhrpz.supabase.co" crossorigin="anonymous" />
@@ -68,7 +71,7 @@
               "@type": "Brand",
               "name": "NEXORA"
             },
-            "url": "https://nexora-truck.fr/erp-transport-tms"
+            "url": "https://nexora-truck.fr/erp-transport"
           }
         ]
       }

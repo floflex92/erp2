@@ -1,5 +1,15 @@
 import { useEffect } from 'react'
 
+export type BreadcrumbItem = {
+  name: string
+  path: string
+}
+
+export type FaqItem = {
+  question: string
+  answer: string
+}
+
 type SiteMetaInput = {
   title: string
   description: string
@@ -10,6 +20,8 @@ type SiteMetaInput = {
   ogImage?: string
   twitterImage?: string
   author?: string
+  breadcrumbs?: BreadcrumbItem[]
+  faqItems?: FaqItem[]
 }
 
 function setMetaByName(name: string, value: string) {
@@ -52,6 +64,8 @@ export default function useSiteMeta({
   ogImage = 'https://nexora-truck.fr/site/screenshots/planning-dark.png',
   twitterImage,
   author,
+  breadcrumbs,
+  faqItems,
 }: SiteMetaInput) {
   useEffect(() => {
     document.title = `${title} | NEXORA Truck`
@@ -84,5 +98,58 @@ export default function useSiteMeta({
     setMetaByName('twitter:description', description)
     setMetaByName('twitter:url', canonicalUrl)
     setMetaByName('twitter:image', twitterImage ?? ogImage)
-  }, [author, canonicalPath, description, keywords, ogImage, ogType, robots, title, twitterImage])
+  }, [author, breadcrumbs, canonicalPath, description, faqItems, keywords, ogImage, ogType, robots, title, twitterImage])
+
+  // BreadcrumbList LD+JSON
+  useEffect(() => {
+    if (!breadcrumbs?.length) return
+    const BASE = 'https://nexora-truck.fr'
+    const jsonLd = {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Accueil', item: BASE + '/' },
+        ...breadcrumbs.map((b, i) => ({
+          '@type': 'ListItem',
+          position: i + 2,
+          name: b.name,
+          item: BASE + b.path,
+        })),
+      ],
+    }
+    const id = `breadcrumb-jsonld-${canonicalPath ?? 'page'}`
+    let script = document.getElementById(id) as HTMLScriptElement | null
+    if (!script) {
+      script = document.createElement('script')
+      script.type = 'application/ld+json'
+      script.id = id
+      document.head.appendChild(script)
+    }
+    script.text = JSON.stringify(jsonLd)
+    return () => { document.getElementById(id)?.remove() }
+  }, [breadcrumbs, canonicalPath])
+
+  // FAQPage LD+JSON
+  useEffect(() => {
+    if (!faqItems?.length) return
+    const jsonLd = {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: faqItems.map(f => ({
+        '@type': 'Question',
+        name: f.question,
+        acceptedAnswer: { '@type': 'Answer', text: f.answer },
+      })),
+    }
+    const id = `faq-jsonld-${canonicalPath ?? 'page'}`
+    let script = document.getElementById(id) as HTMLScriptElement | null
+    if (!script) {
+      script = document.createElement('script')
+      script.type = 'application/ld+json'
+      script.id = id
+      document.head.appendChild(script)
+    }
+    script.text = JSON.stringify(jsonLd)
+    return () => { document.getElementById(id)?.remove() }
+  }, [canonicalPath, faqItems])
 }

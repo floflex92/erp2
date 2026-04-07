@@ -7,6 +7,11 @@ import RentabiliteTransportArticlePage from '@/site/pages/articles/RentabiliteTr
 import KilometresAVideArticlePage from '@/site/pages/articles/KilometresAVideArticlePage'
 import OtifTransportArticlePage from '@/site/pages/articles/OtifTransportArticlePage'
 import TransportSystemeCoherentArticlePage from '@/site/pages/articles/TransportSystemeCoherentArticlePage'
+import FacturationTransportArticlePage from '@/site/pages/articles/FacturationTransportArticlePage'
+import AffretementTransportArticlePage from '@/site/pages/articles/AffretementTransportArticlePage'
+import CoutsTransportRoutierArticlePage from '@/site/pages/articles/CoutsTransportRoutierArticlePage'
+import ConformiteTransportArticlePage from '@/site/pages/articles/ConformiteTransportArticlePage'
+import DigitalisationTransportArticlePage from '@/site/pages/articles/DigitalisationTransportArticlePage'
 
 const articleComponentBySlug = {
   'comment-organiser-un-planning-transport-efficacement': PlanningTransportArticlePage,
@@ -17,6 +22,11 @@ const articleComponentBySlug = {
   'reduire-les-kilometres-a-vide-dans-le-transport-routier': KilometresAVideArticlePage,
   'otif-transport-comment-fiabiliser-la-livraison-client': OtifTransportArticlePage,
   'transport-routier-systeme-coherent': TransportSystemeCoherentArticlePage,
+  'facturation-transport-automatiser': FacturationTransportArticlePage,
+  'affretement-transport-sous-traitance': AffretementTransportArticlePage,
+  'couts-transport-routier-reduire-optimiser': CoutsTransportRoutierArticlePage,
+  'conformite-transport-routier-reglementation': ConformiteTransportArticlePage,
+  'digitalisation-transport-routier-2026': DigitalisationTransportArticlePage,
 } as const
 
 type ArticleSlug = keyof typeof articleComponentBySlug

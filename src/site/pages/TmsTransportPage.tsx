@@ -47,6 +47,25 @@ export default function TmsTransportPage() {
       'TMS transport, logiciel TMS, TMS transport routier, gestion transport routier, suivi ordres de transport, ERP transport routier, automatisation transport, logiciel exploitation transport',
     ogType: 'article',
     author: 'NEXORA Truck',
+    breadcrumbs: [{ name: 'TMS transport', path: '/tms-transport' }],
+    faqItems: [
+      {
+        question: "Qu’est-ce qu’un TMS transport ?",
+        answer: "Un TMS (Transport Management System) est un logiciel dédié à la gestion des ordres de transport : dispatch des missions, suivi de l’exécution en temps réel, communication conducteurs et génération de la facturation. Il est souvent intégré dans un ERP transport.",
+      },
+      {
+        question: "Quelle différence entre un TMS et un ERP transport ?",
+        answer: "Le TMS gère le cœur opérationnel des missions transport. L’ERP transport englobe en plus la gestion flotte, les conducteurs, la paie, la comptabilité et la télématique. NEXORA Truck intègre TMS et ERP dans un seul outil.",
+      },
+      {
+        question: "Comment le TMS réduit-il les ressaisies dans le transport ?",
+        answer: "En reliant directement l’ordre de transport à la facturation, le TMS NEXORA Truck supprime les saisies manuelles entre dispatch, clôture de mission et émission de facture. Les statuts conducteurs remontent automatiquement depuis l’application mobile.",
+      },
+      {
+        question: "Un TMS transport fonctionne-t-il sans télématique ?",
+        answer: "Oui. Le TMS NEXORA Truck peut fonctionner avec ou sans télématique connectée. Avec un boîtier GPS ou une application conducteur, les statuts remontent automatiquement. Sans matériel, les mises à jour sont saisies manuellement.",
+      },
+    ],
   })
 
   return (

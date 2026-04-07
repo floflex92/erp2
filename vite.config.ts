@@ -21,6 +21,7 @@ export default defineConfig({
           if (id.includes('node_modules/leaflet/')) return 'vendor-leaflet'
           if (id.includes('node_modules/jspdf/')) return 'vendor-pdf'
           if (id.includes('node_modules/@anthropic-ai/')) return 'vendor-ai'
+          if (id.includes('/src/site/')) return 'site-public'
           return undefined
         },
       },

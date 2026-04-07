@@ -21,28 +21,37 @@ const regions = [
 
 export default function SecteurTransportPage() {
   useSiteMeta({
-    title: 'Transport routier francophone : marchés, défis et modernisation',
+    title: 'Secteur transport routier : défis, enjeux et transformation digitale',
     description: 'Analyse du marché transport francophone, défis du secteur routier et vision NEXORA Truck pour moderniser le pilotage des entreprises.',
     canonicalPath: '/secteur-transport',
     keywords: 'marché transport francophone, transformation digitale transport routier, enjeux transporteurs, innovation logistique',
+  ogImage: 'https://nexora-truck.fr/site/screenshots/camions.png',
   })
 
   return (
     <>
       {/* ── HERO ── */}
-      <section className="relative flex min-h-[75vh] w-full flex-col items-center justify-center overflow-hidden text-center" style={{ ...sectionPx, ...sectionPy }}>
-        <img src={sitePhotos.truckRoadWide.src(1600)} alt="Poids lourds sur un corridor de transport sans logos visibles" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" style={{ opacity: 0.5 }} />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 100%)' }} />
-        <div className="relative">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#6E6E73' }}>Secteur transport</p>
-          <h1 className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]" style={{ fontSize: 'clamp(2.2rem, 5vw, 4rem)', color: '#000000', letterSpacing: '-0.025em' }}>
+      <section className="flex w-full flex-col items-center justify-center text-center" style={{ background: '#0f172a', ...sectionPx, ...sectionPy }}>
+
+          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#94a3b8' }}>Secteur transport</p>
+          <h1 className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]" style={{ fontSize: 'clamp(2.2rem, 5vw, 4rem)', color: '#ffffff', letterSpacing: '-0.025em' }}>
             Une industrie en mutation rapide qui cherche enfin des outils à la hauteur
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl" style={{ color: '#6E6E73', fontSize: '20px', lineHeight: 1.6 }}>
+          <p className="mx-auto mt-6 max-w-2xl" style={{ color: '#94a3b8', fontSize: '20px', lineHeight: 1.6 }}>
             Le transport routier francophone fait face à une équation complexe : plus d'exigences, plus de pression et des outils encore trop éclatés.
           </p>
-        </div>
       </section>
+      {/* ── HERO IMAGE ── */}
+      <div className="w-full overflow-hidden" style={{ maxHeight: '380px' }}>
+        <img
+          src={sitePhotos.truckRoadWide.src(1600)}
+          srcSet={sitePhotos.truckRoadWide.srcSet([768, 1200, 1600])}
+          sizes="100vw"
+          alt="Poids lourds sur un corridor de transport sans logos visibles"
+          className="h-[380px] w-full object-cover"
+          loading="eager"
+        />
+      </div>
 
       {/* ── DÉFIS ── */}
       <section className="w-full" style={{ background: '#F5F5F7', ...sectionPx, ...sectionPy }}>

@@ -15,6 +15,26 @@ export default function LogicielTransportPage() {
       'logiciel transport routier, logiciel transport, ERP transport, TMS transport, exploitation transport, gestion flotte, choisir logiciel transport, logiciel exploitation transport',
     ogType: 'article',
     author: 'NEXORA Truck',
+    breadcrumbs: [{ name: 'Logiciel transport', path: '/logiciel-transport' }],
+    faqItems: [
+      {
+        question: "Quels sont les critères pour choisir un logiciel transport routier ?",
+        answer: "Les critères essentiels sont : la couverture fonctionnelle (planning, TMS, flotte, facturation), la facilité de prise en main par les exploitants, la capacité d’intégration avec la télématique existante, la réactivité du support et le rapport qualité/prix selon la taille de votre flotte.",
+      },
+      {
+        question: "Un logiciel transport routier peut-il remplacer Excel ?",
+        answer: "Oui. Un logiciel transport bien conçu centralise l’ensemble des opérations dans un seul outil, éliminant les tableaux Excel, les ressaisies et les erreurs de synchronisation entre fichiers.",
+      },
+      {
+        question: "Quelle différence entre un logiciel transport et un TMS ?",
+        answer: "Le terme « logiciel transport » désigne souvent un ERP transport complet couvrant toutes les fonctions de l’entreprise. Un TMS est spécifiquement dédié à la gestion des missions et du dispatch. NEXORA Truck combine les deux dans une seule plateforme.",
+      },
+      {
+        question: "Faut-il former ses équipes pour utiliser un logiciel transport ?",
+        answer: "La formation est souvent surestimée pour les solutions modernes. NEXORA Truck est conçu pour des exploitants, pas des informaticiens. La plupart des équipes sont autonomes en quelques jours.",
+      },
+    ],
+  ogImage: 'https://nexora-truck.fr/site/screenshots/camions.png',
   })
 
   useEffect(() => {

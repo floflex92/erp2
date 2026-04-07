@@ -62,6 +62,26 @@ export default function ErpTransportRoutierPage() {
       'ERP transport routier, logiciel transport routier, gestion flotte camion, planning transport, TMS transport, automatisation API transport, logiciel exploitation transport, gestion parc poids lourds',
     ogType: 'article',
     author: 'NEXORA Truck',
+    breadcrumbs: [{ name: 'ERP transport routier', path: '/erp-transport-routier' }],
+    faqItems: [
+      {
+        question: "Qu’est-ce qu’un ERP transport routier ?",
+        answer: "Un ERP transport routier est un logiciel intégré couvrant toutes les opérations d’une entreprise de transport : prise d’ordre, planning, dispatch, suivi flotte, conducteurs, facturation et reporting dans un seul outil.",
+      },
+      {
+        question: "Pourquoi choisir un ERP dédié au transport routier plutôt qu’un ERP généraliste ?",
+        answer: "Un ERP transport routier intègre des fonctions métier absentes des ERP généralistes : gestion tachygraphe, suivi temps réel des missions, communication conducteurs, groupage de tournées et conformité transport. Prise en main beaucoup plus rapide pour les équipes exploitation.",
+      },
+      {
+        question: "Un ERP transport routier peut-il gérer plusieurs agences ?",
+        answer: "Oui. NEXORA Truck est multi-agences et multi-entités. Chaque agence dispose de son propre espace de planning tout en partageant une vue consolidée des indicateurs pour la direction.",
+      },
+      {
+        question: "Combien faut-il de véhicules pour justifier un ERP transport routier ?",
+        answer: "À partir de 5 véhicules, un ERP transport routier fait gagner du temps chaque jour. L’automatisation de la facturation, du suivi conducteurs et du planning devient rentable très rapidement.",
+      },
+    ],
+  ogImage: 'https://nexora-truck.fr/site/screenshots/camions.png',
   })
 
   return (

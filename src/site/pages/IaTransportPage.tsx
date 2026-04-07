@@ -47,6 +47,25 @@ export default function IaTransportPage() {
       'IA transport, intelligence artificielle transport, optimisation IA logistique, algorithme optimisation transport, prédiction retard transport, ERP transport routier',
     ogType: 'article',
     author: 'NEXORA Truck',
+    breadcrumbs: [{ name: 'IA transport', path: '/ia-transport' }],
+    faqItems: [
+      {
+        question: 'Comment l’IA améliore-t-elle le transport routier ?',
+        answer: 'L’IA transport analyse les historiques d’exploitation pour optimiser le placement conducteurs, prédire les ETAs, détecter des anomalies et proposer des regroupements de missions, réduisant le temps de décision de l’exploitant.',
+      },
+      {
+        question: 'L’IA peut-elle optimiser le planning transport ?',
+        answer: 'Oui, sur des problèmes structurés : placement conducteurs/véhicules, groupage de tournées, détection de surcharges. Le module IA placement de NEXORA Truck suggère les affectations optimales en tenant compte des contraintes réglementaires et de la disponibilité flotte.',
+      },
+      {
+        question: 'L’IA remplacera-t-elle l’exploitant transport ?',
+        answer: 'Non. L’IA propose, l’exploitant décide. Elle accélère le traitement de scénarios complexes mais la connaissance métier et la relation client restent irremplaçables.',
+      },
+      {
+        question: 'Faut-il des données historiques pour utiliser l’IA dans le transport ?',
+        answer: 'Le module IA de NEXORA Truck devient pertinent dès quelques semaines d’utilisation et s’améliore avec le temps. Il ne nécessite pas d’infrastructure data spécifique.',
+      },
+    ],
   })
 
   return (
