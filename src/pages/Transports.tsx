@@ -119,6 +119,12 @@ const EMPTY_SITE_DRAFT: SiteDraft = {
   showMap: false,
 }
 
+function emptyOtSiteDrafts(): Record<SiteKind, SiteDraft> {
+  return { chargement: { ...EMPTY_SITE_DRAFT }, livraison: { ...EMPTY_SITE_DRAFT } }
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
 function normalizeAddressValue(value: string) {
   return value
     .trim()
@@ -132,8 +138,7 @@ function toDateTimeLocalValue(value: string | null) {
   if (!value) return ''
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
-  const pad = (num: number) => String(num).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}T${pad2(date.getHours())}:${pad2(date.getMinutes())}`
 }
 
 function siteSupportsKind(site: LogisticSite, kind: SiteKind) {
@@ -160,8 +165,9 @@ export default function Transports() {
   const canEditOt = !isAffreteurSession
   const canChangeOtStatus = !isAffreteurSession
   const canDeleteOt = !isAffreteurSession
-  const canUseBourse = role === 'admin' || role === 'dirigeant' || role === 'exploitant'
-  const canManageSites = role === 'admin' || role === 'dirigeant' || role === 'exploitant'
+  const isPrivilegedRole = role === 'admin' || role === 'dirigeant' || role === 'exploitant'
+  const canUseBourse = isPrivilegedRole
+  const canManageSites = isPrivilegedRole
 
   const [list, setList] = useState<OT[]>([])
   const [clients, setClients] = useState<ClientLookup[]>([])
@@ -275,20 +281,23 @@ export default function Transports() {
     setGroupageTargetId('')
   }, [selected?.id])
 
-  const clientMap = Object.fromEntries(clients.map(c => [c.id, c.nom]))
-  const conducteurMap = Object.fromEntries(conducteurs.map(c => [c.id, `${c.prenom} ${c.nom}`]))
-  const vehiculeMap = Object.fromEntries(vehicules.map(v => [v.id, `${v.immatriculation}${v.marque ? ` · ${v.marque}` : ''}`]))
-  const siteMap = Object.fromEntries(sites.map(site => [site.id, site]))
-  const affreteurMap = Object.fromEntries(affreteurs.map(item => [item.id, item.company_name]))
+  const clientMap = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c.nom])), [clients])
+  const conducteurMap = useMemo(() => Object.fromEntries(conducteurs.map(c => [c.id, `${c.prenom} ${c.nom}`])), [conducteurs])
+  const vehiculeMap = useMemo(() => Object.fromEntries(vehicules.map(v => [v.id, `${v.immatriculation}${v.marque ? ` · ${v.marque}` : ''}`])), [vehicules])
+  const siteMap = useMemo(() => Object.fromEntries(sites.map(s => [s.id, s])), [sites])
+  const affreteurMap = useMemo(() => Object.fromEntries(affreteurs.map(a => [a.id, a.company_name])), [affreteurs])
 
-  const filtered = scopedList.filter(ot => {
-    const matchSearch = ot.reference.toLowerCase().includes(search.toLowerCase()) ||
-      (ot.reference_transport ?? '').toLowerCase().includes(search.toLowerCase()) ||
-      (clientMap[ot.client_id] ?? '').toLowerCase().includes(search.toLowerCase())
-    const matchStatut = filterStatut === 'tous' || ot.statut === filterStatut
-    const matchView = listView === 'principal' ? !ot.est_affretee : ot.est_affretee
-    return matchSearch && matchStatut && matchView
-  })
+  const filtered = useMemo(() => {
+    const searchLower = search.toLowerCase()
+    return scopedList.filter(ot => {
+      const matchSearch = ot.reference.toLowerCase().includes(searchLower) ||
+        (ot.reference_transport ?? '').toLowerCase().includes(searchLower) ||
+        (clientMap[ot.client_id] ?? '').toLowerCase().includes(searchLower)
+      const matchStatut = filterStatut === 'tous' || ot.statut === filterStatut
+      const matchView = listView === 'principal' ? !ot.est_affretee : ot.est_affretee
+      return matchSearch && matchStatut && matchView
+    })
+  }, [scopedList, search, clientMap, filterStatut, listView])
 
   const selectedGroupMembers = useMemo(() => {
     if (!selected?.groupage_id) return []
@@ -315,22 +324,18 @@ export default function Transports() {
     setEditingOtId(null)
     setForm(EMPTY_OT)
     setLotLines([])
-    setSiteDrafts({
-      chargement: { ...EMPTY_SITE_DRAFT },
-      livraison: { ...EMPTY_SITE_DRAFT },
-    })
+    setSiteDrafts(emptyOtSiteDrafts())
   }
 
   function openCreateForm() {
     setEditingOtId(null)
     setForm(EMPTY_OT)
     setLotLines([])
-    setSiteDrafts({
-      chargement: { ...EMPTY_SITE_DRAFT },
-      livraison: { ...EMPTY_SITE_DRAFT },
-    })
+    setSiteDrafts(emptyOtSiteDrafts())
     setShowForm(true)
   }
+
+
 
   function openEditForm(ot: OT) {
     setEditingOtId(ot.id)
@@ -515,10 +520,6 @@ export default function Transports() {
       })
     }
     void loadAll()
-  }
-
-  async function quickCreateSite(kind: 'chargement' | 'livraison') {
-    await createOrSelectSite(kind)
   }
 
   const computeDistanceFromSelectedSites = useCallback(async (options?: { silent?: boolean; onlyIfEmpty?: boolean }) => {
@@ -1318,7 +1319,7 @@ export default function Transports() {
                             }}
                           />
                         )}
-                        <button type="button" className="text-xs font-medium text-blue-700 hover:text-blue-800" onClick={() => { void quickCreateSite('chargement') }}>
+                        <button type="button" className="text-xs font-medium text-blue-700 hover:text-blue-800" onClick={() => { void createOrSelectSite('chargement') }}>
                           Enregistrer puis selectionner ce lieu
                         </button>
                         </div>
@@ -1376,7 +1377,7 @@ export default function Transports() {
                             }}
                           />
                         )}
-                        <button type="button" className="text-xs font-medium text-blue-700 hover:text-blue-800" onClick={() => { void quickCreateSite('livraison') }}>
+                        <button type="button" className="text-xs font-medium text-blue-700 hover:text-blue-800" onClick={() => { void createOrSelectSite('livraison') }}>
                           Enregistrer puis selectionner ce lieu
                         </button>
                         </div>
@@ -1564,29 +1565,18 @@ type SiteEditForm = {
   longitude: string
 }
 
+const EMPTY_SITE_EDIT_FORM: SiteEditForm = {
+  entreprise_id: '', nom: '', adresse: '', code_postal: '', ville: '',
+  pays: 'France', contact_nom: '', contact_tel: '', usage_type: 'mixte',
+  type_site: 'depot', est_depot_relais: true, horaires_ouverture: '',
+  jours_ouverture: '', notes_livraison: '', notes: '', latitude: '', longitude: '',
+}
+
 function LogisticSitesTab({ sites, clients, clientMap, onUpdate, onNotice, canEdit }: LogisticSitesTabProps) {
   const [search, setSearch] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState<SiteEditForm>({
-    entreprise_id: '',
-    nom: '',
-    adresse: '',
-    code_postal: '',
-    ville: '',
-    pays: 'France',
-    contact_nom: '',
-    contact_tel: '',
-    usage_type: 'mixte',
-    type_site: 'depot',
-    est_depot_relais: true,
-    horaires_ouverture: '',
-    jours_ouverture: '',
-    notes_livraison: '',
-    notes: '',
-    latitude: '',
-    longitude: '',
-  })
+  const [form, setForm] = useState<SiteEditForm>(EMPTY_SITE_EDIT_FORM)
 
   const filteredSites = useMemo(() => {
     const keyword = search.trim().toLowerCase()
@@ -1628,7 +1618,7 @@ function LogisticSitesTab({ sites, clients, clientMap, onUpdate, onNotice, canEd
 
   function cancelEdit() {
     setEditingId(null)
-    setForm({ entreprise_id: '', nom: '', adresse: '', code_postal: '', ville: '', pays: 'France', contact_nom: '', contact_tel: '', usage_type: 'mixte', type_site: 'depot', est_depot_relais: true, horaires_ouverture: '', jours_ouverture: '', notes_livraison: '', notes: '', latitude: '', longitude: '' })
+    setForm(EMPTY_SITE_EDIT_FORM)
   }
 
   async function submitSiteEdit(event: React.FormEvent) {
@@ -1658,6 +1648,7 @@ function LogisticSitesTab({ sites, clients, clientMap, onUpdate, onNotice, canEd
 
     setSaving(true)
     try {
+      const hasDelivery = form.usage_type === 'livraison' || form.usage_type === 'mixte'
       await onUpdate(editingId, {
         entreprise_id: entrepriseId,
         nom,
@@ -1670,9 +1661,9 @@ function LogisticSitesTab({ sites, clients, clientMap, onUpdate, onNotice, canEd
         usage_type: form.usage_type,
         type_site: form.type_site || 'depot',
         est_depot_relais: form.est_depot_relais,
-        horaires_ouverture: (form.usage_type === 'livraison' || form.usage_type === 'mixte') ? (form.horaires_ouverture.trim() || null) : null,
-        jours_ouverture: (form.usage_type === 'livraison' || form.usage_type === 'mixte') ? (form.jours_ouverture.trim() || null) : null,
-        notes_livraison: (form.usage_type === 'livraison' || form.usage_type === 'mixte') ? (form.notes_livraison.trim() || null) : null,
+        horaires_ouverture: hasDelivery ? (form.horaires_ouverture.trim() || null) : null,
+        jours_ouverture: hasDelivery ? (form.jours_ouverture.trim() || null) : null,
+        notes_livraison: hasDelivery ? (form.notes_livraison.trim() || null) : null,
         notes: form.notes.trim() || null,
         latitude,
         longitude,
