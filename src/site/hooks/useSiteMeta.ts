@@ -18,6 +18,9 @@ type SiteMetaInput = {
   keywords?: string
   ogType?: 'website' | 'article'
   ogImage?: string
+  ogImageAlt?: string
+  ogImageWidth?: string
+  ogImageHeight?: string
   twitterImage?: string
   author?: string
   breadcrumbs?: BreadcrumbItem[]
@@ -62,6 +65,9 @@ export default function useSiteMeta({
   keywords,
   ogType = 'website',
   ogImage = 'https://nexora-truck.fr/site/screenshots/planning-dark.png',
+  ogImageAlt,
+  ogImageWidth = '1200',
+  ogImageHeight = '630',
   twitterImage,
   author,
   breadcrumbs,
@@ -91,14 +97,16 @@ export default function useSiteMeta({
     setMetaByProperty('og:locale', 'fr_FR')
     setMetaByProperty('og:site_name', 'NEXORA Truck')
     setMetaByProperty('og:image', ogImage)
-    setMetaByProperty('og:image:alt', 'NEXORA Truck ERP transport')
+    setMetaByProperty('og:image:width', ogImageWidth)
+    setMetaByProperty('og:image:height', ogImageHeight)
+    setMetaByProperty('og:image:alt', ogImageAlt ?? `${title} | NEXORA Truck`)
 
     setMetaByName('twitter:card', 'summary_large_image')
     setMetaByName('twitter:title', `${title} | NEXORA Truck`)
     setMetaByName('twitter:description', description)
     setMetaByName('twitter:url', canonicalUrl)
     setMetaByName('twitter:image', twitterImage ?? ogImage)
-  }, [author, breadcrumbs, canonicalPath, description, faqItems, keywords, ogImage, ogType, robots, title, twitterImage])
+  }, [author, breadcrumbs, canonicalPath, description, faqItems, keywords, ogImage, ogImageAlt, ogImageHeight, ogImageWidth, ogType, robots, title, twitterImage])
 
   // BreadcrumbList LD+JSON
   useEffect(() => {

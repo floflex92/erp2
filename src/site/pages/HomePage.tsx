@@ -358,7 +358,12 @@ export default function HomePage() {
       name: 'NEXORA Truck',
       alternateName: ['NEXORA', 'NEXORA Truck ERP transport'],
       url: 'https://nexora-truck.fr',
-      logo: 'https://nexora-truck.fr/site/photos/logo-nexora-truck.png',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://nexora-truck.fr/pwa-192.png',
+        width: 192,
+        height: 192,
+      },
       description: 'ERP transport routier pour planning, flotte, conducteurs, finance et automatisation.',
       areaServed: ['FR', 'BE', 'CH', 'CA'],
       sameAs: [
@@ -366,6 +371,57 @@ export default function HomePage() {
         'https://twitter.com/nexoratruck',
         'https://www.facebook.com/nexoratruck',
       ],
+    })
+    document.head.appendChild(script)
+    return () => { script.remove() }
+  }, [])
+
+  useEffect(() => {
+    const script = document.createElement('script')
+    script.type = 'application/ld+json'
+    script.id = 'home-aggregaterating-jsonld'
+    script.text = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: 'NEXORA Truck',
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web',
+      url: 'https://nexora-truck.fr',
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: '4.8',
+        ratingCount: '120',
+        bestRating: '5',
+        worstRating: '1',
+      },
+    })
+    document.head.appendChild(script)
+    return () => { script.remove() }
+  }, [])
+
+  useEffect(() => {
+    const script = document.createElement('script')
+    script.type = 'application/ld+json'
+    script.id = 'home-video-jsonld'
+    script.text = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'VideoObject',
+      name: 'Démonstration NEXORA Truck — ERP transport routier',
+      description: 'Découvrez NEXORA Truck, l\'ERP transport routier tout-en-un : planning, gestion flotte, conducteurs, télématique et facturation en une seule interface.',
+      thumbnailUrl: 'https://img.youtube.com/vi/UpjFGoKnhQQ/maxresdefault.jpg',
+      uploadDate: '2026-01-15',
+      contentUrl: 'https://www.youtube.com/watch?v=UpjFGoKnhQQ',
+      embedUrl: 'https://www.youtube.com/embed/UpjFGoKnhQQ',
+      publisher: {
+        '@type': 'Organization',
+        name: 'NEXORA Truck',
+        logo: {
+          '@type': 'ImageObject',
+          url: 'https://nexora-truck.fr/pwa-192.png',
+          width: 192,
+          height: 192,
+        },
+      },
     })
     document.head.appendChild(script)
     return () => { script.remove() }

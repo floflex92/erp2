@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import CookieBanner, { reopenCookiePreferences } from '@/site/components/CookieBanner'
+import AnalyticsLoader from '@/site/components/AnalyticsLoader'
 import { useAuth } from '@/lib/auth'
 
 function ScrollToTop() {
@@ -206,6 +207,7 @@ export default function SiteLayout() {
         </p>
       </footer>
       <CookieBanner />
+      <AnalyticsLoader />
     </div>
   )
 }

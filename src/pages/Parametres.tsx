@@ -510,6 +510,7 @@ export default function Parametres() {
                   <li>SEO Bloc F : 2 nouvelles pages positionnement (Facturation Transport, Affretement Transport) + 5 articles metier supplementaires ; footer enrichi (v1.10.15)</li>
                   <li>SEO Bloc G : balises OG image individuelles sur 10 pages du site public (v1.10.15)</li>
                   <li>Accessibilite site public : variables CSS WCAG AA (text-secondary et text-discreet), suppression gradient SiteSection, couleurs footer corrigees (v1.10.15)</li>
+                  <li>Audit SEO et corrections techniques v1.10.17 : GTM conditionnel au consentement RGPD (AnalyticsLoader), og:image:width/height sur toutes les pages, og:image:alt personnalisable par page, schemas AggregateRating et VideoObject sur la HomePage, logo Organization mis a jour vers PNG 192px avec ImageObject complet et sameAs reseaux sociaux, suppression directive Host: non standard dans robots.txt (v1.10.17)</li>
                 </ul>
               </Card>
             )}

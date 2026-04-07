@@ -28,6 +28,7 @@ export default function CookieBanner() {
 
   function acceptCookies() {
     window.localStorage.setItem(COOKIE_CONSENT_STORAGE_KEY, 'accepted')
+    window.dispatchEvent(new CustomEvent<string>('nexora-analytics-consent', { detail: 'accepted' }))
     setVisible(false)
   }
 

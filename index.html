@@ -15,6 +15,8 @@
     <meta property="og:site_name" content="NEXORA Truck" />
     <meta property="og:locale" content="fr_FR" />
     <meta property="og:image" content="https://nexora-truck.fr/site/screenshots/planning-dark.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="NEXORA Truck ERP transport - vue planning" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="ERP transport | NEXORA Truck" />
@@ -33,15 +35,9 @@
     <!-- DNS prefetch Supabase -->
     <link rel="dns-prefetch" href="https://rnbbxmdughpxovcnhrpz.supabase.co" />
     <link rel="preconnect" href="https://rnbbxmdughpxovcnhrpz.supabase.co" crossorigin="anonymous" />
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-4QQVY1DQT2"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-
-      gtag('config', 'G-4QQVY1DQT2');
-    </script>
+    <!-- DNS prefetch Google Analytics (chargé conditionnellement après consentement) -->
+    <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+    <link rel="dns-prefetch" href="https://www.google-analytics.com" />
     <title>ERP transport | NEXORA Truck</title>
     <script type="application/ld+json">
       {
@@ -59,7 +55,17 @@
             "name": "NEXORA Truck",
             "alternateName": "NEXORA",
             "url": "https://nexora-truck.fr/",
-            "logo": "https://nexora-truck.fr/favicon.svg"
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://nexora-truck.fr/pwa-192.png",
+              "width": 192,
+              "height": 192
+            },
+            "sameAs": [
+              "https://www.linkedin.com/company/nexora-truck/",
+              "https://twitter.com/nexoratruck",
+              "https://www.facebook.com/profile.php?id=61575439001023"
+            ]
           },
           {
             "@type": "SoftwareApplication",
