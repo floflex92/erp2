@@ -17,12 +17,29 @@ const NAV_ITEMS = [
   { label: 'Contact', to: '/contact' },
 ]
 
+// Pages avec un hero photo sombre (overlay rgba(0,0,0,0.45)) → nav blanche quand non-scrollé
+const DARK_HERO_PATHS = new Set([
+  '/',
+  '/fonctionnalites',
+  '/toutes-les-fonctionnalites',
+  '/demonstration',
+  '/a-propos',
+  '/contact',
+  '/connexion-erp',
+  '/avantages-roi',
+  '/planning-intelligent',
+  '/secteur-transport',
+  '/solution',
+])
+
 export default function SiteLayout() {
   const { session } = useAuth()
+  const { pathname } = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
 
-  const navTextColor = isScrolled ? '#1D1D1F' : '#FFFFFF'
+  const hasDarkHero = DARK_HERO_PATHS.has(pathname)
+  const navTextColor = (!isScrolled && hasDarkHero) ? '#FFFFFF' : '#1D1D1F'
 
   useEffect(() => {
     const onScroll = () => setIsScrolled(window.scrollY > 8)
