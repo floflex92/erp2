@@ -469,22 +469,21 @@ export default function HomePage() {
           fetchPriority="high"
           decoding="async"
           className="absolute inset-0 h-full w-full object-cover"
-          style={{ opacity: 0.5 }}
         />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} />
 
         <div className="relative">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#6E6E73' }}>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.7)' }}>
             ERP Transport Routier
           </p>
           <h1
             id="home-hero-heading"
             className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]"
-            style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)', color: '#000000', letterSpacing: '-0.025em' }}
+            style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)', color: '#FFFFFF', letterSpacing: '-0.025em' }}
           >
             Pilotez exploitation, flotte et conducteurs dans un ERP transport TMS tout-en-un.
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl" style={{ color: '#6E6E73', fontSize: '20px', lineHeight: 1.6 }}>
+          <p className="mx-auto mt-6 max-w-2xl" style={{ color: 'rgba(255,255,255,0.8)', fontSize: '20px', lineHeight: 1.6 }}>
             De la prise d’ordre à la facturation — une seule plateforme pensée par des exploitants.
           </p>
           <div className="mt-12 flex flex-wrap items-start justify-center gap-x-5 gap-y-4">
@@ -495,7 +494,7 @@ export default function HomePage() {
               >
                 Essai gratuit
               </Link>
-              <p className="site-hero-cta-note mt-3 text-sm">
+              <p className="site-hero-cta-note mt-3 text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>
                 Accès immédiat. Aucun engagement.
               </p>
             </div>
@@ -503,7 +502,7 @@ export default function HomePage() {
               type="button"
               onClick={() => setVideoOpen(true)}
               className="self-center text-sm font-semibold transition-colors"
-              style={{ color: '#2563EB' }}
+              style={{ color: '#93C5FD' }}
             >
               Voir la démo ▶
             </button>
@@ -924,15 +923,14 @@ export default function HomePage() {
           loading="lazy"
           decoding="async"
           className="absolute inset-0 h-full w-full object-cover"
-          style={{ opacity: 0.5 }}
         />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0) 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} />
 
         <div className="relative">
           <h2
             id="home-cta-heading"
             className="mx-auto max-w-3xl text-balance font-semibold leading-tight"
-            style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', color: '#000000' }}
+            style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', color: '#FFFFFF' }}
           >
             Reprenez le contrôle de votre exploitation. Dès aujourd’hui.
           </h2>
@@ -946,7 +944,7 @@ export default function HomePage() {
             <Link
               to="/contact"
               className="text-sm font-semibold transition-colors"
-              style={{ color: '#2563EB' }}
+              style={{ color: '#93C5FD' }}
             >
               Parler à un expert
             </Link>

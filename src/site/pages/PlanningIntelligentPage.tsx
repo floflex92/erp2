@@ -30,19 +30,19 @@ export default function PlanningIntelligentPage() {
     <>
       {/* ── HERO ── */}
       <section className="relative flex min-h-[75vh] w-full flex-col items-center justify-center overflow-hidden text-center" style={{ ...sectionPx, ...sectionPy }}>
-        <img src={sitePhotos.truckMountainRoad.src(1600)} alt="Camion de transport sur route dégagée pour tournée planifiée" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" style={{ opacity: 0.5 }} />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 100%)' }} />
+        <img src={sitePhotos.truckMountainRoad.src(1600)} alt="Camion de transport sur route dégagée pour tournée planifiée" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} />
         <div className="relative">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#6E6E73' }}>Planning intelligent</p>
-          <h1 className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]" style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)', color: '#000000', letterSpacing: '-0.025em' }}>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.7)' }}>Planning intelligent</p>
+          <h1 className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]" style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)', color: '#FFFFFF', letterSpacing: '-0.025em' }}>
             Le cœur du système pour orchestrer chaque mission sans friction
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl" style={{ color: '#6E6E73', fontSize: '20px', lineHeight: 1.6 }}>
+          <p className="mx-auto mt-6 max-w-2xl" style={{ color: 'rgba(255,255,255,0.8)', fontSize: '20px', lineHeight: 1.6 }}>
             Visualisez la charge, anticipez les conflits et réorganisez l'exploitation en quelques clics, même sous pression.
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <Link to="/demonstration" className="site-btn-primary px-6 py-3 text-sm transition-colors">Voir une démo planning</Link>
-            <Link to="/contact" className="text-sm font-semibold" style={{ color: '#2563EB' }}>Planifier un échange</Link>
+            <Link to="/contact" className="text-sm font-semibold" style={{ color: '#93C5FD' }}>Planifier un échange</Link>
           </div>
         </div>
       </section>

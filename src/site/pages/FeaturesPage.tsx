@@ -46,15 +46,14 @@ export default function FeaturesPage() {
           alt="Camions en ville de nuit dans une ambiance urbaine cinématographique"
           aria-hidden="true"
           className="absolute inset-0 h-full w-full object-cover"
-          style={{ opacity: 0.5 }}
         />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} />
         <div className="relative">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#6E6E73' }}>Fonctionnalités</p>
-          <h1 className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]" style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)', color: '#000000', letterSpacing: '-0.025em' }}>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.7)' }}>Fonctionnalités</p>
+          <h1 className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]" style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)', color: '#FFFFFF', letterSpacing: '-0.025em' }}>
             Tout ce dont votre exploitation a besoin. En un seul outil.
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl" style={{ color: '#6E6E73', fontSize: '20px', lineHeight: 1.6 }}>
+          <p className="mx-auto mt-6 max-w-2xl" style={{ color: 'rgba(255,255,255,0.8)', fontSize: '20px', lineHeight: 1.6 }}>
             12 modules intégrés pour piloter planning, flotte, conducteurs, facturation et conformité sans changer d’écran.
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">

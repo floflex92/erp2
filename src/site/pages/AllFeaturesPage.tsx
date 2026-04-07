@@ -204,23 +204,22 @@ export default function AllFeaturesPage() {
           alt="Equipe produit et exploitation en atelier de travail sur les fonctionnalites"
           aria-hidden="true"
           className="absolute inset-0 h-full w-full object-cover"
-          style={{ opacity: 0.35 }}
         />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.45) 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} />
         <div className="relative">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#606065' }}>Roadmap produit</p>
-          <h1 className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]" style={{ fontSize: 'clamp(2.2rem, 6vw, 4.5rem)', color: '#000000', letterSpacing: '-0.025em' }}>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.7)' }}>Roadmap produit</p>
+          <h1 className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]" style={{ fontSize: 'clamp(2.2rem, 6vw, 4.5rem)', color: '#FFFFFF', letterSpacing: '-0.025em' }}>
             Plus de 80 fonctionnalités pour piloter votre exploitation transport.
           </h1>
-          <p className="mt-4 text-xl font-semibold" style={{ color: '#1D1D1F', letterSpacing: '-0.01em' }}>
+          <p className="mt-4 text-xl font-semibold" style={{ color: 'rgba(255,255,255,0.9)', letterSpacing: '-0.01em' }}>
             Et une plateforme conçue pour évoluer.
           </p>
-          <p className="mx-auto mt-5 max-w-2xl" style={{ color: '#606065', fontSize: '18px', lineHeight: 1.65 }}>
+          <p className="mx-auto mt-5 max-w-2xl" style={{ color: 'rgba(255,255,255,0.8)', fontSize: '18px', lineHeight: 1.65 }}>
             NEXORA centralise l’ensemble des opérations transport et évolue vers un système connecté et intelligent.
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <Link to="/fonctionnalites" className="site-btn-primary px-6 py-3 text-sm transition-colors">Retour page fonctionnalités</Link>
-            <Link to="/contact" className="text-sm font-semibold" style={{ color: '#2563EB' }}>Échanger avec l'équipe produit</Link>
+            <Link to="/contact" className="text-sm font-semibold" style={{ color: '#93C5FD' }}>Échanger avec l'équipe produit</Link>
           </div>
 
           <div className="mx-auto mt-10 grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-3">

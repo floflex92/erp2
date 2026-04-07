@@ -114,20 +114,19 @@ export default function ContactPage() {
           sizes="100vw"
           alt="Poids lourds sur autoroute européenne avec paysage dégagé" aria-hidden="true"
           className="absolute inset-0 h-full w-full object-cover"
-          style={{ opacity: 0.5 }}
         />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} />
         <div className="relative mx-auto max-w-2xl text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#6E6E73' }}>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.7)' }}>
             Contact
           </p>
           <h1
             className="mt-6 text-balance font-bold leading-[1.05]"
-            style={{ fontSize: 'clamp(2.2rem, 5vw, 4rem)', color: '#000000', letterSpacing: '-0.025em' }}
+            style={{ fontSize: 'clamp(2.2rem, 5vw, 4rem)', color: '#FFFFFF', letterSpacing: '-0.025em' }}
           >
             Parlons de votre projet transport
           </h1>
-          <p className="mt-6" style={{ color: '#6E6E73', fontSize: '20px', lineHeight: 1.6 }}>
+          <p className="mt-6" style={{ color: 'rgba(255,255,255,0.8)', fontSize: '20px', lineHeight: 1.6 }}>
             Qualifions votre besoin ensemble pour un échange utile dès le premier rendez-vous.
           </p>
         </div>

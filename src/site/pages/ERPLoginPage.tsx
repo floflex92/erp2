@@ -22,20 +22,19 @@ export default function ERPLoginPage() {
           src={sitePhotos.truckMountainRoad.src(1600)}
           alt="Camion de transport sur route ouverte sans marquage commercial" aria-hidden="true"
           className="absolute inset-0 h-full w-full object-cover"
-          style={{ opacity: 0.5 }}
         />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} />
         <div className="relative">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#6E6E73' }}>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.7)' }}>
           Essai gratuit
         </p>
         <h1
           className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]"
-          style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)', color: '#000000', letterSpacing: '-0.025em' }}
+          style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)', color: '#FFFFFF', letterSpacing: '-0.025em' }}
         >
           Votre exploitation mérite un outil à la hauteur.
         </h1>
-        <p className="mx-auto mt-6 max-w-2xl" style={{ color: '#6E6E73', fontSize: '20px', lineHeight: 1.6 }}>
+        <p className="mx-auto mt-6 max-w-2xl" style={{ color: 'rgba(255,255,255,0.8)', fontSize: '20px', lineHeight: 1.6 }}>
           14 jours pour découvrir comment NEXORA Truck peut transformer votre quotidien. Sans carte bancaire, sans engagement.
         </p>
         <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
@@ -48,7 +47,7 @@ export default function ERPLoginPage() {
           <Link
             to="/demonstration"
             className="text-sm font-semibold transition-colors"
-            style={{ color: '#2563EB' }}
+            style={{ color: '#93C5FD' }}
           >
             Voir la démo d'abord ▶
           </Link>
