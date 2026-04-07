@@ -18,7 +18,7 @@ import {
   writeCache,
 } from './_lib/v11-core.js'
 
-const ALLOWED_ROLES = ['admin', 'dirigeant', 'exploitant', 'conducteur']
+const ALLOWED_ROLES = ['admin', 'dirigeant', 'exploitant', 'conducteur', 'logisticien']
 
 function normalizePoint(addressLike) {
   const latitude = Number(addressLike?.latitude)

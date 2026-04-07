@@ -22,6 +22,9 @@ import {
   TRANSPORT_STATUS_FLOW,
   TRANSPORT_STATUS_LABELS,
   type TransportStatus,
+  type OtLigne,
+  listOtLignes,
+  syncOtLignes,
 } from '@/lib/transportCourses'
 
 type OT = Tables<'ordres_transport'>
@@ -44,6 +47,14 @@ type SiteDraft = {
   latitude: number | null
   longitude: number | null
   showMap: boolean
+}
+
+type OtLigneDraft = {
+  libelle: string
+  poids_kg: number | null
+  metrage_ml: number | null
+  nombre_colis: number | null
+  notes: string | null
 }
 
 const STATUT_COLORS: Record<string, string> = {
@@ -85,7 +96,7 @@ const EMPTY_OT: TablesInsert<'ordres_transport'> = {
   donneur_ordre_id: '', est_affretee: false, affreteur_id: null,
   chargement_site_id: null, livraison_site_id: null,
   reference_externe: null,
-  nature_marchandise: null, poids_kg: null, volume_m3: null, nombre_colis: null,
+  nature_marchandise: null, poids_kg: null, metrage_ml: null, volume_m3: null, nombre_colis: null,
   date_chargement_prevue: null, date_livraison_prevue: null,
   conducteur_id: null, vehicule_id: null, remorque_id: null,
   prix_ht: null, taux_tva: 20, distance_km: null,
@@ -175,6 +186,8 @@ export default function Transports() {
     livraison: { ...EMPTY_SITE_DRAFT },
   })
   const [saving, setSaving] = useState(false)
+  const [lotLines, setLotLines] = useState<OtLigneDraft[]>([])
+  const [selectedLots, setSelectedLots] = useState<OtLigne[]>([])
 
   // Detail panel
   const [selected, setSelected] = useState<OT | null>(null)
@@ -239,8 +252,12 @@ export default function Transports() {
 
   function openOT(ot: OT) {
     setSelected(ot)
+    setSelectedLots([])
     void loadEtapes(ot.id)
     void loadTransportHistory(ot.id)
+    if (['groupage', 'partiel'].includes(ot.type_transport)) {
+      void listOtLignes(ot.id).then(rows => setSelectedLots(rows))
+    }
   }
 
   const scopedList = useMemo(
@@ -297,6 +314,7 @@ export default function Transports() {
     setShowForm(false)
     setEditingOtId(null)
     setForm(EMPTY_OT)
+    setLotLines([])
     setSiteDrafts({
       chargement: { ...EMPTY_SITE_DRAFT },
       livraison: { ...EMPTY_SITE_DRAFT },
@@ -306,6 +324,7 @@ export default function Transports() {
   function openCreateForm() {
     setEditingOtId(null)
     setForm(EMPTY_OT)
+    setLotLines([])
     setSiteDrafts({
       chargement: { ...EMPTY_SITE_DRAFT },
       livraison: { ...EMPTY_SITE_DRAFT },
@@ -329,6 +348,7 @@ export default function Transports() {
       reference_externe: ot.reference_externe,
       nature_marchandise: ot.nature_marchandise,
       poids_kg: ot.poids_kg,
+      metrage_ml: ot.metrage_ml,
       volume_m3: ot.volume_m3,
       nombre_colis: ot.nombre_colis,
       date_chargement_prevue: toDateTimeLocalValue(ot.date_chargement_prevue),
@@ -348,6 +368,16 @@ export default function Transports() {
     setSiteDrafts({
       chargement: { ...EMPTY_SITE_DRAFT, entreprise_id: enterpriseId },
       livraison: { ...EMPTY_SITE_DRAFT, entreprise_id: enterpriseId },
+    })
+    setLotLines([])
+    void listOtLignes(ot.id).then(rows => {
+      setLotLines(rows.map(r => ({
+        libelle: r.libelle,
+        poids_kg: r.poids_kg,
+        metrage_ml: r.metrage_ml,
+        nombre_colis: r.nombre_colis,
+        notes: r.notes,
+      })))
     })
     setShowForm(true)
   }
@@ -441,10 +471,32 @@ export default function Transports() {
       donneur_ordre_id: form.donneur_ordre_id || form.client_id,
     }
 
+    let savedOtId: string | null = editingOtId
     if (editingOtId) {
-      await supabase.from('ordres_transport').update(payload).eq('id', editingOtId)
+      const { error } = await supabase.from('ordres_transport').update(payload).eq('id', editingOtId)
+      if (error) {
+        setSaving(false)
+        setStatusGuardNotice(`Mise a jour impossible : ${error.message}`)
+        return
+      }
     } else {
-      await supabase.from('ordres_transport').insert(payload)
+      const { data, error } = await supabase.from('ordres_transport').insert(payload).select('id').single()
+      if (error || !data) {
+        setSaving(false)
+        setStatusGuardNotice(`Creation impossible : ${error?.message ?? 'erreur inconnue'}`)
+        return
+      }
+      savedOtId = data.id
+    }
+
+    // Sync lignes (groupage / partiel)
+    const needsLots = ['groupage', 'partiel'].includes(form.type_transport ?? '')
+    if (savedOtId && needsLots && lotLines.length > 0) {
+      const cid = profil?.companyId ?? 1
+      await syncOtLignes(savedOtId, cid, lotLines.filter(l => l.libelle.trim()))
+    } else if (savedOtId && !needsLots) {
+      // clear lots if type changed away
+      await syncOtLignes(savedOtId, profil?.companyId ?? 1, [])
     }
 
     setSaving(false)
@@ -555,7 +607,11 @@ export default function Transports() {
       }
     }
 
-    await supabase.from('ordres_transport').update({ statut: nextStatut }).eq('id', ot.id)
+    const { error: statutError } = await supabase.from('ordres_transport').update({ statut: nextStatut }).eq('id', ot.id)
+    if (statutError) {
+      setStatusGuardNotice(`Mise a jour statut impossible : ${statutError.message}`)
+      return
+    }
     if (selected?.id === ot.id) setSelected({ ...ot, statut: nextStatut })
     void loadAll()
   }
@@ -598,7 +654,11 @@ export default function Transports() {
       type_transport: 'groupage',
     }
 
-    await supabase.from('ordres_transport').update(patch).in('id', [selected.id, target.id])
+    const { error: patchError } = await supabase.from('ordres_transport').update(patch).in('id', [selected.id, target.id])
+    if (patchError) {
+      setStatusGuardNotice(`Groupage impossible : ${patchError.message}`)
+      return
+    }
 
     if (previousSelectedGroupId && previousSelectedGroupId !== nextGroupId) {
       await normalizeSingletonGroupage(previousSelectedGroupId)
@@ -616,10 +676,14 @@ export default function Transports() {
     if (!selected?.groupage_id) return
     if (!canChangeOtStatus) return
 
-    await supabase
+    const { error: freezeError } = await supabase
       .from('ordres_transport')
       .update({ groupage_fige: nextFrozen })
       .eq('groupage_id', selected.groupage_id)
+    if (freezeError) {
+      setStatusGuardNotice(`Fige/degele impossible : ${freezeError.message}`)
+      return
+    }
 
     setStatusGuardNotice(nextFrozen ? 'Groupage fige: modifications bloquees.' : 'Groupage degele: modifications autorisees.')
     await loadAll()
@@ -635,10 +699,14 @@ export default function Transports() {
 
     const previousGroupId = selected.groupage_id
 
-    await supabase
+    const { error: unlinkError } = await supabase
       .from('ordres_transport')
       .update({ groupage_id: null, groupage_fige: false })
       .eq('id', selected.id)
+    if (unlinkError) {
+      setStatusGuardNotice(`Delier impossible : ${unlinkError.message}`)
+      return
+    }
 
     await normalizeSingletonGroupage(previousGroupId)
     setStatusGuardNotice('Course deliee du groupage.')
@@ -648,7 +716,11 @@ export default function Transports() {
   async function del(id: string) {
     if (!canDeleteOt) return
     if (!confirm('Supprimer cet ordre de transport ?')) return
-    await supabase.from('ordres_transport').delete().eq('id', id)
+    const { error: delError } = await supabase.from('ordres_transport').delete().eq('id', id)
+    if (delError) {
+      setStatusGuardNotice(`Suppression impossible : ${delError.message}`)
+      return
+    }
     if (selected?.id === id) setSelected(null)
     void loadAll()
   }
@@ -1043,8 +1115,24 @@ export default function Transports() {
               <Info label="Livraison réelle" value={selected.date_livraison_reelle ? new Date(selected.date_livraison_reelle).toLocaleDateString('fr-FR') : null} />
               <Info label="Marchandise" value={selected.nature_marchandise} />
               <Info label="Poids" value={selected.poids_kg ? `${selected.poids_kg} kg` : null} />
+              <Info label="Métrage" value={selected.metrage_ml ? `${selected.metrage_ml} ml` : null} />
               <Info label="Volume" value={selected.volume_m3 ? `${selected.volume_m3} m³` : null} />
               <Info label="Nombre de colis" value={selected.nombre_colis?.toString() ?? null} />
+              {selectedLots.length > 0 && (
+                <div className="col-span-2 mt-1">
+                  <span className="text-xs font-medium text-slate-500 block mb-1">Lignes de chargement</span>
+                  <div className="rounded-lg border divide-y text-xs">
+                    {selectedLots.map(lot => (
+                      <div key={lot.id} className="flex gap-3 px-3 py-1.5 items-center">
+                        <span className="flex-1 font-medium text-slate-700">{lot.libelle}</span>
+                        {lot.poids_kg != null && <span className="text-slate-500">{lot.poids_kg} kg</span>}
+                        {lot.metrage_ml != null && <span className="text-slate-500">{lot.metrage_ml} ml</span>}
+                        {lot.nombre_colis != null && <span className="text-slate-500">{lot.nombre_colis} col.</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <Info label="Distance" value={selected.distance_km ? `${selected.distance_km} km` : null} />
               <Info label="Prix HT" value={selected.prix_ht != null ? `${selected.prix_ht.toLocaleString('fr-FR')} €` : null} />
               <Info label="TVA" value={selected.taux_tva ? `${selected.taux_tva}%` : null} />
@@ -1330,6 +1418,7 @@ export default function Transports() {
                       <Field label="Nature de la marchandise"><input className={inp} value={form.nature_marchandise ?? ''} onChange={e => setF('nature_marchandise', e.target.value || null)} /></Field>
                     </div>
                     <Field label="Poids (kg)"><input className={inp} type="number" value={form.poids_kg ?? ''} onChange={e => setF('poids_kg', parseFloat(e.target.value) || null)} /></Field>
+                    <Field label="Métrage (ml)"><input className={inp} type="number" step="0.01" value={form.metrage_ml ?? ''} onChange={e => setF('metrage_ml', parseFloat(e.target.value) || null)} /></Field>
                     <Field label="Volume (m³)"><input className={inp} type="number" value={form.volume_m3 ?? ''} onChange={e => setF('volume_m3', parseFloat(e.target.value) || null)} /></Field>
                     <Field label="Nombre de colis"><input className={inp} type="number" value={form.nombre_colis ?? ''} onChange={e => setF('nombre_colis', parseInt(e.target.value) || null)} /></Field>
                     <div className="space-y-2">
@@ -1347,6 +1436,64 @@ export default function Transports() {
                     </div>
                   </div>
                 </div>
+
+                {/* Lignes de chargement — groupage / partiel */}
+                {['groupage', 'partiel'].includes(form.type_transport ?? '') && (
+                  <div className="col-span-2 border-t pt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-semibold text-slate-700">Lignes de chargement</p>
+                      <button
+                        type="button"
+                        onClick={() => setLotLines(l => [...l, { libelle: '', poids_kg: null, metrage_ml: null, nombre_colis: null, notes: null }])}
+                        className="text-xs rounded border border-indigo-300 bg-indigo-50 px-2 py-1 text-indigo-700 hover:bg-indigo-100"
+                      >
+                        + Ajouter une ligne
+                      </button>
+                    </div>
+                    {lotLines.length === 0 && (
+                      <p className="text-xs text-slate-400 italic">Aucune ligne — les champs ci-dessus s&apos;appliquent à l&apos;ensemble.</p>
+                    )}
+                    {lotLines.map((lot, idx) => (
+                      <div key={idx} className="grid grid-cols-12 gap-2 mb-2 items-end">
+                        <div className="col-span-4">
+                          {idx === 0 && <p className="text-xs text-slate-500 mb-1">Libellé *</p>}
+                          <input className={inp} placeholder="Ex: Palettes bois" value={lot.libelle} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, libelle: e.target.value } : x))} />
+                        </div>
+                        <div className="col-span-2">
+                          {idx === 0 && <p className="text-xs text-slate-500 mb-1">Poids (kg)</p>}
+                          <input className={inp} type="number" placeholder="0" value={lot.poids_kg ?? ''} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, poids_kg: parseFloat(e.target.value) || null } : x))} />
+                        </div>
+                        <div className="col-span-2">
+                          {idx === 0 && <p className="text-xs text-slate-500 mb-1">Métrage (ml)</p>}
+                          <input className={inp} type="number" step="0.01" placeholder="0" value={lot.metrage_ml ?? ''} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, metrage_ml: parseFloat(e.target.value) || null } : x))} />
+                        </div>
+                        <div className="col-span-2">
+                          {idx === 0 && <p className="text-xs text-slate-500 mb-1">Colis</p>}
+                          <input className={inp} type="number" placeholder="0" value={lot.nombre_colis ?? ''} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, nombre_colis: parseInt(e.target.value) || null } : x))} />
+                        </div>
+                        <div className="col-span-2">
+                          {idx === 0 && <p className="text-xs text-slate-500 mb-1">Notes</p>}
+                          <input className={inp} placeholder="…" value={lot.notes ?? ''} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, notes: e.target.value || null } : x))} />
+                        </div>
+                        <div className="col-span-0 flex items-center">
+                          <button type="button" onClick={() => setLotLines(l => l.filter((_, i) => i !== idx))} className="ml-1 text-red-400 hover:text-red-600 text-base leading-none" title="Supprimer">✕</button>
+                        </div>
+                      </div>
+                    ))}
+                    {lotLines.length > 0 && (() => {
+                      const totalPoids = lotLines.reduce((s, l) => s + (l.poids_kg ?? 0), 0)
+                      const totalMl = lotLines.reduce((s, l) => s + (l.metrage_ml ?? 0), 0)
+                      const totalColis = lotLines.reduce((s, l) => s + (l.nombre_colis ?? 0), 0)
+                      return (
+                        <div className="flex gap-4 mt-2 pt-2 border-t text-xs text-slate-500">
+                          {totalPoids > 0 && <span>Total poids : <strong className="text-slate-700">{totalPoids} kg</strong></span>}
+                          {totalMl > 0 && <span>Total métrage : <strong className="text-slate-700">{totalMl} ml</strong></span>}
+                          {totalColis > 0 && <span>Total colis : <strong className="text-slate-700">{totalColis}</strong></span>}
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )}
 
                 <div className="col-span-2 border-t pt-4">
                   <p className="text-sm font-semibold text-slate-700 mb-3">Tarification</p>
@@ -1401,10 +1548,18 @@ type SiteEditForm = {
   entreprise_id: string
   nom: string
   adresse: string
+  code_postal: string
+  ville: string
+  pays: string
+  contact_nom: string
+  contact_tel: string
   usage_type: SiteUsageType
+  type_site: string
+  est_depot_relais: boolean
   horaires_ouverture: string
   jours_ouverture: string
   notes_livraison: string
+  notes: string
   latitude: string
   longitude: string
 }
@@ -1417,10 +1572,18 @@ function LogisticSitesTab({ sites, clients, clientMap, onUpdate, onNotice, canEd
     entreprise_id: '',
     nom: '',
     adresse: '',
+    code_postal: '',
+    ville: '',
+    pays: 'France',
+    contact_nom: '',
+    contact_tel: '',
     usage_type: 'mixte',
+    type_site: 'depot',
+    est_depot_relais: true,
     horaires_ouverture: '',
     jours_ouverture: '',
     notes_livraison: '',
+    notes: '',
     latitude: '',
     longitude: '',
   })
@@ -1446,10 +1609,18 @@ function LogisticSitesTab({ sites, clients, clientMap, onUpdate, onNotice, canEd
       entreprise_id: site.entreprise_id ?? '',
       nom: site.nom,
       adresse: site.adresse,
+      code_postal: (site as LogisticSite & { code_postal?: string | null }).code_postal ?? '',
+      ville: (site as LogisticSite & { ville?: string | null }).ville ?? '',
+      pays: (site as LogisticSite & { pays?: string }).pays ?? 'France',
+      contact_nom: (site as LogisticSite & { contact_nom?: string | null }).contact_nom ?? '',
+      contact_tel: (site as LogisticSite & { contact_tel?: string | null }).contact_tel ?? '',
       usage_type: (site.usage_type as SiteUsageType) ?? 'mixte',
+      type_site: (site as LogisticSite & { type_site?: string }).type_site ?? 'depot',
+      est_depot_relais: (site as LogisticSite & { est_depot_relais?: boolean }).est_depot_relais ?? true,
       horaires_ouverture: site.horaires_ouverture ?? '',
       jours_ouverture: site.jours_ouverture ?? '',
       notes_livraison: site.notes_livraison ?? '',
+      notes: (site as LogisticSite & { notes?: string | null }).notes ?? '',
       latitude: site.latitude != null ? String(site.latitude) : '',
       longitude: site.longitude != null ? String(site.longitude) : '',
     })
@@ -1457,7 +1628,7 @@ function LogisticSitesTab({ sites, clients, clientMap, onUpdate, onNotice, canEd
 
   function cancelEdit() {
     setEditingId(null)
-    setForm({ entreprise_id: '', nom: '', adresse: '', usage_type: 'mixte', horaires_ouverture: '', jours_ouverture: '', notes_livraison: '', latitude: '', longitude: '' })
+    setForm({ entreprise_id: '', nom: '', adresse: '', code_postal: '', ville: '', pays: 'France', contact_nom: '', contact_tel: '', usage_type: 'mixte', type_site: 'depot', est_depot_relais: true, horaires_ouverture: '', jours_ouverture: '', notes_livraison: '', notes: '', latitude: '', longitude: '' })
   }
 
   async function submitSiteEdit(event: React.FormEvent) {
@@ -1491,13 +1662,21 @@ function LogisticSitesTab({ sites, clients, clientMap, onUpdate, onNotice, canEd
         entreprise_id: entrepriseId,
         nom,
         adresse,
+        code_postal: form.code_postal.trim() || null,
+        ville: form.ville.trim() || null,
+        pays: form.pays.trim() || 'France',
+        contact_nom: form.contact_nom.trim() || null,
+        contact_tel: form.contact_tel.trim() || null,
         usage_type: form.usage_type,
+        type_site: form.type_site || 'depot',
+        est_depot_relais: form.est_depot_relais,
         horaires_ouverture: (form.usage_type === 'livraison' || form.usage_type === 'mixte') ? (form.horaires_ouverture.trim() || null) : null,
         jours_ouverture: (form.usage_type === 'livraison' || form.usage_type === 'mixte') ? (form.jours_ouverture.trim() || null) : null,
         notes_livraison: (form.usage_type === 'livraison' || form.usage_type === 'mixte') ? (form.notes_livraison.trim() || null) : null,
+        notes: form.notes.trim() || null,
         latitude,
         longitude,
-      })
+      } as Partial<LogisticSite>)
       onNotice('Fiche lieu mise a jour avec succes.')
       cancelEdit()
     } catch {
@@ -1585,6 +1764,16 @@ function LogisticSitesTab({ sites, clients, clientMap, onUpdate, onNotice, canEd
             <Field label="Nom du lieu *">
               <input className={inp} value={form.nom} onChange={event => setForm(current => ({ ...current, nom: event.target.value }))} />
             </Field>
+            <Field label="Type de site">
+              <select className={inp} value={form.type_site} onChange={event => setForm(current => ({ ...current, type_site: event.target.value }))}>
+                <option value="entrepot">Entrepot</option>
+                <option value="depot">Depot</option>
+                <option value="agence">Agence</option>
+                <option value="client">Client</option>
+                <option value="quai">Quai</option>
+                <option value="autre">Autre</option>
+              </select>
+            </Field>
             <Field label="Usage du lieu">
               <select className={inp} value={form.usage_type} onChange={event => setForm(current => ({ ...current, usage_type: event.target.value as SiteUsageType }))}>
                 {Object.entries(SITE_USAGE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -1594,6 +1783,26 @@ function LogisticSitesTab({ sites, clients, clientMap, onUpdate, onNotice, canEd
               <Field label="Adresse *">
                 <input className={inp} value={form.adresse} onChange={event => setForm(current => ({ ...current, adresse: event.target.value }))} />
               </Field>
+            </div>
+            <Field label="Code postal">
+              <input className={inp} value={form.code_postal} onChange={event => setForm(current => ({ ...current, code_postal: event.target.value }))} placeholder="Ex: 59000" />
+            </Field>
+            <Field label="Ville">
+              <input className={inp} value={form.ville} onChange={event => setForm(current => ({ ...current, ville: event.target.value }))} placeholder="Ex: Lille" />
+            </Field>
+            <Field label="Contact">
+              <input className={inp} value={form.contact_nom} onChange={event => setForm(current => ({ ...current, contact_nom: event.target.value }))} placeholder="Nom du contact" />
+            </Field>
+            <Field label="Tel. contact">
+              <input className={inp} value={form.contact_tel} onChange={event => setForm(current => ({ ...current, contact_tel: event.target.value }))} placeholder="06 XX XX XX XX" />
+            </Field>
+            <div className="md:col-span-2">
+              <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                <input type="checkbox" checked={form.est_depot_relais}
+                  onChange={e => setForm(current => ({ ...current, est_depot_relais: e.target.checked }))}
+                  className="rounded" />
+                Utilisable comme depot de relais (permet les reprises de charge)
+              </label>
             </div>
             {(form.usage_type === 'livraison' || form.usage_type === 'mixte') && (
               <>
@@ -1610,6 +1819,11 @@ function LogisticSitesTab({ sites, clients, clientMap, onUpdate, onNotice, canEd
                 </div>
               </>
             )}
+            <div className="md:col-span-2">
+              <Field label="Notes internes">
+                <textarea className={`${inp} resize-none h-16`} value={form.notes} onChange={event => setForm(current => ({ ...current, notes: event.target.value }))} placeholder="Notes pour les exploitants..." />
+              </Field>
+            </div>
             <Field label="Latitude">
               <input className={inp} value={form.latitude} onChange={event => setForm(current => ({ ...current, latitude: event.target.value }))} placeholder="Ex: 48.8566" />
             </Field>

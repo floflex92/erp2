@@ -7,12 +7,12 @@ const inlineLinkClassName = 'font-semibold text-[#2563EB]'
 
 export default function SeoErpTransportPage() {
   useSiteMeta({
-    title: 'ERP transport',
+    title: 'ERP transport : plateforme ERP + TMS + flotte pour routiers',
     description:
-      'Page SEO NEXORA Truck sur l’ERP transport pour relier exploitation transport, planning transport, gestion flotte et suivi métier.',
+      'NEXORA Truck : ERP transport tout-en-un qui relie TMS, flotte, conducteurs, télématique et IA dans une seule interface pour pilotes exploités.',
     canonicalPath: '/erp-transport',
     keywords:
-      'ERP transport, logiciel transport, TMS transport, exploitation transport, gestion flotte, planning transport',
+      'ERP transport, ERP transport routier, logiciel transport routier, TMS transport, exploitation transport, gestion flotte, planning transport, logiciel affrètement, portail client transport',
     ogType: 'article',
     author: 'NEXORA Truck',
   })
@@ -44,7 +44,7 @@ export default function SeoErpTransportPage() {
       <section className="rounded-[2.2rem] border border-white/80 bg-white px-6 py-8 shadow-[0_24px_80px_rgba(15,23,42,0.1)] sm:px-8 sm:py-10">
         <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-sky-800">Page SEO canonique</p>
         <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight text-[var(--site-text)] sm:text-[3.2rem] sm:leading-[1.04]">
-          ERP transport : solution complète pour gérer votre exploitation
+          ERP transport : la plateforme tout-en-un pour piloter votre exploitation routière sans fragmentation
         </h1>
         <div className="mt-5 max-w-3xl space-y-4 text-base leading-8 text-[var(--site-text-secondary)]">
           <p>
@@ -204,7 +204,57 @@ export default function SeoErpTransportPage() {
               sur la rentabilité d’une entreprise de transport
             </Link>
             .
+          </p>          <p>
+            Les sujets plus spécialisés sont traités sur des pages dédiées :{' '}
+            <Link to="/tms-transport" className={inlineLinkClassName}>TMS transport</Link>,{' '}
+            <Link to="/logiciel-gestion-flotte-camion" className={inlineLinkClassName}>gestion de flotte camion</Link>,{' '}
+            <Link to="/telematique-transport" className={inlineLinkClassName}>télématique transport</Link>,{' '}
+            <Link to="/chronotachygraphe" className={inlineLinkClassName}>chronotachygraphe</Link>{' '}
+            et <Link to="/ia-transport" className={inlineLinkClassName}>IA transport</Link>.
           </p>
+        </div>
+      </SiteSection>
+
+      <SiteSection
+        eyebrow="Cas d'usage"
+        title="Ce que NEXORA Truck change au quotidien"
+        description="Scénarios concrets d'exploitation transport : avant fragmentation, après centralisation ERP."
+      >
+        <div className="space-y-6 text-sm leading-7 text-[var(--site-text-secondary)] sm:text-base">
+          <div>
+            <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Avant : quatre outils, zéro synchronisation</h3>
+            <p className="mt-2">L'exploitant gère le planning dans un tableur partagé, les disponibilités flotte par téléphone avec l'atelier, les temps conducteurs dans un logiciel RH séparé et la facturation dans un ERP générique non relié au terrain. Quand une mission est annulée à 18h, il faut répercuter la modification dans chacun de ces systèmes manuellement, informer le conducteur par SMS et corriger le fichier de facturation à la main en fin de semaine.</p>
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Avec NEXORA Truck : une seule modification, tout est à jour</h3>
+            <p className="mt-2">La réaffectation se fait dans le <Link to="/tms-transport" className={inlineLinkClassName}>TMS transport</Link> en 90 secondes. Le conducteur reçoit la mission actualisée sur son terminal, la <Link to="/telematique-transport" className={inlineLinkClassName}>télématique</Link> suit le nouveau véhicule, et la lettre de voiture est recréée automatiquement. Les données réelles (km GPS, heures de service) alimentent la facturation sans ressaisie. En fin de mois, l'arrêté comptable prend quelques heures au lieu de trois jours.</p>
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Conformité conducteurs sans import manuel</h3>
+            <p className="mt-2">Les dépassements de temps de conduite sont signalés dans le planning avant confirmation. L'exploitant ne découvre pas l'infraction au contrôle DREAL : la contrainte RSE est visible dès la saisie de l'ordre, grâce à la connexion native avec le <Link to="/chronotachygraphe" className={inlineLinkClassName}>chronotachygraphe</Link>. La <Link to="/ia-transport" className={inlineLinkClassName}>couche IA</Link> propose en temps réel le conducteur disponible le plus cohérent selon la charge résiduelle et les temps de repos.</p>
+          </div>
+        </div>
+      </SiteSection>
+
+      <SiteSection title="Pages spécialisées" description="Chaque dimension de l'ERP transport NEXORA est détaillée sur une page dédiée.">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[
+            { to: '/erp-transport-routier', label: 'ERP transport routier', desc: 'Solution complète pour les transporteurs routiers' },
+            { to: '/tms-transport', label: 'TMS transport', desc: 'Planification et gestion des ordres de transport' },
+            { to: '/logiciel-gestion-flotte-camion', label: 'Gestion de flotte camion', desc: 'Suivi véhicules, maintenance et conformité' },
+            { to: '/telematique-transport', label: 'Télématique transport', desc: 'GPS, suivi temps réel et données terrain' },
+            { to: '/chronotachygraphe', label: 'Chronotachygraphe', desc: 'Intégration tachygraphe et conformité conducteurs' },
+            { to: '/ia-transport', label: 'IA transport', desc: 'Intelligence artificielle appliquée à l\u2019exploitation' },
+          ].map(({ to, label, desc }) => (
+            <Link
+              key={to}
+              to={to}
+              className="group flex flex-col rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition-shadow hover:shadow-md"
+            >
+              <span className="text-sm font-semibold text-[var(--site-text)] group-hover:text-blue-600 transition-colors">{label}</span>
+              <span className="mt-1 text-xs leading-5 text-[var(--site-text-secondary)]">{desc}</span>
+            </Link>
+          ))}
         </div>
       </SiteSection>
     </div>

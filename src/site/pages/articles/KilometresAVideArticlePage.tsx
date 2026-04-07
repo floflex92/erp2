@@ -28,6 +28,7 @@ export default function KilometresAVideArticlePage() {
       }
       relatedLinks={[
         { to: '/erp-transport', title: 'ERP transport', description: 'Voir la page SEO principale sur le pilotage global.' },
+        { to: '/ia-transport', title: 'IA transport', description: 'Réduire les km à vide par optimisation intelligente des tournées.' },
         { to: '/logiciel-transport', title: 'Logiciel transport', description: 'Comparer les critères d’un outil vraiment opérationnel.' },
         { to: '/articles/comment-organiser-un-planning-transport-efficacement', title: 'Planning transport', description: 'Structurer la journée pour réduire les pertes.' },
         { to: '/articles/comment-ameliorer-la-rentabilite-d-une-entreprise-de-transport', title: 'Rentabilité transport', description: 'Relier les kilomètres à vide à la marge.' },

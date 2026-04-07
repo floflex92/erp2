@@ -75,6 +75,7 @@ type LiveMission = {
   driverStatusLabel: string
   vehicleStatusLabel: string
   punctualityBand: 'avance' | 'a_heure' | 'retard_surveillance' | 'retard_critique'
+  routeSimulated: boolean
 }
 
 type MapRenderMode = 'points' | 'itineraires'
@@ -610,6 +611,7 @@ function buildMission(
     .map(step => resolveGeoPoint(step, row.id))
     .filter((point): point is GeoPoint => Boolean(point))
   const routePoints = routePointsFromSteps.length > 0 ? routePointsFromSteps : buildFallbackRoute(`${row.reference}:${row.id}`)
+  const routeSimulated = routePointsFromSteps.length === 0
 
   const statusKey = row.statut_operationnel && row.statut_operationnel in STATUT_OPS ? (row.statut_operationnel as StatutOps) : null
   const hash = hashString(`${row.reference}:${row.id}`)
@@ -669,6 +671,7 @@ function buildMission(
     driverStatusLabel: toStatusLabel(driverStatus, 'Statut inconnu'),
     vehicleStatusLabel: toStatusLabel(vehicleStatus, 'Statut inconnu'),
     punctualityBand: punctuality.band,
+    routeSimulated,
   }
 }
 
@@ -1431,6 +1434,9 @@ export default function MapLive() {
                       {selected.conducteurName} sur {selected.vehiculeName}
                     </p>
                     {selected.commodity && <p className="mt-2 text-xs text-slate-400">{selected.commodity}</p>}
+                    {selected.routeSimulated && (
+                      <p className="mt-2 text-xs text-amber-300 font-medium">⚠ Tracé estimé — adresses GPS non renseignées sur cet OT</p>
+                    )}
                     {selected.driverStepLabel && (
                       <p className="mt-2 text-xs text-cyan-200">
                         Retour conducteur: {selected.driverStepLabel}

@@ -338,10 +338,10 @@ export default function HomePage() {
   const [videoOpen, setVideoOpen] = useState(false)
 
   useSiteMeta({
-    title: 'ERP transport | NEXORA Truck',
-    description: 'ERP transport et logiciel transport TMS pour centraliser planning transport, gestion flotte et exploitation transport avec NEXORA Truck.',
+    title: 'ERP transport routier, TMS et gestion flotte — NEXORA Truck',
+    description: 'Pilotez exploitation, flotte et conducteurs depuis un seul ERP transport : planning, TMS, télématique, IA et facturation centralisés pour transporteurs routiers.',
     canonicalPath: '/',
-    keywords: 'ERP transport, logiciel transport, TMS transport, gestion flotte, planning transport, exploitation transport, NEXORA Truck',
+    keywords: 'ERP transport, logiciel transport, TMS transport, gestion flotte, planning transport, exploitation transport, télématique transport, chronotachygraphe, IA transport, NEXORA Truck',
   })
 
   useEffect(() => {
@@ -408,17 +408,16 @@ export default function HomePage() {
         <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 100%)' }} />
 
         <div className="relative">
-          <h1 className="sr-only">ERP transport et TMS transport pour la gestion flotte et le planning transport</h1>
           <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#6E6E73' }}>
             ERP Transport Routier
           </p>
-          <h2
+          <h1
             id="home-hero-heading"
             className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]"
             style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)', color: '#000000', letterSpacing: '-0.025em' }}
           >
-            Pilotez toute votre exploitation transport depuis un seul outil.
-          </h2>
+            Pilotez exploitation, flotte et conducteurs dans un ERP transport TMS tout-en-un.
+          </h1>
           <p className="mx-auto mt-6 max-w-2xl" style={{ color: '#6E6E73', fontSize: '20px', lineHeight: 1.6 }}>
             De la prise d’ordre à la facturation — une seule plateforme pensée par des exploitants.
           </p>
@@ -451,9 +450,8 @@ export default function HomePage() {
         className="w-full"
         style={{ background: '#F5F5F7', ...sectionPy }}
         data-reveal
-        aria-labelledby="home-product-heading"
+        aria-label="Aperçu du logiciel ERP transport NEXORA Truck"
       >
-        <h2 id="home-product-heading" className="sr-only">Aperçu du logiciel ERP transport</h2>
         <div className="mx-auto" style={{ width: '90vw', maxWidth: '1400px' }}>
           <div className="overflow-hidden rounded-xl bg-white shadow-[0_20px_80px_rgba(0,0,0,0.08)]">
             <div className="flex items-center gap-2 border-b px-4 py-3" style={{ borderColor: '#E5E5E5' }}>
@@ -535,7 +533,7 @@ export default function HomePage() {
           className="font-semibold"
           style={{ fontSize: 'clamp(1.8rem, 4vw, 3rem)', color: '#000000' }}
         >
-          Fonctionnalités
+          Fonctionnalités ERP transport
         </h2>
 
         <div className="mt-8 flex gap-8 overflow-x-auto border-b" style={{ borderColor: '#E5E5E5' }}>
@@ -613,9 +611,8 @@ export default function HomePage() {
         className="w-full bg-white"
         style={{ ...sectionPx, ...sectionPy }}
         data-reveal
-        aria-labelledby="home-results-heading"
+        aria-label="Résultats mesurés sur l'exploitation transport"
       >
-        <h2 id="home-results-heading" className="sr-only">Résultats d’un logiciel transport pour l’exploitation</h2>
         <div className="grid gap-8 text-center md:grid-cols-3">
           {([
             ['+14 %', 'marge opérationnelle'],
@@ -682,12 +679,12 @@ export default function HomePage() {
 
         <div className="mt-12 grid gap-8 lg:grid-cols-3">
           <article className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5">
-            <h2 className="text-2xl font-semibold tracking-tight" style={{ color: '#000000' }}>
+            <h3 className="text-2xl font-semibold tracking-tight" style={{ color: '#000000' }}>
               Planning transport
-            </h2>
-            <h3 className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
-              Structurer la journée avant qu’elle ne se dérègle
             </h3>
+            <p className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
+              Structurer la journée avant qu’elle ne se dèrègle
+            </p>
             <p className="mt-2 text-sm leading-7" style={{ color: '#6E6E73' }}>
               Un planning transport efficace doit intégrer la charge réelle, les disponibilités conducteurs, la faisabilité
               flotte et les contraintes clients. L’objectif n’est pas d’écrire un plan parfait, mais de rendre les
@@ -696,12 +693,12 @@ export default function HomePage() {
           </article>
 
           <article className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5">
-            <h2 className="text-2xl font-semibold tracking-tight" style={{ color: '#000000' }}>
+            <h3 className="text-2xl font-semibold tracking-tight" style={{ color: '#000000' }}>
               Gestion de flotte
-            </h2>
-            <h3 className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
-              Relier disponibilité, maintenance et exploitation
             </h3>
+            <p className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
+              Relier disponibilité, maintenance et exploitation
+            </p>
             <p className="mt-2 text-sm leading-7" style={{ color: '#6E6E73' }}>
               La gestion flotte est vraiment utile lorsqu’elle reste connectée au pilotage opérationnel. Une indisponibilité,
               un passage atelier ou une contrainte réglementaire doivent être visibles avant l’affectation, pas après le
@@ -710,12 +707,12 @@ export default function HomePage() {
           </article>
 
           <article className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5">
-            <h2 className="text-2xl font-semibold tracking-tight" style={{ color: '#000000' }}>
+            <h3 className="text-2xl font-semibold tracking-tight" style={{ color: '#000000' }}>
               Suivi des opérations
-            </h2>
-            <h3 className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
-              Décider vite avec des statuts compréhensibles
             </h3>
+            <p className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
+              Décider vite avec des statuts compréhensibles
+            </p>
             <p className="mt-2 text-sm leading-7" style={{ color: '#6E6E73' }}>
               Le suivi des opérations doit montrer l’avancement réel, les incidents et les points de blocage sans multiplier
               les canaux. Cette lecture améliore la relation client et réduit le temps de coordination interne.
@@ -723,12 +720,60 @@ export default function HomePage() {
           </article>
         </div>
 
+        <div className="mt-8 grid gap-8 lg:grid-cols-3">
+          <article className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5">
+            <h3 className="text-2xl font-semibold tracking-tight" style={{ color: '#000000' }}>
+              TMS transport
+            </h3>
+            <p className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
+              Piloter les ordres de transport dans un flux unique
+            </p>
+            <p className="mt-2 text-sm leading-7" style={{ color: '#6E6E73' }}>
+              Un <Link to="/tms-transport" style={{ color: '#2563EB', fontWeight: 600 }}>TMS transport</Link> efficace relie
+              la création de l'ordre à son exécution terrain et à la facturation. Séparé du reste, il produit des données
+              sans les relier à l'exploitation. NEXORA Truck unifie TMS et ERP dans le même environnement.
+            </p>
+          </article>
+
+          <article className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5">
+            <h3 className="text-2xl font-semibold tracking-tight" style={{ color: '#000000' }}>
+              Télématique et chronotachygraphe
+            </h3>
+            <p className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
+              Données terrain et conformité intégrées
+            </p>
+            <p className="mt-2 text-sm leading-7" style={{ color: '#6E6E73' }}>
+              La <Link to="/telematique-transport" style={{ color: '#2563EB', fontWeight: 600 }}>télématique embarquée</Link> remonte
+              position, kilométrage et alertes directement dans l'ERP. Le module{' '}
+              <Link to="/chronotachygraphe" style={{ color: '#2563EB', fontWeight: 600 }}>chronotachygraphe</Link> assure
+              le suivi automatisé des temps de conduite et la conformité réglementaire.
+            </p>
+          </article>
+
+          <article className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5">
+            <h3 className="text-2xl font-semibold tracking-tight" style={{ color: '#000000' }}>
+              IA transport
+            </h3>
+            <p className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
+              Optimiser l’exploitation par l’intelligence artificielle
+            </p>
+            <p className="mt-2 text-sm leading-7" style={{ color: '#6E6E73' }}>
+              L'<Link to="/ia-transport" style={{ color: '#2563EB', fontWeight: 600 }}>IA transport</Link> de NEXORA Truck
+              propose des suggestions de planning, détecte les anomalies en temps réel et optimise les tournées pour réduire
+              les kilomètres à vide et améliorer la rentabilité mission.
+            </p>
+          </article>
+        </div>
+
         <div className="mt-8 max-w-4xl space-y-4" style={{ color: '#6E6E73' }}>
           <p>
             Pour approfondir cette logique, consultez la page <Link to="/erp-transport">ERP transport</Link>, la page{' '}
-            <Link to="/logiciel-transport">logiciel transport</Link> et la rubrique <Link to="/articles">articles</Link>.
-            Vous y trouverez des contenus détaillés sur le planning transport, le TMS transport, la gestion flotte et les
-            méthodes concrètes de pilotage de la rentabilité transport.
+            <Link to="/logiciel-transport">logiciel transport</Link>, le{' '}
+            <Link to="/tms-transport">TMS transport</Link>, la{' '}
+            <Link to="/logiciel-gestion-flotte-camion">gestion de flotte</Link>, la{' '}
+            <Link to="/telematique-transport">télématique</Link>, le{' '}
+            <Link to="/chronotachygraphe">chronotachygraphe</Link>, l'<Link to="/ia-transport">IA transport</Link>{' '}
+            et la rubrique <Link to="/articles">articles</Link>.
           </p>
         </div>
       </section>
@@ -834,30 +879,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Structure editoriale SEO invisible, sans impact visuel. */}
-      <section className="sr-only" aria-labelledby="home-seo-heading">
-        <h2 id="home-seo-heading">ERP transport, logiciel transport et TMS transport</h2>
-        <h3>Planning transport</h3>
-        <h3>Gestion flotte</h3>
-        <h3>Suivi des missions</h3>
-        <h3>Optimisation exploitation</h3>
-        <p>
-          NEXORA Truck est un ERP transport conçu pour les équipes qui veulent piloter leur activité dans un seul
-          environnement. Ce logiciel transport combine une logique TMS transport avec un pilotage métier complet:
-          planification des ordres, affectation des ressources, visibilité terrain et suivi financier. Le module de planning
-          transport centralise les contraintes clients, les disponibilités conducteurs et la charge flotte pour prendre de
-          meilleures décisions en exploitation transport. La gestion flotte relie les statuts des véhicules, la maintenance et
-          les alertes critiques afin de réduire les immobilisations non planifiées. Le suivi des missions offre une lecture
-          claire de l’avancement, des priorités et des écarts pour agir plus vite avec les clients et les équipes internes.
-        </p>
-        <p>
-          Pour approfondir, la page <Link to="/erp-transport">ERP transport</Link> détaille la structure globale du système,
-          la page <Link to="/logiciel-transport">logiciel transport</Link> précise les critères de choix d’un outil métier,
-          et la page <Link to="/fonctionnalites">fonctionnalités</Link> présente le contenu public déjà disponible sur le site.
-          Les <Link to="/articles">articles transport</Link> prolongent ensuite les sujets liés au planning transport, à la
-          gestion flotte, au TMS transport et à la rentabilité.
-        </p>
-      </section>
     </>
   )
 }

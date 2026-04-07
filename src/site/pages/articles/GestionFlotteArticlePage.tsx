@@ -39,10 +39,11 @@ export default function GestionFlotteArticlePage() {
         </>
       }
       relatedLinks={[
+        { to: '/logiciel-gestion-flotte-camion', title: 'Logiciel gestion flotte camion', description: 'Page dédiée à la gestion de flotte NEXORA Truck.' },
         { to: '/logiciel-transport', title: 'Logiciel transport', description: 'Voir comment relier flotte, planning et exploitation.' },
         { to: '/erp-transport', title: 'ERP transport', description: 'Revenir vers la page principale sur le pilotage global.' },
-        { to: '/articles/comment-ameliorer-la-rentabilite-d-une-entreprise-de-transport', title: 'Rentabilité transport', description: 'Mesurer l’impact direct de la flotte sur la marge.' },
-        { to: '/fonctionnalites', title: 'Fonctionnalités', description: 'Explorer les modules publics liés à la flotte.' },
+        { to: '/telematique-transport', title: 'Télématique transport', description: 'Comprendre comment la télématique améliore le suivi flotte.' },
+        { to: '/articles/comment-ameliorer-la-rentabilite-d-une-entreprise-de-transport', title: 'Rentabilité transport', description: "Mesurer l’impact direct de la flotte sur la marge." },
       ]}
     >
       <SiteSection

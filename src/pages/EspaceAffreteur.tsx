@@ -96,6 +96,8 @@ export default function EspaceAffreteur() {
   const [equipments, setEquipments] = useState<AffreteurEquipment[]>([])
 
   const [contractDetails, setContractDetails] = useState<Record<string, OtContractDetails>>({})
+  const [contractsPage, setContractsPage] = useState(1)
+  const CONTRACTS_PAGE_SIZE = 20
 
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -153,6 +155,7 @@ export default function EspaceAffreteur() {
     }
 
     setContracts(listAffretementContractsByOnboarding(current.id))
+    setContractsPage(1)
     setEmployees(listAffreteurEmployees(current.id))
     setDrivers(listAffreteurDrivers(current.id))
     setVehicles(listAffreteurVehicles(current.id))
@@ -512,7 +515,7 @@ export default function EspaceAffreteur() {
                 {!canUsePortal && <div className="nx-status-warning rounded-xl border border-amber-200 px-3 py-2 text-sm">Le dossier doit etre valide avant activation des contrats.</div>}
                 {contracts.length === 0 && <p className="text-sm text-slate-500">Aucun contrat d affretement pour le moment.</p>}
 
-                {contracts.map(contract => {
+                {contracts.slice(0, contractsPage * CONTRACTS_PAGE_SIZE).map(contract => {
                   const details = contractDetails[contract.otId]
                   const draft = contractDrafts[contract.id] ?? { driverId: '', vehicleId: '', equipmentIds: [], note: '' }
                   const readiness = evaluateAffretementCompletionReadiness(contract)
@@ -629,6 +632,15 @@ export default function EspaceAffreteur() {
                     </div>
                   )
                 })}
+                {contracts.length > contractsPage * CONTRACTS_PAGE_SIZE && (
+                  <button
+                    type="button"
+                    onClick={() => setContractsPage(p => p + 1)}
+                    className="w-full py-2 text-sm text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+                  >
+                    Afficher plus ({contracts.length - contractsPage * CONTRACTS_PAGE_SIZE} restants)
+                  </button>
+                )}
               </div>
             )}
 

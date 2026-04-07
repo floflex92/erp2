@@ -23,7 +23,7 @@ const useCases = [
 
 export default function SolutionPage() {
   useSiteMeta({
-    title: 'La Solution ERP Transport — NEXORA Truck',
+    title: 'Solution ERP transport : plateforme tout-en-un pour transporteurs',
     description: 'NEXORA Truck réunit exploitation, flotte, personnel, finance et communication dans un seul système pour transporteurs francophones.',
     canonicalPath: '/solution',
     keywords: 'solution ERP transport, logiciel transport routier, plateforme TMS complète, gestion exploitation transport',

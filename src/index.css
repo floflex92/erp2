@@ -643,6 +643,13 @@ textarea:focus {
   scrollbar-color: var(--border-strong) transparent;
 }
 
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 .nx-scrollbar::-webkit-scrollbar {
   width: 10px;
   height: 10px;

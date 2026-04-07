@@ -44,9 +44,45 @@
   </url>
   <url>
     <loc>https://nexora-truck.fr/erp-transport</loc>
-    <lastmod>2026-04-03</lastmod>
+    <lastmod>2026-04-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.96</priority>
+  </url>
+  <url>
+    <loc>https://nexora-truck.fr/erp-transport-routier</loc>
+    <lastmod>2026-04-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.94</priority>
+  </url>
+  <url>
+    <loc>https://nexora-truck.fr/tms-transport</loc>
+    <lastmod>2026-04-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.93</priority>
+  </url>
+  <url>
+    <loc>https://nexora-truck.fr/logiciel-gestion-flotte-camion</loc>
+    <lastmod>2026-04-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.93</priority>
+  </url>
+  <url>
+    <loc>https://nexora-truck.fr/telematique-transport</loc>
+    <lastmod>2026-04-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.92</priority>
+  </url>
+  <url>
+    <loc>https://nexora-truck.fr/chronotachygraphe</loc>
+    <lastmod>2026-04-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.92</priority>
+  </url>
+  <url>
+    <loc>https://nexora-truck.fr/ia-transport</loc>
+    <lastmod>2026-04-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.92</priority>
   </url>
   <url>
     <loc>https://nexora-truck.fr/logiciel-transport</loc>
@@ -86,7 +122,25 @@
   </url>
   <url>
     <loc>https://nexora-truck.fr/articles/comment-ameliorer-la-rentabilite-d-une-entreprise-de-transport</loc>
-    <lastmod>2026-04-03</lastmod>
+    <lastmod>2026-04-05</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.84</priority>
+  </url>
+  <url>
+    <loc>https://nexora-truck.fr/articles/reduire-les-kilometres-a-vide-dans-le-transport-routier</loc>
+    <lastmod>2026-04-05</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.84</priority>
+  </url>
+  <url>
+    <loc>https://nexora-truck.fr/articles/otif-transport-comment-fiabiliser-la-livraison-client</loc>
+    <lastmod>2026-04-05</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.84</priority>
+  </url>
+  <url>
+    <loc>https://nexora-truck.fr/articles/transport-routier-systeme-coherent</loc>
+    <lastmod>2026-04-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.84</priority>
   </url>

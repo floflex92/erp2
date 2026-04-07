@@ -15,7 +15,7 @@ import {
   writeCache,
 } from './_lib/v11-core.js'
 
-const ALLOWED_ROLES = ['admin', 'dirigeant', 'exploitant', 'conducteur']
+const ALLOWED_ROLES = ['admin', 'dirigeant', 'exploitant', 'conducteur', 'logisticien']
 
 function parseLimit(value, fallback) {
   const parsed = Number.parseInt(value ?? '', 10)

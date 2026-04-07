@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import NexoraTruckLogo from '@/components/layout/NexoraTruckLogo'
-import { ROLE_ACCESS, ROLE_LABELS, type Role, useAuth } from '@/lib/auth'
+import { firstPage, ROLE_ACCESS, ROLE_LABELS, type Role, useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
 
-const ROLES: Role[] = ['dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable', 'rh', 'conducteur', 'conducteur_affreteur', 'client', 'affreteur', 'administratif', 'facturation', 'flotte', 'maintenance', 'observateur', 'demo', 'investisseur']
+const ROLES: Role[] = ['dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable', 'rh', 'conducteur', 'conducteur_affreteur', 'client', 'affreteur', 'administratif', 'facturation', 'flotte', 'maintenance', 'observateur', 'demo', 'investisseur', 'logisticien']
 const ROLE_SET = new Set<Role>(Object.keys(ROLE_LABELS) as Role[])
 
 const ROLE_META: Partial<Record<Role, { accent: string; desc: string }>> = {
@@ -26,6 +27,7 @@ const ROLE_META: Partial<Record<Role, { accent: string; desc: string }>> = {
   observateur: { accent: 'from-gray-700 to-gray-900', desc: 'Acces en lecture seule, pas de modification.' },
   demo: { accent: 'from-emerald-600 to-emerald-800', desc: 'Acces complet a la plateforme de demonstration.' },
   investisseur: { accent: 'from-amber-600 to-amber-800', desc: 'Dashboard financier et indicateurs cles.' },
+  logisticien: { accent: 'from-cyan-700 to-cyan-900', desc: 'Entrepots, depots relais et flux de stockage.' },
 }
 
 type ManagedUser = Tables<'profils'> & {
@@ -110,6 +112,61 @@ async function loadSupabaseUsers(accessToken: string): Promise<SessionUser[]> {
 }
 
 
+const ADMIN_SHORTCUTS = [
+  {
+    path: '/parametres',
+    label: 'Réglages ERP',
+    desc: 'Thème, langue, préférences globales et configuration de la plateforme.',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1-1.4 1.4l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a1 1 0 0 1-2 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a1 1 0 0 1 0-2h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 1.4-1.4l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V4a1 1 0 0 1 2 0v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H20a1 1 0 0 1 0 2h-.2a1 1 0 0 0-.9.6Z" />
+      </svg>
+    ),
+    accent: 'border-slate-600/50 bg-slate-800/60 hover:bg-slate-800',
+    badge: null,
+  },
+  {
+    path: '/tenant-admin',
+    label: 'Réglages tenant',
+    desc: "Modules actifs, pages autorisées et configuration par organisation.",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M12 3 5 6v6c0 5 3.4 7.7 7 9 3.6-1.3 7-4 7-9V6z" />
+        <path d="m9.5 12 1.8 1.8 3.2-3.3" />
+      </svg>
+    ),
+    accent: 'border-violet-600/30 bg-violet-950/40 hover:bg-violet-900/40',
+    badge: null,
+  },
+  {
+    path: '/utilisateurs',
+    label: 'Comptes utilisateurs',
+    desc: 'Créer, modifier et gérer les profils et rôles des collaborateurs.',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M16 19a4 4 0 0 0-8 0" /><circle cx="12" cy="9" r="3" />
+        <path d="M19 19a3 3 0 0 0-3-3" /><path d="M18 8a2.5 2.5 0 1 1 0 5" />
+      </svg>
+    ),
+    accent: 'border-blue-600/30 bg-blue-950/40 hover:bg-blue-900/40',
+    badge: null,
+  },
+  {
+    path: '/super-admin',
+    label: 'Plateforme',
+    desc: 'Supervision globale, tenants, logs et outils de niveau super-administrateur.',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M12 3v4M12 17v4M4.9 6.1l2.8 2.8M16.3 15.5l2.8 2.8M3 12h4M17 12h4M4.9 17.9l2.8-2.8M16.3 8.5l2.8-2.8" />
+        <circle cx="12" cy="12" r="2.5" />
+      </svg>
+    ),
+    accent: 'border-amber-600/30 bg-amber-950/40 hover:bg-amber-900/30',
+    badge: 'Super Admin',
+  },
+]
+
 function initials(prenom: string | null, nom: string | null) {
   const letters = `${prenom?.[0] ?? ''}${nom?.[0] ?? ''}`.trim()
   return letters ? letters.toUpperCase() : 'DM'
@@ -124,6 +181,7 @@ export default function SessionPicker() {
     setSessionProfil,
     signOut,
   } = useAuth()
+  const navigate = useNavigate()
   const [supabaseUsers, setSupabaseUsers] = useState<SessionUser[]>([])
   const [loadingSupabaseUsers, setLoadingSupabaseUsers] = useState(false)
   const [supabaseUsersError, setSupabaseUsersError] = useState<string | null>(null)
@@ -162,6 +220,13 @@ export default function SessionPicker() {
   function openRoleSession(role: Role) {
     resetSessionProfil()
     setSessionRole(role)
+    navigate(firstPage(role))
+  }
+
+  function openAdminPage(path: string) {
+    resetSessionProfil()
+    setSessionRole('admin')
+    navigate(path)
   }
 
   function openSupabaseUserSession(profile: SessionUser) {
@@ -175,6 +240,7 @@ export default function SessionPicker() {
       domain: 'Supabase',
     })
     setSessionRole(profile.role)
+    navigate(firstPage(profile.role))
   }
 
   const currentUserId = session?.user?.id ?? null
@@ -182,29 +248,92 @@ export default function SessionPicker() {
   return (
     <div className="min-h-screen bg-slate-950 px-6 py-10 text-white">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-10 text-center">
-          <div className="flex justify-center">
-            <NexoraTruckLogo dark size="lg" subtitle="Control center" />
+
+        {/* Header */}
+        <div className="mb-8 flex items-center justify-between gap-4">
+          <NexoraTruckLogo dark size="sm" subtitle="Control center" />
+          <div className="flex items-center gap-3">
+            <span className="hidden text-sm text-slate-400 sm:block">{user?.email}</span>
+            <button
+              type="button"
+              onClick={signOut}
+              className="flex items-center gap-2 rounded-xl border border-red-800/50 bg-red-950/40 px-4 py-2 text-sm font-medium text-red-300 transition-colors hover:bg-red-900/50 hover:text-red-200"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              Se déconnecter
+            </button>
           </div>
-          <h1 className="mt-3 text-3xl font-semibold">Choisir une session admin</h1>
-          <p className="mt-3 text-sm text-slate-400">
-            Connecte en tant que <span className="font-medium text-slate-100">{user?.email}</span>.
-            Ouvre une vue metier ou une session utilisateur Supabase.
-          </p>
         </div>
 
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
+        {/* Portail admin */}
+        <section className="mb-8 rounded-3xl border border-slate-700/50 bg-slate-900/70 p-8 shadow-2xl">
+          <div className="mb-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">Administration</p>
+            <h1 className="mt-2 text-2xl font-semibold text-white">Portail administrateur</h1>
+            <p className="mt-1 text-sm text-slate-400">Configurez et pilotez la plateforme Nexora.</p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {ADMIN_SHORTCUTS.map(shortcut => (
+              <button
+                key={shortcut.path}
+                type="button"
+                onClick={() => openAdminPage(shortcut.path)}
+                className={`group flex flex-col rounded-2xl border p-5 text-left transition-colors ${shortcut.accent}`}
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-slate-300 group-hover:text-white">
+                    {shortcut.icon}
+                  </span>
+                  {shortcut.badge && (
+                    <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+                      {shortcut.badge}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm font-semibold text-white">{shortcut.label}</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-400">{shortcut.desc}</p>
+                <div className="mt-3 flex items-center gap-1 text-xs font-medium text-slate-500 group-hover:text-slate-300">
+                  <span>Ouvrir</span>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6" /></svg>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-6 flex items-center justify-end border-t border-white/[0.06] pt-5">
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById('metier-section')
+                el?.scrollIntoView({ behavior: 'smooth' })
+              }}
+              className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-slate-400 transition-colors hover:bg-white/[0.06] hover:text-slate-200"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M16 21a4 4 0 0 0-8 0" /><circle cx="12" cy="9" r="3" /><path d="M19 19a3 3 0 0 0-3-3" /><path d="M18 8a2.5 2.5 0 1 1 0 5" /></svg>
+              Accéder aux espaces métier
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="rotate-90"><path d="m9 18 6-6-6-6" /></svg>
+            </button>
+          </div>
+        </section>
+
+        <section id="metier-section" className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">Simulation metier</p>
-              <h2 className="mt-2 text-xl font-semibold text-white">Ouvrir une vue par role</h2>
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">Simulation métier</p>
+              <h2 className="mt-2 text-xl font-semibold text-white">Explorer une vue par rôle</h2>
             </div>
             <button
               type="button"
-              onClick={() => openRoleSession('admin')}
-              className="rounded-2xl border border-white/15 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:border-white/30 hover:bg-slate-800"
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-white/[0.06] hover:text-slate-300"
             >
-              Acces administrateur complet
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="-rotate-90"><path d="m9 18 6-6-6-6" /></svg>
+              Retour portail
             </button>
           </div>
 
@@ -303,15 +432,6 @@ export default function SessionPicker() {
           )}
         </section>
 
-        <div className="mt-8 flex justify-center">
-          <button
-            type="button"
-            onClick={signOut}
-            className="text-sm text-slate-500 transition-colors hover:text-slate-300"
-          >
-            Se deconnecter
-          </button>
-        </div>
       </div>
     </div>
   )

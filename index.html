@@ -25,6 +25,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="NEXORA Truck" />
+    <!-- Préchargement hero LCP -->
+    <link rel="preload" as="image" href="/site/screenshots/planning-dark.png" fetchpriority="high" />
+    <!-- DNS prefetch Supabase -->
+    <link rel="dns-prefetch" href="https://rnbbxmdughpxovcnhrpz.supabase.co" />
+    <link rel="preconnect" href="https://rnbbxmdughpxovcnhrpz.supabase.co" crossorigin="anonymous" />
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-4QQVY1DQT2"></script>
     <script>
@@ -70,6 +75,10 @@
     </script>
   </head>
   <body>
+    <a href="#root"
+       class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded focus:bg-white focus:px-4 focus:py-2 focus:text-slate-900 focus:shadow-lg focus:outline focus:outline-2 focus:outline-slate-900">
+      Aller au contenu principal
+    </a>
     <div id="root"></div>
     <noscript>
       <section>

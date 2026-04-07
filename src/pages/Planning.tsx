@@ -82,7 +82,94 @@ type RowOrderMap = Record<Tab, string[]>
 type ContextMenu = { x: number; y: number; ot: OT } | null
 type AffretementContext = NonNullable<ReturnType<typeof getAffretementContextByOtId>>
 type RowConflict = { first: OT; second: OT; overlapMinutes: number }
-type BottomDockTab = 'missions' | 'non_affectees' | 'conflits' | 'affretement' | 'groupages' | 'non_programmees' | 'annulees' | 'urgences'
+type BottomDockTab = 'missions' | 'non_affectees' | 'conflits' | 'affretement' | 'groupages' | 'non_programmees' | 'annulees' | 'urgences' | 'retour_charge' | 'entrepots' | 'relais'
+
+// ─── Types Relais ─────────────────────────────────────────────────────────────
+type TransportRelaisStatut = 'en_attente' | 'assigne' | 'en_cours_reprise' | 'termine' | 'annule'
+type TypeRelais = 'depot_marchandise' | 'relais_conducteur'
+
+type TransportRelaisRecord = {
+  id: string
+  ot_id: string
+  type_relais: TypeRelais
+  statut: TransportRelaisStatut
+  site_id: string | null
+  site: { id: string; nom: string; adresse: string; ville: string | null } | null
+  lieu_nom: string
+  lieu_adresse: string | null
+  lieu_lat: number | null
+  lieu_lng: number | null
+  conducteur_depose_id: string | null
+  vehicule_depose_id: string | null
+  remorque_depose_id: string | null
+  date_depot: string
+  conducteur_reprise_id: string | null
+  vehicule_reprise_id: string | null
+  remorque_reprise_id: string | null
+  date_reprise_prevue: string | null
+  date_reprise_reelle: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+  ordres_transport: { id: string; reference: string; client_nom: string; statut: string; statut_operationnel: string | null; vehicule_id: string | null; conducteur_id: string | null } | null
+  conducteur_depose: { id: string; nom: string; prenom: string } | null
+  vehicule_depose: { id: string; immatriculation: string; modele: string | null } | null
+  conducteur_reprise: { id: string; nom: string; prenom: string } | null
+  vehicule_reprise: { id: string; immatriculation: string; modele: string | null } | null
+  remorque_reprise: { id: string; immatriculation: string } | null
+}
+
+type RelaisModalMode = 'depot' | 'relais_conducteur' | 'assign' | null
+type RelaisModal = {
+  mode: RelaisModalMode
+  ot: OT | null
+  relais: TransportRelaisRecord | null
+}
+
+type RelaisDepotForm = {
+  type_relais: TypeRelais
+  site_id: string
+  lieu_nom: string
+  lieu_adresse: string
+  date_depot: string
+  conducteur_depose_id: string
+  vehicule_depose_id: string
+  remorque_depose_id: string
+  notes: string
+}
+
+type RelaisAssignForm = {
+  conducteur_reprise_id: string
+  vehicule_reprise_id: string
+  remorque_reprise_id: string
+  date_reprise_prevue: string
+  notes: string
+}
+
+type RetourChargeSuggestion = {
+  id: string
+  reference: string
+  client_nom: string
+  date_chargement_prevue: string | null
+  date_livraison_prevue: string | null
+  nature_marchandise: string | null
+  prix_ht: number | null
+  distance_km: number | null
+  dist_vide_km: number | null
+  score_rentabilite: number
+  duree_vide_estimee_h: number | null
+  retour_depot_ok: boolean
+  explication_ia: string | null
+  ia_provider: string
+}
+
+type RetourChargeForm = {
+  vehicule_id: string
+  date_debut: string
+  date_fin: string
+  retour_depot_avant: string
+  rayon_km: number
+}
 type SiteUsageType = 'chargement' | 'livraison' | 'mixte'
 type SiteKind = 'chargement' | 'livraison'
 type SiteDraft = {
@@ -111,15 +198,7 @@ type SiteLoadRow = {
   created_at?: string | null
   updated_at?: string | null
 }
-type AddressLoadRow = {
-  id: string
-  client_id?: string | null
-  nom_lieu?: string | null
-  type_lieu?: string | null
-  adresse?: string | null
-  horaires?: string | null
-  instructions?: string | null
-}
+// AddressLoadRow supprimé (non utilisé)
 type GeneratedInlineEvent = {
   id: string
   rowId: string
@@ -360,13 +439,17 @@ function mapSiteLoadRow(row: SiteLoadRow): LogisticSite {
     longitude: row.longitude ?? null,
     created_at: row.created_at ?? new Date(0).toISOString(),
     updated_at: row.updated_at ?? new Date(0).toISOString(),
-  }
-}
-
-function mapAddressTypeToSiteUsage(_typeLieu?: string | null): SiteUsageType {
-  void _typeLieu
-  // Les adresses client sont toujours mixtes : elles apparaissent dans les deux sélecteurs
-  return 'mixte'
+    // Champs non charges dans ce contexte (planning simplifie)
+    code_postal: null,
+    contact_nom: null,
+    contact_tel: null,
+    est_depot_relais: false,
+    ville: null,
+    pays: null,
+    type_site: null,
+    capacite_m3: null,
+    notes: null,
+  } as unknown as LogisticSite
 }
 const TYPE_TRANSPORT_COLORS: Record<string, string> = {
   complet:'#3b82f6', groupage:'#f59e0b', express:'#ef4444',
@@ -592,6 +675,44 @@ export default function Planning() {
   const [bottomDockCollapsed, setBottomDockCollapsed] = useState<boolean>(() => loadBooleanSetting(BOTTOM_DOCK_COLLAPSED_KEY, false))
   const [isResizingBottomDock, setIsResizingBottomDock] = useState(false)
   const [groupageTargetId, setGroupageTargetId] = useState('')
+
+  // Retour en charge IA
+  const [retourChargeForm, setRetourChargeForm] = useState<RetourChargeForm>({
+    vehicule_id: '',
+    date_debut: '',
+    date_fin: '',
+    retour_depot_avant: '',
+    rayon_km: 200,
+  })
+  const [retourChargeSuggestions, setRetourChargeSuggestions] = useState<RetourChargeSuggestion[]>([])
+  const [retourChargeLoading, setRetourChargeLoading] = useState(false)
+  const [retourChargeError, setRetourChargeError] = useState<string | null>(null)
+
+  // ── Relais ──────────────────────────────────────────────────────────────────
+  const [relaisList, setRelaisList] = useState<TransportRelaisRecord[]>([])
+  const [relaisLoading, setRelaisLoading] = useState(false)
+  const [relaisError, setRelaisError] = useState<string | null>(null)
+  const [relaisModal, setRelaisModal] = useState<RelaisModal>({ mode: null, ot: null, relais: null })
+  const [relaisDepotForm, setRelaisDepotForm] = useState<RelaisDepotForm>({
+    type_relais: 'depot_marchandise',
+    site_id: '',
+    lieu_nom: '',
+    lieu_adresse: '',
+    date_depot: new Date().toISOString().slice(0, 16),
+    conducteur_depose_id: '',
+    vehicule_depose_id: '',
+    remorque_depose_id: '',
+    notes: '',
+  })
+  const [relaisAssignForm, setRelaisAssignForm] = useState<RelaisAssignForm>({
+    conducteur_reprise_id: '',
+    vehicule_reprise_id: '',
+    remorque_reprise_id: '',
+    date_reprise_prevue: '',
+    notes: '',
+  })
+  const [relaisSaving, setRelaisSaving] = useState(false)
+  const [relaisDepotSites, setRelaisDepotSites] = useState<{ id: string; nom: string; ville: string | null; adresse: string }[]>([])
 
   // Menu contextuel
   const [contextMenu, setContextMenu] = useState<ContextMenu>(null)
@@ -918,130 +1039,59 @@ export default function Planning() {
   }, [])
 
   const loadAll = useCallback(async () => {
-    const extendedOtSelect = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, donneur_ordre_id, chargement_site_id, livraison_site_id, groupage_id, groupage_fige, est_affretee, clients!ordres_transport_client_id_fkey(nom)'
-    const extendedWithoutAffretementSelect = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, donneur_ordre_id, chargement_site_id, livraison_site_id, groupage_id, groupage_fige, clients!ordres_transport_client_id_fkey(nom)'
-    const siteAwareOtSelect = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, chargement_site_id, livraison_site_id, groupage_id, groupage_fige, clients!ordres_transport_client_id_fkey(nom)'
-    const legacyOtSelect = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, groupage_id, groupage_fige, clients!ordres_transport_client_id_fkey(nom)'
-    const bareMinimumOtSelect = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, groupage_id, groupage_fige'
+    // ── Sélect OT canonique (schema stable depuis les migrations du 2026-03-30) ──
+    const OT_SELECT = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, donneur_ordre_id, chargement_site_id, livraison_site_id, groupage_id, groupage_fige, est_affretee, clients!ordres_transport_client_id_fkey(nom)'
+    const SITE_SELECT = 'id, nom, adresse, entreprise_id, usage_type, horaires_ouverture, jours_ouverture, notes_livraison, latitude, longitude, created_at, updated_at'
 
-    let otR: {
-      data: unknown[] | null
-      error: { message?: string; details?: string; hint?: string } | null
-    } = await supabase
-      .from('ordres_transport')
-      .select(extendedOtSelect)
-      .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
+    // Fenêtre glissante centrée sur la semaine affichée :
+    //   • 7 jours en arrière  → couvre les OTs en cours / passés récents
+    //   • 21 jours en avant   → couvre 3 semaines de planning à venir
+    // Les brouillons sans date (pool) sont toujours inclus via .is.null.
+    const winFrom = new Date(weekStart)
+    winFrom.setDate(winFrom.getDate() - 7)
+    const winTo = new Date(weekStart)
+    winTo.setDate(winTo.getDate() + 21)
+    const winFromISO = winFrom.toISOString().slice(0, 10)
+    const winToISO   = winTo.toISOString().slice(0, 10)
+    // Filtre : (chargement dans fenêtre ET livraison dans fenêtre) OU pas de date (pool)
+    const otDateFilter = `and(date_chargement_prevue.gte.${winFromISO},date_chargement_prevue.lte.${winToISO}),date_chargement_prevue.is.null`
 
-    if (otR.error) {
-      // Fallback 1 : meme charge utile sans est_affretee (schemas plus anciens)
-      const noAffretementR = await supabase
+    // ── Toutes les requêtes en parallèle — 1 seul round-trip réseau ─────────
+    const [otR, siteR, cR, vR, rR, clientR, aR] = await Promise.all([
+      supabase
         .from('ordres_transport')
-        .select(extendedWithoutAffretementSelect)
-        .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
-      if (!noAffretementR.error) {
-        otR = noAffretementR as typeof otR
-      } else {
-        // Fallback 2 : conserve chargement/livraison meme sans donneur_ordre_id
-        const siteAwareR = await supabase
-          .from('ordres_transport')
-          .select(siteAwareOtSelect)
-          .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
-        if (!siteAwareR.error) {
-          otR = siteAwareR as typeof otR
-        } else {
-          // Fallback 3 : colonnes originales + FK join
-          const legacyR = await supabase
-            .from('ordres_transport')
-            .select(legacyOtSelect)
-            .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
-          if (!legacyR.error) {
-            otR = legacyR as typeof otR
-          } else {
-            // Fallback 4 : colonnes originales sans FK join
-            const bareR = await supabase
-              .from('ordres_transport')
-              .select(bareMinimumOtSelect)
-              .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
-            if (!bareR.error) otR = bareR as typeof otR
-          }
-        }
-      }
-    }
-
-    async function fetchSiteRows() {
-      let result: {
-        data: SiteLoadRow[] | null
-        error: { message?: string } | null
-      } = await looseSupabase
+        .select(OT_SELECT)
+        .or(otDateFilter)
+        .order('date_chargement_prevue', { ascending: true, nullsFirst: false }),
+      looseSupabase
         .from('sites_logistiques')
-        .select('id, nom, adresse, entreprise_id, usage_type, horaires_ouverture, jours_ouverture, notes_livraison, latitude, longitude, created_at, updated_at')
-        .order('nom')
-
-      if (result.error) {
-        const siteFallbackR = await looseSupabase
-          .from('sites_logistiques')
-          .select('id, nom, adresse, entreprise_id, usage_type')
-          .order('nom')
-        if (!siteFallbackR.error) {
-          result = siteFallbackR as typeof result
-        } else {
-          const siteMinimumR = await looseSupabase
-            .from('sites_logistiques')
-            .select('id, nom, adresse, entreprise_id')
-            .order('nom')
-          if (!siteMinimumR.error) result = siteMinimumR as typeof result
-        }
-      }
-
-      return result
-    }
-
-    let siteR = await fetchSiteRows()
-
-    if (!siteR.error && (siteR.data?.length ?? 0) === 0) {
-      const addressR = await looseSupabase
-        .from('adresses')
-        .select('id, client_id, nom_lieu, type_lieu, adresse, horaires, instructions')
-        .not('client_id', 'is', null)
-        .not('adresse', 'is', null)
-        .order('nom_lieu')
-
-      if (!addressR.error && (addressR.data?.length ?? 0) > 0) {
-        const seededSites = (addressR.data as AddressLoadRow[])
-          .filter(address => address.id && address.client_id && address.adresse)
-          .map(address => ({
-            id: address.id,
-            nom: (address.nom_lieu && address.nom_lieu.trim()) ? address.nom_lieu.trim() : address.adresse!.slice(0, 80),
-            adresse: address.adresse!,
-            entreprise_id: address.client_id!,
-            usage_type: mapAddressTypeToSiteUsage(address.type_lieu),
-            horaires_ouverture: address.horaires ?? null,
-            jours_ouverture: null,
-            notes_livraison: address.instructions ?? null,
-          }))
-
-        if (seededSites.length > 0) {
-          await supabase
-            .from('sites_logistiques')
-            .upsert(seededSites, { onConflict: 'id' })
-          siteR = await fetchSiteRows()
-        }
-      }
-    }
-
-    const [cR, vR, rR, clientR, aR] = await Promise.all([
+        .select(SITE_SELECT)
+        .order('nom'),
       supabase.from('conducteurs').select('id, nom, prenom, statut').eq('statut', 'actif').order('nom'),
       supabase.from('vehicules').select('id, immatriculation, marque, modele, statut').neq('statut', 'hors_service').order('immatriculation'),
       supabase.from('remorques').select('id, immatriculation, type_remorque, statut').neq('statut', 'hors_service').order('immatriculation'),
       supabase.from('clients').select('id, nom, actif').eq('actif', true).order('nom'),
       supabase.from('affectations').select('id, conducteur_id, vehicule_id, remorque_id, actif').eq('actif', true),
     ])
+
+    // ── OT : fallback minimal si la colonne est_affretee est manquante ───────
+    let finalOtR = otR as { data: unknown[] | null; error: { message?: string } | null }
     if (otR.error) {
+      const fallback = await supabase
+        .from('ordres_transport')
+        .select('id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, chargement_site_id, livraison_site_id, groupage_id, groupage_fige, clients!ordres_transport_client_id_fkey(nom)')
+        .or(otDateFilter)
+        .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
+      if (!fallback.error) finalOtR = fallback as typeof finalOtR
+    }
+
+    // ── Traitement OTs ───────────────────────────────────────────────────────
+    if (finalOtR.error) {
       setPool([])
       setGanttOTs([])
       setCancelledOTs([])
       setSelected(null)
-    } else if (otR.data) {
+    } else if (finalOtR.data) {
       type OtLoadRow = Omit<OT, 'client_nom'> & {
         clients: { nom: string } | { nom: string }[] | null
         distance_km?: number | null
@@ -1051,7 +1101,7 @@ export default function Planning() {
         groupage_id?: string | null
         groupage_fige?: boolean | null
       }
-      const ots: OT[] = (otR.data as OtLoadRow[]).map(r => ({
+      const ots: OT[] = (finalOtR.data as OtLoadRow[]).map(r => ({
         id: r.id, reference: r.reference, client_nom: (Array.isArray(r.clients) ? r.clients[0] : r.clients)?.nom ?? '-',
         date_chargement_prevue: r.date_chargement_prevue, date_livraison_prevue: r.date_livraison_prevue,
         type_transport: r.type_transport, nature_marchandise: r.nature_marchandise,
@@ -1072,6 +1122,8 @@ export default function Planning() {
       setGanttOTs(principalPlanning.filter(o => !isDraftStatut(o) || hasAssignedResource(o)))
       setSelected(current => current ? (scopedPlanning.find(ot => ot.id === current.id) ?? null) : current)
     }
+
+    // ── Ressources ───────────────────────────────────────────────────────────
     if (cR.error) setConducteurs([])
     else if (cR.data) setConducteurs(cR.data)
 
@@ -1085,30 +1137,32 @@ export default function Planning() {
     else if (clientR.data) setClients(clientR.data)
 
     if (siteR.error) setLogisticSites([])
-    else if (siteR.data) setLogisticSites(sortLogisticSites((siteR.data ?? []).map(mapSiteLoadRow)))
+    else if (siteR.data) setLogisticSites(sortLogisticSites((siteR.data as SiteLoadRow[] ?? []).map(mapSiteLoadRow)))
 
     if (aR.error) setAffectations([])
     else if (aR.data) setAffectations(aR.data)
-  }, [planningScope])
+  }, [planningScope, weekStart])
 
   useEffect(() => { void loadAll() }, [loadAll])
 
+  const realtimeReloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   useEffect(() => {
+    const debouncedLoad = () => {
+      if (realtimeReloadTimer.current) clearTimeout(realtimeReloadTimer.current)
+      realtimeReloadTimer.current = setTimeout(() => { void loadAll() }, 2000)
+    }
+
     const db = looseSupabase
     const channel = db
       .channel('planning-live-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ordres_transport' }, () => {
-        void loadAll()
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'etapes_mission' }, () => {
-        void loadAll()
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'historique_statuts' }, () => {
-        void loadAll()
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ordres_transport' }, debouncedLoad)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'etapes_mission' }, debouncedLoad)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'historique_statuts' }, debouncedLoad)
       .subscribe()
 
     return () => {
+      if (realtimeReloadTimer.current) clearTimeout(realtimeReloadTimer.current)
       void db.removeChannel(channel)
     }
   }, [loadAll])
@@ -1469,6 +1523,134 @@ export default function Planning() {
 
   // â”€â”€ Direct block move â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+  async function loadRelais() {
+    setRelaisLoading(true)
+    try {
+      const res = await fetch('/.netlify/functions/v11-transport-relay')
+      if (!res.ok) { setRelaisError('Erreur chargement relais.'); return }
+      const body = await res.json() as { data?: TransportRelaisRecord[] }
+      setRelaisList(body.data ?? [])
+      setRelaisError(null)
+    } catch {
+      setRelaisError('Erreur reseau relais.')
+    } finally {
+      setRelaisLoading(false)
+    }
+  }
+
+  async function loadRelaisDepotSites() {
+    try {
+      const res = await fetch('/.netlify/functions/v11-logistic-sites?est_depot_relais=true')
+      if (!res.ok) return
+      const body = await res.json() as { data?: { id: string; nom: string; ville: string | null; adresse: string }[] }
+      setRelaisDepotSites(body.data ?? [])
+    } catch { /* silencieux */ }
+  }
+
+  function openRelaisDepot(ot: OT, type: TypeRelais = 'depot_marchandise') {
+    if (!ensureWriteAllowed('Depot relais')) return
+    setRelaisDepotForm({
+      type_relais: type,
+      site_id: '',
+      lieu_nom: '',
+      lieu_adresse: '',
+      date_depot: new Date().toISOString().slice(0, 16),
+      conducteur_depose_id: ot.conducteur_id ?? '',
+      vehicule_depose_id: ot.vehicule_id ?? '',
+      remorque_depose_id: ot.remorque_id ?? '',
+      notes: '',
+    })
+    void loadRelaisDepotSites()
+    setRelaisModal({ mode: type === 'relais_conducteur' ? 'relais_conducteur' : 'depot', ot, relais: null })
+    setContextMenu(null)
+  }
+
+  function openRelaisAssign(relais: TransportRelaisRecord) {
+    setRelaisAssignForm({
+      conducteur_reprise_id: '',
+      vehicule_reprise_id: '',
+      remorque_reprise_id: '',
+      date_reprise_prevue: '',
+      notes: '',
+    })
+    setRelaisModal({ mode: 'assign', ot: null, relais })
+  }
+
+  async function submitRelaisDepot(e: React.FormEvent) {
+    e.preventDefault()
+    if (!relaisModal.ot) return
+    const form = relaisDepotForm
+    const lieuNom = form.site_id
+      ? (relaisDepotSites.find(s => s.id === form.site_id)?.nom ?? form.lieu_nom.trim())
+      : form.lieu_nom.trim()
+    if (!lieuNom) return
+    setRelaisSaving(true)
+    try {
+      const res = await fetch('/.netlify/functions/v11-transport-relay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ot_id: relaisModal.ot.id,
+          type_relais: form.type_relais,
+          site_id: form.site_id || null,
+          lieu_nom: lieuNom,
+          lieu_adresse: form.lieu_adresse.trim() || null,
+          conducteur_depose_id: form.conducteur_depose_id || null,
+          vehicule_depose_id: form.vehicule_depose_id || null,
+          remorque_depose_id: form.remorque_depose_id || null,
+          date_depot: form.date_depot || new Date().toISOString(),
+          notes: form.notes.trim() || null,
+        }),
+      })
+      if (!res.ok) { pushPlanningNotice('Erreur creation relais.', 'error'); return }
+      setRelaisModal({ mode: null, ot: null, relais: null })
+      void loadRelais()
+      setBottomDockTab('relais')
+    } catch {
+      pushPlanningNotice('Erreur reseau.', 'error')
+    } finally {
+      setRelaisSaving(false)
+    }
+  }
+
+  async function submitRelaisAssign(e: React.FormEvent) {
+    e.preventDefault()
+    if (!relaisModal.relais) return
+    const form = relaisAssignForm
+    setRelaisSaving(true)
+    try {
+      const res = await fetch(`/.netlify/functions/v11-transport-relay?relais_id=${relaisModal.relais.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conducteur_reprise_id: form.conducteur_reprise_id || null,
+          vehicule_reprise_id: form.vehicule_reprise_id || null,
+          remorque_reprise_id: form.remorque_reprise_id || null,
+          date_reprise_prevue: form.date_reprise_prevue || null,
+          notes: form.notes.trim() || null,
+        }),
+      })
+      if (!res.ok) { pushPlanningNotice('Erreur affectation.', 'error'); return }
+      setRelaisModal({ mode: null, ot: null, relais: null })
+      void loadRelais()
+    } catch {
+      pushPlanningNotice('Erreur reseau.', 'error')
+    } finally {
+      setRelaisSaving(false)
+    }
+  }
+
+  async function updateRelaisStatut(relaisId: string, statut: TransportRelaisStatut) {
+    try {
+      await fetch(`/.netlify/functions/v11-transport-relay?relais_id=${relaisId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ statut }),
+      })
+      void loadRelais()
+    } catch { /* silencieux */ }
+  }
+
   async function moveBlock(ot: OT, resourceId: string, newStartISO: string, newEndISO: string, notifySuccess = true) {
     if (!ensureWriteAllowed('Deplacement de course')) return
     if (!ensureGroupageEditable(ot, 'Deplacement')) return
@@ -1823,6 +2005,11 @@ export default function Planning() {
             setDrag(null)
             return
           }
+          if (!getWeekBlockMetrics(activeDrag.ot, weekStart)) {
+            pushPlanningNotice('Cette course n\'est pas planifiée cette semaine. Naviguez vers sa période pour l\'assigner.', 'error')
+            setDrag(null)
+            return
+          }
           const overlapTarget = findOverlapTarget(rowId, currentSchedule.startISO, currentSchedule.endISO, movingOtIds)
           if (overlapTarget) {
             const shouldCreateGroupage = window.confirm(`Superposition detectee avec ${overlapTarget.reference}. Voulez-vous creer un groupage deliable ?`)
@@ -1878,6 +2065,11 @@ export default function Planning() {
           if (!currentSchedule) {
             openAssign(activeDrag.ot, rowId)
             pushPlanningNotice('Reglez les dates de la course depuis sa fiche avant de la placer sur le planning.', 'error')
+            setDrag(null)
+            return
+          }
+          if (!getDayBlockMetrics(activeDrag.ot.date_chargement_prevue, activeDrag.ot.date_livraison_prevue, selectedDay)) {
+            pushPlanningNotice('Cette course n\'est pas planifiée ce jour. Naviguez vers son jour pour l\'assigner.', 'error')
             setDrag(null)
             return
           }
@@ -2916,7 +3108,19 @@ export default function Planning() {
 
   function ghostPos(rowId: string): React.CSSProperties | null {
     if (!hoverRow || hoverRow.rowId !== rowId || !drag) return null
-    if (drag.kind === 'pool' || drag.kind === 'block') return null
+    if (drag.kind === 'pool' || drag.kind === 'block') {
+      // La course reste à sa propre position sur la timeline – on affiche le ghost à cet endroit
+      if (!drag.ot) return null
+      if (viewMode === 'semaine') {
+        const metrics = getWeekBlockMetrics(drag.ot, weekStart)
+        if (!metrics) return null
+        return { position:'absolute', top:'6px', height:'40px', left:`calc(${metrics.leftPct}% + 2px)`, width:`calc(${metrics.widthPct}% - 4px)`, zIndex:20, pointerEvents:'none' }
+      } else {
+        const metrics = getDayBlockMetrics(drag.ot.date_chargement_prevue, drag.ot.date_livraison_prevue, selectedDay)
+        if (!metrics) return null
+        return { position:'absolute', top:'4px', height:'44px', left:`${metrics.leftPct}%`, width:`${metrics.widthPct}%`, zIndex:20, pointerEvents:'none' }
+      }
+    }
     if (viewMode === 'semaine') {
       const left  = hoverRow.dayIdx / 7
       const width = Math.min(drag.durationDays, 7 - hoverRow.dayIdx) / 7
@@ -3094,7 +3298,7 @@ export default function Planning() {
 
   return (
     <div
-      className={`nx-planning relative flex min-h-full bg-slate-950 ${isResizingBottomDock ? 'cursor-ns-resize' : ''}`}
+      className={`nx-planning relative flex h-full bg-slate-950 overflow-x-hidden ${isResizingBottomDock ? 'cursor-ns-resize' : ''}`}
       style={{ paddingBottom: `${BOTTOM_DOCK_VIEWPORT_OFFSET}px` }}
     >
       {planningNotice && (
@@ -3206,6 +3410,8 @@ export default function Planning() {
                 {group.list.map(ot => {
                   const isLate = !!ot.date_livraison_prevue && ot.date_livraison_prevue.slice(0,10) < nowDate
                   const clientDot = clientColorMap[ot.client_nom]
+                  const chargSite = ot.chargement_site_id ? logisticSites.find(s => s.id === ot.chargement_site_id) : null
+                  const livrSite  = ot.livraison_site_id  ? logisticSites.find(s => s.id === ot.livraison_site_id)  : null
                   return (
                     <div key={ot.id} role="button" tabIndex={0} draggable
                       onDragStart={e => onDragStartPool(ot, e)} onDragEnd={onDragEnd}
@@ -3231,6 +3437,22 @@ export default function Planning() {
                       <p className="text-sm font-semibold text-white truncate leading-tight">{ot.client_nom}</p>
                       {getAffretementCompany(ot.id) && (
                         <p className="text-[10px] text-blue-300/80 truncate mt-0.5">{getAffretementCompany(ot.id)}</p>
+                      )}
+                      {(chargSite || livrSite) && (
+                        <div className="mt-1 space-y-0.5">
+                          {chargSite && (
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0"/>
+                              <span className="text-[10px] text-slate-400 truncate">{chargSite.ville ?? chargSite.nom}</span>
+                            </div>
+                          )}
+                          {livrSite && (
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-400 flex-shrink-0"/>
+                              <span className="text-[10px] text-slate-400 truncate">{livrSite.ville ?? livrSite.nom}</span>
+                            </div>
+                          )}
+                        </div>
                       )}
                       <div className="flex items-center justify-between mt-1">
                         <p className="text-[10px] text-slate-500 font-mono">
@@ -4215,7 +4437,7 @@ export default function Planning() {
               </div>
 
               <div className="border-t border-slate-800 bg-slate-950/95 flex-shrink-0 overflow-hidden" style={{ height: `${bottomDockHeight}px` }}>
-          <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-slate-800/80 overflow-x-hidden">
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-800/80 overflow-x-auto scrollbar-none flex-shrink-0">
             {([
               { key: 'missions' as BottomDockTab, label: 'Missions', count: bottomDockMissions.length },
               { key: 'urgences' as BottomDockTab, label: 'Urgences', count: bottomDockUrgences.length },
@@ -4225,11 +4447,17 @@ export default function Planning() {
               { key: 'groupages' as BottomDockTab, label: 'Groupages', count: bottomDockGroupages.length },
               { key: 'non_programmees' as BottomDockTab, label: 'Non programmees', count: bottomDockNonProgrammees.length },
               { key: 'annulees' as BottomDockTab, label: 'Annulees', count: bottomDockAnnulees.length },
+              { key: 'entrepots' as BottomDockTab, label: 'Entrepots', count: relaisList.filter(r => r.type_relais === 'depot_marchandise' && r.statut === 'en_attente').length },
+              { key: 'relais' as BottomDockTab, label: 'Relais conducteur', count: relaisList.filter(r => r.type_relais === 'relais_conducteur' && (r.statut === 'en_attente' || r.statut === 'assigne')).length },
+              { key: 'retour_charge' as BottomDockTab, label: 'Retour en charge IA', count: retourChargeSuggestions.length },
             ]).map(item => (
               <button
                 key={item.key}
                 type="button"
-                onClick={() => setBottomDockTab(item.key)}
+                onClick={() => {
+                  setBottomDockTab(item.key)
+                  if (item.key === 'relais' || item.key === 'entrepots') void loadRelais()
+                }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border whitespace-nowrap ${
                   bottomDockTab === item.key
                     ? 'bg-indigo-600/25 border-indigo-500/50 text-indigo-200'
@@ -4593,6 +4821,372 @@ export default function Planning() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+
+              {bottomDockTab === 'retour_charge' && (
+                <div className="overflow-auto p-3 space-y-3">
+                  <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-3">
+                    <p className="text-xs font-semibold text-indigo-300 mb-0.5">Placement retour en charge</p>
+                    <p className="text-[11px] text-indigo-200/70">
+                      Trouvez les courses disponibles les plus proches de la position actuelle du vehicule.
+                      L'IA Anthropic Claude sera branchee dans la prochaine phase.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-1 uppercase tracking-wide">Vehicule</label>
+                      <select
+                        className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs px-2 py-2 outline-none"
+                        value={retourChargeForm.vehicule_id}
+                        onChange={e => setRetourChargeForm(f => ({ ...f, vehicule_id: e.target.value }))}
+                      >
+                        <option value="">-- Choisir --</option>
+                        {vehicules.map(v => (
+                          <option key={v.id} value={v.id}>{v.immatriculation} {v.marque ?? ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-1 uppercase tracking-wide">Date debut</label>
+                      <input
+                        type="date"
+                        className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs px-2 py-2 outline-none"
+                        value={retourChargeForm.date_debut}
+                        onChange={e => setRetourChargeForm(f => ({ ...f, date_debut: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-1 uppercase tracking-wide">Date fin</label>
+                      <input
+                        type="date"
+                        className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs px-2 py-2 outline-none"
+                        value={retourChargeForm.date_fin}
+                        onChange={e => setRetourChargeForm(f => ({ ...f, date_fin: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-1 uppercase tracking-wide">Retour depot avant</label>
+                      <input
+                        type="datetime-local"
+                        className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs px-2 py-2 outline-none"
+                        value={retourChargeForm.retour_depot_avant}
+                        onChange={e => setRetourChargeForm(f => ({ ...f, retour_depot_avant: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-1 uppercase tracking-wide">Rayon (km)</label>
+                      <input
+                        type="number"
+                        min={10}
+                        max={1000}
+                        className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs px-2 py-2 outline-none"
+                        value={retourChargeForm.rayon_km}
+                        onChange={e => setRetourChargeForm(f => ({ ...f, rayon_km: Number(e.target.value) || 200 }))}
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <button
+                        type="button"
+                        disabled={retourChargeLoading || !retourChargeForm.vehicule_id || !retourChargeForm.date_debut || !retourChargeForm.date_fin}
+                        onClick={async () => {
+                          setRetourChargeLoading(true)
+                          setRetourChargeError(null)
+                          try {
+                            const { data: sessionData } = await supabase.auth.getSession()
+                            const token = sessionData.session?.access_token
+                            if (!token) throw new Error('Session absente.')
+                            // Position de reference : derniere livraison du vehicule dans les OT termines
+                            const { data: lastOt } = await supabase
+                              .from('ordres_transport')
+                              .select('livraison_lat, livraison_lng')
+                              .eq('vehicule_id', retourChargeForm.vehicule_id)
+                              .eq('statut', 'livre')
+                              .order('date_livraison_prevue', { ascending: false })
+                              .limit(1)
+                              .maybeSingle()
+                            const posLat: number = (lastOt as { livraison_lat?: number | null } | null)?.livraison_lat ?? 48.8566
+                            const posLng: number = (lastOt as { livraison_lng?: number | null } | null)?.livraison_lng ?? 2.3522
+                            const res = await fetch('/.netlify/functions/v11-ai-placement', {
+                              method: 'POST',
+                              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                vehicule_id: retourChargeForm.vehicule_id,
+                                position_lat: posLat,
+                                position_lng: posLng,
+                                date_debut: retourChargeForm.date_debut,
+                                date_fin: retourChargeForm.date_fin,
+                                retour_depot_avant: retourChargeForm.retour_depot_avant || undefined,
+                                rayon_km: retourChargeForm.rayon_km,
+                                limit: 15,
+                              }),
+                            })
+                            const json = await res.json()
+                            if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`)
+                            setRetourChargeSuggestions(json.suggestions ?? [])
+                          } catch (err) {
+                            setRetourChargeError(err instanceof Error ? err.message : 'Erreur recherche.')
+                          } finally {
+                            setRetourChargeLoading(false)
+                          }
+                        }}
+                        className="w-full rounded-lg px-3 py-2 text-xs font-semibold text-white disabled:opacity-40 transition-colors"
+                        style={{ background: '#6366f1' }}
+                      >
+                        {retourChargeLoading ? 'Recherche...' : 'Chercher courses'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {retourChargeError && (
+                    <p className="text-xs text-red-300 bg-red-500/10 rounded-lg px-3 py-2">{retourChargeError}</p>
+                  )}
+
+                  {!retourChargeLoading && retourChargeSuggestions.length > 0 && (
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
+                        <tr>
+                          <th className="text-left px-3 py-2">Reference</th>
+                          <th className="text-left px-3 py-2">Client</th>
+                          <th className="text-left px-3 py-2">Chargement</th>
+                          <th className="text-left px-3 py-2">Km a vide</th>
+                          <th className="text-left px-3 py-2">Prix HT</th>
+                          <th className="text-left px-3 py-2">Score</th>
+                          <th className="text-left px-3 py-2">Depot OK</th>
+                          <th className="text-left px-3 py-2">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {retourChargeSuggestions.map((s, i) => {
+                          const ot = [...pool, ...ganttOTs].find(o => o.id === s.id)
+                          return (
+                            <tr key={s.id} className="border-t border-slate-800/70 hover:bg-slate-800/40">
+                              <td className="px-3 py-2">
+                                <span className="mr-1.5 text-[10px] text-indigo-400 font-bold">#{i + 1}</span>
+                                <span className="font-mono text-slate-300">{s.reference}</span>
+                              </td>
+                              <td className="px-3 py-2 text-slate-200">{s.client_nom}</td>
+                              <td className="px-3 py-2 text-slate-400">{isoToDate(s.date_chargement_prevue)}</td>
+                              <td className="px-3 py-2">
+                                {s.dist_vide_km != null
+                                  ? <span className={`font-semibold ${s.dist_vide_km < 50 ? 'text-emerald-300' : s.dist_vide_km < 150 ? 'text-amber-300' : 'text-red-300'}`}>
+                                      {s.dist_vide_km} km
+                                    </span>
+                                  : <span className="text-slate-500">N/A</span>
+                                }
+                              </td>
+                              <td className="px-3 py-2 text-slate-300">{s.prix_ht != null ? `${s.prix_ht.toFixed(0)} €` : '—'}</td>
+                              <td className="px-3 py-2">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/25 text-indigo-200">
+                                  {s.score_rentabilite.toFixed(2)}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2">
+                                {s.retour_depot_ok
+                                  ? <span className="text-emerald-300 text-[10px]">✓</span>
+                                  : <span className="text-red-300 text-[10px]">✗</span>
+                                }
+                              </td>
+                              <td className="px-3 py-2">
+                                {ot ? (
+                                  <button type="button" onClick={() => openAssign(ot)} className="text-indigo-300 hover:text-indigo-200">
+                                    Affecter
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-500">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+
+                  {!retourChargeLoading && retourChargeSuggestions.length === 0 && retourChargeForm.vehicule_id && (
+                    <p className="text-xs text-slate-500 px-1">
+                      Aucune suggestion. Elargissez la plage de dates ou le rayon.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* ── Onglet Entrepôts : marchandises en attente de reprise ── */}
+              {bottomDockTab === 'entrepots' && (
+                <div className="overflow-auto p-3 space-y-3">
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-amber-300 mb-0.5">Marchandises en depot</p>
+                      <p className="text-[11px] text-amber-200/70">Courses deposees dans un entrepot ou depot, en attente d un autre conducteur.</p>
+                    </div>
+                    <button type="button" onClick={() => void loadRelais()}
+                      className="flex-shrink-0 px-2.5 py-1 text-xs rounded-lg border border-amber-600/40 bg-amber-900/20 text-amber-300 hover:bg-amber-900/40 transition-colors">
+                      Actualiser
+                    </button>
+                  </div>
+                  {relaisLoading && <p className="text-xs text-slate-500 px-1">Chargement...</p>}
+                  {relaisError && <p className="text-xs text-red-400 px-1">{relaisError}</p>}
+                  {!relaisLoading && (() => {
+                    const enEntrepot = relaisList.filter(r => r.type_relais === 'depot_marchandise' && r.statut !== 'termine' && r.statut !== 'annule')
+                    if (enEntrepot.length === 0) return (
+                      <p className="text-xs text-slate-500 px-1">Aucune marchandise en depot pour l instant.</p>
+                    )
+                    return (
+                      <table className="w-full text-xs border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-800 text-left">
+                            <th className="px-3 py-2 text-slate-400 font-medium">Course</th>
+                            <th className="px-3 py-2 text-slate-400 font-medium">Client</th>
+                            <th className="px-3 py-2 text-slate-400 font-medium">Depot / Site</th>
+                            <th className="px-3 py-2 text-slate-400 font-medium">Depose le</th>
+                            <th className="px-3 py-2 text-slate-400 font-medium">Reprise prevue</th>
+                            <th className="px-3 py-2 text-slate-400 font-medium">Conducteur reprise</th>
+                            <th className="px-3 py-2 text-slate-400 font-medium">Statut</th>
+                            <th className="px-3 py-2 text-slate-400 font-medium">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {enEntrepot.map(relais => (
+                            <tr key={relais.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                              <td className="px-3 py-2">
+                                <button type="button"
+                                  onClick={() => { const ot = [...pool, ...ganttOTs].find(o => o.id === relais.ot_id); if (ot) openSelected(ot) }}
+                                  className="text-indigo-300 hover:text-indigo-200 font-medium">
+                                  {relais.ordres_transport?.reference ?? '—'}
+                                </button>
+                              </td>
+                              <td className="px-3 py-2 text-slate-300">{relais.ordres_transport?.client_nom ?? '—'}</td>
+                              <td className="px-3 py-2">
+                                <p className="text-slate-200 font-medium">{relais.lieu_nom}</p>
+                                {relais.lieu_adresse && <p className="text-slate-500 text-[10px]">{relais.lieu_adresse}</p>}
+                              </td>
+                              <td className="px-3 py-2 text-slate-400">{new Date(relais.date_depot).toLocaleString('fr-FR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</td>
+                              <td className="px-3 py-2 text-slate-400">
+                                {relais.date_reprise_prevue ? new Date(relais.date_reprise_prevue).toLocaleDateString('fr-FR', { day:'2-digit', month:'short' }) : '—'}
+                              </td>
+                              <td className="px-3 py-2 text-slate-300">
+                                {relais.conducteur_reprise ? `${relais.conducteur_reprise.prenom} ${relais.conducteur_reprise.nom}` : <span className="text-slate-500 italic">Non assigne</span>}
+                              </td>
+                              <td className="px-3 py-2">
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                                  relais.statut === 'en_attente' ? 'bg-amber-500/20 text-amber-300' :
+                                  relais.statut === 'assigne' ? 'bg-blue-500/20 text-blue-300' :
+                                  'bg-emerald-500/20 text-emerald-300'
+                                }`}>
+                                  {relais.statut === 'en_attente' ? 'En attente' : relais.statut === 'assigne' ? 'Assigne' : 'En cours'}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 flex items-center gap-2">
+                                {relais.statut === 'en_attente' && (
+                                  <button type="button" onClick={() => openRelaisAssign(relais)}
+                                    className="text-indigo-300 hover:text-indigo-200 text-[11px]">Assigner reprise</button>
+                                )}
+                                {(relais.statut === 'assigne' || relais.statut === 'en_cours_reprise') && (
+                                  <button type="button" onClick={() => void updateRelaisStatut(relais.id, 'termine')}
+                                    className="text-emerald-300 hover:text-emerald-200 text-[11px]">Terminer</button>
+                                )}
+                                <button type="button" onClick={() => void updateRelaisStatut(relais.id, 'annule')}
+                                  className="text-rose-400 hover:text-rose-300 text-[11px]">Annuler</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )
+                  })()}
+                </div>
+              )}
+
+              {/* ── Onglet Relais conducteur ── */}
+              {bottomDockTab === 'relais' && (
+                <div className="overflow-auto p-3 space-y-3">
+                  <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-3 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-violet-300 mb-0.5">Relais conducteur</p>
+                      <p className="text-[11px] text-violet-200/70">Echange de conducteur : le conducteur B rejoint le camion, ils s echangent, conducteur A rentre a l entreprise.</p>
+                    </div>
+                    <button type="button" onClick={() => void loadRelais()}
+                      className="flex-shrink-0 px-2.5 py-1 text-xs rounded-lg border border-violet-600/40 bg-violet-900/20 text-violet-300 hover:bg-violet-900/40 transition-colors">
+                      Actualiser
+                    </button>
+                  </div>
+                  {relaisLoading && <p className="text-xs text-slate-500 px-1">Chargement...</p>}
+                  {relaisError && <p className="text-xs text-red-400 px-1">{relaisError}</p>}
+                  {!relaisLoading && (() => {
+                    const relaisConducteur = relaisList.filter(r => r.type_relais === 'relais_conducteur' && r.statut !== 'termine' && r.statut !== 'annule')
+                    if (relaisConducteur.length === 0) return (
+                      <p className="text-xs text-slate-500 px-1">Aucun relais conducteur actif.</p>
+                    )
+                    return (
+                      <table className="w-full text-xs border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-800 text-left">
+                            <th className="px-3 py-2 text-slate-400 font-medium">Course</th>
+                            <th className="px-3 py-2 text-slate-400 font-medium">Client</th>
+                            <th className="px-3 py-2 text-slate-400 font-medium">Point de relais</th>
+                            <th className="px-3 py-2 text-slate-400 font-medium">Cond. depart</th>
+                            <th className="px-3 py-2 text-slate-400 font-medium">Cond. arrivee</th>
+                            <th className="px-3 py-2 text-slate-400 font-medium">RDV prevu</th>
+                            <th className="px-3 py-2 text-slate-400 font-medium">Statut</th>
+                            <th className="px-3 py-2 text-slate-400 font-medium">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {relaisConducteur.map(relais => (
+                            <tr key={relais.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                              <td className="px-3 py-2">
+                                <button type="button"
+                                  onClick={() => { const ot = [...pool, ...ganttOTs].find(o => o.id === relais.ot_id); if (ot) openSelected(ot) }}
+                                  className="text-indigo-300 hover:text-indigo-200 font-medium">
+                                  {relais.ordres_transport?.reference ?? '—'}
+                                </button>
+                              </td>
+                              <td className="px-3 py-2 text-slate-300">{relais.ordres_transport?.client_nom ?? '—'}</td>
+                              <td className="px-3 py-2">
+                                <p className="text-slate-200 font-medium">{relais.lieu_nom}</p>
+                                {relais.lieu_adresse && <p className="text-slate-500 text-[10px]">{relais.lieu_adresse}</p>}
+                              </td>
+                              <td className="px-3 py-2 text-slate-300">
+                                {relais.conducteur_depose ? `${relais.conducteur_depose.prenom} ${relais.conducteur_depose.nom}` : '—'}
+                              </td>
+                              <td className="px-3 py-2 text-slate-300">
+                                {relais.conducteur_reprise ? `${relais.conducteur_reprise.prenom} ${relais.conducteur_reprise.nom}` : <span className="text-slate-500 italic">Non assigne</span>}
+                              </td>
+                              <td className="px-3 py-2 text-slate-400">
+                                {relais.date_reprise_prevue ? new Date(relais.date_reprise_prevue).toLocaleString('fr-FR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—'}
+                              </td>
+                              <td className="px-3 py-2">
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                                  relais.statut === 'en_attente' ? 'bg-amber-500/20 text-amber-300' :
+                                  relais.statut === 'assigne' ? 'bg-blue-500/20 text-blue-300' :
+                                  'bg-violet-500/20 text-violet-300'
+                                }`}>
+                                  {relais.statut === 'en_attente' ? 'En attente' : relais.statut === 'assigne' ? 'Planifie' : 'En cours'}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 flex items-center gap-2">
+                                {relais.statut === 'en_attente' && (
+                                  <button type="button" onClick={() => openRelaisAssign(relais)}
+                                    className="text-indigo-300 hover:text-indigo-200 text-[11px]">Assigner</button>
+                                )}
+                                {relais.statut === 'assigne' && (
+                                  <button type="button" onClick={() => void updateRelaisStatut(relais.id, 'en_cours_reprise')}
+                                    className="text-violet-300 hover:text-violet-200 text-[11px]">Confirmer RDV</button>
+                                )}
+                                {relais.statut === 'en_cours_reprise' && (
+                                  <button type="button" onClick={() => void updateRelaisStatut(relais.id, 'termine')}
+                                    className="text-emerald-300 hover:text-emerald-200 text-[11px]">Terminer</button>
+                                )}
+                                <button type="button" onClick={() => void updateRelaisStatut(relais.id, 'annule')}
+                                  className="text-rose-400 hover:text-rose-300 text-[11px]">Annuler</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )
+                  })()}
                 </div>
               )}
             </div>
@@ -5510,6 +6104,32 @@ export default function Planning() {
 
             <div className="border-t border-slate-800 my-1"/>
 
+            {/* Déposer en dépôt */}
+            {(['planifie','en_cours','livre','confirme'].includes(contextMenu.ot.statut)) && (
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-amber-300 hover:bg-amber-900/20 hover:text-amber-200 transition-colors text-left"
+                onClick={() => openRelaisDepot(contextMenu.ot, 'depot_marchandise')}>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M3 9l9-6 9 6v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+                </svg>
+                Deposer en entrepot / depot
+              </button>
+            )}
+
+            {/* Relais conducteur */}
+            {(['planifie','en_cours'].includes(contextMenu.ot.statut)) && (
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-violet-300 hover:bg-violet-900/20 hover:text-violet-200 transition-colors text-left"
+                onClick={() => openRelaisDepot(contextMenu.ot, 'relais_conducteur')}>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <circle cx="8" cy="7" r="3"/><circle cx="16" cy="7" r="3"/><path d="M2 21v-2a6 6 0 0 1 6-6h1m3 0h1a6 6 0 0 1 6 6v2"/><path d="M12 12v4m0 0-2-2m2 2 2-2"/>
+                </svg>
+                Relais conducteur (echange)
+              </button>
+            )}
+
+            <div className="border-t border-slate-800 my-1"/>
+
             {canUnlock(contextMenu.ot) && (
               <button
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-rose-400 hover:bg-rose-900/20 hover:text-rose-300 transition-colors text-left"
@@ -5520,6 +6140,192 @@ export default function Planning() {
                 Desaffecter la course
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Modales Relais ─────────────────────────────────────────────────── */}
+
+      {/* Modale Dépôt marchandise */}
+      {(relaisModal.mode === 'depot' || relaisModal.mode === 'relais_conducteur') && relaisModal.ot && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={() => setRelaisModal({ mode: null, ot: null, relais: null })}>
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl"
+            onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-slate-800">
+              <h3 className="text-base font-semibold text-white">
+                {relaisModal.mode === 'relais_conducteur' ? 'Relais conducteur' : 'Deposer en entrepot / depot'}
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">Course {relaisModal.ot.reference} — {relaisModal.ot.client_nom}</p>
+            </div>
+            <form onSubmit={e => void submitRelaisDepot(e)} className="p-5 space-y-4">
+              {/* Site logistique */}
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Site connu (optionnel)</label>
+                <select
+                  value={relaisDepotForm.site_id}
+                  onChange={e => {
+                    const s = relaisDepotSites.find(x => x.id === e.target.value)
+                    setRelaisDepotForm(f => ({
+                      ...f,
+                      site_id: e.target.value,
+                      lieu_nom: s?.nom ?? f.lieu_nom,
+                      lieu_adresse: s?.adresse ?? f.lieu_adresse,
+                    }))
+                  }}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                  <option value="">— Saisie libre —</option>
+                  {relaisDepotSites.map(s => (
+                    <option key={s.id} value={s.id}>{s.nom}{s.ville ? ` (${s.ville})` : ''}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Lieu libre si pas de site */}
+              {!relaisDepotForm.site_id && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                      {relaisModal.mode === 'relais_conducteur' ? 'Point de rendez-vous *' : 'Nom du depot *'}
+                    </label>
+                    <input required
+                      value={relaisDepotForm.lieu_nom}
+                      onChange={e => setRelaisDepotForm(f => ({ ...f, lieu_nom: e.target.value }))}
+                      placeholder={relaisModal.mode === 'relais_conducteur' ? 'ex: Aire A7 km 142, Montélimar' : 'ex: Entrepôt Nexora Lille'}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">Adresse (optionnel)</label>
+                    <input
+                      value={relaisDepotForm.lieu_adresse}
+                      onChange={e => setRelaisDepotForm(f => ({ ...f, lieu_adresse: e.target.value }))}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" />
+                  </div>
+                </>
+              )}
+
+              {/* Date dépôt / RDV */}
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  {relaisModal.mode === 'relais_conducteur' ? 'Date / heure du RDV' : 'Date de depot'}
+                </label>
+                <input type="datetime-local"
+                  value={relaisDepotForm.date_depot}
+                  onChange={e => setRelaisDepotForm(f => ({ ...f, date_depot: e.target.value }))}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" />
+              </div>
+
+              {/* Véhicule */}
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  {relaisModal.mode === 'relais_conducteur' ? 'Conducteur qui repart (conducteur A)' : 'Conducteur qui dépose'}
+                </label>
+                <select
+                  value={relaisDepotForm.conducteur_depose_id}
+                  onChange={e => setRelaisDepotForm(f => ({ ...f, conducteur_depose_id: e.target.value }))}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                  <option value="">— Aucun —</option>
+                  {conducteurs.map(c => (
+                    <option key={c.id} value={c.id}>{c.prenom} {c.nom}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Notes</label>
+                <textarea rows={2}
+                  value={relaisDepotForm.notes}
+                  onChange={e => setRelaisDepotForm(f => ({ ...f, notes: e.target.value }))}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white resize-none" />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setRelaisModal({ mode: null, ot: null, relais: null })}
+                  className="px-4 py-2 text-xs text-slate-400 hover:text-white transition-colors">Annuler</button>
+                <button type="submit" disabled={relaisSaving}
+                  className="px-5 py-2.5 text-xs font-semibold rounded-xl bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-50 transition-colors">
+                  {relaisSaving ? 'Enregistrement...' : relaisModal.mode === 'relais_conducteur' ? 'Creer le relais' : 'Deposer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modale Affectation reprise */}
+      {relaisModal.mode === 'assign' && relaisModal.relais && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={() => setRelaisModal({ mode: null, ot: null, relais: null })}>
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl"
+            onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-slate-800">
+              <h3 className="text-base font-semibold text-white">
+                {relaisModal.relais.type_relais === 'relais_conducteur' ? 'Affecter conducteur de relais' : 'Affecter la reprise'}
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {relaisModal.relais.lieu_nom}
+                {relaisModal.relais.ordres_transport ? ` — Course ${relaisModal.relais.ordres_transport.reference}` : ''}
+              </p>
+            </div>
+            <form onSubmit={e => void submitRelaisAssign(e)} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  {relaisModal.relais.type_relais === 'relais_conducteur' ? 'Conducteur B (continue la route)' : 'Conducteur qui reprend'}
+                </label>
+                <select
+                  value={relaisAssignForm.conducteur_reprise_id}
+                  onChange={e => setRelaisAssignForm(f => ({ ...f, conducteur_reprise_id: e.target.value }))}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                  <option value="">— Aucun —</option>
+                  {conducteurs.map(c => (
+                    <option key={c.id} value={c.id}>{c.prenom} {c.nom}</option>
+                  ))}
+                </select>
+              </div>
+
+              {relaisModal.relais.type_relais === 'depot_marchandise' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Vehicule pour la reprise</label>
+                  <select
+                    value={relaisAssignForm.vehicule_reprise_id}
+                    onChange={e => setRelaisAssignForm(f => ({ ...f, vehicule_reprise_id: e.target.value }))}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                    <option value="">— Aucun —</option>
+                    {vehicules.map(v => (
+                      <option key={v.id} value={v.id}>{v.immatriculation}{v.modele ? ` — ${v.modele}` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  {relaisModal.relais.type_relais === 'relais_conducteur' ? 'Date / heure RDV' : 'Date de reprise prevue'}
+                </label>
+                <input type="datetime-local"
+                  value={relaisAssignForm.date_reprise_prevue}
+                  onChange={e => setRelaisAssignForm(f => ({ ...f, date_reprise_prevue: e.target.value }))}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Notes</label>
+                <textarea rows={2}
+                  value={relaisAssignForm.notes}
+                  onChange={e => setRelaisAssignForm(f => ({ ...f, notes: e.target.value }))}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white resize-none" />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setRelaisModal({ mode: null, ot: null, relais: null })}
+                  className="px-4 py-2 text-xs text-slate-400 hover:text-white transition-colors">Annuler</button>
+                <button type="submit" disabled={relaisSaving}
+                  className="px-5 py-2.5 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50 transition-colors">
+                  {relaisSaving ? 'Enregistrement...' : 'Affecter'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

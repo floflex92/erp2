@@ -8,6 +8,7 @@ import {
   readTenantKey,
   writeCache,
 } from './_lib/v11-core.js'
+import { callAiProvider, loadAiSettings } from './_lib/v11-ai-provider.js'
 
 const ALLOWED_ROLES = ['admin', 'dirigeant', 'exploitant', 'conducteur']
 
@@ -58,99 +59,27 @@ function buildInternalAnalysis(action, payload) {
   }
 }
 
-function parseOpenAiText(responseJson) {
-  if (!responseJson || typeof responseJson !== 'object') return null
-
-  if (Array.isArray(responseJson.output_text) && responseJson.output_text.length > 0) {
-    return responseJson.output_text.join('\n')
-  }
-
-  if (!Array.isArray(responseJson.output)) return null
-  const texts = []
-  for (const outputItem of responseJson.output) {
-    if (!Array.isArray(outputItem.content)) continue
-    for (const contentItem of outputItem.content) {
-      if (typeof contentItem.text === 'string') texts.push(contentItem.text)
-    }
-  }
-  if (texts.length === 0) return null
-  return texts.join('\n')
+// ── Prompt dédié au contexte ETA / assistant exploitation ────────────────────
+function buildAiPrompt(action, payload) {
+  return [
+    `Tu es un copilote ERP pour l'exploitation transport.`,
+    `Action: ${action}.`,
+    `Réponds en JSON avec les clés: summary, risks, recommendations.`,
+    `Données: ${JSON.stringify(payload)}`,
+  ].join('\n')
 }
 
-async function callOpenAiIfEnabled(model, apiKey, action, payload, fallback) {
-  if (!apiKey) return { used: false, text: null, error: 'missing_api_key' }
+function parsedOrFallback(text, fallback) {
   try {
-    const prompt = [
-      `You are an ERP transport operations copilot.`,
-      `Action: ${action}.`,
-      `Return concise JSON with keys summary, risks, recommendations.`,
-      `Data: ${JSON.stringify(payload)}`,
-    ].join('\n')
-
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        input: prompt,
-        max_output_tokens: 450,
-      }),
-    })
-
-    if (!response.ok) {
-      return { used: false, text: null, error: `openai_status_${response.status}` }
-    }
-
-    const responseJson = await response.json()
-    const text = parseOpenAiText(responseJson)
-    if (!text) {
-      return { used: false, text: null, error: 'openai_empty_output' }
-    }
-
-    let parsed = null
-    try {
-      parsed = JSON.parse(text)
-    } catch {
-      parsed = { summary: text, recommendations: fallback.recommendations ?? [] }
-    }
-
-    return {
-      used: true,
-      text: parsed,
-      raw: responseJson,
-      error: null,
-    }
-  } catch (error) {
-    return {
-      used: false,
-      text: null,
-      error: error instanceof Error ? error.message : 'openai_request_failed',
-    }
+    // Extraire le premier bloc JSON du texte (les modèles de raisonnement ajoutent parfois du texte avant)
+    const match = text.match(/\{[\s\S]*\}/)
+    return match ? JSON.parse(match[0]) : JSON.parse(text)
+  } catch {
+    return { summary: text, recommendations: fallback.recommendations ?? [] }
   }
 }
 
 // NOTE SECURITE: config_entreprise et erp_v11_ai_logs sont des tables systeme → systemClient.
-async function loadAiSettings(systemClient) {
-  const keys = [
-    'v11.ai.enabled',
-    'v11.ai.model',
-    'v11.ai.cache_ttl_sec',
-  ]
-  const { data } = await systemClient
-    .from('config_entreprise')
-    .select('cle, valeur')
-    .in('cle', keys)
-  const map = Object.fromEntries((data ?? []).map(row => [row.cle, row.valeur]))
-  return {
-    enabled: map['v11.ai.enabled'] !== false,
-    model: typeof map['v11.ai.model'] === 'string' ? map['v11.ai.model'] : 'gpt-4.1-mini',
-    cacheTtlSec: Number.isFinite(map['v11.ai.cache_ttl_sec']) ? Number(map['v11.ai.cache_ttl_sec']) : 300,
-  }
-}
-
 async function insertAiLog(systemClient, tenantKey, payload) {
   try {
     await systemClient.from('erp_v11_ai_logs').insert({
@@ -205,18 +134,29 @@ export async function handler(event) {
 
   const internal = buildInternalAnalysis(action, payload)
   const canCallProvider = aiSettings.enabled && moduleConfig.mode !== 'internal_only'
-  const apiKey = process.env.OPENAI_API_KEY || process.env.CHATGPT_API_KEY || null
-  const provider = canCallProvider
-    ? await callOpenAiIfEnabled(aiSettings.model, apiKey, action, payload, internal)
-    : { used: false, text: null, error: 'provider_disabled' }
+
+  let providerResult = { used: false, text: null, error: 'provider_disabled' }
+  if (canCallProvider) {
+    const raw = await callAiProvider(aiSettings, buildAiPrompt(action, payload))
+    if (raw.used) {
+      providerResult = { used: true, text: parsedOrFallback(raw.text, internal), error: null }
+    } else {
+      providerResult = raw
+    }
+  }
+
+  const activeModel = providerResult.used
+    ? (aiSettings.provider === 'local' ? aiSettings.localModel : aiSettings.model)
+    : 'internal'
 
   const result = {
     action,
-    source: provider.used ? 'openai' : 'internal',
-    analysis: provider.text ?? internal,
+    source: providerResult.used ? aiSettings.provider : 'internal',
+    analysis: providerResult.text ?? internal,
     meta: {
-      model: provider.used ? aiSettings.model : 'internal',
-      fallback_reason: provider.used ? null : provider.error,
+      model: activeModel,
+      provider: aiSettings.provider,
+      fallback_reason: providerResult.used ? null : providerResult.error,
       generated_at: new Date().toISOString(),
     },
   }
@@ -225,13 +165,13 @@ export async function handler(event) {
     context_type: action,
     context_id: typeof payload.ot_id === 'string' ? payload.ot_id : null,
     prompt_hash: promptHash,
-    model: provider.used ? aiSettings.model : 'internal',
+    model: activeModel,
     request_payload: payload,
     response_payload: result.analysis,
   })
 
   const ttl = Math.max(60, Math.floor(aiSettings.cacheTtlSec))
-  await writeCache(auth.systemClient, tenantKey, cacheKey, 'ai', result, ttl, Math.floor(ttl / 2), provider.used ? 'provider' : 'internal')
+  await writeCache(auth.systemClient, tenantKey, cacheKey, 'ai', result, ttl, Math.floor(ttl / 2), providerResult.used ? aiSettings.provider : 'internal')
 
   return json(200, {
     tenant_key: tenantKey,

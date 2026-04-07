@@ -22,7 +22,7 @@ const principles = [
 
 export default function AboutPage() {
   useSiteMeta({
-    title: 'À propos — NEXORA Truck',
+    title: 'À propos — ERP transport routier',
     description: 'Découvrez l\'histoire, la vision et l\'expertise NEXORA Truck pour moderniser durablement le transport routier dans l\'espace francophone.',
     canonicalPath: '/a-propos',
     keywords: 'à propos Nexora Truck, startup transport Marseille, vision ERP transport, modernisation transport routier',

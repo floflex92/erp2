@@ -19,6 +19,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/espace-client': 'Espace client',
   '/espace-affreteur': 'Espace affreteur',
   '/transports': 'Ordres de transport',
+  '/entrepots': 'Entrepôts & Dépôts',
   '/chauffeurs': 'Conducteurs',
   '/rh': 'Ressources humaines',
   '/vehicules': 'Camions',
@@ -180,6 +181,7 @@ export default function AppLayout() {
 
   const pageTitle = PAGE_TITLES[location.pathname] ?? 'NEXORA truck'
   const hidePlanningHeader = location.pathname === '/planning' && planningHeaderCollapsed
+  const isPlanning = location.pathname === '/planning'
   const displayName = profil?.prenom || profil?.nom
     ? `${profil?.prenom ?? ''} ${profil?.nom ?? ''}`.trim()
     : user?.email ?? 'Equipe NEXORA truck'
@@ -254,6 +256,7 @@ export default function AppLayout() {
     resetSessionProfil()
     resetSessionRole()
     setMenuOpen(false)
+    navigate('/session-picker')
   }
 
   const profileMenu = menuOpen && menuPosition
@@ -343,7 +346,7 @@ export default function AppLayout() {
       </a>
       <Sidebar />
 
-      <div className="flex min-h-screen flex-1 flex-col px-4 pb-4 pt-4 sm:px-5 lg:px-6">
+      <div className={isPlanning ? 'flex flex-1 flex-col overflow-x-hidden' : 'flex min-h-screen flex-1 flex-col px-4 pb-4 pt-4 sm:px-5 lg:px-6'}>
         {!hidePlanningHeader && (
           <header className="nx-panel nx-glass-header nx-topbar mb-5 overflow-visible px-4 py-4 sm:px-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -504,7 +507,7 @@ export default function AppLayout() {
           </header>
         )}
 
-        <main id="app-main-content" className="relative z-0 flex-1">
+        <main id="app-main-content" className={isPlanning ? 'flex-1 min-h-0' : 'relative z-0 flex-1'}>
           <Outlet />
         </main>
       </div>

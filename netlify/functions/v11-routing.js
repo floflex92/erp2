@@ -16,7 +16,7 @@ import {
   writeCache,
 } from './_lib/v11-core.js'
 
-const ALLOWED_ROLES = ['admin', 'dirigeant', 'exploitant', 'conducteur']
+const ALLOWED_ROLES = ['admin', 'dirigeant', 'exploitant', 'conducteur', 'logisticien']
 const ORS_PROVIDER_KEY = 'openrouteservice'
 const ORS_DEFAULT_BASE_URL = 'https://api.openrouteservice.org'
 const ORS_PROFILE_ALIASES = {

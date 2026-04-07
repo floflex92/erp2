@@ -30,13 +30,11 @@ export async function fetchEntretienRh(): Promise<EntretienRh[]> {
       .order('date_planifiee', { ascending: false }) as any)
 
     if (error) {
-      console.error('Error fetching entretiens_rh:', error)
       return []
     }
 
     return (data as EntretienRh[]) ?? []
-  } catch (err) {
-    console.error('fetchEntretienRh error:', err)
+  } catch {
     return []
   }
 }
@@ -53,13 +51,11 @@ export async function fetchEntretienRhForEmployee(employeId: string): Promise<En
       .order('date_planifiee', { ascending: false }) as any)
 
     if (error) {
-      console.error('Error fetching entretiens_rh for employee:', error)
       return []
     }
 
     return (data as EntretienRh[]) ?? []
-  } catch (err) {
-    console.error('fetchEntretienRhForEmployee error:', err)
+  } catch {
     return []
   }
 }
@@ -76,13 +72,11 @@ export async function createEntretienRh(entretien: Omit<EntretienRh, 'id' | 'cre
       .single() as any)
 
     if (error) {
-      console.error('Error creating entretien_rh:', error)
       return null
     }
 
     return (data as EntretienRh) ?? null
-  } catch (err) {
-    console.error('createEntretienRh error:', err)
+  } catch {
     return null
   }
 }
@@ -100,13 +94,11 @@ export async function updateEntretienRh(id: string, updates: Partial<EntretienRh
       .single() as any)
 
     if (error) {
-      console.error('Error updating entretien_rh:', error)
       return null
     }
 
     return (data as EntretienRh) ?? null
-  } catch (err) {
-    console.error('updateEntretienRh error:', err)
+  } catch {
     return null
   }
 }
@@ -122,13 +114,11 @@ export async function deleteEntretienRh(id: string): Promise<boolean> {
       .eq('id', id) as any)
 
     if (error) {
-      console.error('Error deleting entretien_rh:', error)
       return false
     }
 
     return true
-  } catch (err) {
-    console.error('deleteEntretienRh error:', err)
+  } catch {
     return false
   }
 }
@@ -147,13 +137,11 @@ export async function fetchFollowUpRequiredEntretiens(): Promise<EntretienRh[]> 
       .order('date_planifiee', { ascending: false }) as any)
 
     if (error) {
-      console.error('Error fetching follow-up required entretiens:', error)
       return []
     }
 
     return (data as EntretienRh[]) ?? []
-  } catch (err) {
-    console.error('fetchFollowUpRequiredEntretiens error:', err)
+  } catch {
     return []
   }
 }
@@ -175,13 +163,11 @@ export async function fetchUpcomingEntretiens(daysAhead: number = 7): Promise<En
       .order('date_planifiee', { ascending: true }) as any)
 
     if (error) {
-      console.error('Error fetching upcoming entretiens:', error)
       return []
     }
 
     return (data as EntretienRh[]) ?? []
-  } catch (err) {
-    console.error('fetchUpcomingEntretiens error:', err)
+  } catch {
     return []
   }
 }

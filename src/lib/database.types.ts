@@ -23,7 +23,10 @@ export type Database = {
           nom: string | null
           prenom: string | null
           tenant_key: string | null
+          company_id: number | null
           max_concurrent_screens: number
+          login_enabled: boolean
+          force_password_reset: boolean
           created_at: string
           updated_at: string
         }
@@ -35,7 +38,10 @@ export type Database = {
           nom?: string | null
           prenom?: string | null
           tenant_key?: string | null
+          company_id?: number | null
           max_concurrent_screens?: number
+          login_enabled?: boolean
+          force_password_reset?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -47,7 +53,10 @@ export type Database = {
           nom?: string | null
           prenom?: string | null
           tenant_key?: string | null
+          company_id?: number | null
           max_concurrent_screens?: number
+          login_enabled?: boolean
+          force_password_reset?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -65,6 +74,342 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "erp_v11_tenants"
             referencedColumns: ["tenant_key"]
+          },
+          {
+            foreignKeyName: "profils_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      companies: {
+        Row: {
+          id: number
+          name: string
+          slug: string
+          status: 'active' | 'suspended' | 'trial' | 'cancelled'
+          subscription_plan: 'starter' | 'pro' | 'enterprise'
+          max_users: number
+          max_screens: number
+          email_domain: string | null
+          enabled_modules: string[] | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          name: string
+          slug: string
+          status?: 'active' | 'suspended' | 'trial' | 'cancelled'
+          subscription_plan?: 'starter' | 'pro' | 'enterprise'
+          max_users?: number
+          max_screens?: number
+          email_domain?: string | null
+          enabled_modules?: string[] | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          name?: string
+          slug?: string
+          status?: 'active' | 'suspended' | 'trial' | 'cancelled'
+          subscription_plan?: 'starter' | 'pro' | 'enterprise'
+          max_users?: number
+          max_screens?: number
+          email_domain?: string | null
+          enabled_modules?: string[] | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      platform_admins: {
+        Row: {
+          id: string
+          user_id: string
+          email: string
+          nom: string | null
+          prenom: string | null
+          is_active: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          email: string
+          nom?: string | null
+          prenom?: string | null
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          email?: string
+          nom?: string | null
+          prenom?: string | null
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      impersonation_logs: {
+        Row: {
+          id: string
+          admin_user_id: string
+          admin_email: string
+          target_user_id: string
+          target_email: string
+          target_company_id: number
+          reason: string | null
+          ip_hash: string | null
+          started_at: string
+          ended_at: string | null
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          admin_user_id: string
+          admin_email: string
+          target_user_id: string
+          target_email: string
+          target_company_id: number
+          reason?: string | null
+          ip_hash?: string | null
+          started_at?: string
+          ended_at?: string | null
+          is_active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          admin_user_id?: string
+          admin_email?: string
+          target_user_id?: string
+          target_email?: string
+          target_company_id?: number
+          reason?: string | null
+          ip_hash?: string | null
+          started_at?: string
+          ended_at?: string | null
+          is_active?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "impersonation_logs_target_company_id_fkey"
+            columns: ["target_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      impersonation_sessions: {
+        Row: {
+          id: string
+          log_id: string
+          admin_user_id: string
+          target_user_id: string
+          target_company_id: number
+          is_impersonating: boolean
+          impersonated_by: string
+          expires_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          log_id: string
+          admin_user_id: string
+          target_user_id: string
+          target_company_id: number
+          is_impersonating?: boolean
+          impersonated_by: string
+          expires_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          log_id?: string
+          admin_user_id?: string
+          target_user_id?: string
+          target_company_id?: number
+          is_impersonating?: boolean
+          impersonated_by?: string
+          expires_at?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "impersonation_sessions_log_id_fkey"
+            columns: ["log_id"]
+            isOneToOne: false
+            referencedRelation: "impersonation_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "impersonation_sessions_target_company_id_fkey"
+            columns: ["target_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roles: {
+        Row: {
+          id: number
+          company_id: number
+          name: string
+          label: string
+          description: string | null
+          is_system: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          company_id?: number
+          name: string
+          label: string
+          description?: string | null
+          is_system?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          company_id?: number
+          name?: string
+          label?: string
+          description?: string | null
+          is_system?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      permissions: {
+        Row: {
+          id: number
+          name: string
+          resource: string
+          action: string
+          label: string
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          name: string
+          resource: string
+          action: string
+          label: string
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          name?: string
+          resource?: string
+          action?: string
+          label?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          user_profile_id: string
+          role_id: number
+          company_id: number
+          granted_by: string | null
+          granted_at: string
+          expires_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_profile_id: string
+          role_id: number
+          company_id?: number
+          granted_by?: string | null
+          granted_at?: string
+          expires_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_profile_id?: string
+          role_id?: number
+          company_id?: number
+          granted_by?: string | null
+          granted_at?: string
+          expires_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_roles_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_roles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      role_permissions: {
+        Row: {
+          role_id: number
+          permission_id: number
+        }
+        Insert: {
+          role_id: number
+          permission_id: number
+        }
+        Update: {
+          role_id?: number
+          permission_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_permissions_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "role_permissions_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -1651,6 +1996,50 @@ export type Database = {
           },
         ]
       }
+      ot_lignes: {
+        Row: {
+          id: string
+          ot_id: string
+          libelle: string
+          poids_kg: number | null
+          metrage_ml: number | null
+          nombre_colis: number | null
+          notes: string | null
+          company_id: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          ot_id: string
+          libelle: string
+          poids_kg?: number | null
+          metrage_ml?: number | null
+          nombre_colis?: number | null
+          notes?: string | null
+          company_id?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          ot_id?: string
+          libelle?: string
+          poids_kg?: number | null
+          metrage_ml?: number | null
+          nombre_colis?: number | null
+          notes?: string | null
+          company_id?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ot_lignes_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "ordres_transport"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ordres_transport: {
         Row: {
           affreteur_id: string | null
@@ -1670,6 +2059,7 @@ export type Database = {
           id: string
           instructions: string | null
           livraison_site_id: string | null
+          metrage_ml: number | null
           nature_marchandise: string | null
           nombre_colis: number | null
           notes_internes: string | null
@@ -1710,6 +2100,7 @@ export type Database = {
           id?: string
           instructions?: string | null
           livraison_site_id?: string | null
+          metrage_ml?: number | null
           nature_marchandise?: string | null
           nombre_colis?: number | null
           notes_internes?: string | null
@@ -1750,6 +2141,7 @@ export type Database = {
           id?: string
           instructions?: string | null
           livraison_site_id?: string | null
+          metrage_ml?: number | null
           nature_marchandise?: string | null
           nombre_colis?: number | null
           notes_internes?: string | null
@@ -1889,45 +2281,69 @@ export type Database = {
       sites_logistiques: {
         Row: {
           adresse: string
+          code_postal: string | null
+          contact_nom: string | null
+          contact_tel: string | null
           created_at: string
           entreprise_id: string | null
+          est_depot_relais: boolean
           horaires_ouverture: string | null
           id: string
           jours_ouverture: string | null
           latitude: number | null
           longitude: number | null
           nom: string
+          notes: string | null
           notes_livraison: string | null
+          pays: string
+          type_site: string
           updated_at: string
           usage_type: string
+          ville: string | null
         }
         Insert: {
           adresse: string
+          code_postal?: string | null
+          contact_nom?: string | null
+          contact_tel?: string | null
           created_at?: string
           entreprise_id?: string | null
+          est_depot_relais?: boolean
           horaires_ouverture?: string | null
           id?: string
           jours_ouverture?: string | null
           latitude?: number | null
           longitude?: number | null
           nom: string
+          notes?: string | null
           notes_livraison?: string | null
+          pays?: string
+          type_site?: string
           updated_at?: string
           usage_type?: string
+          ville?: string | null
         }
         Update: {
           adresse?: string
+          code_postal?: string | null
+          contact_nom?: string | null
+          contact_tel?: string | null
           created_at?: string
           entreprise_id?: string | null
+          est_depot_relais?: boolean
           horaires_ouverture?: string | null
           id?: string
           jours_ouverture?: string | null
           latitude?: number | null
           longitude?: number | null
           nom?: string
+          notes?: string | null
           notes_livraison?: string | null
+          pays?: string
+          type_site?: string
           updated_at?: string
           usage_type?: string
+          ville?: string | null
         }
         Relationships: [
           {
@@ -1935,6 +2351,96 @@ export type Database = {
             columns: ["entreprise_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transport_relais: {
+        Row: {
+          conducteur_depose_id: string | null
+          conducteur_reprise_id: string | null
+          created_at: string
+          created_by: string | null
+          date_depot: string
+          date_reprise_prevue: string | null
+          date_reprise_reelle: string | null
+          id: string
+          lieu_adresse: string | null
+          lieu_lat: number | null
+          lieu_lng: number | null
+          lieu_nom: string
+          notes: string | null
+          ot_id: string
+          remorque_depose_id: string | null
+          remorque_reprise_id: string | null
+          site_id: string | null
+          statut: string
+          type_relais: string
+          updated_at: string
+          vehicule_depose_id: string | null
+          vehicule_reprise_id: string | null
+        }
+        Insert: {
+          conducteur_depose_id?: string | null
+          conducteur_reprise_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          date_depot?: string
+          date_reprise_prevue?: string | null
+          date_reprise_reelle?: string | null
+          id?: string
+          lieu_adresse?: string | null
+          lieu_lat?: number | null
+          lieu_lng?: number | null
+          lieu_nom: string
+          notes?: string | null
+          ot_id: string
+          remorque_depose_id?: string | null
+          remorque_reprise_id?: string | null
+          site_id?: string | null
+          statut?: string
+          type_relais?: string
+          updated_at?: string
+          vehicule_depose_id?: string | null
+          vehicule_reprise_id?: string | null
+        }
+        Update: {
+          conducteur_depose_id?: string | null
+          conducteur_reprise_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          date_depot?: string
+          date_reprise_prevue?: string | null
+          date_reprise_reelle?: string | null
+          id?: string
+          lieu_adresse?: string | null
+          lieu_lat?: number | null
+          lieu_lng?: number | null
+          lieu_nom?: string
+          notes?: string | null
+          ot_id?: string
+          remorque_depose_id?: string | null
+          remorque_reprise_id?: string | null
+          site_id?: string | null
+          statut?: string
+          type_relais?: string
+          updated_at?: string
+          vehicule_depose_id?: string | null
+          vehicule_reprise_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transport_relais_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "ordres_transport"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transport_relais_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites_logistiques"
             referencedColumns: ["id"]
           },
         ]

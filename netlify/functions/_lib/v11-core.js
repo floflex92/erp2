@@ -3,9 +3,18 @@ import { createClient } from '@supabase/supabase-js'
 
 export const MODULE_KEYS = ['tracking', 'tachy', 'routing', 'eta', 'driver_session', 'client_portal', 'chat', 'ai']
 export const OBJECT_NAMES = ['VehiclePosition', 'DriverStatus', 'DrivingTimeStatus', 'TrafficStatus', 'RoutePlan', 'EtaPrediction']
-export const DEFAULT_TENANT_KEY = 'default'
 
-const ROLE_VALUES = ['admin', 'dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable', 'rh', 'conducteur']
+// MIGRATION MULTI-TENANT :
+// 'default' = tenant legacy avant migration
+// 'tenant_test' = tenant de reference apres Phase 1
+// Les deux slugs pointent sur company_id=1. A terme seul 'tenant_test' sera utilise.
+export const DEFAULT_TENANT_KEY = 'default'
+export const TENANT_TEST_KEY = 'tenant_test'
+export const VALID_LEGACY_TENANT_KEYS = new Set(['default', 'tenant_test'])
+// company_id de reference pour les donnees de migration (toutes les donnees pre-multitenant)
+export const DEFAULT_COMPANY_ID = 1
+
+const ROLE_VALUES = ['admin', 'dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable', 'rh', 'conducteur', 'logisticien']
 const ROLE_SET = new Set(ROLE_VALUES)
 const ROLE_ALIASES = {
   administrateur: 'admin',
@@ -42,7 +51,7 @@ const MODULE_DEFAULTS = {
   ai: { enabled: true, mode: 'hybrid', refresh_interval_sec: 120, fallback_strategy: 'stale_cache' },
 }
 
-const SECURITY_HEADERS = {
+export const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -85,6 +94,18 @@ export function readTenantKey(event, body) {
   const fromBody = body && typeof body.tenant_key === 'string' ? body.tenant_key : null
   const raw = (fromHeader || fromQuery || fromBody || DEFAULT_TENANT_KEY).trim().toLowerCase()
   return TENANT_KEY_RE.test(raw) ? raw : DEFAULT_TENANT_KEY
+}
+
+// Lit le company_id depuis le header X-Company-Id (entier >= 1).
+// SECURITE : ne jamais faire confiance a cette valeur seule —
+// toujours croiser avec le company_id du profil en base.
+export function readRequestedCompanyId(event, body) {
+  const fromHeader = event.headers['x-company-id'] || event.headers['X-Company-Id']
+  const fromBody = body && typeof body.company_id !== 'undefined' ? String(body.company_id) : null
+  const raw = fromHeader ?? fromBody ?? null
+  if (!raw) return null
+  const parsed = Number.parseInt(raw, 10)
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : null
 }
 
 function normalizeRoleToken(value) {
@@ -171,9 +192,10 @@ export async function authorize(event, options = {}) {
     return { error: json(401, { error: 'Invalid session token.' }) }
   }
 
+  // MULTI-TENANT : on selectionne aussi company_id et tenant_key depuis profils
   const { data: profile, error: profileError } = await profileClient
     .from('profils')
-    .select('id, user_id, role, nom, prenom')
+    .select('id, user_id, role, nom, prenom, tenant_key, company_id')
     .eq('user_id', authData.user.id)
     .maybeSingle()
 
@@ -205,6 +227,11 @@ export async function authorize(event, options = {}) {
     return { error: json(403, { error: 'Forbidden: insufficient role.' }) }
   }
 
+  // Resout la company_id depuis le profil (source de verite : base de donnees)
+  // Le frontend peut envoyer X-Company-Id mais c'est TOUJOURS ecrase par la valeur en base.
+  const companyId = typeof profile.company_id === 'number' ? profile.company_id : DEFAULT_COMPANY_ID
+  const tenantKey = typeof profile.tenant_key === 'string' ? profile.tenant_key : DEFAULT_TENANT_KEY
+
   return {
     env,
     admin,
@@ -216,7 +243,52 @@ export async function authorize(event, options = {}) {
     systemClient: admin ?? sessionClient,
     user: authData.user,
     profile: { ...profile, role: effectiveRole },
+    // MULTI-TENANT context (toujours issu de la base, jamais du frontend)
+    companyId,
+    tenantKey,
   }
+}
+
+// ============================================================
+// HELPERS MULTI-TENANT
+// Fournissent un filtre company_id pret a l'emploi pour les requetes Supabase.
+// Usage : const filter = companyFilter(companyId)
+//         await dbClient.from('clients').select('*').match(filter)
+// ============================================================
+
+/**
+ * Genere un filtre Supabase {company_id: N} pour l'isolation des donnees.
+ * Doit etre fusionne avec toutes les requetes sur les tables metier.
+ * SECURITE : ne jamais omettre ce filtre sur les tables multi-tenant.
+ */
+export function companyFilter(companyId) {
+  if (typeof companyId !== 'number' || companyId < 1) {
+    // Fail-safe : ID invalide → filtre impossible → renvoie un filtre sans effet
+    // qui LAISSERA passer la RLS Supabase gérer l'isolation.
+    // Pour les nouvelles fonctions, lever une erreur explicite est preferable.
+    return { company_id: DEFAULT_COMPANY_ID }
+  }
+  return { company_id: companyId }
+}
+
+/**
+ * Verifie que le company_id demande par le frontend correspond bien
+ * au company_id du profil authentifie.
+ * A utiliser quand le client envoie un company_id explicite dans la requete.
+ *
+ * @param {number} requestedId - company_id recu du client (header ou body)
+ * @param {number} authorizedId - company_id issu de authorize() (source de verite)
+ * @returns {{ ok: boolean; error?: Response }}
+ */
+export function assertSameCompany(requestedId, authorizedId) {
+  if (requestedId === null || requestedId === undefined) return { ok: true }
+  if (requestedId !== authorizedId) {
+    return {
+      ok: false,
+      error: json(403, { error: 'Forbidden: company_id mismatch.' }),
+    }
+  }
+  return { ok: true }
 }
 
 export async function ensureDefaultModules(dbClient, tenantKey) {

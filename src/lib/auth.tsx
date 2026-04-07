@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
+import { type TenantModule, MODULE_TO_PAGES } from './tenantAdmin'
 
 const SESSION_TIMEOUT_MS = 8000
 const PROFILE_TIMEOUT_MS = 8000
@@ -9,7 +10,7 @@ const SCREEN_HEARTBEAT_MS = 25000
 const SCREEN_LIMIT_ERROR_STORAGE_KEY = 'nexora_screen_limit_error_v1'
 const SCREEN_ID_STORAGE_KEY = 'nexora_screen_id_v1'
 
-const ROLE_VALUES = ['admin', 'super_admin', 'dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable', 'rh', 'conducteur', 'conducteur_affreteur', 'client', 'affreteur', 'administratif', 'facturation', 'flotte', 'maintenance', 'observateur', 'demo', 'investisseur'] as const
+const ROLE_VALUES = ['admin', 'super_admin', 'dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable', 'rh', 'conducteur', 'conducteur_affreteur', 'client', 'affreteur', 'administratif', 'facturation', 'flotte', 'maintenance', 'observateur', 'demo', 'investisseur', 'logisticien'] as const
 const ROLE_SET = new Set<string>(ROLE_VALUES)
 const ROLE_ALIASES: Record<string, Role> = {
   administrateur: 'admin',
@@ -37,10 +38,10 @@ const RESERVED_ADMIN_EMAIL_ROLE: Record<string, Role> = {
   'admin@erp-demo.fr': 'admin',
   'contact@nexora-truck.fr': 'admin',
   'direction@erp-demo.fr': 'dirigeant',
-  'chabre.florent@gmail.com': 'admin',
+  'chabre.florent@gmail.com': 'super_admin',
 }
 
-export type Role = 'admin' | 'super_admin' | 'dirigeant' | 'exploitant' | 'mecanicien' | 'commercial' | 'comptable' | 'rh' | 'conducteur' | 'conducteur_affreteur' | 'client' | 'affreteur' | 'administratif' | 'facturation' | 'flotte' | 'maintenance' | 'observateur' | 'demo' | 'investisseur'
+export type Role = 'admin' | 'super_admin' | 'dirigeant' | 'exploitant' | 'mecanicien' | 'commercial' | 'comptable' | 'rh' | 'conducteur' | 'conducteur_affreteur' | 'client' | 'affreteur' | 'administratif' | 'facturation' | 'flotte' | 'maintenance' | 'observateur' | 'demo' | 'investisseur' | 'logisticien'
 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Administrateur',
@@ -62,13 +63,14 @@ export const ROLE_LABELS: Record<Role, string> = {
   observateur: 'Observateur',
   demo: 'Demo',
   investisseur: 'Investisseur',
+  logisticien: 'Logisticien',
 }
 
 export const ROLE_ACCESS: Record<Role, string[]> = {
-  admin: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
-  super_admin: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
-  dirigeant: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
-  exploitant: ['dashboard', 'tasks', 'chauffeurs', 'vehicules', 'remorques', 'equipements', 'transports', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'demandes-clients', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
+  admin: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'super-admin'],
+  super_admin: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'super-admin'],
+  dirigeant: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin'],
+  exploitant: ['dashboard', 'tasks', 'chauffeurs', 'vehicules', 'remorques', 'equipements', 'transports', 'entrepots', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'demandes-clients', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   mecanicien: ['tasks', 'vehicules', 'remorques', 'equipements', 'maintenance', 'frais', 'tachygraphe', 'parametres', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   commercial: ['dashboard', 'tasks', 'transports', 'clients', 'facturation', 'frais', 'prospection', 'demandes-clients', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   comptable: ['dashboard', 'tasks', 'facturation', 'comptabilite', 'paie', 'frais', 'clients', 'amendes', 'demandes-clients', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
@@ -76,14 +78,15 @@ export const ROLE_ACCESS: Record<Role, string[]> = {
   conducteur: ['tasks', 'feuille-route', 'frais', 'tachygraphe', 'amendes', 'parametres', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   conducteur_affreteur: ['tasks', 'feuille-route', 'tachygraphe', 'amendes', 'parametres', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   client: ['tasks', 'espace-client', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
-  affreteur: ['tasks', 'espace-affreteur', 'transports', 'planning', 'map-live', 'feuille-route', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
+  affreteur: ['tasks', 'espace-affreteur', 'transports', 'entrepots', 'planning', 'map-live', 'feuille-route', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   administratif: ['dashboard', 'tasks', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   facturation: ['dashboard', 'tasks', 'clients', 'facturation', 'comptabilite', 'frais', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   flotte: ['dashboard', 'tasks', 'vehicules', 'remorques', 'equipements', 'maintenance', 'planning', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   maintenance: ['tasks', 'vehicules', 'remorques', 'equipements', 'maintenance', 'frais', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   observateur: ['dashboard', 'planning', 'transports', 'clients', 'communication', 'inter-erp', 'coffre', 'mentions-legales'],
-  demo: ['dashboard', 'tasks', 'chauffeurs', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'clients', 'facturation', 'comptabilite', 'frais', 'planning', 'feuille-route', 'prospection', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
+  demo: ['dashboard', 'tasks', 'chauffeurs', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'frais', 'planning', 'feuille-route', 'prospection', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   investisseur: ['dashboard', 'transports', 'clients', 'facturation', 'communication', 'inter-erp', 'coffre', 'mentions-legales'],
+  logisticien: ['dashboard', 'tasks', 'entrepots', 'transports', 'planning', 'map-live', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
 }
 
 export const CHAT_BLOCKED_PAIRS: [Role, Role][] = [
@@ -97,16 +100,30 @@ export function canChatWith(roleA: Role, roleB: Role): boolean {
   )
 }
 
-export function canAccess(role: Role | null, page: string, tenantAllowedPages?: string[] | null): boolean {
+export function canAccess(
+  role: Role | null,
+  page: string,
+  tenantAllowedPages?: string[] | null,
+  enabledModules?: TenantModule[] | null,
+): boolean {
   if (!role) return false
   if (!(ROLE_ACCESS[role]?.includes(page) ?? false)) return false
   if (role === 'admin' || role === 'super_admin') return true
+  // Verifie que le module auquel appartient la page est actif pour le tenant
+  if (enabledModules && enabledModules.length > 0) {
+    const moduleForPage = (Object.entries(MODULE_TO_PAGES) as [TenantModule, string[]][]).find(
+      ([, pages]) => pages.includes(page),
+    )?.[0] ?? null
+    // Si la page appartient a un module desactive → acces refuse
+    if (moduleForPage && !enabledModules.includes(moduleForPage)) return false
+  }
   if (!tenantAllowedPages || tenantAllowedPages.length === 0) return true
   return tenantAllowedPages.includes(page)
 }
 
-export function firstPage(role: Role, tenantAllowedPages?: string[] | null): string {
-  const allowedPages = (ROLE_ACCESS[role] ?? []).filter(page => canAccess(role, page, tenantAllowedPages))
+export function firstPage(role: Role, tenantAllowedPages?: string[] | null, enabledModules?: TenantModule[] | null): string {
+  if (role === 'admin' || role === 'super_admin') return '/parametres'
+  const allowedPages = (ROLE_ACCESS[role] ?? []).filter(page => canAccess(role, page, tenantAllowedPages, enabledModules))
   return '/' + (allowedPages[0] ?? ROLE_ACCESS[role]?.[0] ?? 'dashboard')
 }
 
@@ -121,6 +138,16 @@ export interface Profil {
   isDemo?: boolean
   tenantKey?: string | null
   tenantAllowedPages?: string[] | null
+  // MULTI-TENANT Phase 1 : company_id isole les donnees par tenant.
+  // Derive depuis profils.company_id (source de verite : base de donnees).
+  // Vaut 1 pour toutes les donnees historiques (tenant_test / migration).
+  companyId?: number | null
+  // TENANT ADMIN SETTINGS : modules actifs pour ce tenant.
+  // NULL = tous les modules sont actifs (comportement par defaut).
+  enabledModules?: TenantModule[] | null
+  // SECURITE : si false, l'utilisateur ne peut pas se connecter.
+  loginEnabled?: boolean
+  forcePasswordReset?: boolean
 }
 
 function normalizeAllowedPages(value: unknown): string[] | null {
@@ -256,6 +283,11 @@ interface AuthContextType {
   authError: string | null
   screenLimitError: string | null
   tenantAllowedPages: string[] | null
+  // MULTI-TENANT Phase 1 : company_id de l'utilisateur courant.
+  // Vaut 1 pour toutes les donnees historiques (tenant_test / migration).
+  companyId: number | null
+  // TENANT ADMIN SETTINGS : modules actifs pour le tenant courant.
+  enabledModules: TenantModule[] | null
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   reloadProfil: () => Promise<void>
@@ -321,7 +353,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await withTimeout(
         supabase
           .from('profils')
-          .select('id, role, matricule, nom, prenom, tenant_key, max_concurrent_screens')
+          // MULTI-TENANT Phase 1 : company_id ajouté au select
+          .select('id, role, matricule, nom, prenom, tenant_key, max_concurrent_screens, company_id')
           .eq('user_id', user.id)
           .maybeSingle(),
         PROFILE_TIMEOUT_MS,
@@ -332,7 +365,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Si aucun profil en base, on en crée un via le RPC sécurisé (SECURITY DEFINER).
       // Le RPC détermine le rôle depuis la liste d'emails réservés ou les métadonnées Auth.
-      type ProfileRow = { id: string; role: string; matricule: string; nom: string | null; prenom: string | null; tenant_key: string | null; max_concurrent_screens?: number | null }
+      type ProfileRow = { id: string; role: string; matricule: string; nom: string | null; prenom: string | null; tenant_key: string | null; max_concurrent_screens?: number | null; company_id?: number | null }
       let profileData: ProfileRow | null = data
         ? {
             id: data.id,
@@ -342,11 +375,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             prenom: data.prenom,
             tenant_key: data.tenant_key ?? 'default',
             max_concurrent_screens: data.max_concurrent_screens ?? 1,
+            company_id: typeof (data as ProfileRow).company_id === 'number' ? (data as ProfileRow).company_id : 1,
           }
         : null
       if (!profileData) {
         const rpcClient = supabase as unknown as { rpc: (fn: string) => Promise<{ data: unknown; error: { message?: string } | null }> }
-        const { data: rpcResult } = await rpcClient.rpc('upsert_my_profile')
+        const { data: rpcResult, error: rpcError } = await rpcClient.rpc('upsert_my_profile')
+        if (rpcError) {
+          console.warn('[auth] upsert_my_profile RPC error:', rpcError)
+        }
         if (rpcResult && typeof rpcResult === 'object' && 'id' in rpcResult) {
           const raw = rpcResult as { id: string; role: string; matricule?: string | null; nom: string | null; prenom: string | null; tenant_key?: string | null }
           profileData = {
@@ -357,11 +394,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             prenom: raw.prenom,
             tenant_key: raw.tenant_key ?? 'default',
             max_concurrent_screens: 1,
+            company_id: 1, // defaut migration : tenant_test
           }
         }
       }
 
       let tenantAllowedPages: string[] | null = null
+      let enabledModules: TenantModule[] | null = null
+
       if (profileData?.tenant_key) {
         const { data: tenantData } = await supabase
           .from('erp_v11_tenants')
@@ -371,14 +411,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         tenantAllowedPages = normalizeAllowedPages(tenantData?.allowed_pages ?? null)
       }
 
+      // Charge les modules actifs depuis companies (cached : lecture seule, pas de mise a jour)
+      const companyIdForLoad = profileData?.company_id ?? 1
+      if (companyIdForLoad) {
+        const { data: companyData } = await supabase
+          .from('companies')
+          .select('enabled_modules')
+          .eq('id', companyIdForLoad)
+          .maybeSingle()
+        if (Array.isArray(companyData?.enabled_modules) && companyData.enabled_modules.length > 0) {
+          enabledModules = companyData.enabled_modules as TenantModule[]
+        }
+      }
+
       const metadataRole = normalizeRole(user.app_metadata?.role ?? user.user_metadata?.role ?? null)
       const emailRole = fallbackRoleFromEmail(user.email)
       const storedRole = normalizeRole(profileData?.role)
       const privilegedFallbackRole = emailRole ?? privilegedRoleFromMetadata(user)
+      // emailRole (liste RESERVED_ADMIN_EMAIL_ROLE) prime toujours — permet les upgrades explicites (ex: admin → super_admin).
+      // privilegedFallbackRole (métadonnées) ne prime que si le rôle stocké n'est pas déjà admin/dirigeant (anti-downgrade).
       const normalizedRole = (
-        privilegedFallbackRole && (!storedRole || (storedRole !== 'admin' && storedRole !== 'dirigeant'))
-          ? privilegedFallbackRole
-          : (storedRole ?? metadataRole ?? emailRole)
+        emailRole
+          ? emailRole
+          : privilegedFallbackRole && (!storedRole || (storedRole !== 'admin' && storedRole !== 'dirigeant'))
+            ? privilegedFallbackRole
+            : (storedRole ?? metadataRole ?? null)
       )
 
       if (profileData && !normalizedRole) {
@@ -396,13 +453,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             prenom: profileData.prenom,
             tenantKey: profileData.tenant_key ?? 'default',
             tenantAllowedPages,
+            // MULTI-TENANT Phase 1 : company_id expose dans le profil
+            companyId: profileData.company_id ?? 1,
+            // TENANT ADMIN SETTINGS : modules actifs (null = tous actifs)
+            enabledModules,
           }
         : null
       setAccountProfil(p)
       setAuthError(null)
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : (typeof err === 'object' && err !== null && 'message' in err ? String((err as { message: unknown }).message) : String(err))
+      console.error('[auth] loadProfil error:', msg, err)
       setAccountProfil(null)
-      setAuthError("Impossible de charger le profil utilisateur.")
+      setAuthError(`Impossible de charger le profil utilisateur. (${msg})`)
     } finally {
       setProfilLoading(false)
     }
@@ -545,6 +608,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       domain: profil.domain ?? null,
       tenantKey: profil.tenantKey ?? null,
       tenantAllowedPages: profil.tenantAllowedPages ?? null,
+      // MULTI-TENANT : preserve le company_id lors du changement de session
+      companyId: profil.companyId ?? null,
+      enabledModules: profil.enabledModules ?? null,
     }
 
     setSessionProfilState(sanitizedProfil)
@@ -576,7 +642,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut() {
-    await releaseScreenSlot(session)
+    try {
+      await releaseScreenSlot(session)
+    } catch {
+      // Echec de release (réseau indisponible ou Netlify absent) : continuer quand même
+    }
     await supabase.auth.signOut()
     setSessionRoleState(null)
     setSessionProfilState(null)
@@ -598,6 +668,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isDemoSession = false
   const role = session?.user ? (sessionProfil?.role ?? sessionRole ?? baseRole ?? 'admin') : null
   const tenantAllowedPages = profil?.tenantAllowedPages ?? null
+  // MULTI-TENANT Phase 1 : company_id de l'utilisateur courant (priorite : session > account > defaut)
+  const companyId = profil?.companyId ?? accountProfil?.companyId ?? null
+  // TENANT ADMIN SETTINGS : modules actifs (null = tous les modules actifs)
+  const enabledModules: TenantModule[] | null = profil?.enabledModules ?? accountProfil?.enabledModules ?? null
 
   return (
     <AuthContext.Provider value={{
@@ -616,6 +690,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authError,
       screenLimitError,
       tenantAllowedPages,
+      companyId,
+      enabledModules,
       signIn,
       signOut,
       reloadProfil,

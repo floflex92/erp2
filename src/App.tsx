@@ -14,6 +14,7 @@ const Remorques = lazy(() => import('@/pages/Remorques'))
 const Equipements = lazy(() => import('@/pages/Equipements'))
 const Maintenance = lazy(() => import('@/pages/Maintenance'))
 const Transports = lazy(() => import('@/pages/Transports'))
+const Entrepots = lazy(() => import('@/pages/Entrepots'))
 const Clients = lazy(() => import('@/pages/Clients'))
 const Facturation = lazy(() => import('@/pages/Facturation'))
 const Comptabilite = lazy(() => import('@/pages/Comptabilite'))
@@ -47,6 +48,12 @@ const RoiPage = lazy(() => import('@/site/pages/RoiPage'))
 const SecteurTransportPage = lazy(() => import('@/site/pages/SecteurTransportPage'))
 const AboutPage = lazy(() => import('@/site/pages/AboutPage'))
 const SeoErpTransportPage = lazy(() => import('@/site/pages/SeoErpTransportPage'))
+const TmsTransportPage = lazy(() => import('@/site/pages/TmsTransportPage'))
+const ErpTransportRoutierPage = lazy(() => import('@/site/pages/ErpTransportRoutierPage'))
+const LogicielGestionFlotteCamionPage = lazy(() => import('@/site/pages/LogicielGestionFlotteCamionPage'))
+const TelématiqueTransportPage = lazy(() => import('@/site/pages/TelématiqueTransportPage'))
+const ChronotachygraphePage = lazy(() => import('@/site/pages/ChronotachygraphePage'))
+const IaTransportPage = lazy(() => import('@/site/pages/IaTransportPage'))
 const LogicielTransportPage = lazy(() => import('@/site/pages/LogicielTransportPage'))
 const ArticlesPage = lazy(() => import('@/site/pages/ArticlesPage'))
 const ArticlePage = lazy(() => import('@/site/pages/articles/ArticlePage'))
@@ -56,21 +63,25 @@ const ERPLoginPage = lazy(() => import('@/site/pages/ERPLoginPage'))
 const PrivacyPolicyPage = lazy(() => import('@/site/pages/PrivacyPolicyPage'))
 const TermsOfUsePage = lazy(() => import('@/site/pages/TermsOfUsePage'))
 const DemoAccess = lazy(() => import('@/pages/DemoAccess'))
+const SessionPickerPage = lazy(() => import('@/pages/SessionPicker'))
+const SuperAdmin = lazy(() => import('@/pages/SuperAdminPage'))
+const TenantAdmin = lazy(() => import('@/pages/TenantAdminPage'))
 
 function RequireRole({ page, children }: { page: string; children: React.ReactNode }) {
-  const { role, loading, tenantAllowedPages } = useAuth()
+  const { role, loading, tenantAllowedPages, enabledModules } = useAuth()
   if (loading) return null
   // Pas encore de rôle (profil en cours de chargement) → on attend sans rediriger
   if (!role) return null
   // Rôle chargé mais pas accès à cette page → rediriger vers la première page accessible
-  if (!canAccess(role as Role, page, tenantAllowedPages)) return <Navigate to={firstPage(role as Role, tenantAllowedPages)} replace />
+  if (!canAccess(role as Role, page, tenantAllowedPages, enabledModules)) return <Navigate to={firstPage(role as Role, tenantAllowedPages, enabledModules)} replace />
   return <>{children}</>
 }
 
 function RouteFallback() {
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-[color:var(--primary)] border-t-transparent" />
+      <span className="sr-only">Chargement en cours…</span>
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-[color:var(--primary)] border-t-transparent" aria-hidden="true" />
     </div>
   )
 }
@@ -105,12 +116,19 @@ export default function App() {
                 <Route path="produit" element={<Navigate to="/solution" replace />} />
                 <Route path="fonctionnalites" element={<FeaturesPage />} />
                 <Route path="toutes-les-fonctionnalites" element={<AllFeaturesPage />} />
-                <Route path="demo" element={<Navigate to="/demonstration" replace />} />
-              <Route path="mentions-legales-public" element={<MentionsLegales />} />
+                <Route path="demo" element={<Navigate to="/demonstration" replace />} />                <Route path="tms-transport" element={<TmsTransportPage />} />
+                <Route path="erp-transport-routier" element={<ErpTransportRoutierPage />} />
+                <Route path="logiciel-gestion-flotte-camion" element={<LogicielGestionFlotteCamionPage />} />
+                <Route path="gestion-flotte" element={<Navigate to="/logiciel-gestion-flotte-camion" replace />} />
+                <Route path="telematique-transport" element={<TelématiqueTransportPage />} />
+                <Route path="chronotachygraphe" element={<ChronotachygraphePage />} />
+                <Route path="ia-transport" element={<IaTransportPage />} />              <Route path="mentions-legales-public" element={<MentionsLegales />} />
               </Route>
               <Route path="/login" element={<Login />} />
               <Route element={<RequireAuth />}>
                 <Route path="demo-access" element={<DemoAccess />} />
+                <Route path="session-picker" element={<SessionPickerPage />} />
+                <Route path="super-admin" element={<RequireRole page="super-admin"><SuperAdmin /></RequireRole>} />
                 <Route element={<AppLayout />}>
                   <Route path="dashboard"    element={<RequireRole page="dashboard"><Dashboard /></RequireRole>} />
                   <Route path="tasks"        element={<RequireRole page="tasks"><Tasks /></RequireRole>} />
@@ -120,6 +138,7 @@ export default function App() {
                   <Route path="equipements"  element={<RequireRole page="equipements"><Equipements /></RequireRole>} />
                   <Route path="maintenance"  element={<RequireRole page="maintenance"><Maintenance /></RequireRole>} />
                   <Route path="transports"   element={<RequireRole page="transports"><Transports /></RequireRole>} />
+                  <Route path="entrepots"    element={<RequireRole page="entrepots"><Entrepots /></RequireRole>} />
                   <Route path="clients"      element={<RequireRole page="clients"><Clients /></RequireRole>} />
                   <Route path="facturation"  element={<RequireRole page="facturation"><Facturation /></RequireRole>} />
                   <Route path="comptabilite" element={<RequireRole page="comptabilite"><Comptabilite /></RequireRole>} />
@@ -143,6 +162,7 @@ export default function App() {
                   <Route path="mail"         element={<RequireRole page="mail"><Mail /></RequireRole>} />
                   <Route path="coffre"       element={<RequireRole page="coffre"><Coffre /></RequireRole>} />
                   <Route path="mentions-legales" element={<RequireRole page="mentions-legales"><MentionsLegales /></RequireRole>} />
+                  <Route path="tenant-admin"    element={<RequireRole page="tenant-admin"><TenantAdmin /></RequireRole>} />
                 </Route>
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />

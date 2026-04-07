@@ -40,6 +40,7 @@ export default function RentabiliteTransportArticlePage() {
       }
       relatedLinks={[
         { to: '/erp-transport', title: 'ERP transport', description: 'Voir la page SEO principale sur le pilotage global.' },
+        { to: '/ia-transport', title: 'IA transport', description: 'Optimiser la rentabilité mission avec l’intelligence artificielle.' },
         { to: '/articles/comment-organiser-un-planning-transport-efficacement', title: 'Planning transport', description: 'Comprendre le lien entre planning et marge.' },
         { to: '/articles/gestion-de-flotte-poids-lourd-erreurs-courantes', title: 'Gestion flotte', description: 'Relier la disponibilité flotte à la rentabilité.' },
         { to: '/', title: 'Accueil', description: 'Revenir à l’entrée principale du site public.' },

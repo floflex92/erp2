@@ -163,6 +163,10 @@ export default function Paie() {
         <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">Paie</h2>
         <p className="mt-1.5 text-sm text-slate-300">Parametrage metier, variables mensuelles, generation PDF et archivage direct dans le coffre salarie.</p>
       </div>
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-start gap-2">
+        <span className="text-base leading-none mt-0.5">⚠</span>
+        <span>Les bulletins de paie generés sont archivés localement dans ce navigateur. Pour une conformité RGPD et un audit trace, exportez-les vers votre coffre-fort RH ou votre logiciel comptable.</span>
+      </div>
 
       {(notice || error) && (
         <div className={`rounded-2xl border px-5 py-4 text-sm ${error ? 'border-rose-300/30 bg-rose-950/20 text-rose-200' : 'border-sky-300/30 bg-sky-950/20 text-sky-200'}`}>

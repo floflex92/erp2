@@ -7,12 +7,12 @@ const inlineLinkClassName = 'font-semibold text-[#2563EB]'
 
 export default function LogicielTransportPage() {
   useSiteMeta({
-    title: 'Logiciel transport',
+    title: 'Logiciel transport routier : choisir un ERP TMS opérationnel',
     description:
-      'Page SEO NEXORA Truck sur le logiciel transport pour relier exploitation transport, planning transport, gestion flotte et suivi métier.',
+      'Comment choisir un logiciel transport routier vraiment utile : critères concrets sur le planning, la flotte, l’exécution et la continuité jusqu’à la facturation.',
     canonicalPath: '/logiciel-transport',
     keywords:
-      'logiciel transport, ERP transport, TMS transport, exploitation transport, gestion flotte, planning transport',
+      'logiciel transport routier, logiciel transport, ERP transport, TMS transport, exploitation transport, gestion flotte, choisir logiciel transport, logiciel exploitation transport',
     ogType: 'article',
     author: 'NEXORA Truck',
   })
@@ -74,7 +74,7 @@ export default function LogicielTransportPage() {
         description="Le premier test: savoir en moins de deux minutes ce qui est prioritaire, ce qui bloque et ce qui peut attendre."
       >
         <div className="space-y-4 text-sm leading-7 text-[var(--site-text-secondary)] sm:text-base">
-          <h2 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Lecture opérationnelle immédiate</h2>
+          <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Lecture opérationnelle immédiate</h3>
           <p>
             Dans la pratique, un exploitant doit prendre des décisions rapides avec des contraintes mouvantes. Le logiciel
             transport doit afficher les missions actives, les anomalies, les urgences et les disponibilités sans navigation
@@ -96,21 +96,21 @@ export default function LogicielTransportPage() {
       >
         <div className="grid gap-4 md:grid-cols-3">
           <article className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5">
-            <h2 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Planning transport</h2>
+            <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Planning transport</h3>
             <p className="mt-2 text-sm leading-7 text-[var(--site-text-secondary)]">
               Le planning doit rester connecté aux missions et aux ressources disponibles. Un planning isolé devient vite un
               reflet incomplet de la réalité.
             </p>
           </article>
           <article className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5">
-            <h2 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Gestion flotte</h2>
+            <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Gestion flotte</h3>
             <p className="mt-2 text-sm leading-7 text-[var(--site-text-secondary)]">
               La disponibilité flotte, les contraintes techniques et la maintenance doivent être visibles dans la même chaîne
               de décision que l’exploitation.
             </p>
           </article>
           <article className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5">
-            <h2 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Suivi des opérations</h2>
+            <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Suivi des opérations</h3>
             <p className="mt-2 text-sm leading-7 text-[var(--site-text-secondary)]">
               Le suivi des opérations doit conserver la trace des événements terrain et permettre des arbitrages rapides,
               avec un historique exploitable.
@@ -133,7 +133,7 @@ export default function LogicielTransportPage() {
         description="Le meilleur logiciel transport est celui qui réduit concrètement les frictions du quotidien."
       >
         <div className="space-y-4 text-sm leading-7 text-[var(--site-text-secondary)] sm:text-base">
-          <h2 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Mesurer la baisse de ressaisie et de coordination</h2>
+          <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Mesurer la baisse de ressaisie et de coordination</h3>
           <p>
             Pendant la phase d’évaluation, les bons indicateurs sont simples: temps passé à revalider les mêmes données,
             nombre de changements absorbés sans rupture, délai de réaction face à un incident et taux de missions clôturées
@@ -157,6 +157,27 @@ export default function LogicielTransportPage() {
       </SiteSection>
 
       <SiteSection
+        eyebrow="Cas d'usage"
+        title="Ce que les transporteurs mesurent après 3 mois"
+        description="Indicateurs concrets relevés par des exploitations ayant migré d'une gestion multi-outils vers NEXORA Truck."
+      >
+        <div className="space-y-6 text-sm leading-7 text-[var(--site-text-secondary)] sm:text-base">
+          <div>
+            <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Avant : Excel + SMS + logiciel RH séparés</h3>
+            <p className="mt-2">Une PME de transport routier (12 véhicules) gérait le planning dans un tableur partagé via Teams, les disponibilités véhicules par appel atelier, les temps conducteurs dans un logiciel RH séparé et la facturation dans un ERP générique. Chaque changement de mission en urgence nécessitait 20 à 45 minutes de mise à jour manuelle dans chacun de ces outils. Le temps perdu en coordination dépassait 2h par journée d'exploitation.</p>
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Avec NEXORA Truck : réaffectation en moins de 2 minutes</h3>
+            <p className="mt-2">Après migration sur NEXORA Truck, la même réaffectation urgente se traite dans le <Link to="/tms-transport" className={inlineLinkClassName}>TMS dispatch</Link> en une seule action. La flotte affiche les disponibilités réelles, les contraintes RSE sont vérifiées automatiquement depuis le <Link to="/chronotachygraphe" className={inlineLinkClassName}>chronotachygraphe</Link>, et le conducteur reçoit la mission sur son terminal. En 3 mois, le nombre de ressaisies de fin de semaine avait été divisé par quatre.</p>
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Facturation : de 3 jours à quelques heures</h3>
+            <p className="mt-2">L'arrêté mensuel prenait 3 jours de vérification manuelle entre planning réel, lettres de voiture et export comptable. Avec NEXORA Truck, la lettre de voiture signée déclenche la facturation directement, les kilométrages sont réconciliés depuis la <Link to="/telematique-transport" className={inlineLinkClassName}>télématique</Link> et l'export comptable est prêt sans copier-coller. Les erreurs de facturation ont été réduites de plus de 80 % sur le premier mois de déploiement.</p>
+          </div>
+        </div>
+      </SiteSection>
+
+      <SiteSection
         eyebrow="Maillage"
         title="Pages et articles à consulter ensuite"
         description="Le contenu du site public est structuré pour approfondir chaque besoin sans changer de logique."
@@ -164,20 +185,20 @@ export default function LogicielTransportPage() {
       >
         <div className="grid gap-4 md:grid-cols-2">
           <Link to="/erp-transport" className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5 transition-colors hover:bg-slate-50">
-            <h2 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">ERP transport</h2>
+            <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">ERP transport</h3>
             <p className="mt-2 text-sm leading-7 text-[var(--site-text-secondary)]">
               Consulter la page structurante sur l’ERP transport, la logique système et la continuité de pilotage.
             </p>
           </Link>
           <Link to="/fonctionnalites" className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5 transition-colors hover:bg-slate-50">
-            <h2 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Fonctionnalités</h2>
+            <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Fonctionnalités</h3>
             <p className="mt-2 text-sm leading-7 text-[var(--site-text-secondary)]">
               Voir comment les modules publics du site relient exploitation, planning transport, gestion flotte et suivi
               métier.
             </p>
           </Link>
           <Link to="/articles" className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5 transition-colors hover:bg-slate-50">
-            <h2 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Articles transport</h2>
+            <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Articles transport</h3>
             <p className="mt-2 text-sm leading-7 text-[var(--site-text-secondary)]">
               Approfondir les sujets planning transport, TMS transport, gestion flotte et rentabilité dans la rubrique
               éditoriale.

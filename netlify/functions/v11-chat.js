@@ -6,7 +6,7 @@ import {
   readTenantKey,
 } from './_lib/v11-core.js'
 
-const ALLOWED_ROLES = ['admin', 'dirigeant', 'exploitant', 'conducteur']
+const ALLOWED_ROLES = ['admin', 'dirigeant', 'exploitant', 'conducteur', 'logisticien']
 
 function inferSenderType(role) {
   if (role === 'conducteur') return 'conducteur'

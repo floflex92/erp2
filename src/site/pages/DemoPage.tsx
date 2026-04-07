@@ -32,7 +32,7 @@ export default function DemoPage() {
   const [submitted, setSubmitted] = useState(false)
 
   useSiteMeta({
-    title: 'Démonstration — NEXORA Truck',
+    title: 'Démonstration ERP transport : accès gratuit',
     description: 'Réservez une démonstration personnalisée NEXORA Truck ou accédez directement à la plateforme complète gratuitement.',
     canonicalPath: '/demonstration',
     keywords: 'démo ERP transport, démonstration TMS, logiciel transport routier, rendez-vous Nexora Truck',

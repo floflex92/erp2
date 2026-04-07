@@ -4,10 +4,12 @@ import { canAccess, ROLE_LABELS, useAuth } from '@/lib/auth'
 import { DEFAULT_COMPANY_NAME, readCompanySettings, subscribeCompanySettings, updateCompanySettings } from '@/lib/companySettings'
 import { getDigitalSignature, subscribeDigitalSignatures, upsertDigitalSignature } from '@/lib/signatureStore'
 import { ErpV11Settings } from '@/components/settings/ErpV11Settings'
+import OllamaChat from '@/components/OllamaChat'
 import { ErpClientsSettings } from '@/components/settings/ErpClientsSettings'
+import { DriverGroupsSettings } from '@/components/settings/DriverGroupsSettings'
 
 // ── Menu items ────────────────────────────────────────────────────────────────
-type MenuId = 'compte' | 'entreprise' | 'signature' | 'rgpd' | 'utilisateurs' | 'aide' | 'modules' | 'developpement' | 'clients-erp'
+type MenuId = 'compte' | 'entreprise' | 'signature' | 'rgpd' | 'utilisateurs' | 'aide' | 'modules' | 'developpement' | 'clients-erp' | 'groupes-conducteurs'
 
 type MenuItem = {
   id: MenuId
@@ -60,7 +62,7 @@ function readFileAsDataUrl(file: File) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-const DEPLOYED_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.10.7'
+const DEPLOYED_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.10.14'
 
 export default function Parametres() {
   const { role, sessionRole, isAdmin, isDemoSession, profil, accountProfil, tenantAllowedPages } = useAuth()
@@ -174,6 +176,7 @@ export default function Parametres() {
     { id: 'clients-erp',  label: 'Clients ERP',       icon: <IconEntreprise />, adminOnly: true },
     { id: 'aide',         label: 'Aide',              icon: <IconAide /> },
     { id: 'developpement', label: 'Developpement',     icon: <IconModules /> },
+    { id: 'groupes-conducteurs', label: 'Groupes conducteurs', icon: <IconUtilisateurs /> },
     ...(isCompanyManager ? [{ id: 'modules' as MenuId, label: 'Modules ERP', icon: <IconModules /> }] : []),
   ]
 
@@ -412,6 +415,16 @@ export default function Parametres() {
           </div>
         )}
 
+        {activeMenu === 'groupes-conducteurs' && (
+          <div className="space-y-4">
+            <SectionHeader
+              title="Groupes de conducteurs"
+              subtitle="Organisez les conducteurs par equipe ou zone. Chaque exploitant ne voit que son groupe sur le planning. L'IA de placement respecte ces perimetres."
+            />
+            <DriverGroupsSettings />
+          </div>
+        )}
+
         {/* ─ Aide ──────────────────────────────────────────────────────── */}
         {activeMenu === 'aide' && (
           <div className="space-y-4">
@@ -475,11 +488,25 @@ export default function Parametres() {
                   <li>SEO technique du site public (meta, canonicals, sitemap, robots et FAQ structuree)</li>
                   <li>SEO contenu et structure accueil (Hn logiques, contenu metier et optimisation images hero WebP)</li>
                   <li>Base editoriale SEO et maillage interne (pages ERP/logiciel + 8 articles metier publies, navigation Blog dans le site public)</li>
+                  <li>SEO multi-entree site public (6 pages positionnement : ERP, TMS, gestion flotte, telematique, chronotachygraphe, IA transport + maillage interne complet + bouton SEO footer)</li>
+                  <li>Refonte SEO technique complete : titles optimises (suppr. doublons NEXORA Truck), H1 visible HomePage, H2/H3 corriges, meta descriptions metier, keywords etendus sur 15 pages</li>
+                  <li>Lien reseaux sociaux : page Facebook officielle NEXORA Truck dans le footer site public</li>
                   <li>Parcours legal public (mentions legales, politique de confidentialite, CGU, bandeau cookies et reouverture des preferences)</li>
                   <li>Qualite front release (warnings ESLint resolus, socle PWA installable avec manifest/service worker et optimisations de chargement initial)</li>
                   <li>Durcissement securite backend (separation stricte client authentifie RLS et client systeme service role par endpoint)</li>
                   <li>Normalisation de marque NEXORA Truck sur l ERP et le site public</li>
                   <li>Google Analytics 4 (ID G-4QQVY1DQT2, script head index.html)</li>
+                  <li>Gestion multi-tenant (page Reglages tenant, RLS SECURITY DEFINER non-recursive sur profils et companies, fonctions my_company_id / my_login_enabled)</li>
+                  <li>Profils applicatifs garantis a la connexion (matricule DEFAULT, upsert corrige, bootstrap RequireAuth)</li>
+                  <li>Optimisation SEO contenu et structure 6 pages (suppression sr-only cloaking HomePage et FeaturesPage, H2 imbriques corriges en H3 sur TMS et Flotte, meta titles et descriptions recalibers &lt;60/160 chars, H1 differencies par intention, contenu TMS / Flotte / ERP reecrit avec vocabulaire transport metier concret)</li>
+                  <li>Approfondissement SEO contenu maximal (H1 + problems + solutionPillars + keyFeatures recrits sur IA, Telematique, Chronotachygraphe, TMS, Flotte, ERP routier, ERP transport, Logiciel transport ; scenarios avant/apres concrets par page ; maillage interne systematique ; sections Cas d usage ajoutees — v1.10.13)</li>
+                  <li>Multi-site logistique : page Entrepots et Depots, section Logistique dans le menu, GPS map picker, sites filtres par tenant (v1.10.12)</li>
+                  <li>Relais transport : onglet dedie, assignation conducteur/vehicule/remorque, statuts et historique (v1.10.12)</li>
+                  <li>Role Logisticien : acces entrepots, transports, planning, map-live ; droits RLS et fonctions Netlify ; simulateur metier (v1.10.12)</li>
+                  <li>Groupes de conducteurs : isolation planning par exploitant, UI Reglages, RLS et endpoint Netlify (v1.10.14)</li>
+                  <li>IA placement retour en charge : moteur interne, config provider Ollama/Anthropic, endpoint Netlify dedie (v1.10.14)</li>
+                  <li>Multi-tenant phase 1-3 : companies, permissions, super admin, isolation RLS complete ; Super Admin et Tenant Admin (v1.10.14)</li>
+                  <li>SEO site 3 nouvelles pages : Telematique Transport, Chronotachygraphe, IA Transport — maillage inter-metier complet (v1.10.14)</li>
                 </ul>
               </Card>
             )}
@@ -526,8 +553,9 @@ export default function Parametres() {
                   </ul>
                 </Card>
                 <Card>
-                  <CardLabel>Features a ajouter</CardLabel>
+                  <CardLabel>En cours de developpement (nouvelles)</CardLabel>
                   <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
+                    <li>Entrepots et depots logistiques (capacite multi-lots posee, isolation tenant a finaliser)</li>
                     <li>Connectivite et discussion inter-ERP</li>
                     <li>Planning affreteur dedie dans un onglet specifique</li>
                     <li>Groupage multi-courses figeable et deliable en gardant les courses independantes</li>
@@ -543,20 +571,21 @@ export default function Parametres() {
                     <li>Finalisation Tachygraphe et Amendes en mode production</li>
                     <li>Durcissement securite avance (audit continu des endpoints publics et minimisation des surfaces service role)</li>
                     <li>Observabilite (erreurs, journaux, traces)</li>
-                    <li>Workflow admin complet de gestion des utilisateurs</li>
+                    <li>Workflow admin complet de gestion des utilisateurs (page posee, actions via Supabase direct)</li>
                     <li>Migration progressive statut_transport sur tous les ecrans (vagues 2 a 4)</li>
                   </ul>
                 </Card>
                 <Card>
                   <CardLabel>Ajouts hype possibles</CardLabel>
                   <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
-                    <li>Assistant IA exploitation (suggestion affectations et priorites)</li>
+                    <li>Branchement Anthropic Claude sur placement retour en charge</li>
+                    <li>IA detection et parsing emails transport → creation course</li>
+                    <li>IA calcul temps de trajet multi-contraintes (ETA predictive)</li>
                     <li>Notifications push intelligentes (retards, incidents, validation)</li>
                     <li>Scoring automatique des demandes clients</li>
                     <li>Cockpit KPI ultra visuel par role</li>
                     <li>Application mobile conducteur avec mode degrade</li>
                     <li>Automatisation proactive des alertes transport/facturation</li>
-                    <li>Detection et parsing intelligent des emails transport</li>
                     <li>Integration API bourse de fret</li>
                     <li>Tracking temps reel via API externes</li>
                   </ul>
@@ -571,6 +600,7 @@ export default function Parametres() {
           <div className="space-y-4">
             <SectionHeader title="Modules ERP" subtitle="Configuration des modules et fournisseurs de services" />
             <ErpV11Settings />
+            <OllamaChat />
           </div>
         )}
       </div>

@@ -1,6 +1,10 @@
 import { supabase } from '@/lib/supabase'
 import type { Tables, TablesInsert, TablesUpdate } from '@/lib/database.types'
 
+export type OtLigne = Tables<'ot_lignes'>
+export type OtLigneInsert = TablesInsert<'ot_lignes'>
+export type OtLigneUpdate = TablesUpdate<'ot_lignes'>
+
 export const TRANSPORT_SOURCES = ['client', 'bourse_fret', 'manuel'] as const
 export type TransportSource = (typeof TRANSPORT_SOURCES)[number]
 
@@ -120,4 +124,24 @@ export async function listTransportStatusHistory(orderId: string) {
 
   if (query.error) throw query.error
   return query.data ?? []
+}
+
+export async function listOtLignes(otId: string): Promise<OtLigne[]> {
+  const { data, error } = await supabase
+    .from('ot_lignes')
+    .select('*')
+    .eq('ot_id', otId)
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function syncOtLignes(otId: string, companyId: number, lignes: Array<Omit<OtLigneInsert, 'ot_id' | 'company_id'>>) {
+  // Delete all existing then re-insert
+  const { error: delErr } = await supabase.from('ot_lignes').delete().eq('ot_id', otId)
+  if (delErr) throw delErr
+  if (lignes.length === 0) return
+  const rows: OtLigneInsert[] = lignes.map(l => ({ ...l, ot_id: otId, company_id: companyId }))
+  const { error: insErr } = await supabase.from('ot_lignes').insert(rows)
+  if (insErr) throw insErr
 }

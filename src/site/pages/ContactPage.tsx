@@ -39,7 +39,7 @@ export default function ContactPage() {
   const [captchaInput, setCaptchaInput] = useState('')
 
   useSiteMeta({
-    title: 'Contact — NEXORA Truck',
+    title: 'Contact — démo ERP transport routier',
     description: 'Contactez NEXORA Truck pour qualifier votre projet ERP transport et organiser un rendez-vous de démonstration personnalisé.',
     canonicalPath: '/contact',
     keywords: 'contact ERP transport, rendez-vous démonstration TMS, projet digital transport routier',

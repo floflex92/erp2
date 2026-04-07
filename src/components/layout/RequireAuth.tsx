@@ -5,14 +5,14 @@ import { supabase } from '@/lib/supabase'
 import { clearDemoAndMockLocalData } from '@/lib/demoDataCleanup'
 import SessionPicker from '@/pages/SessionPicker'
 
-const RESERVED_BOOTSTRAP_ROLE_BY_EMAIL: Record<string, 'admin' | 'dirigeant'> = {
+const RESERVED_BOOTSTRAP_ROLE_BY_EMAIL: Record<string, 'admin' | 'super_admin' | 'dirigeant'> = {
   'admin@erp-demo.fr': 'admin',
   'contact@nexora-truck.fr': 'admin',
   'direction@erp-demo.fr': 'dirigeant',
-  'chabre.florent@gmail.com': 'admin',
+  'chabre.florent@gmail.com': 'super_admin',
 }
 
-function resolvePrivilegedBootstrapRole(user: NonNullable<ReturnType<typeof useAuth>['session']>['user']): 'admin' | 'dirigeant' | null {
+function resolvePrivilegedBootstrapRole(user: NonNullable<ReturnType<typeof useAuth>['session']>['user']): 'admin' | 'super_admin' | 'dirigeant' | null {
   const email = typeof user.email === 'string' ? user.email.trim().toLowerCase() : ''
   if (email && RESERVED_BOOTSTRAP_ROLE_BY_EMAIL[email]) return RESERVED_BOOTSTRAP_ROLE_BY_EMAIL[email]
   if (email) {
@@ -22,10 +22,10 @@ function resolvePrivilegedBootstrapRole(user: NonNullable<ReturnType<typeof useA
   }
 
   const appRole = typeof user.app_metadata?.role === 'string' ? user.app_metadata.role.trim().toLowerCase() : null
-  if (appRole === 'admin' || appRole === 'dirigeant') return appRole
+  if (appRole === 'admin' || appRole === 'super_admin' || appRole === 'dirigeant') return appRole as 'admin' | 'super_admin' | 'dirigeant'
 
   const userRole = typeof user.user_metadata?.role === 'string' ? user.user_metadata.role.trim().toLowerCase() : null
-  if (userRole === 'admin' || userRole === 'dirigeant') return userRole
+  if (userRole === 'admin' || userRole === 'super_admin' || userRole === 'dirigeant') return userRole as 'admin' | 'super_admin' | 'dirigeant'
 
   return null
 }
@@ -82,7 +82,9 @@ export default function RequireAuth() {
   const [bootstrapError, setBootstrapError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!session?.user || accountProfil !== null || profilLoading || authError) return
+    if (!session?.user || accountProfil !== null || profilLoading) return
+    // Si authError est set (loadProfil a echoue), le bootstrap ne tente pas d'INSERT
+    // mais reloadProfil() sera appele via le bouton Reessayer directement.
 
     let active = true
 
@@ -136,7 +138,7 @@ export default function RequireAuth() {
     return () => {
       active = false
     }
-  }, [session?.user, session?.user?.id, accountProfil, profilLoading, authError, reloadProfil, bootstrapTick])
+  }, [session?.user, session?.user?.id, accountProfil, profilLoading, reloadProfil, bootstrapTick])
 
   useEffect(() => {
     clearDemoAndMockLocalData()
@@ -151,7 +153,16 @@ export default function RequireAuth() {
       <ProfileBootstrapScreen
         busy={bootstrapping}
         error={bootstrapError ?? authError}
-        onRetry={() => setBootstrapTick(value => value + 1)}
+        onRetry={() => {
+          // Si le profil exist deja en base (authError apres loadProfil),
+          // on force juste un reload du profil. Sinon on relance le bootstrap insert.
+          if (authError) {
+            setBootstrapError(null)
+            void reloadProfil()
+          } else {
+            setBootstrapTick(value => value + 1)
+          }
+        }}
       />
     )
   }

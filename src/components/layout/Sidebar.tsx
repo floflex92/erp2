@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { countAllUnreadDemoMessages, subscribeDemoChatUpdates } from '@/lib/demoChat'
 import { countUnreadDemoMails, ensureDemoMailbox, subscribeDemoMailUpdates } from '@/lib/demoMail'
 import { isDemoProfil } from '@/lib/demoUsers'
@@ -36,6 +36,13 @@ const NAV_SECTIONS: NavSection[] = [
       { to: '/feuille-route', page: 'feuille-route', label: 'Feuille de route', icon: 'route' },
       { to: '/map-live', page: 'map-live', label: 'Map live', icon: 'pin' },
       { to: '/demandes-clients', page: 'demandes-clients', label: 'Demandes clients', icon: 'briefcase' },
+    ],
+  },
+  {
+    key: 'logistique',
+    label: 'Logistique',
+    items: [
+      { to: '/entrepots', page: 'entrepots', label: 'Entrepôts & Dépôts', icon: 'warehouse' },
     ],
   },
   {
@@ -80,8 +87,10 @@ const NAV_SECTIONS: NavSection[] = [
     key: 'admin',
     label: 'Admin',
     items: [
-      { to: '/parametres', page: 'parametres', label: 'Reglages', icon: 'settings' },
-      { to: '/utilisateurs', page: 'utilisateurs', label: 'Comptes', icon: 'users' },
+      { to: '/parametres',     page: 'parametres',     label: 'Reglages ERP',    icon: 'settings' },
+      { to: '/tenant-admin',   page: 'tenant-admin',   label: 'Reglages tenant', icon: 'shield' },
+      { to: '/super-admin',    page: 'super-admin',    label: 'Plateforme',      icon: 'spark' },
+      { to: '/utilisateurs',   page: 'utilisateurs',   label: 'Comptes',         icon: 'users' },
       { to: '/mentions-legales', page: 'mentions-legales', label: 'Mentions legales', icon: 'shield' },
     ],
   },
@@ -90,6 +99,7 @@ const NAV_SECTIONS: NavSection[] = [
 function NavGlyph({ type, size = 18 }: { type: string; size?: number }) {
   const style = { width: size, height: size }
   const common = { ...style, viewBox: '0 0 24 24', fill: 'none' as const, stroke: 'currentColor', strokeWidth: 1.8 as const }
+  if (type === 'warehouse') return <svg {...common}><path d="M3 9.5 12 4l9 5.5V20H3V9.5Z" /><path d="M9 20v-6h6v6" /></svg>
   if (type === 'route') return <svg {...common}><path d="M6 19c0-2.2 1.8-4 4-4h4a4 4 0 1 0-4-4H8a4 4 0 1 1 0-8h10" /><circle cx="18" cy="3" r="1.4" /><circle cx="6" cy="21" r="1.4" /></svg>
   if (type === 'truck') return <svg {...common}><path d="M3 7h11v9H3z" /><path d="M14 10h3l3 3v3h-6z" /><circle cx="7.5" cy="18" r="1.5" /><circle cx="17.5" cy="18" r="1.5" /></svg>
   if (type === 'users') return <svg {...common}><path d="M16 19a4 4 0 0 0-8 0" /><circle cx="12" cy="9" r="3" /><path d="M19 19a3 3 0 0 0-3-3" /><path d="M18 8a2.5 2.5 0 1 1 0 5" /></svg>
@@ -119,15 +129,17 @@ function DockItem({
   collapsed,
   role,
   tenantAllowedPages,
+  enabledModules,
   notificationCount,
 }: {
   item: NavItem
   collapsed: boolean
   role: Role | null
   tenantAllowedPages: string[] | null
+  enabledModules: import('@/lib/tenantAdmin').TenantModule[] | null
   notificationCount: number
 }) {
-  if (!canAccess(role, item.page, tenantAllowedPages)) return null
+  if (!canAccess(role, item.page, tenantAllowedPages, enabledModules)) return null
 
   const showBadge = (item.page === 'tchat' || item.page === 'mail') && notificationCount > 0
 
@@ -216,9 +228,10 @@ function useBadgeCount(page: string, profilId: string | null, demoProfil: unknow
 }
 
 export default function Sidebar() {
-  const { profil, role, isDemoSession, tenantAllowedPages } = useAuth()
+  const { profil, role, isDemoSession, tenantAllowedPages, enabledModules, canUseSessionPicker } = useAuth()
   const profilId = profil?.id ?? null
   const demoProfil = isDemoSession && profil && isDemoProfil(profil) ? profil : null
+  const navigate = useNavigate()
 
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -240,14 +253,17 @@ export default function Sidebar() {
     window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, collapsed ? '1' : '0')
   }, [collapsed])
 
+  const isAdminRole = role === 'admin' || role === 'super_admin'
+
   const visibleSections = useMemo(() => (
     NAV_SECTIONS
+      .filter(section => !(section.key === 'admin' && isAdminRole))
       .map(section => ({
         ...section,
-          items: section.items.filter(item => canAccess(role, item.page, tenantAllowedPages)),
+        items: section.items.filter(item => canAccess(role, item.page, tenantAllowedPages, enabledModules)),
       }))
       .filter(section => section.items.length > 0)
-        ), [role, tenantAllowedPages])
+  ), [role, isAdminRole, tenantAllowedPages, enabledModules])
 
   function getBadge(page: string): number {
     if (page === 'tchat') return chatCount
@@ -305,6 +321,7 @@ export default function Sidebar() {
                             collapsed={false}
                             role={role}
                             tenantAllowedPages={tenantAllowedPages}
+                            enabledModules={enabledModules}
                             notificationCount={getBadge(item.page)}
                           />
                         ))}
@@ -316,16 +333,44 @@ export default function Sidebar() {
             </div>
 
             <div className="mt-2 border-t border-white/[0.08] px-1 pt-3">
-              <button
-                type="button"
-                onClick={() => setCollapsed(true)}
-                className="flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-[color:var(--sidebar-text)] transition-colors hover:bg-[color:var(--sidebar-item-hover)] hover:text-[color:var(--sidebar-text-strong)]"
-                style={{ borderColor: 'var(--sidebar-border)' }}
-                title="Replier completement"
-              >
-                <NavGlyph type="collapse" size={17} />
-                <span className="truncate text-xs font-medium">Replier le menu</span>
-              </button>
+              <div className="flex flex-col gap-1">
+                {canUseSessionPicker && (
+                  <>
+                    <NavLink
+                      to="/parametres"
+                      className={({ isActive }) => [
+                        'flex items-center gap-2.5 rounded-xl border px-3 py-2 text-[color:var(--sidebar-text)] transition-colors hover:bg-[color:var(--sidebar-item-hover)] hover:text-[color:var(--sidebar-text-strong)]',
+                        isActive ? 'nx-sidebar-item-active' : '',
+                      ].join(' ')}
+                      style={{ borderColor: 'var(--sidebar-border)' }}
+                      title="Espace Administration"
+                    >
+                      <NavGlyph type="shield" size={17} />
+                      <span className="truncate text-xs font-medium">Espace Admin</span>
+                    </NavLink>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/session-picker')}
+                      className="flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-[color:var(--sidebar-text)] transition-colors hover:bg-[color:var(--sidebar-item-hover)] hover:text-[color:var(--sidebar-text-strong)]"
+                      style={{ borderColor: 'var(--sidebar-border)' }}
+                      title="Changer de rôle / simuler un espace métier"
+                    >
+                      <NavGlyph type="users" size={17} />
+                      <span className="truncate text-xs font-medium">Changer de rôle</span>
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setCollapsed(true)}
+                  className="flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-[color:var(--sidebar-text)] transition-colors hover:bg-[color:var(--sidebar-item-hover)] hover:text-[color:var(--sidebar-text-strong)]"
+                  style={{ borderColor: 'var(--sidebar-border)' }}
+                  title="Replier completement"
+                >
+                  <NavGlyph type="collapse" size={17} />
+                  <span className="truncate text-xs font-medium">Replier le menu</span>
+                </button>
+              </div>
             </div>
           </div>
         )}

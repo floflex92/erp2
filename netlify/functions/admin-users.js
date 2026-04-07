@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 
-const ROLE_VALUES = ['admin', 'dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable', 'rh', 'conducteur', 'conducteur_affreteur', 'client', 'affreteur', 'administratif', 'facturation', 'flotte', 'maintenance', 'observateur', 'demo', 'investisseur', 'super_admin']
+const ROLE_VALUES = ['admin', 'dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable', 'rh', 'conducteur', 'conducteur_affreteur', 'client', 'affreteur', 'administratif', 'facturation', 'flotte', 'maintenance', 'observateur', 'demo', 'investisseur', 'super_admin', 'logisticien']
 const ROLE_SET = new Set(ROLE_VALUES)
 const ADMIN_ROLES = new Set(['admin', 'dirigeant'])
 const DEFAULT_ROLE = 'dirigeant'

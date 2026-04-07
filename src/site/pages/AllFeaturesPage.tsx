@@ -190,7 +190,7 @@ function StatusSection({
 
 export default function AllFeaturesPage() {
   useSiteMeta({
-    title: 'Toutes les fonctionnalités — NEXORA Truck',
+    title: 'Toutes les fonctionnalités ERP transport NEXORA',
     description: 'Vue complète des fonctionnalités NEXORA Truck: disponibles, en cours de développement et prochaines features.',
     canonicalPath: '/toutes-les-fonctionnalites',
     keywords: 'toutes les fonctionnalités transport, roadmap ERP transport, fonctionnalités en cours de développement',

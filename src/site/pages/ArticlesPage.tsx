@@ -6,7 +6,7 @@ const px: React.CSSProperties = { paddingInline: 'clamp(24px, 8vw, 160px)' }
 
 export default function ArticlesPage() {
   useSiteMeta({
-    title: 'Blog transport  Articles métier NEXORA Truck',
+    title: 'Blog transport : ERP, TMS, gestion flotte et télématique',
     description:
       "Articles métier NEXORA Truck sur le planning transport, l'ERP transport, le TMS transport, la gestion flotte et la rentabilité.",
     canonicalPath: '/articles',

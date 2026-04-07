@@ -10,7 +10,12 @@
 
 [build.environment]
   NODE_VERSION = "20"
-  VITE_APP_VERSION = "1.10.7"
+  VITE_APP_VERSION = "1.10.14"
+  # Ollama n'est pas accessible depuis Netlify en production (service local).
+  # Ces valeurs servent de fallback non-fonctionnel ; la fonctionnalité IA
+  # locale est désactivée en production (cf. OllamaError dans le composant).
+  VITE_OLLAMA_HOST = "http://localhost:11434"
+  VITE_OLLAMA_MODEL = "mistral"
 
 [[headers]]
   for = "/*"
@@ -18,8 +23,24 @@
     X-Content-Type-Options = "nosniff"
     X-Frame-Options = "DENY"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
     Permissions-Policy = "camera=(), microphone=(), geolocation=(self), payment=()"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://nexora-truck.fr https://rnbbxmdughpxovcnhrpz.supabase.co; connect-src 'self' https://rnbbxmdughpxovcnhrpz.supabase.co wss://rnbbxmdughpxovcnhrpz.supabase.co https://api.anthropic.com https://www.google-analytics.com https://www.googletagmanager.com; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/site/screenshots/*"
+  [headers.values]
+    Cache-Control = "public, max-age=2592000"
+
+[[headers]]
+  for = "/site/photos/*"
+  [headers.values]
+    Cache-Control = "public, max-age=2592000"
 
 [[headers]]
   for = "/.netlify/functions/*"

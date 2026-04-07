@@ -182,6 +182,7 @@ export default function Facturation() {
   })
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Facture | null>(null)
 
   // TVA tab state
@@ -361,6 +362,10 @@ export default function Facturation() {
   async function submit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     setFormError(null)
+    if (form.date_echeance && form.date_echeance < form.date_emission) {
+      setFormError('La date d\'échéance ne peut pas être antérieure à la date d\'émission.')
+      return
+    }
     if (form.ot_id) {
       const contract = getAffretementContractByOtId(form.ot_id)
       if (contract) {
@@ -374,23 +379,37 @@ export default function Facturation() {
     setSaving(true)
     const montant_tva = form.montant_ht * (form.taux_tva / 100)
     const montant_ttc = form.montant_ht + montant_tva
-    await supabase.from('factures').insert({ ...form, montant_tva, montant_ttc })
+    const { error } = await supabase.from('factures').insert({ ...form, montant_tva, montant_ttc })
     setSaving(false)
+    if (error) {
+      setFormError(`Erreur lors de la création : ${error.message}`)
+      return
+    }
     setShowForm(false)
     loadAll()
   }
 
   async function updateStatut(f: Facture, statut: string) {
+    setActionError(null)
     const extra: Record<string, string | null> = {}
     if (statut === 'payee') extra.date_paiement = new Date().toISOString().split('T')[0]
-    await supabase.from('factures').update({ statut, ...extra }).eq('id', f.id)
+    const { error } = await supabase.from('factures').update({ statut, ...extra }).eq('id', f.id)
+    if (error) {
+      setActionError(`Impossible de mettre à jour le statut : ${error.message}`)
+      return
+    }
     if (selected?.id === f.id) setSelected({ ...f, statut })
     loadAll()
   }
 
   async function del(id: string) {
     if (!confirm('Supprimer cette facture ?')) return
-    await supabase.from('factures').delete().eq('id', id)
+    setActionError(null)
+    const { error } = await supabase.from('factures').delete().eq('id', id)
+    if (error) {
+      setActionError(`Impossible de supprimer la facture : ${error.message}`)
+      return
+    }
     if (selected?.id === id) setSelected(null)
     loadAll()
   }
@@ -438,7 +457,14 @@ export default function Facturation() {
         )}
       </div>
 
-      <TabBar active={tab} onChange={t => { setTab(t); setSelected(null) }} />
+      <TabBar active={tab} onChange={t => { setTab(t); setSelected(null); setActionError(null) }} />
+
+      {actionError && (
+        <div className="mb-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 flex items-center justify-between">
+          <span>{actionError}</span>
+          <button onClick={() => setActionError(null)} className="ml-4 text-red-400 hover:text-red-600">✕</button>
+        </div>
+      )}
 
       {/* ══ TAB: FACTURES ══════════════════════════════════════════════════════ */}
       {tab === 'factures' && (
@@ -660,6 +686,7 @@ export default function Facturation() {
                 <div className="flex justify-between text-sm text-slate-600"><span>Tranche 15% (≤ 42 500 €)</span><span>{fmtEur(Math.min(resultatBrut, 42500) * 0.15)}</span></div>
                 {resultatBrut > 42500 && <div className="flex justify-between text-sm text-slate-600"><span>Tranche 25% (au-delà)</span><span>{fmtEur((resultatBrut - 42500) * 0.25)}</span></div>}
                 <div className="flex justify-between text-sm font-bold text-slate-800 border-t pt-2"><span>IS estimé</span><span>{fmtEur(isEstimate)}</span></div>
+                <p className="text-[11px] text-amber-600 italic mt-2">⚠ Simulation indicative uniquement — marge nette hypothétique 30%, sans charges réelles. Consultez votre expert-comptable.</p>
               </div>
             </div>
           </div>

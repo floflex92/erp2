@@ -40,10 +40,11 @@ export default function PlanningTransportArticlePage() {
         </>
       }
       relatedLinks={[
+        { to: '/tms-transport', title: 'TMS transport', description: 'Voir la page dédiée au TMS transport NEXORA Truck.' },
         { to: '/erp-transport', title: 'Page ERP transport', description: 'Voir la page SEO principale sur le pilotage transport.' },
-        { to: '/fonctionnalites', title: 'Fonctionnalités', description: 'Relier l’article aux modules visibles sur le site public.' },
+        { to: '/ia-transport', title: 'IA transport', description: "Comprendre comment l’IA optimise le planning automatiquement." },
         { to: '/articles/erp-transport-pourquoi-abandonner-excel', title: 'ERP transport et Excel', description: 'Continuer avec le sujet des limites du tableur.' },
-        { to: '/', title: 'Accueil', description: 'Revenir vers la page d’accueil du site public NEXORA Truck.' },
+        { to: '/', title: 'Accueil', description: "Revenir vers la page d’accueil du site public NEXORA Truck." },
       ]}
     >
       <SiteSection

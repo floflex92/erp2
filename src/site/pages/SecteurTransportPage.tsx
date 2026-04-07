@@ -21,7 +21,7 @@ const regions = [
 
 export default function SecteurTransportPage() {
   useSiteMeta({
-    title: 'Secteur Transport Francophone — NEXORA Truck',
+    title: 'Transport routier francophone : marchés, défis et modernisation',
     description: 'Analyse du marché transport francophone, défis du secteur routier et vision NEXORA Truck pour moderniser le pilotage des entreprises.',
     canonicalPath: '/secteur-transport',
     keywords: 'marché transport francophone, transformation digitale transport routier, enjeux transporteurs, innovation logistique',

@@ -330,7 +330,7 @@ function BilanTab() {
         }
 
         if (syntheseRes.error) {
-          console.log('Pas de synthèse:', syntheseRes.error.message)
+          setSynthese(null)
         } else {
           setSynthese(syntheseRes.data)
         }
@@ -455,7 +455,7 @@ function ResultatTab() {
         }
 
         if (syntheseRes.error) {
-          console.log('Pas de synthèse:', syntheseRes.error.message)
+          setSynthese(null)
         } else {
           setSynthese(syntheseRes.data)
         }

@@ -29,10 +29,10 @@ const extras = [
 
 export default function FeaturesPage() {
   useSiteMeta({
-    title: 'Fonctionnalités — NEXORA Truck',
-    description: 'Découvrez les fonctionnalités de NEXORA Truck : exploitation, planning intelligent, flotte, conducteurs, facturation, API et conformité transport.',
+    title: 'Fonctionnalités ERP transport : planning, flotte, facturation, API',
+    description: 'Découvrez les fonctionnalités de l’ERP transport NEXORA Truck : planning intelligent, gestion flotte, suivi conducteurs, facturation transport, télématique, chronotachygraphe, IA et API.',
     canonicalPath: '/fonctionnalites',
-    keywords: 'fonctionnalités ERP transport, planning transport, gestion flotte, facturation transport, conformité conducteurs, TMS fonctionnalités',
+    keywords: 'fonctionnalités ERP transport, planning transport, gestion flotte, facturation transport, conformité conducteurs, TMS transport, logiciel exploitation transport, IA transport',
   })
 
   return (
@@ -129,15 +129,7 @@ export default function FeaturesPage() {
           <Link to="/contact" className="text-sm font-semibold" style={{ color: '#2563EB' }}>Parler à un expert</Link>
         </div>
       </section>
-      <section className="sr-only" aria-labelledby="features-seo-links">
-        <h2 id="features-seo-links">Approfondir le site public NEXORA Truck</h2>
-        <p>
-          Pour approfondir les sujets présentés sur cette page, consultez <Link to="/erp-transport">ERP transport</Link>,{' '}
-          <Link to="/logiciel-transport">logiciel transport</Link> et la rubrique <Link to="/articles">articles</Link>.
-          Vous y retrouverez des contenus liés au planning transport, au TMS transport, à la gestion flotte et à
-          l’exploitation transport.
-        </p>
-      </section>
+
     </>
   )
 }

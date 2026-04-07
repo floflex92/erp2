@@ -32,10 +32,11 @@ export default function TmsTransportDefinitionArticlePage() {
         </>
       }
       relatedLinks={[
+        { to: '/tms-transport', title: 'TMS transport', description: 'Page dédiée au TMS transport NEXORA Truck.' },
         { to: '/logiciel-transport', title: 'Logiciel transport', description: 'Comparer la logique TMS avec une vision plus large du logiciel transport.' },
-        { to: '/erp-transport', title: 'ERP transport', description: 'Voir comment l’ERP étend le périmètre du TMS.' },
+        { to: '/erp-transport', title: 'ERP transport', description: "Voir comment l\u2019ERP \u00e9tend le p\u00e9rim\u00e8tre du TMS." },
+        { to: '/telematique-transport', title: 'Télématique transport', description: 'Comprendre comment la télématique complète le TMS.' },
         { to: '/articles/erp-transport-pourquoi-abandonner-excel', title: 'Abandonner Excel', description: 'Relier la définition du TMS aux problèmes de ressaisie.' },
-        { to: '/fonctionnalites', title: 'Fonctionnalités', description: 'Vérifier les modules publics déjà présentés sur le site.' },
       ]}
     >
       <SiteSection
