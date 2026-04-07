@@ -198,37 +198,46 @@ export default function AllFeaturesPage() {
 
   return (
     <>
-      <section className="flex w-full flex-col items-center justify-center text-center" style={{ background: '#0f172a', ...sectionPx, ...sectionPy }}>
-
-          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#94a3b8' }}>Roadmap produit</p>
-          <h1 className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]" style={{ fontSize: 'clamp(2.2rem, 6vw, 4.5rem)', color: '#ffffff', letterSpacing: '-0.025em' }}>
+      <section className="relative flex min-h-[60vh] w-full flex-col items-center justify-center overflow-hidden text-center" style={{ ...sectionPx, ...sectionPy }}>
+        <img
+          src="https://images.pexels.com/photos/3183150/pexels-photo-3183150.jpeg?auto=compress&cs=tinysrgb&w=1600"
+          alt="Equipe produit et exploitation en atelier de travail sur les fonctionnalites"
+          aria-hidden="true"
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ opacity: 0.35 }}
+        />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.45) 100%)' }} />
+        <div className="relative">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#606065' }}>Roadmap produit</p>
+          <h1 className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]" style={{ fontSize: 'clamp(2.2rem, 6vw, 4.5rem)', color: '#000000', letterSpacing: '-0.025em' }}>
             Plus de 80 fonctionnalités pour piloter votre exploitation transport.
           </h1>
-          <p className="mt-4 text-xl font-semibold" style={{ color: '#e2e8f0', letterSpacing: '-0.01em' }}>
+          <p className="mt-4 text-xl font-semibold" style={{ color: '#1D1D1F', letterSpacing: '-0.01em' }}>
             Et une plateforme conçue pour évoluer.
           </p>
-          <p className="mx-auto mt-5 max-w-2xl" style={{ color: '#94a3b8', fontSize: '18px', lineHeight: 1.65 }}>
+          <p className="mx-auto mt-5 max-w-2xl" style={{ color: '#606065', fontSize: '18px', lineHeight: 1.65 }}>
             NEXORA centralise l’ensemble des opérations transport et évolue vers un système connecté et intelligent.
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <Link to="/fonctionnalites" className="site-btn-primary px-6 py-3 text-sm transition-colors">Retour page fonctionnalités</Link>
-            <Link to="/contact" className="text-sm font-semibold" style={{ color: '#93c5fd' }}>Échanger avec l'équipe produit</Link>
+            <Link to="/contact" className="text-sm font-semibold" style={{ color: '#2563EB' }}>Échanger avec l'équipe produit</Link>
           </div>
 
           <div className="mx-auto mt-10 grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border px-4 py-3 text-left" style={{ borderColor: '#334155', background: '#1e293b' }}>
-              <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: '#94a3b8' }}>Développé</p>
-              <p className="mt-1 text-lg font-semibold" style={{ color: '#ffffff' }}>{developedFeatures.length}</p>
+            <div className="rounded-xl border px-4 py-3 text-left" style={{ borderColor: '#E5E7EB', background: 'rgba(255,255,255,0.92)' }}>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: '#64748B' }}>Développé</p>
+              <p className="mt-1 text-lg font-semibold" style={{ color: '#0F172A' }}>{developedFeatures.length}</p>
             </div>
-            <div className="rounded-xl border px-4 py-3 text-left" style={{ borderColor: '#334155', background: '#1e293b' }}>
-              <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: '#94a3b8' }}>En cours</p>
-              <p className="mt-1 text-lg font-semibold" style={{ color: '#ffffff' }}>{inProgressFeatures.length}</p>
+            <div className="rounded-xl border px-4 py-3 text-left" style={{ borderColor: '#E5E7EB', background: 'rgba(255,255,255,0.92)' }}>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: '#64748B' }}>En cours</p>
+              <p className="mt-1 text-lg font-semibold" style={{ color: '#0F172A' }}>{inProgressFeatures.length}</p>
             </div>
-            <div className="rounded-xl border px-4 py-3 text-left" style={{ borderColor: '#334155', background: '#1e293b' }}>
-              <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: '#94a3b8' }}>Features</p>
-              <p className="mt-1 text-lg font-semibold" style={{ color: '#ffffff' }}>{upcomingFeatures.length}</p>
+            <div className="rounded-xl border px-4 py-3 text-left" style={{ borderColor: '#E5E7EB', background: 'rgba(255,255,255,0.92)' }}>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: '#64748B' }}>Features</p>
+              <p className="mt-1 text-lg font-semibold" style={{ color: '#0F172A' }}>{upcomingFeatures.length}</p>
             </div>
           </div>
+        </div>
       </section>
 
       <StatusSection

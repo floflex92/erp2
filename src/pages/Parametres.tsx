@@ -507,6 +507,9 @@ export default function Parametres() {
                   <li>IA placement retour en charge : moteur interne, config provider Ollama/Anthropic, endpoint Netlify dedie (v1.10.14)</li>
                   <li>Multi-tenant phase 1-3 : companies, permissions, super admin, isolation RLS complete ; Super Admin et Tenant Admin (v1.10.14)</li>
                   <li>SEO site 3 nouvelles pages : Telematique Transport, Chronotachygraphe, IA Transport — maillage inter-metier complet (v1.10.14)</li>
+                  <li>SEO Bloc F : 2 nouvelles pages positionnement (Facturation Transport, Affretement Transport) + 5 articles metier supplementaires ; footer enrichi (v1.10.15)</li>
+                  <li>SEO Bloc G : balises OG image individuelles sur 10 pages du site public (v1.10.15)</li>
+                  <li>Accessibilite site public : variables CSS WCAG AA (text-secondary et text-discreet), suppression gradient SiteSection, couleurs footer corrigees (v1.10.15)</li>
                 </ul>
               </Card>
             )}
