@@ -22,6 +22,8 @@ export default function SiteLayout() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
 
+  const navTextColor = isScrolled ? '#1D1D1F' : '#FFFFFF'
+
   useEffect(() => {
     const onScroll = () => setIsScrolled(window.scrollY > 8)
     onScroll()
@@ -37,13 +39,13 @@ export default function SiteLayout() {
         style={{ paddingInline: 'clamp(24px, 8vw, 160px)' }}
       >
         <div className="flex h-12 items-center justify-between">
-          <Link to="/" className="text-lg font-semibold tracking-tight" style={{ fontFamily: 'Outfit, Inter, sans-serif', color: '#1D1D1F' }}>
+          <Link to="/" className="text-lg font-semibold tracking-tight" style={{ fontFamily: 'Outfit, Inter, sans-serif', color: navTextColor }}>
             NEXORA
           </Link>
 
           <nav className="hidden items-center gap-8 lg:flex">
             {NAV_ITEMS.map(item => (
-              <Link key={item.to} to={item.to} className="site-nav-pill transition-colors">
+              <Link key={item.to} to={item.to} className="site-nav-pill transition-colors" style={{ color: navTextColor }}>
                 {item.label}
               </Link>
             ))}
@@ -54,7 +56,7 @@ export default function SiteLayout() {
               <Link
                 to="/dashboard"
                 className="text-sm font-medium transition-colors"
-                style={{ color: '#1D1D1F' }}
+                style={{ color: navTextColor }}
               >
                 Ouvrir l'ERP
               </Link>
@@ -62,7 +64,7 @@ export default function SiteLayout() {
               <Link
                 to="/login"
                 className="text-sm font-medium transition-colors"
-                style={{ color: '#1D1D1F' }}
+                style={{ color: navTextColor }}
               >
                 Connexion
               </Link>
@@ -77,7 +79,7 @@ export default function SiteLayout() {
               type="button"
               onClick={() => setMenuOpen(v => !v)}
               className="rounded-lg px-3 py-2 text-sm font-medium lg:hidden"
-              style={{ color: '#1D1D1F' }}
+              style={{ color: navTextColor }}
               aria-label="Ouvrir le menu"
             >
               {menuOpen ? '✕' : 'Menu'}
@@ -93,7 +95,7 @@ export default function SiteLayout() {
                 to={item.to}
                 onClick={() => setMenuOpen(false)}
                 className="rounded-lg px-3 py-2.5 text-sm font-medium transition-colors"
-                style={{ color: '#1D1D1F' }}
+                style={{ color: navTextColor }}
               >
                 {item.label}
               </Link>
@@ -102,7 +104,7 @@ export default function SiteLayout() {
               to="/login"
               onClick={() => setMenuOpen(false)}
               className="rounded-lg px-3 py-2.5 text-sm font-medium transition-colors"
-              style={{ color: '#1D1D1F' }}
+              style={{ color: navTextColor }}
             >
               Connexion
             </Link>
