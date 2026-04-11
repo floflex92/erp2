@@ -11,15 +11,33 @@ type FlotteEntretien = Tables<'flotte_entretiens'>
 type FlotteDocument = Tables<'flotte_documents'>
 type FlotteAlerte = Tables<'vue_alertes_flotte'>
 
-// Extended type for entretiens with new fields (mecanicien_assign, priority)
+// Extended type for entretiens with new fields (mecanicien_assign, priority, statut GMAO)
 type FlotteEntretienEtendu = FlotteEntretien & {
   mecanicien_assign?: string | null
   priority?: 'urgente' | 'haute' | 'normale' | 'planifiee'
+  statut?: 'planifie' | 'en_cours' | 'en_attente_pieces' | 'cloture' | 'annule'
+  date_debut_reelle?: string | null
+  date_fin_reelle?: string | null
+}
+
+// ── Types DB GMAO Phase 2 ─────────────────────────────────────────────────────
+type StockPiece = {
+  id: string; reference: string; designation: string; categorie: string | null
+  compatibilite: string | null; stock_actuel: number; stock_minimum: number
+  prix_unitaire_ht: number | null; fournisseur_nom: string | null; emplacement: string | null
+  created_at: string; updated_at: string
+}
+
+type FournisseurMaint = {
+  id: string; nom: string; type_service: string | null; contact_nom: string | null
+  telephone: string | null; email: string | null; delai_livraison: string | null
+  conditions_paiement: string | null; note_qualite: number | null; notes: string | null
+  created_at: string; updated_at: string
 }
 
 // ── Types métier (in-memory) ──────────────────────────────────────────────────
 type OTPriorite = 'urgente' | 'haute' | 'normale' | 'planifiee'
-type OTStatut = 'ouvert' | 'en_cours' | 'en_attente_pieces' | 'termine' | 'facture'
+type OTStatut = 'planifie' | 'en_cours' | 'en_attente_pieces' | 'cloture' | 'annule'
 
 type OT = {
   id: string
@@ -130,19 +148,29 @@ const OT_PRIORITE_LABELS: Record<OTPriorite, string> = {
   urgente: 'Urgente', haute: 'Haute', normale: 'Normale', planifiee: 'Planifiée',
 }
 const OT_STATUT_COLORS: Record<OTStatut, string> = {
-  ouvert:              'bg-yellow-100 text-yellow-700',
+  planifie:            'bg-yellow-100 text-yellow-700',
   en_cours:            'bg-blue-100 text-blue-700',
   en_attente_pieces:   'bg-orange-100 text-orange-700',
-  termine:             'bg-green-100 text-green-700',
-  facture:             'bg-slate-100 text-slate-600',
+  cloture:             'bg-green-100 text-green-700',
+  annule:              'bg-slate-100 text-slate-600',
 }
 const OT_STATUT_LABELS: Record<OTStatut, string> = {
-  ouvert: 'Ouvert', en_cours: 'En cours', en_attente_pieces: 'Att. pièces', termine: 'Terminé', facture: 'Facturé',
+  planifie: 'Planifié', en_cours: 'En cours', en_attente_pieces: 'Att. pièces', cloture: 'Clôturé', annule: 'Annulé',
 }
 
 const TYPE_FOURNISSEUR_LABELS: Record<string, string> = {
   garage: 'Garage', pieces: 'Pièces détachées', pneus: 'Pneumatiques',
   lubrifiant: 'Lubrifiants', concessionnaire: 'Concessionnaire', autre: 'Autre',
+}
+
+// Mapping UI Fournisseur.type ↔ DB fournisseurs_maintenance.type_service
+const TYPE_SERVICE_MAP: Record<string, string> = {
+  garage: 'garage', pieces: 'piece', pneus: 'pneumatique',
+  lubrifiant: 'lubrifiant', concessionnaire: 'concessionnaire', autre: 'autre',
+}
+const TYPE_SERVICE_REVERSE: Record<string, Fournisseur['type']> = {
+  garage: 'garage', piece: 'pieces', pneumatique: 'pneus',
+  lubrifiant: 'lubrifiant', concessionnaire: 'concessionnaire', autre: 'autre',
 }
 
 const MAINTENANCE_INDEX_STORAGE_KEY = 'nexora_maintenance_index_v2'
@@ -399,6 +427,10 @@ function isMissingOptionalMaintenanceFeature(err: unknown) {
     || normalized.includes('flotte_documents')
     || normalized.includes('vue_alertes_flotte')
     || normalized.includes('vue_couts_flotte_mensuels')
+    || normalized.includes('stock_pieces')
+    || normalized.includes('fournisseurs_maintenance')
+    || normalized.includes('mouvements_stock')
+    || normalized.includes('programmes_maintenance_constructeur')
     || normalized.includes('does not exist')
     || normalized.includes('could not find the table')
     || normalized.includes('pgrst205')
@@ -408,7 +440,9 @@ function isMissingOptionalMaintenanceFeature(err: unknown) {
 
 function maintenanceError(err: unknown) {
   const msg = extractErrorMessage(err)
-  if (msg.includes('flotte_') || msg.includes('vue_alertes')) return 'La migration Supabase flotte est requise pour cette fonctionnalité.'
+  if (msg.includes('flotte_') || msg.includes('vue_alertes') || msg.includes('stock_pieces') || msg.includes('fournisseurs_maintenance')) {
+    return 'Migration Supabase GMAO requise. Exécutez les migrations pour activer cette fonctionnalité.'
+  }
   if (msg.includes('Bucket')) return 'Bucket Supabase `flotte-documents` introuvable.'
   return msg || 'Erreur inconnue.'
 }
@@ -439,7 +473,7 @@ export default function Maintenance() {
   const [filterOTVehicule, setFilterOTVehicule] = useState('')
   const [otForm, setOTForm] = useState({
     vehicule_id: '', remorque_id: '', type: 'reparation', priorite: 'normale' as OTPriorite,
-    statut: 'ouvert' as OTStatut, mecanicien: '', description: '', date_ouverture: new Date().toISOString().slice(0, 10),
+    statut: 'planifie' as OTStatut, mecanicien: '', description: '', date_ouverture: new Date().toISOString().slice(0, 10),
     cout_ht: '', prestataire: '', garage: '', pieces_utilisees: '', kilometrage: '', next_due_date: '',
   })
 
@@ -735,6 +769,63 @@ export default function Maintenance() {
         else throw aRes.error
       } else {
         setAlerts(aRes.data ?? [])
+      }
+
+      // ── Charger le stock pièces depuis DB ──────────────────────────────────────────────
+      const spRes = await (supabase as any).from('stock_pieces').select('*').order('designation')
+      if (spRes.error) {
+        if (!isMissingOptionalMaintenanceFeature(spRes.error)) console.warn('stock_pieces:', spRes.error.message)
+        // Garde les SEED_PIECES en fallback
+      } else if (spRes.data && spRes.data.length > 0) {
+        setPieces((spRes.data as StockPiece[]).map(sp => ({
+          id: sp.id, reference: sp.reference, designation: sp.designation,
+          compatibilite: sp.compatibilite ?? '', quantite: sp.stock_actuel,
+          quantite_min: sp.stock_minimum, prix_unitaire: Number(sp.prix_unitaire_ht ?? 0),
+          fournisseur: sp.fournisseur_nom ?? '', emplacement: sp.emplacement ?? '', last_cmd: null,
+        })))
+      }
+
+      // ── Charger les fournisseurs depuis DB ───────────────────────────────────────────
+      const fmRes = await (supabase as any).from('fournisseurs_maintenance').select('*').order('nom')
+      if (fmRes.error) {
+        if (!isMissingOptionalMaintenanceFeature(fmRes.error)) console.warn('fournisseurs_maintenance:', fmRes.error.message)
+        // Garde SEED_FOURNISSEURS en fallback
+      } else if (fmRes.data && fmRes.data.length > 0) {
+        setFournisseurs((fmRes.data as FournisseurMaint[]).map(f => ({
+          id: f.id, nom: f.nom,
+          type: (TYPE_SERVICE_REVERSE[f.type_service ?? ''] ?? 'autre') as Fournisseur['type'],
+          contact: f.contact_nom ?? '', telephone: f.telephone ?? '', email: f.email ?? '',
+          delai_livraison: f.delai_livraison ?? '', conditions: f.conditions_paiement ?? '',
+          note: f.note_qualite ?? 3,
+        })))
+      }
+
+      // ── Reconstruire OTs actifs depuis flotte_entretiens ─────────────────────────────
+      if (!eRes.error && eRes.data) {
+        const activeRaw = eRes.data.filter(e => {
+          const ee = e as FlotteEntretienEtendu
+          return ee.statut === 'planifie' || ee.statut === 'en_cours' || ee.statut === 'en_attente_pieces'
+        })
+        setOts(activeRaw.map(e => {
+          const ee = e as FlotteEntretienEtendu
+          return {
+            id: e.id,
+            vehicule_id: e.vehicule_id,
+            remorque_id: e.remorque_id,
+            type: e.maintenance_type,
+            priorite: ((ee.priority as OTPriorite | undefined) ?? 'normale') as OTPriorite,
+            statut: ((ee.statut ?? 'planifie') as OTStatut),
+            mecanicien: ee.mecanicien_assign ?? '',
+            description: e.notes ?? '',
+            date_ouverture: e.service_date,
+            date_cloture: ee.date_fin_reelle ?? null,
+            cout_ht: Number(e.cout_ht ?? 0),
+            prestataire: e.prestataire,
+            garage: e.garage,
+            pieces_utilisees: '',
+            kilometrage: e.km_compteur?.toString() ?? '',
+          }
+        }))
       }
     } catch (err) {
       if (!isMissingOptionalMaintenanceFeature(err)) {
@@ -1032,8 +1123,8 @@ export default function Maintenance() {
     return Math.round(((total - indispo) / total) * 100)
   }, [vehicules])
 
-  // OT ouverts
-  const otsActifs = ots.filter(o => o.statut !== 'termine' && o.statut !== 'facture')
+  // OT actifs = planifie | en_cours | en_attente_pieces
+  const otsActifs = ots.filter(o => o.statut !== 'cloture' && o.statut !== 'annule')
 
   // Prochaines échéances (depuis entretiens.next_due_date)
   const prochaines = useMemo(() => {
@@ -1077,54 +1168,97 @@ export default function Maintenance() {
   const stockAlertes = pieces.filter(p => p.quantite <= p.quantite_min)
 
   // ── Actions OT ──────────────────────────────────────────────────────────────
-  function createOT(e: React.SyntheticEvent<HTMLFormElement>) {
+  async function createOT(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!isMecanicien) {
       setNotice("Seuls les mécaniciens peuvent créer un ordre de travaux.")
       return
     }
-    const newOT: OT = {
-      id: `ot-${Date.now()}`,
-      vehicule_id: otForm.vehicule_id || null,
-      remorque_id: otForm.remorque_id || null,
-      type: otForm.type,
-      priorite: otForm.priorite,
-      statut: otForm.statut,
-      mecanicien: otForm.mecanicien,
-      description: otForm.description,
-      date_ouverture: otForm.date_ouverture,
-      date_cloture: null,
-      cout_ht: parseFloat(otForm.cout_ht) || 0,
-      prestataire: otForm.prestataire || null,
-      garage: otForm.garage || null,
-      pieces_utilisees: otForm.pieces_utilisees,
-      kilometrage: otForm.kilometrage,
+    setSaving(true)
+    try {
+      const { error } = await supabase.from('flotte_entretiens').insert({
+        vehicule_id: otForm.vehicule_id || null,
+        remorque_id: otForm.remorque_id || null,
+        maintenance_type: otForm.type,
+        service_date: otForm.date_ouverture,
+        km_compteur: otForm.kilometrage ? (parseInt(otForm.kilometrage.replace(/[^0-9]/g, '')) || null) : null,
+        cout_ht: parseFloat(otForm.cout_ht) || 0,
+        prestataire: otForm.prestataire || null,
+        garage: otForm.garage || null,
+        notes: [otForm.description, otForm.pieces_utilisees ? `Pièces: ${otForm.pieces_utilisees}` : ''].filter(Boolean).join(' · ') || null,
+        next_due_date: otForm.next_due_date || null,
+        covered_by_contract: false,
+        mecanicien_assign: otForm.mecanicien || null,
+        priority: otForm.priorite,
+        statut: 'planifie',
+      } as any)
+      if (error) throw error
+      setShowOTForm(false)
+      setOTForm({ vehicule_id: '', remorque_id: '', type: 'reparation', priorite: 'normale', statut: 'planifie' as OTStatut, mecanicien: '', description: '', date_ouverture: new Date().toISOString().slice(0, 10), cout_ht: '', prestataire: '', garage: '', pieces_utilisees: '', kilometrage: '', next_due_date: '' })
+      setNotice('OT créé et enregistré.')
+      await load()
+    } catch (err) {
+      setDbError(maintenanceError(err))
+    } finally {
+      setSaving(false)
     }
-    setOts(prev => [newOT, ...prev])
-    setShowOTForm(false)
-    setOTForm({ vehicule_id: '', remorque_id: '', type: 'reparation', priorite: 'normale', statut: 'ouvert', mecanicien: '', description: '', date_ouverture: new Date().toISOString().slice(0, 10), cout_ht: '', prestataire: '', garage: '', pieces_utilisees: '', kilometrage: '', next_due_date: '' })
+  }
+
+  async function demarrerOT(ot: OT) {
+    if (!confirm(`Démarrer l'OT "${ot.description}" ? Le véhicule passera en statut Maintenance.`)) return
+    setSaving(true)
+    try {
+      const { error } = await supabase.from('flotte_entretiens').update({
+        statut: 'en_cours',
+        date_debut_reelle: new Date().toISOString(),
+      } as any).eq('id', ot.id)
+      if (error) {
+        if (isMissingOptionalMaintenanceFeature(error)) {
+          setOts(prev => prev.map(o => o.id === ot.id ? { ...o, statut: 'en_cours' as OTStatut } : o))
+          setNotice('OT démarré (local — migration DB requise).')
+        } else throw error
+      } else {
+        setNotice(`OT démarré — véhicule en maintenance.`)
+        await load()
+      }
+    } catch (err) {
+      setDbError(maintenanceError(err))
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function cloturerOT(ot: OT) {
-    if (!confirm(`Clôturer et enregistrer l'OT "${ot.description}" en base ?`)) return
+    if (!confirm(`Clôturer l'OT "${ot.description}" ?`)) return
     setSaving(true)
     try {
-      const payload: TablesInsert<'flotte_entretiens'> = {
-        vehicule_id: ot.vehicule_id,
-        remorque_id: ot.remorque_id,
-        maintenance_type: ot.type,
+      const { error: updateErr } = await supabase.from('flotte_entretiens').update({
+        statut: 'cloture',
+        date_fin_reelle: new Date().toISOString(),
         service_date: new Date().toISOString().slice(0, 10),
         cout_ht: ot.cout_ht,
-        prestataire: ot.prestataire,
-        garage: ot.garage,
-        notes: [ot.description, ot.pieces_utilisees ? `Pièces: ${ot.pieces_utilisees}` : '', ot.mecanicien ? `Mécanicien: ${ot.mecanicien}` : ''].filter(Boolean).join(' · ') || null,
-        next_due_date: otForm.next_due_date || null,
-        covered_by_contract: false,
+        ...(otForm.next_due_date ? { next_due_date: otForm.next_due_date } : {}),
+      } as any).eq('id', ot.id)
+      if (updateErr) {
+        if (isMissingOptionalMaintenanceFeature(updateErr)) {
+          const payload: TablesInsert<'flotte_entretiens'> = {
+            vehicule_id: ot.vehicule_id,
+            remorque_id: ot.remorque_id,
+            maintenance_type: ot.type,
+            service_date: new Date().toISOString().slice(0, 10),
+            cout_ht: ot.cout_ht,
+            prestataire: ot.prestataire,
+            garage: ot.garage,
+            notes: [ot.description, ot.pieces_utilisees ? `Pièces: ${ot.pieces_utilisees}` : '', ot.mecanicien ? `Mécanicien: ${ot.mecanicien}` : ''].filter(Boolean).join(' · ') || null,
+            next_due_date: otForm.next_due_date || null,
+            covered_by_contract: false,
+          }
+          const { error: insertErr } = await supabase.from('flotte_entretiens').insert(payload)
+          if (insertErr) throw insertErr
+        } else throw updateErr
       }
-      const { error } = await supabase.from('flotte_entretiens').insert(payload)
-      if (error) throw error
-      setOts(prev => prev.map(o => o.id === ot.id ? { ...o, statut: 'termine', date_cloture: new Date().toISOString().slice(0, 10) } : o))
-      setNotice(`OT clôturé et enregistré — ${ot.description}`)
+      setOts(prev => prev.filter(o => o.id !== ot.id))
+      setNotice(`OT clôturé — ${ot.description}`)
       await load()
     } catch (err) {
       setDbError(maintenanceError(err))
@@ -1142,45 +1276,119 @@ export default function Maintenance() {
   }, [ots, filterOTStatut, filterOTVehicule])
 
   // ── Actions Pièces ─────────────────────────────────────────────────────────
-  function addPiece(e: React.SyntheticEvent<HTMLFormElement>) {
+  async function addPiece(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
-    setPieces(prev => [...prev, {
-      id: `p${Date.now()}`,
-      reference: pieceForm.reference,
-      designation: pieceForm.designation,
-      compatibilite: pieceForm.compatibilite,
-      quantite: parseInt(pieceForm.quantite) || 0,
-      quantite_min: parseInt(pieceForm.quantite_min) || 1,
-      prix_unitaire: parseFloat(pieceForm.prix_unitaire) || 0,
-      fournisseur: pieceForm.fournisseur,
-      emplacement: pieceForm.emplacement,
-      last_cmd: null,
-    }])
-    setShowPieceForm(false)
-    setPieceForm({ reference: '', designation: '', compatibilite: '', quantite: '', quantite_min: '', prix_unitaire: '', fournisseur: '', emplacement: '' })
+    setSaving(true)
+    try {
+      const payload = {
+        reference: pieceForm.reference,
+        designation: pieceForm.designation,
+        compatibilite: pieceForm.compatibilite || null,
+        stock_actuel: parseInt(pieceForm.quantite) || 0,
+        stock_minimum: parseInt(pieceForm.quantite_min) || 1,
+        prix_unitaire_ht: parseFloat(pieceForm.prix_unitaire) || null,
+        fournisseur_nom: pieceForm.fournisseur || null,
+        emplacement: pieceForm.emplacement || null,
+      }
+      const { data, error } = await (supabase as any).from('stock_pieces').insert(payload).select().single()
+      if (error) {
+        if (isMissingOptionalMaintenanceFeature(error)) {
+          setPieces(prev => [...prev, {
+            id: `p${Date.now()}`, reference: pieceForm.reference, designation: pieceForm.designation,
+            compatibilite: pieceForm.compatibilite, quantite: parseInt(pieceForm.quantite) || 0,
+            quantite_min: parseInt(pieceForm.quantite_min) || 1, prix_unitaire: parseFloat(pieceForm.prix_unitaire) || 0,
+            fournisseur: pieceForm.fournisseur, emplacement: pieceForm.emplacement, last_cmd: null,
+          }])
+        } else throw error
+      } else if (data) {
+        const sp = data as StockPiece
+        setPieces(prev => [...prev, {
+          id: sp.id, reference: sp.reference, designation: sp.designation,
+          compatibilite: sp.compatibilite ?? '', quantite: sp.stock_actuel,
+          quantite_min: sp.stock_minimum, prix_unitaire: Number(sp.prix_unitaire_ht ?? 0),
+          fournisseur: sp.fournisseur_nom ?? '', emplacement: sp.emplacement ?? '', last_cmd: null,
+        }])
+      }
+      setShowPieceForm(false)
+      setPieceForm({ reference: '', designation: '', compatibilite: '', quantite: '', quantite_min: '', prix_unitaire: '', fournisseur: '', emplacement: '' })
+      setNotice('Pièce ajoutée.')
+    } catch (err) {
+      setDbError(maintenanceError(err))
+    } finally {
+      setSaving(false)
+    }
   }
 
-  function ajusterStock(id: string, delta: number) {
-    setPieces(prev => prev.map(p => p.id === id ? { ...p, quantite: Math.max(0, p.quantite + delta) } : p))
+  async function ajusterStock(id: string, delta: number) {
+    const piece = pieces.find(p => p.id === id)
+    if (!piece) return
+    const newQty = Math.max(0, piece.quantite + delta)
+    setPieces(prev => prev.map(p => p.id === id ? { ...p, quantite: newQty } : p))
     setPieceAjust(null)
+    try {
+      await (supabase as any).from('stock_pieces').update({ stock_actuel: newQty, updated_at: new Date().toISOString() }).eq('id', id)
+      await (supabase as any).from('mouvements_stock').insert({
+        piece_id: id,
+        type_mouvement: delta > 0 ? 'entree' : 'sortie',
+        quantite: Math.abs(delta),
+        notes: delta > 0 ? 'Ajustement manuel +' : 'Ajustement manuel -',
+      })
+    } catch { /* ignore — mise à jour locale déjà faite */ }
+  }
+
+  async function deletePiece(id: string) {
+    setPieces(prev => prev.filter(p => p.id !== id))
+    try { await (supabase as any).from('stock_pieces').delete().eq('id', id) } catch { /* ignore */ }
   }
 
   // ── Actions Fournisseurs ───────────────────────────────────────────────────
-  function addFournisseur(e: React.SyntheticEvent<HTMLFormElement>) {
+  async function addFournisseur(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
-    setFournisseurs(prev => [...prev, {
-      id: `f${Date.now()}`,
-      nom: fourForm.nom,
-      type: fourForm.type,
-      contact: fourForm.contact,
-      telephone: fourForm.telephone,
-      email: fourForm.email,
-      delai_livraison: fourForm.delai_livraison,
-      conditions: fourForm.conditions,
-      note: parseInt(fourForm.note) || 3,
-    }])
-    setShowFourForm(false)
-    setFourForm({ nom: '', type: 'pieces', contact: '', telephone: '', email: '', delai_livraison: '', conditions: '', note: '3' })
+    setSaving(true)
+    try {
+      const payload = {
+        nom: fourForm.nom,
+        type_service: TYPE_SERVICE_MAP[fourForm.type] ?? 'autre',
+        contact_nom: fourForm.contact || null,
+        telephone: fourForm.telephone || null,
+        email: fourForm.email || null,
+        delai_livraison: fourForm.delai_livraison || null,
+        conditions_paiement: fourForm.conditions || null,
+        note_qualite: parseInt(fourForm.note) || 3,
+      }
+      const { data, error } = await (supabase as any).from('fournisseurs_maintenance').insert(payload).select().single()
+      if (error) {
+        if (isMissingOptionalMaintenanceFeature(error)) {
+          setFournisseurs(prev => [...prev, {
+            id: `f${Date.now()}`, nom: fourForm.nom, type: fourForm.type,
+            contact: fourForm.contact, telephone: fourForm.telephone, email: fourForm.email,
+            delai_livraison: fourForm.delai_livraison, conditions: fourForm.conditions,
+            note: parseInt(fourForm.note) || 3,
+          }])
+        } else throw error
+      } else if (data) {
+        const f = data as FournisseurMaint
+        setFournisseurs(prev => [...prev, {
+          id: f.id, nom: f.nom,
+          type: (TYPE_SERVICE_REVERSE[f.type_service ?? ''] ?? 'autre') as Fournisseur['type'],
+          contact: f.contact_nom ?? '', telephone: f.telephone ?? '', email: f.email ?? '',
+          delai_livraison: f.delai_livraison ?? '', conditions: f.conditions_paiement ?? '',
+          note: f.note_qualite ?? 3,
+        }])
+      }
+      setShowFourForm(false)
+      setFourForm({ nom: '', type: 'pieces', contact: '', telephone: '', email: '', delai_livraison: '', conditions: '', note: '3' })
+      setNotice('Fournisseur ajouté.')
+    } catch (err) {
+      setDbError(maintenanceError(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function deleteFournisseur(id: string) {
+    setFournisseurs(prev => prev.filter(f => f.id !== id))
+    try { await (supabase as any).from('fournisseurs_maintenance').delete().eq('id', id) } catch { /* ignore */ }
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -1334,10 +1542,10 @@ export default function Maintenance() {
         <div className="space-y-5">
           {/* Filtres */}
           <div className="flex flex-wrap gap-2 items-center">
-            {(['tous', 'ouvert', 'en_cours', 'en_attente_pieces', 'termine', 'facture'] as const).map(s => (
-              <button key={s} onClick={() => setFilterOTStatut(s)}
+            {(['tous', 'planifie', 'en_cours', 'en_attente_pieces', 'cloture', 'annule'] as const).map(s => (
+              <button key={s} onClick={() => setFilterOTStatut(s as OTStatut | 'tous')}
                 className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${filterOTStatut === s ? 'bg-slate-800 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-                {s === 'tous' ? 'Tous' : OT_STATUT_LABELS[s]}
+                {s === 'tous' ? 'Tous' : OT_STATUT_LABELS[s as OTStatut]}
                 {s !== 'tous' && <span className="ml-1.5 opacity-70">({ots.filter(o => o.statut === s).length})</span>}
               </button>
             ))}
@@ -1377,18 +1585,25 @@ export default function Maintenance() {
                       <td className="px-4 py-3 text-slate-500 text-xs">{fmtDate(o.date_ouverture)}</td>
                       <td className="px-4 py-3 text-slate-700">{o.cout_ht > 0 ? fmtEur(o.cout_ht) : '—'}</td>
                       <td className="px-4 py-3">
-                        <select value={o.statut} onChange={e => setOts(prev => prev.map(x => x.id === o.id ? { ...x, statut: e.target.value as OTStatut } : x))}
-                          className={`text-xs border rounded-lg px-2 py-1 outline-none ${OT_STATUT_COLORS[o.statut]}`}>
-                          {(Object.keys(OT_STATUT_LABELS) as OTStatut[]).map(s => <option key={s} value={s}>{OT_STATUT_LABELS[s]}</option>)}
-                        </select>
+                        <span className={`text-xs px-2 py-1 rounded-lg font-medium ${OT_STATUT_COLORS[o.statut]}`}>
+                          {OT_STATUT_LABELS[o.statut]}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {o.statut !== 'termine' && o.statut !== 'facture' && (
-                          <button onClick={() => cloturerOT(o)} disabled={saving}
-                            className="text-xs text-emerald-600 hover:text-emerald-700 font-medium transition-colors disabled:opacity-50">
-                            Clôturer
-                          </button>
-                        )}
+                        <div className="flex justify-end gap-3">
+                          {o.statut === 'planifie' && (
+                            <button onClick={() => void demarrerOT(o)} disabled={saving}
+                              className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors disabled:opacity-50">
+                              Démarrer
+                            </button>
+                          )}
+                          {o.statut !== 'cloture' && o.statut !== 'annule' && (
+                            <button onClick={() => void cloturerOT(o)} disabled={saving}
+                              className="text-xs text-emerald-600 hover:text-emerald-700 font-medium transition-colors disabled:opacity-50">
+                              Clôturer
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1648,7 +1863,7 @@ export default function Maintenance() {
                         ) : (
                           <div className="flex gap-2 justify-end">
                             <button onClick={() => setPieceAjust({ id: p.id, delta: '1' })} className="text-xs text-slate-400 hover:text-slate-700">+/−</button>
-                            <button onClick={() => setPieces(prev => prev.filter(x => x.id !== p.id))} className="text-xs text-slate-300 hover:text-red-500">✕</button>
+                            <button onClick={() => void deletePiece(p.id)} className="text-xs text-slate-300 hover:text-red-500">✕</button>
                           </div>
                         )}
                       </td>
@@ -1706,7 +1921,7 @@ export default function Maintenance() {
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-amber-500">{'★'.repeat(f.note)}{'☆'.repeat(5 - f.note)}</p>
-                      <button onClick={() => setFournisseurs(prev => prev.filter(x => x.id !== f.id))} className="text-xs text-slate-300 hover:text-red-500 mt-1">Supprimer</button>
+                      <button onClick={() => void deleteFournisseur(f.id)} className="text-xs text-slate-300 hover:text-red-500 mt-1">Supprimer</button>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">

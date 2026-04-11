@@ -12,18 +12,36 @@ import { serializeTchatPayload } from './tchatMessage'
 
 export interface PayrollInput {
   periodLabel: string
+  // Heures
   workedHours: number
   overtime25Hours: number
   overtime50Hours: number
   absenceHours: number
-  mealAllowance: number
-  transportBonus: number
+  heuresNuit: number              // heures de nuit pour info bulletin
+  joursTravailles: number         // pour coût journalier
+  sourceHeures: 'manuel' | 'tachygraphe' | 'mixte'
+  // Primes imposables (SOUMIS cotisations + IR)
   performanceBonus: number
   exceptionalBonus: number
+  // Indemnités exonérées (HORS assiette cotisations si ≤ barème URSSAF)
+  indemniteRepasExo: number       // remplace mealAllowance — ≤ 21,10€/repas
+  indemniteGrandRoutierExo: number // GR nuitée hors domicile — ≤ 98,27€/jour
+  indemniteTpExo: number          // territoire propre (retour domicile)
+  // Dépassement barème : part qui dépasse le plafond URSSAF → devient cotisable
+  depassementBaremeCotisable: number
+  // Nombre de repas/jours (pour contrôle plafond unitaire)
+  nbRepas: number
+  nbJoursGr: number
+  // Frais remboursés
   manualExpenseAdjustment: number
+  // Retenues
   incomeTaxWithholding: number
   advanceDeduction: number
   otherDeduction: number
+  /** @deprecated Utiliser indemniteRepasExo — conservé pour compatibilité ascendante */
+  mealAllowance?: number
+  /** @deprecated Utiliser indemniteTpExo — conservé pour compatibilité ascendante */
+  transportBonus?: number
 }
 
 export interface PayrollContributionLine {
@@ -34,6 +52,20 @@ export interface PayrollContributionLine {
   employerAmount: number
 }
 
+export interface ConformiteAlerte {
+  type: string
+  niveau: 'bloquant' | 'avertissement' | 'info'
+  message: string
+}
+
+// Barèmes URSSAF 2026 — mis à jour annuellement
+export const BAREME_URSSAF_2026 = {
+  repas_journee: 21.10,          // repas en déplacement 1 journée
+  grand_routier_journalier: 98.27, // GR nuitée hors domicile (repas midi+soir+coucher)
+  territoire_propre_repas: 10.10,  // repas pour TP (1 repas)
+  smic_horaire: 11.88,
+} as const
+
 export interface PayrollPreview {
   baseHours: number
   hourlyRate: number
@@ -42,10 +74,17 @@ export interface PayrollPreview {
   grossBase: number
   grossOvertime25: number
   grossOvertime50: number
+  // Primes imposables uniquement (hors indemnités exonérées)
+  primesImposables: number
+  /** @deprecated Alias de primesImposables — conservé pour le PDF existant */
   bonusesTotal: number
+  // Indemnités exonérées URSSAF (hors assiette cotisations)
+  indemnitesExonerees: number
+  depassementBaremeCotisable: number
   approvedExpenseReimbursement: number
   manualExpenseAdjustment: number
   expenseReimbursement: number
+  // Brut soumis cotisations (NE contient PAS les indemnités exonérées)
   grossSubject: number
   employeeContributions: number
   employerContributions: number
@@ -57,6 +96,7 @@ export interface PayrollPreview {
   netToPay: number
   employerTotalCost: number
   contributionLines: PayrollContributionLine[]
+  alertesConformite: ConformiteAlerte[]
 }
 
 export interface PayrollSlip extends PayrollPreview {
@@ -163,6 +203,42 @@ function buildContributionLines(grossSubject: number): PayrollContributionLine[]
   }))
 }
 
+function checkConformite(record: EmployeeRecord, input: PayrollInput): ConformiteAlerte[] {
+  const alertes: ConformiteAlerte[] = []
+  const taux = numberOrZero(record.hourlyRate || 0)
+  // Contrôle SMIC horaire
+  if (taux > 0 && taux < BAREME_URSSAF_2026.smic_horaire) {
+    alertes.push({
+      type: 'smic_horaire',
+      niveau: 'bloquant',
+      message: `Taux horaire ${taux.toFixed(4)} €/h inférieur au SMIC ${BAREME_URSSAF_2026.smic_horaire} €/h — bulletin illégal`,
+    })
+  }
+  // Contrôle plafond repas unitaire
+  if (input.nbRepas > 0) {
+    const repasUnitaire = numberOrZero(input.indemniteRepasExo) / input.nbRepas
+    if (repasUnitaire > BAREME_URSSAF_2026.repas_journee) {
+      alertes.push({
+        type: 'plafond_repas_urssaf',
+        niveau: 'avertissement',
+        message: `Indemnité repas unitaire ${repasUnitaire.toFixed(2)} €/repas dépasse le barème URSSAF ${BAREME_URSSAF_2026.repas_journee} € — l'excédent est soumis à cotisations`,
+      })
+    }
+  }
+  // Contrôle plafond GR journalier
+  if (input.nbJoursGr > 0) {
+    const grJournalier = numberOrZero(input.indemniteGrandRoutierExo) / input.nbJoursGr
+    if (grJournalier > BAREME_URSSAF_2026.grand_routier_journalier) {
+      alertes.push({
+        type: 'plafond_grand_routier_urssaf',
+        niveau: 'avertissement',
+        message: `Indemnité GR journalière ${grJournalier.toFixed(2)} €/jour dépasse le barème URSSAF ${BAREME_URSSAF_2026.grand_routier_journalier} € — l'excédent est soumis à cotisations`,
+      })
+    }
+  }
+  return alertes
+}
+
 export function calculatePayrollPreview(record: EmployeeRecord, input: PayrollInput): PayrollPreview {
   const baseHours = numberOrZero(record.monthlyBaseHours || 151.67)
   const hourlyRate = numberOrZero(record.hourlyRate || 0)
@@ -171,27 +247,44 @@ export function calculatePayrollPreview(record: EmployeeRecord, input: PayrollIn
   const grossBase = roundAmount(Math.max(0, baseMonthlyGross - absenceDeduction))
   const grossOvertime25 = roundAmount(numberOrZero(input.overtime25Hours) * hourlyRate * 1.25)
   const grossOvertime50 = roundAmount(numberOrZero(input.overtime50Hours) * hourlyRate * 1.5)
-  const bonusesTotal = roundAmount(
-    numberOrZero(input.mealAllowance)
-    + numberOrZero(input.transportBonus)
-    + numberOrZero(input.performanceBonus)
-    + numberOrZero(input.exceptionalBonus),
+
+  // Primes IMPOSABLES uniquement (soumises à cotisations et IR)
+  const primesImposables = roundAmount(
+    numberOrZero(input.performanceBonus)
+    + numberOrZero(input.exceptionalBonus)
+    + numberOrZero(input.depassementBaremeCotisable), // part des indemnités dépassant les barèmes
   )
+
+  // Indemnités EXONÉRÉES (hors assiette si ≤ barème URSSAF)
+  const indemnitesExonerees = roundAmount(
+    numberOrZero(input.indemniteRepasExo)
+    + numberOrZero(input.indemniteGrandRoutierExo)
+    + numberOrZero(input.indemniteTpExo)
+    // Compat ascendante : anciens champs si nouveaux à zéro
+    + (numberOrZero(input.indemniteRepasExo) === 0 ? numberOrZero(input.mealAllowance ?? 0) : 0)
+    + (numberOrZero(input.indemniteTpExo) === 0 ? numberOrZero(input.transportBonus ?? 0) : 0),
+  )
+  const depassementBaremeCotisable = roundAmount(numberOrZero(input.depassementBaremeCotisable))
+
   const approvedExpenseReimbursement = roundAmount(sumApprovedExpenseReimbursements(record.employeeId, input.periodLabel))
   const manualExpenseAdjustment = roundAmount(numberOrZero(input.manualExpenseAdjustment))
   const expenseReimbursement = roundAmount(approvedExpenseReimbursement + manualExpenseAdjustment)
-  const grossSubject = roundAmount(grossBase + grossOvertime25 + grossOvertime50 + bonusesTotal)
+
+  // BRUT SOUMIS COTISATIONS : ne contient PAS les indemnités exonérées
+  const grossSubject = roundAmount(grossBase + grossOvertime25 + grossOvertime50 + primesImposables)
   const contributionLines = buildContributionLines(grossSubject)
   const employeeContributions = roundAmount(contributionLines.reduce((sum, line) => sum + line.employeeAmount, 0))
   const employerContributions = roundAmount(contributionLines.reduce((sum, line) => sum + line.employerAmount, 0))
   const csgNonDeductible = contributionLines.find(line => line.label === 'CSG / CRDS non deductible')?.employeeAmount ?? 0
-  const netBeforeIncomeTax = roundAmount(grossSubject - employeeContributions + expenseReimbursement)
+  // NET : brut - cotisations + indemnités exonérées + frais
+  const netBeforeIncomeTax = roundAmount(grossSubject - employeeContributions + indemnitesExonerees + expenseReimbursement)
   const incomeTaxWithholding = roundAmount(numberOrZero(input.incomeTaxWithholding))
   const taxableNet = roundAmount(grossSubject - employeeContributions + csgNonDeductible)
   const otherDeductions = roundAmount(numberOrZero(input.advanceDeduction) + numberOrZero(input.otherDeduction))
   const totalEmployeeDeductions = roundAmount(incomeTaxWithholding + otherDeductions)
   const netToPay = roundAmount(netBeforeIncomeTax - totalEmployeeDeductions)
   const employerTotalCost = roundAmount(grossSubject + employerContributions + expenseReimbursement)
+  const alertesConformite = checkConformite(record, input)
 
   return {
     baseHours: roundAmount(baseHours),
@@ -201,7 +294,10 @@ export function calculatePayrollPreview(record: EmployeeRecord, input: PayrollIn
     grossBase,
     grossOvertime25,
     grossOvertime50,
-    bonusesTotal,
+    primesImposables,
+    bonusesTotal: primesImposables, // alias déprécié — même valeur pour compatibilité PDF
+    indemnitesExonerees,
+    depassementBaremeCotisable,
     approvedExpenseReimbursement,
     manualExpenseAdjustment,
     expenseReimbursement,
@@ -216,6 +312,7 @@ export function calculatePayrollPreview(record: EmployeeRecord, input: PayrollIn
     netToPay,
     employerTotalCost,
     contributionLines,
+    alertesConformite,
   }
 }
 
@@ -345,27 +442,52 @@ function createPayrollPdf(employee: StaffMember, actor: Profil, record: Employee
   y = drawTableHeader(doc, y, ['Libelle', 'Valeur', 'Libelle', 'Valeur'], [180, 77, 180, 78])
   y = drawTableRow(doc, y, ['Periode', input.periodLabel, 'Base mensuelle', formatHours(preview.baseHours)], [180, 77, 180, 78], true)
   y = drawTableRow(doc, y, ['Heures travaillees', formatHours(input.workedHours), 'Heures absence', formatHours(input.absenceHours)], [180, 77, 180, 78])
-  y = drawTableRow(doc, y, ['Heures sup 25', formatHours(input.overtime25Hours), 'Heures sup 50', formatHours(input.overtime50Hours)], [180, 77, 180, 78], true)
+  y = drawTableRow(doc, y, ['Heures sup 25%', formatHours(input.overtime25Hours), 'Heures sup 50%', formatHours(input.overtime50Hours)], [180, 77, 180, 78], true)
+  y = drawTableRow(doc, y, ['Heures de nuit', formatHours(input.heuresNuit || 0), 'Source heures', input.sourceHeures || 'manuel'], [180, 77, 180, 78])
   y += 14
 
-  y = drawSectionTitle(doc, y, 'Elements de remuneration')
+  y = drawSectionTitle(doc, y, 'Elements de remuneration soumis cotisations')
   const earningsWidths = [227, 70, 70, 74, 74]
   y = drawTableHeader(doc, y, ['Rubrique', 'Base', 'Taux', 'Gains', 'Retenues'], earningsWidths)
-  const earningsRows = [
+  const earningsRows: string[][] = [
     ['Salaire de base', formatHours(preview.baseHours), formatCurrency(preview.hourlyRate), formatCurrency(preview.baseMonthlyGross), ''],
     ['Absence non remuneree', formatHours(input.absenceHours), formatCurrency(preview.hourlyRate), '', formatCurrency(preview.absenceDeduction)],
     ['Heures supplementaires 25%', formatHours(input.overtime25Hours), '125 %', formatCurrency(preview.grossOvertime25), ''],
     ['Heures supplementaires 50%', formatHours(input.overtime50Hours), '150 %', formatCurrency(preview.grossOvertime50), ''],
-    ['Prime repas', '-', '-', formatCurrency(numberOrZero(input.mealAllowance)), ''],
-    ['Prime transport', '-', '-', formatCurrency(numberOrZero(input.transportBonus)), ''],
-    ['Prime performance', '-', '-', formatCurrency(numberOrZero(input.performanceBonus)), ''],
-    ['Prime exceptionnelle', '-', '-', formatCurrency(numberOrZero(input.exceptionalBonus)), ''],
-    ['Frais valides auto', '-', '-', formatCurrency(preview.approvedExpenseReimbursement), ''],
-    ['Ajustement frais', '-', '-', formatCurrency(preview.manualExpenseAdjustment), ''],
   ]
+  if (numberOrZero(input.performanceBonus) > 0)
+    earningsRows.push(['Prime performance (imposable)', '-', '-', formatCurrency(numberOrZero(input.performanceBonus)), ''])
+  if (numberOrZero(input.exceptionalBonus) > 0)
+    earningsRows.push(['Prime exceptionnelle (imposable)', '-', '-', formatCurrency(numberOrZero(input.exceptionalBonus)), ''])
+  if (numberOrZero(input.depassementBaremeCotisable) > 0)
+    earningsRows.push(['Depassement bareme URSSAF (cotisable)', '-', '-', formatCurrency(preview.depassementBaremeCotisable), ''])
   earningsRows.forEach((row, index) => {
     y = drawTableRow(doc, y, row, earningsWidths, index % 2 === 0)
   })
+  y += 8
+
+  // Section indemnités exonérées (hors assiette)
+  if (preview.indemnitesExonerees > 0) {
+    y = drawSectionTitle(doc, y, 'Indemnites transport exonerees (hors assiette cotisations)')
+    y = drawTableHeader(doc, y, ['Rubrique', 'Nb', 'Bareme max', 'Montant exonere', 'Statut'], [210, 50, 80, 100, 75])
+    const indRows: string[][] = []
+    if (numberOrZero(input.indemniteRepasExo) > 0 || numberOrZero(input.mealAllowance ?? 0) > 0) {
+      const montant = numberOrZero(input.indemniteRepasExo) || numberOrZero(input.mealAllowance ?? 0)
+      indRows.push(['Indemnite repas (petit deplacement)', String(input.nbRepas || '-'), '21.10 EUR', formatCurrency(montant), 'Exoneree'])
+    }
+    if (numberOrZero(input.indemniteGrandRoutierExo) > 0)
+      indRows.push(['Indemnite grand routier (nuitee)', String(input.nbJoursGr || '-'), '98.27 EUR', formatCurrency(numberOrZero(input.indemniteGrandRoutierExo)), 'Exoneree'])
+    if (numberOrZero(input.indemniteTpExo) > 0 || numberOrZero(input.transportBonus ?? 0) > 0) {
+      const montant = numberOrZero(input.indemniteTpExo) || numberOrZero(input.transportBonus ?? 0)
+      indRows.push(['Indemnite territoire propre', '-', '10.10 EUR', formatCurrency(montant), 'Exoneree'])
+    }
+    indRows.forEach((row, index) => {
+      y = drawTableRow(doc, y, row, [210, 50, 80, 100, 75], index % 2 === 0)
+    })
+  }
+  if (preview.approvedExpenseReimbursement > 0 || preview.manualExpenseAdjustment > 0) {
+    y = drawTableRow(doc, y, ['Frais professionnels valides', '-', '-', formatCurrency(preview.approvedExpenseReimbursement + preview.manualExpenseAdjustment), ''], earningsWidths, true)
+  }
   y += 14
 
   y = drawSectionTitle(doc, y, 'Cotisations et charges')
@@ -401,9 +523,19 @@ function createPayrollPdf(employee: StaffMember, actor: Profil, record: Employee
   doc.text(normalizePdfText(`Autres retenues: ${formatCurrency(preview.otherDeductions)}`), 240, y)
   doc.text(normalizePdfText(`Cout employeur estime: ${formatCurrency(preview.employerTotalCost)}`), 400, y)
   y += 16
-  doc.text(normalizePdfText(`Tickets frais integres: ${approvedExpenseTickets.length}`), 40, y)
+  doc.text(normalizePdfText(`Tickets frais integres: ${approvedExpenseTickets.length} | Indemnites transport exonerees: ${formatCurrency(preview.indemnitesExonerees)}`), 40, y)
   y += 14
-  doc.text(normalizePdfText(`Reference CCN: IDCC 16 - ${annexReference}`), 40, y)
+  doc.text(normalizePdfText(`Reference CCN: IDCC 16 - ${annexReference} | Source heures: ${input.sourceHeures || 'manuel'}`), 40, y)
+  // Alertes conformité
+  if (preview.alertesConformite.length > 0) {
+    y += 14
+    doc.setTextColor(220, 38, 38)
+    preview.alertesConformite.forEach(alerte => {
+      doc.text(normalizePdfText(`[${alerte.niveau.toUpperCase()}] ${alerte.message}`), 40, y)
+      y += 12
+    })
+    doc.setTextColor(100)
+  }
 
   doc.setFontSize(8)
   doc.setTextColor(100)
@@ -437,6 +569,13 @@ export function createPayrollSlip(employee: StaffMember, actor: Profil, input: P
   }
 
   const preview = calculatePayrollPreview(record, input)
+
+  // Bloquer si alerte de conformité bloquante (ex : sous le SMIC)
+  const alertesBloquantes = preview.alertesConformite.filter(a => a.niveau === 'bloquant')
+  if (alertesBloquantes.length > 0) {
+    throw new Error(alertesBloquantes.map(a => a.message).join(' | '))
+  }
+
   const pdf = createPayrollPdf(employee, actor, record, input, preview)
 
   const document = registerHrDocument({

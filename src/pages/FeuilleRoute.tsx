@@ -360,6 +360,9 @@ export default function FeuilleRoute() {
   const [toasts, setToasts] = useState<LiveToast[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [bucketFilter, setBucketFilter] = useState<'all' | RouteBucket>('all')
+  const [showPanneForm, setShowPanneForm] = useState(false)
+  const [panneForm, setPanneForm] = useState({ vehicule_id: '', description: '', urgence: false })
+  const [savingPanne, setSavingPanne] = useState(false)
 
   const isConducteurSession = role === 'conducteur' || role === 'conducteur_affreteur'
   const isAffreteurDriverSession = role === 'conducteur_affreteur'
@@ -374,6 +377,32 @@ export default function FeuilleRoute() {
     }, 5000)
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       new Notification('Feuille de route', { body: message })
+    }
+  }
+
+  async function signalerPanne(e: React.SyntheticEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setSavingPanne(true)
+    try {
+      const vehicule_id = panneForm.vehicule_id || Object.keys(vehiculeMap)[0] || null
+      const { error: errPanne } = await supabase.from('flotte_entretiens').insert({
+        vehicule_id: vehicule_id || null,
+        maintenance_type: 'reparation',
+        service_date: new Date().toISOString().slice(0, 10),
+        cout_ht: 0,
+        notes: panneForm.description,
+        priority: panneForm.urgence ? 'urgente' : 'haute',
+        statut: 'planifie',
+        covered_by_contract: false,
+      } as any)
+      if (errPanne) throw errPanne
+      setShowPanneForm(false)
+      setPanneForm({ vehicule_id: '', description: '', urgence: false })
+      pushToast('Panne signalée — OT créé en urgence pour le responsable atelier.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors du signalement')
+    } finally {
+      setSavingPanne(false)
     }
   }
 
@@ -843,6 +872,48 @@ export default function FeuilleRoute() {
       {error && (
         <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
           {error}
+        </div>
+      )}
+
+      {/* Signalement terrain : panne conducteur */}
+      {canManageProgress && (
+        <div className="nx-panel border border-rose-500/30 bg-rose-500/5 p-4">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-600">⚠ Signalement terrain</p>
+              <p className="text-sm font-semibold text-slate-900">Signaler une panne ou problème véhicule</p>
+            </div>
+            <button type="button" onClick={() => setShowPanneForm(p => !p)}
+              className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-500/20">
+              {showPanneForm ? 'Annuler' : 'Signaler une panne'}
+            </button>
+          </div>
+          {showPanneForm && (
+            <form onSubmit={e => void signalerPanne(e)} className="space-y-3 border-t border-rose-500/20 pt-3">
+              <div>
+                <label className="text-xs font-medium text-slate-700 block mb-1">Véhicule concerné</label>
+                <select value={panneForm.vehicule_id} onChange={e => setPanneForm(f => ({ ...f, vehicule_id: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-rose-500 focus:outline-none">
+                  <option value="">— Sélectionner</option>
+                  {Object.entries(vehiculeMap).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-700 block mb-1">Description du problème *</label>
+                <textarea required value={panneForm.description} onChange={e => setPanneForm(f => ({ ...f, description: e.target.value }))}
+                  rows={3} placeholder="Décrivez le problème constaté, les symptômes, les circonstances..."
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-rose-500 focus:outline-none resize-none" />
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={panneForm.urgence} onChange={e => setPanneForm(f => ({ ...f, urgence: e.target.checked }))} className="rounded" />
+                <span className="text-sm font-medium text-rose-700">Véhicule immobilisé — priorité urgente</span>
+              </label>
+              <button type="submit" disabled={savingPanne}
+                className="w-full rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60">
+                {savingPanne ? 'Envoi...' : '⚡ Signaler au responsable atelier'}
+              </button>
+            </form>
+          )}
         </div>
       )}
 

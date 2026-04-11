@@ -17,6 +17,9 @@ const Transports = lazy(() => import('@/pages/Transports'))
 const Entrepots = lazy(() => import('@/pages/Entrepots'))
 const Clients = lazy(() => import('@/pages/Clients'))
 const Facturation = lazy(() => import('@/pages/Facturation'))
+const Reglements = lazy(() => import('@/pages/Reglements'))
+const Tresorerie = lazy(() => import('@/pages/Tresorerie'))
+const AnalytiqueTransport = lazy(() => import('@/pages/AnalytiqueTransport'))
 const Comptabilite = lazy(() => import('@/pages/Comptabilite'))
 const Paie = lazy(() => import('@/pages/Paie'))
 const Frais = lazy(() => import('@/pages/Frais'))
@@ -68,6 +71,7 @@ const DemoAccess = lazy(() => import('@/pages/DemoAccess'))
 const SessionPickerPage = lazy(() => import('@/pages/SessionPicker'))
 const SuperAdmin = lazy(() => import('@/pages/SuperAdminPage'))
 const TenantAdmin = lazy(() => import('@/pages/TenantAdminPage'))
+const WarRoom     = lazy(() => import('@/pages/WarRoom'))
 
 function RequireRole({ page, children }: { page: string; children: React.ReactNode }) {
   const { role, loading, tenantAllowedPages, enabledModules } = useAuth()
@@ -146,6 +150,9 @@ export default function App() {
                   <Route path="entrepots"    element={<RequireRole page="entrepots"><Entrepots /></RequireRole>} />
                   <Route path="clients"      element={<RequireRole page="clients"><Clients /></RequireRole>} />
                   <Route path="facturation"  element={<RequireRole page="facturation"><Facturation /></RequireRole>} />
+                  <Route path="reglements"   element={<RequireRole page="reglements"><Reglements /></RequireRole>} />
+                  <Route path="tresorerie"   element={<RequireRole page="tresorerie"><Tresorerie /></RequireRole>} />
+                  <Route path="analytique-transport" element={<RequireRole page="analytique-transport"><AnalytiqueTransport /></RequireRole>} />
                   <Route path="comptabilite" element={<RequireRole page="comptabilite"><Comptabilite /></RequireRole>} />
                   <Route path="paie"         element={<RequireRole page="paie"><Paie /></RequireRole>} />
                   <Route path="frais"        element={<RequireRole page="frais"><Frais /></RequireRole>} />
@@ -168,6 +175,7 @@ export default function App() {
                   <Route path="coffre"       element={<RequireRole page="coffre"><Coffre /></RequireRole>} />
                   <Route path="mentions-legales" element={<RequireRole page="mentions-legales"><MentionsLegales /></RequireRole>} />
                   <Route path="tenant-admin"    element={<RequireRole page="tenant-admin"><TenantAdmin /></RequireRole>} />
+                  <Route path="war-room"        element={<RequireRole page="war-room"><WarRoom /></RequireRole>} />
                 </Route>
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />

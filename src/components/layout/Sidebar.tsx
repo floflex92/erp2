@@ -35,6 +35,7 @@ const NAV_SECTIONS: NavSection[] = [
       { to: '/transports', page: 'transports', label: 'OT / Fret', icon: 'route' },
       { to: '/feuille-route', page: 'feuille-route', label: 'Feuille de route', icon: 'route' },
       { to: '/map-live', page: 'map-live', label: 'Map live', icon: 'pin' },
+      { to: '/war-room', page: 'war-room', label: 'War Room', icon: 'alert' },
       { to: '/demandes-clients', page: 'demandes-clients', label: 'Demandes clients', icon: 'briefcase' },
     ],
   },
@@ -70,6 +71,9 @@ const NAV_SECTIONS: NavSection[] = [
       { to: '/frais', page: 'frais', label: 'Frais', icon: 'receipt' },
       { to: '/espace-client', page: 'espace-client', label: 'Espace client', icon: 'briefcase' },
       { to: '/espace-affreteur', page: 'espace-affreteur', label: 'Espace affreteur', icon: 'briefcase' },
+      { to: '/reglements', page: 'reglements', label: 'Règlements', icon: 'trending' },
+      { to: '/tresorerie', page: 'tresorerie', label: 'Trésorerie', icon: 'chart-bar' },
+      { to: '/analytique-transport', page: 'analytique-transport', label: 'Analytique', icon: 'pie-chart' },
     ],
   },
   {
@@ -118,6 +122,10 @@ function NavGlyph({ type, size = 18 }: { type: string; size?: number }) {
   if (type === 'inbox') return <svg {...common}><path d="M4 6h16v10H4z" /><path d="M4 13h4l2 3h4l2-3h4" /></svg>
   if (type === 'settings') return <svg {...common}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a1 1 0 0 1-1 1h-1.8a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.2-1.2a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a1 1 0 0 1-1-1v-1.8a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.2-1.2a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V4a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.2 1.2a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H20a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6Z" /></svg>
   if (type === 'shield') return <svg {...common}><path d="M12 3 5 6v6c0 5 3.4 7.7 7 9 3.6-1.3 7-4 7-9V6z" /><path d="m9.5 12 1.8 1.8 3.2-3.3" /></svg>
+  if (type === 'trending') return <svg {...common}><path d="M3 17 9 11l4 4 8-8" /><path d="m17 7 4 0 0 4" /></svg>
+  if (type === 'chart-bar') return <svg {...common}><rect x="3" y="12" width="4" height="9" /><rect x="10" y="7" width="4" height="14" /><rect x="17" y="3" width="4" height="18" /></svg>
+  if (type === 'pie-chart') return <svg {...common}><path d="M21.21 15.89A10 10 0 1 1 8 2.83" /><path d="M22 12A10 10 0 0 0 12 2v10z" /></svg>
+  if (type === 'alert') return <svg {...common}><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
   if (type === 'expand') return <svg {...common}><path d="m9 18 6-6-6-6" /></svg>
   if (type === 'collapse') return <svg {...common}><path d="m15 18-6-6 6-6" /></svg>
   if (type === 'chevron-down') return <svg {...common}><path d="m6 9 6 6 6-6" /></svg>

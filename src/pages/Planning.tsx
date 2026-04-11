@@ -688,6 +688,9 @@ export default function Planning() {
   const [retourChargeLoading, setRetourChargeLoading] = useState(false)
   const [retourChargeError, setRetourChargeError] = useState<string | null>(null)
 
+  // ── Radar km à vide ─────────────────────────────────────────────────────────
+  const [kmVideSynthese, setKmVideSynthese] = useState<Map<string, { taux_charge_pct: number | null; total_km_vide_estime: number | null }>>(new Map())
+
   // ── Relais ──────────────────────────────────────────────────────────────────
   const [relaisList, setRelaisList] = useState<TransportRelaisRecord[]>([])
   const [relaisLoading, setRelaisLoading] = useState(false)
@@ -1144,6 +1147,22 @@ export default function Planning() {
   }, [planningScope, weekStart])
 
   useEffect(() => { void loadAll() }, [loadAll])
+
+  // Chargement radar km à vide (synthèse par véhicule, 30 jours)
+  useEffect(() => {
+    async function fetchKmVide() {
+      const { data } = await looseSupabase
+        .from('v_radar_km_vide_synthese')
+        .select('vehicule_id, taux_charge_pct, total_km_vide_estime')
+      if (!data) return
+      const map = new Map<string, { taux_charge_pct: number | null; total_km_vide_estime: number | null }>()
+      for (const row of (data as { vehicule_id: string; taux_charge_pct: number | null; total_km_vide_estime: number | null }[])) {
+        map.set(row.vehicule_id, { taux_charge_pct: row.taux_charge_pct, total_km_vide_estime: row.total_km_vide_estime })
+      }
+      setKmVideSynthese(map)
+    }
+    void fetchKmVide()
+  }, [ganttOTs]) // rafraîchit quand les OT changent
 
   const realtimeReloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -3241,6 +3260,14 @@ export default function Planning() {
           )}
           {row.isCustom && <span className="text-[9px] bg-amber-500/20 text-amber-400 rounded px-1 py-0.5 font-semibold flex-shrink-0">Libre</span>}
 
+          {/* Badge statut maintenance véhicule */}
+          {tab === 'camions' && !row.isCustom && !row.isAffretementAsset && (() => {
+            const vStatut = vehiculeById.get(row.id)?.statut
+            if (vStatut === 'maintenance') return <span className="text-[9px] bg-orange-600/30 text-orange-300 rounded px-1 py-0.5 font-bold flex-shrink-0" title="Véhicule en maintenance">MAINT</span>
+            if (vStatut === 'hs') return <span className="text-[9px] bg-red-600/30 text-red-300 rounded px-1 py-0.5 font-bold flex-shrink-0" title="Hors service">HS</span>
+            return null
+          })()}
+
           {/* Alerte retard */}
           {hasLateOT && !row.isCustom && (
             <span className="text-[9px] text-red-400 flex-shrink-0" title="OT en retard">⚠</span>
@@ -3281,6 +3308,21 @@ export default function Planning() {
         </div>
 
         {row.secondary && <p className="text-[10px] text-slate-600 truncate mt-0.5 pl-0.5">{row.secondary}</p>}
+
+        {/* Badge km à vide + taux de charge (camions uniquement) */}
+        {tab === 'camions' && !row.isCustom && !row.isAffretementAsset && (() => {
+          const kmVide = kmVideSynthese.get(row.id)
+          if (!kmVide) return null
+          const taux = kmVide.taux_charge_pct
+          if (taux === null) return null
+          const couleur = taux >= 85 ? 'text-emerald-400' : taux >= 65 ? 'text-amber-400' : 'text-red-400'
+          const titre = `Taux de charge 30j : ${taux}%${kmVide.total_km_vide_estime ? ` — ${kmVide.total_km_vide_estime} km à vide estimés` : ''}`
+          return (
+            <p className={`text-[9px] font-bold mt-0.5 pl-0.5 ${couleur}`} title={titre}>
+              {taux >= 85 ? '●' : taux >= 65 ? '◑' : '○'} {taux}% chg.
+            </p>
+          )
+        })()}
 
         {row.isCustom && !isRowEditMode && (
           <div className="flex items-center gap-1 mt-1">

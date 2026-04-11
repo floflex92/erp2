@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { listApprovedExpenseTicketsForPeriod, subscribeExpenseTickets, sumApprovedExpenseReimbursements } from '@/lib/expenseTickets'
 import { ensureEmployeeRecord, getEmployeeRecord, listEmployeeRecords, subscribeEmployeeRecords } from '@/lib/employeeRecords'
-import { calculatePayrollPreview, createPayrollSlip, listPayrollSlips, savePayrollConfig, subscribePayroll } from '@/lib/payroll'
+import { BAREME_URSSAF_2026, calculatePayrollPreview, createPayrollSlip, listPayrollSlips, savePayrollConfig, subscribePayroll } from '@/lib/payroll'
 import { buildStaffDirectory, findStaffMember, staffDisplayName } from '@/lib/staffDirectory'
+import { supabase } from '@/lib/supabase'
 
 const inp = 'w-full rounded-xl border bg-[color:var(--surface)] px-3 py-2.5 text-sm text-[color:var(--text)] outline-none focus:border-[color:var(--primary)]'
 
@@ -18,6 +19,26 @@ function formatDateTime(value: unknown) {
   return Number.isNaN(date.getTime()) ? 'Date inconnue' : date.toLocaleString('fr-FR')
 }
 
+// Retourne {debut, fin} d'un label de période type "Mars 2026"
+function parsePeriodLabel(label: string): { debut: string; fin: string } | null {
+  const MOIS: Record<string, number> = {
+    janvier: 0, fevrier: 1, mars: 2, avril: 3, mai: 4, juin: 5,
+    juillet: 6, aout: 7, septembre: 8, octobre: 9, novembre: 10, decembre: 11,
+  }
+  const normalized = label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+  const parts = normalized.split(' ')
+  if (parts.length !== 2) return null
+  const moisIndex = MOIS[parts[0]]
+  const annee = parseInt(parts[1], 10)
+  if (moisIndex === undefined || Number.isNaN(annee)) return null
+  const debut = new Date(annee, moisIndex, 1)
+  const fin = new Date(annee, moisIndex + 1, 0)
+  return {
+    debut: debut.toISOString().slice(0, 10),
+    fin: fin.toISOString().slice(0, 10),
+  }
+}
+
 export default function Paie() {
   const { profil, accountProfil } = useAuth()
   const staff = useMemo(() => buildStaffDirectory([profil, accountProfil]), [profil, accountProfil])
@@ -27,6 +48,7 @@ export default function Paie() {
   const [, setExpensesVersion] = useState(0)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [importingTachy, setImportingTachy] = useState(false)
   const [form, setForm] = useState({
     conventionCollective: 'CCN transports routiers et activites auxiliaires du transport - IDCC 16',
     jobCoefficient: '',
@@ -34,16 +56,27 @@ export default function Paie() {
     monthlyBaseHours: '151.67',
     contractType: 'CDI',
     jobTitle: '',
-    periodLabel: 'Mars 2026',
+    periodLabel: 'Avril 2026',
     workedHours: '151.67',
-    overtime25Hours: '8',
-    overtime50Hours: '2',
+    overtime25Hours: '0',
+    overtime50Hours: '0',
     absenceHours: '0',
-    mealAllowance: '180',
-    transportBonus: '95',
-    performanceBonus: '120',
+    heuresNuit: '0',
+    joursTravailles: '0',
+    sourceHeures: 'manuel' as 'manuel' | 'tachygraphe' | 'mixte',
+    // Primes imposables
+    performanceBonus: '0',
     exceptionalBonus: '0',
+    // Indemnites exonerees (hors assiette URSSAF)
+    indemniteRepasExo: '0',
+    nbRepas: '0',
+    indemniteGrandRoutierExo: '0',
+    nbJoursGr: '0',
+    indemniteTpExo: '0',
+    depassementBaremeCotisable: '0',
+    // Frais
     manualExpenseAdjustment: '0',
+    // Retenues
     incomeTaxWithholding: '0',
     advanceDeduction: '0',
     otherDeduction: '0',
@@ -103,10 +136,17 @@ export default function Paie() {
       overtime25Hours: Number.parseFloat(form.overtime25Hours) || 0,
       overtime50Hours: Number.parseFloat(form.overtime50Hours) || 0,
       absenceHours: Number.parseFloat(form.absenceHours) || 0,
-      mealAllowance: Number.parseFloat(form.mealAllowance) || 0,
-      transportBonus: Number.parseFloat(form.transportBonus) || 0,
+      heuresNuit: Number.parseFloat(form.heuresNuit) || 0,
+      joursTravailles: Number.parseFloat(form.joursTravailles) || 0,
+      sourceHeures: form.sourceHeures,
       performanceBonus: Number.parseFloat(form.performanceBonus) || 0,
       exceptionalBonus: Number.parseFloat(form.exceptionalBonus) || 0,
+      indemniteRepasExo: Number.parseFloat(form.indemniteRepasExo) || 0,
+      nbRepas: Number.parseFloat(form.nbRepas) || 0,
+      indemniteGrandRoutierExo: Number.parseFloat(form.indemniteGrandRoutierExo) || 0,
+      nbJoursGr: Number.parseFloat(form.nbJoursGr) || 0,
+      indemniteTpExo: Number.parseFloat(form.indemniteTpExo) || 0,
+      depassementBaremeCotisable: Number.parseFloat(form.depassementBaremeCotisable) || 0,
       manualExpenseAdjustment: Number.parseFloat(form.manualExpenseAdjustment) || 0,
       incomeTaxWithholding: Number.parseFloat(form.incomeTaxWithholding) || 0,
       advanceDeduction: Number.parseFloat(form.advanceDeduction) || 0,
@@ -116,6 +156,60 @@ export default function Paie() {
 
   if (!profil) return null
   const currentProfil = profil
+
+  async function importFromTachy() {
+    if (!employee) return
+    const periode = parsePeriodLabel(form.periodLabel)
+    if (!periode) {
+      setError('Format de période non reconnu (ex : "Avril 2026").')
+      return
+    }
+    // Chercher le conducteur Supabase lié à ce profil
+    setImportingTachy(true)
+    setError(null)
+    try {
+      const { data: conducteur } = await supabase
+        .from('conducteurs')
+        .select('id')
+        .ilike('email', employee.email ?? '%')
+        .maybeSingle()
+      if (!conducteur?.id) {
+        setError('Conducteur non trouvé dans Supabase pour ce collaborateur. Vérifiez que l\'email correspond.')
+        return
+      }
+      interface HeuresMois {
+        heures_travail_total: number | null
+        heures_sup_25: number | null
+        heures_sup_50: number | null
+        jours_travailles: number | null
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const heuresResult = await (supabase as any)
+        .from('v_heures_paie_mois')
+        .select('heures_travail_total,heures_sup_25,heures_sup_50,jours_travailles')
+        .eq('conducteur_id', conducteur.id)
+        .eq('mois_debut', periode.debut)
+        .maybeSingle()
+      const heures = (heuresResult?.data ?? null) as HeuresMois | null
+      if (!heures) {
+        setError(`Aucune donnée tachygraphe trouvée pour ${form.periodLabel}. Vérifiez les entrées tachygraphe de ce conducteur.`)
+        return
+      }
+      setForm(current => ({
+        ...current,
+        workedHours: String(heures.heures_travail_total ?? current.workedHours),
+        overtime25Hours: String(heures.heures_sup_25 ?? '0'),
+        overtime50Hours: String(heures.heures_sup_50 ?? '0'),
+        joursTravailles: String(heures.jours_travailles ?? '0'),
+        sourceHeures: 'tachygraphe',
+      }))
+      setNotice(`Import tachygraphe OK — ${heures.heures_travail_total}h travailées, ${heures.heures_sup_25}h HS25%, ${heures.heures_sup_50}h HS50%, ${heures.jours_travailles} jours.`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur import tachygraphe.')
+    } finally {
+      setImportingTachy(false)
+    }
+  }
 
   function saveConfig() {
     if (!employee) return
@@ -140,10 +234,17 @@ export default function Paie() {
         overtime25Hours: Number.parseFloat(form.overtime25Hours),
         overtime50Hours: Number.parseFloat(form.overtime50Hours),
         absenceHours: Number.parseFloat(form.absenceHours),
-        mealAllowance: Number.parseFloat(form.mealAllowance),
-        transportBonus: Number.parseFloat(form.transportBonus),
+        heuresNuit: Number.parseFloat(form.heuresNuit) || 0,
+        joursTravailles: Number.parseFloat(form.joursTravailles) || 0,
+        sourceHeures: form.sourceHeures,
         performanceBonus: Number.parseFloat(form.performanceBonus),
         exceptionalBonus: Number.parseFloat(form.exceptionalBonus),
+        indemniteRepasExo: Number.parseFloat(form.indemniteRepasExo) || 0,
+        nbRepas: Number.parseFloat(form.nbRepas) || 0,
+        indemniteGrandRoutierExo: Number.parseFloat(form.indemniteGrandRoutierExo) || 0,
+        nbJoursGr: Number.parseFloat(form.nbJoursGr) || 0,
+        indemniteTpExo: Number.parseFloat(form.indemniteTpExo) || 0,
+        depassementBaremeCotisable: Number.parseFloat(form.depassementBaremeCotisable) || 0,
         manualExpenseAdjustment: Number.parseFloat(form.manualExpenseAdjustment),
         incomeTaxWithholding: Number.parseFloat(form.incomeTaxWithholding),
         advanceDeduction: Number.parseFloat(form.advanceDeduction),
@@ -226,11 +327,32 @@ export default function Paie() {
               <Field label="Periode">
                 <input className={inp} value={form.periodLabel} onChange={event => setForm(current => ({ ...current, periodLabel: event.target.value }))} />
               </Field>
+            </div>
+
+            {/* Import tachygraphe */}
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={importFromTachy}
+                disabled={importingTachy}
+                className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-2.5 text-sm font-medium text-blue-200 hover:bg-blue-500/20 disabled:opacity-50"
+              >
+                {importingTachy ? 'Import en cours...' : '⬇ Importer depuis tachygraphe'}
+              </button>
+              {form.sourceHeures !== 'manuel' && (
+                <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs text-emerald-300">Source : {form.sourceHeures}</span>
+              )}
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
               <Field label="Heures travaillees">
                 <input className={inp} value={form.workedHours} onChange={event => setForm(current => ({ ...current, workedHours: event.target.value }))} />
               </Field>
-              <Field label="Absences">
+              <Field label="Absences (h)">
                 <input className={inp} value={form.absenceHours} onChange={event => setForm(current => ({ ...current, absenceHours: event.target.value }))} />
+              </Field>
+              <Field label="Jours travailles">
+                <input className={inp} value={form.joursTravailles} onChange={event => setForm(current => ({ ...current, joursTravailles: event.target.value }))} />
               </Field>
               <Field label="HS 25%">
                 <input className={inp} value={form.overtime25Hours} onChange={event => setForm(current => ({ ...current, overtime25Hours: event.target.value }))} />
@@ -238,16 +360,54 @@ export default function Paie() {
               <Field label="HS 50%">
                 <input className={inp} value={form.overtime50Hours} onChange={event => setForm(current => ({ ...current, overtime50Hours: event.target.value }))} />
               </Field>
-              <Field label="Prime repas">
-                <input className={inp} value={form.mealAllowance} onChange={event => setForm(current => ({ ...current, mealAllowance: event.target.value }))} />
+              <Field label="Heures de nuit">
+                <input className={inp} value={form.heuresNuit} onChange={event => setForm(current => ({ ...current, heuresNuit: event.target.value }))} />
               </Field>
-              <Field label="Prime transport">
-                <input className={inp} value={form.transportBonus} onChange={event => setForm(current => ({ ...current, transportBonus: event.target.value }))} />
-              </Field>
-              <Field label="Prime performance">
+            </div>
+
+            {/* Indemnités exonérées — section dédiée avec barèmes URSSAF affichés */}
+            <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/5 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-300 mb-3">Indemnites transport exonerees (hors assiette URSSAF)</p>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <Field label={`Repas/petit deplacement (bar. ${BAREME_URSSAF_2026.repas_journee}€/repas)`}>
+                    <input className={inp} value={form.indemniteRepasExo} onChange={event => setForm(current => ({ ...current, indemniteRepasExo: event.target.value }))} />
+                  </Field>
+                </div>
+                <div>
+                  <Field label="Nb repas (pour controle plafond unitaire)">
+                    <input className={inp} type="number" min="0" value={form.nbRepas} onChange={event => setForm(current => ({ ...current, nbRepas: event.target.value }))} />
+                  </Field>
+                </div>
+                <div>
+                  <Field label={`Grand routier nuitee (bar. ${BAREME_URSSAF_2026.grand_routier_journalier}€/j)`}>
+                    <input className={inp} value={form.indemniteGrandRoutierExo} onChange={event => setForm(current => ({ ...current, indemniteGrandRoutierExo: event.target.value }))} />
+                  </Field>
+                </div>
+                <div>
+                  <Field label="Nb jours GR hors domicile">
+                    <input className={inp} type="number" min="0" value={form.nbJoursGr} onChange={event => setForm(current => ({ ...current, nbJoursGr: event.target.value }))} />
+                  </Field>
+                </div>
+                <div>
+                  <Field label={`Territoire propre (bar. ${BAREME_URSSAF_2026.territoire_propre_repas}€/repas)`}>
+                    <input className={inp} value={form.indemniteTpExo} onChange={event => setForm(current => ({ ...current, indemniteTpExo: event.target.value }))} />
+                  </Field>
+                </div>
+                <div>
+                  <Field label="Depassement bareme (part cotisable)">
+                    <input className={inp} value={form.depassementBaremeCotisable} onChange={event => setForm(current => ({ ...current, depassementBaremeCotisable: event.target.value }))} />
+                  </Field>
+                </div>
+              </div>
+            </div>
+
+            {/* Primes imposables */}
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <Field label="Prime performance (imposable)">
                 <input className={inp} value={form.performanceBonus} onChange={event => setForm(current => ({ ...current, performanceBonus: event.target.value }))} />
               </Field>
-              <Field label="Prime exceptionnelle">
+              <Field label="Prime exceptionnelle (imposable)">
                 <input className={inp} value={form.exceptionalBonus} onChange={event => setForm(current => ({ ...current, exceptionalBonus: event.target.value }))} />
               </Field>
               <Field label="Ajustement frais">
@@ -263,14 +423,27 @@ export default function Paie() {
                 <input className={inp} value={form.otherDeduction} onChange={event => setForm(current => ({ ...current, otherDeduction: event.target.value }))} />
               </Field>
             </div>
+
+            {/* Alertes conformité temps réel */}
+            {preview && preview.alertesConformite.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {preview.alertesConformite.map((alerte, i) => (
+                  <div key={i} className={`flex items-start gap-2 rounded-xl border px-4 py-3 text-sm ${alerte.niveau === 'bloquant' ? 'border-rose-400/30 bg-rose-950/20 text-rose-200' : 'border-amber-400/30 bg-amber-950/20 text-amber-200'}`}>
+                    <span className="mt-0.5 text-base leading-none">{alerte.niveau === 'bloquant' ? '🚫' : '⚠'}</span>
+                    <span>{alerte.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <button type="button" onClick={generateSlip} className="mt-4 rounded-xl bg-[color:var(--primary)] px-4 py-3 text-sm font-medium text-white">
               Generer le bulletin PDF
             </button>
 
             {preview && (
-              <div className="mt-5 grid gap-3 md:grid-cols-4">
-                <MetricCard label="Brut soumis" value={`${preview.grossSubject.toFixed(2)} EUR`} tone="slate" />
-                <MetricCard label="Frais auto" value={`${preview.approvedExpenseReimbursement.toFixed(2)} EUR`} tone="blue" />
+              <div className="mt-5 grid gap-3 md:grid-cols-5">
+                <MetricCard label="Brut soumis cotis." value={`${preview.grossSubject.toFixed(2)} EUR`} tone="slate" />
+                <MetricCard label="Indemnites exo." value={`${preview.indemnitesExonerees.toFixed(2)} EUR`} tone="blue" />
                 <MetricCard label="Cotis. salarie" value={`${preview.employeeContributions.toFixed(2)} EUR`} tone="blue" />
                 <MetricCard label="Net avant PAS" value={`${preview.netBeforeIncomeTax.toFixed(2)} EUR`} tone="cyan" />
                 <MetricCard label="Net a payer" value={`${preview.netToPay.toFixed(2)} EUR`} tone="green" />

@@ -6,7 +6,7 @@ import { evaluateAffretementCompletionReadiness, getAffretementContractByOtId } 
 type Facture = Tables<'factures'>
 type ClientLookup = { id: string; nom: string }
 type OTLookup = { id: string; reference: string; client_id: string }
-type Tab = 'factures' | 'tva' | 'tresorerie' | 'previsionnel' | 'rapports' | 'journal'
+type Tab = 'factures' | 'tva' | 'tresorerie' | 'previsionnel' | 'rapports' | 'journal' | 'tarifs'
 
 const STATUT_COLORS: Record<string, string> = {
   brouillon:  'bg-slate-100 text-slate-600',
@@ -43,6 +43,7 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
     { key: 'previsionnel',label: 'Prévisionnel' },
     { key: 'rapports',    label: 'Rapports' },
     { key: 'journal',     label: 'Journal' },
+    { key: 'tarifs',      label: 'Tarifs transport' },
   ]
   return (
     <div className="flex gap-1 mb-6 border-b border-slate-200 pb-0">
@@ -156,6 +157,310 @@ const COMPTES_COMPTABLES = [
   '706 - Prestations de services', '707 - Ventes marchandises',
   '708 - Produits activités annexes', '758 - Produits divers',
 ]
+
+// ─── Tarifs Transport component ──────────────────────────────────────────────
+type TarifClient = {
+  id: string; client_id: string; libelle: string; tarif_km: number
+  coeff_gazole: boolean; peages_refactures: boolean; forfait_minimum: number | null
+  actif: boolean; date_debut: string
+}
+type CnrIndice = { id: string; annee: number; mois: number; indice_gazole: number; indice_reference: number }
+
+const fmtEur2 = (n: number) => n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
+const MOIS_LABELS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
+
+function TarifsTransportTab({ clients }: { clients: ClientLookup[] }) {
+  const [tarifs, setTarifs] = useState<TarifClient[]>([])
+  const [cnrIndices, setCnrIndices] = useState<CnrIndice[]>([])
+  const [showTarifForm, setShowTarifForm] = useState(false)
+  const [showCnrForm, setShowCnrForm] = useState(false)
+  const [saving, setSaving] = useState(false)
+  // Tarif form
+  const [tClientId, setTClientId] = useState('')
+  const [tLibelle, setTLibelle] = useState('Tarif standard')
+  const [tTarifKm, setTTarifKm] = useState('1.20')
+  const [tCoeffGazole, setTCoeffGazole] = useState(true)
+  const [tPeages, setTPeages] = useState(false)
+  const [tForfait, setTForfait] = useState('')
+  const [tDateDebut, setTDateDebut] = useState(new Date().toISOString().slice(0,10))
+  // CNR form
+  const [cAnnee, setCAnnee] = useState(String(new Date().getFullYear()))
+  const [cMois, setCMois] = useState(String(new Date().getMonth() + 1))
+  const [cIndice, setCIndice] = useState('')
+  const [cRef, setCRef] = useState('145.00')
+  // Calculator
+  const [calcKm, setCalcKm] = useState('')
+  const [calcTarifBase, setCalcTarifBase] = useState('')
+  const [calcCnrIdx, setCalcCnrIdx] = useState('')
+  const [calcRef, setCalcRef] = useState('145.00')
+
+  const loadTarifs = async () => {
+    const { data } = await supabase.from('transport_tarifs_clients' as any).select('*').order('created_at', { ascending: false })
+    if (data) setTarifs(data as unknown as TarifClient[])
+  }
+  const loadCnr = async () => {
+    const { data } = await supabase.from('transport_cnr_indices' as any).select('*').order('annee', { ascending: false }).order('mois', { ascending: false })
+    if (data) setCnrIndices(data as unknown as CnrIndice[])
+  }
+
+  useEffect(() => { loadTarifs(); loadCnr() }, [])
+
+  const clientMap = Object.fromEntries(clients.map(c => [c.id, c.nom]))
+
+  const resetTarifForm = () => {
+    setTClientId(''); setTLibelle('Tarif standard'); setTTarifKm('1.20')
+    setTCoeffGazole(true); setTPeages(false); setTForfait(''); setTDateDebut(new Date().toISOString().slice(0,10))
+    setShowTarifForm(false)
+  }
+
+  const saveTarif = async () => {
+    if (!tClientId) return
+    setSaving(true)
+    await supabase.from('transport_tarifs_clients' as any).insert({
+      client_id: tClientId, libelle: tLibelle, tarif_km: parseFloat(tTarifKm) || 0,
+      coeff_gazole: tCoeffGazole, peages_refactures: tPeages,
+      forfait_minimum: tForfait ? parseFloat(tForfait) : null,
+      date_debut: tDateDebut, actif: true,
+    })
+    await loadTarifs(); setSaving(false); resetTarifForm()
+  }
+
+  const toggleActif = async (t: TarifClient) => {
+    await supabase.from('transport_tarifs_clients' as any).update({ actif: !t.actif }).eq('id', t.id)
+    await loadTarifs()
+  }
+
+  const deleteTarif = async (id: string) => {
+    if (!confirm('Supprimer ce tarif ?')) return
+    await supabase.from('transport_tarifs_clients' as any).delete().eq('id', id)
+    await loadTarifs()
+  }
+
+  const saveCnr = async () => {
+    if (!cIndice) return
+    setSaving(true)
+    await supabase.from('transport_cnr_indices' as any).upsert({
+      annee: parseInt(cAnnee), mois: parseInt(cMois),
+      indice_gazole: parseFloat(cIndice), indice_reference: parseFloat(cRef) || 145,
+    }, { onConflict: 'annee,mois' })
+    await loadCnr(); setSaving(false); setCIndice(''); setShowCnrForm(false)
+  }
+
+  // Calcul CNR : prix_ht = km × tarif_base × (1 + coeff × (indice/ref - 1))
+  const calcResult = (() => {
+    const km = parseFloat(calcKm); const base = parseFloat(calcTarifBase)
+    const idx = parseFloat(calcCnrIdx); const ref = parseFloat(calcRef)
+    if (!km || !base) return null
+    const prix = idx && ref ? km * base * (1 + 0.25 * (idx / ref - 1)) : km * base
+    return prix
+  })()
+
+  return (
+    <div className="space-y-6">
+      {/* ── Barèmes tarifaires ── */}
+      <div className="bg-white rounded-xl border p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-slate-800">Barèmes tarifaires clients</h3>
+          <button onClick={() => setShowTarifForm(true)}
+            className="px-3 py-1.5 bg-[color:var(--primary)] text-white rounded-lg text-sm font-medium hover:opacity-90">
+            + Nouveau tarif
+          </button>
+        </div>
+
+        {showTarifForm && (
+          <div className="mb-4 p-4 border rounded-xl bg-slate-50 grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-slate-600 mb-1">Client</label>
+              <select value={tClientId} onChange={e => setTClientId(e.target.value)} className={inp}>
+                <option value="">— Sélectionner un client —</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Libellé</label>
+              <input value={tLibelle} onChange={e => setTLibelle(e.target.value)} className={inp} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Tarif / km (€)</label>
+              <input type="number" step="0.0001" value={tTarifKm} onChange={e => setTTarifKm(e.target.value)} className={inp} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Forfait minimum (€)</label>
+              <input type="number" step="0.01" value={tForfait} onChange={e => setTForfait(e.target.value)} placeholder="Facultatif" className={inp} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Date début</label>
+              <input type="date" value={tDateDebut} onChange={e => setTDateDebut(e.target.value)} className={inp} />
+            </div>
+            <div className="col-span-2 flex gap-4">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={tCoeffGazole} onChange={e => setTCoeffGazole(e.target.checked)} className="w-4 h-4" />
+                Clause gazole CNR
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={tPeages} onChange={e => setTPeages(e.target.checked)} className="w-4 h-4" />
+                Péages refacturés
+              </label>
+            </div>
+            <div className="col-span-2 flex gap-2 justify-end">
+              <button onClick={resetTarifForm} className="px-3 py-1.5 border rounded-lg text-sm text-slate-600 hover:bg-slate-100">Annuler</button>
+              <button onClick={saveTarif} disabled={saving || !tClientId}
+                className="px-3 py-1.5 bg-[color:var(--primary)] text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
+                {saving ? 'Sauvegarde…' : 'Enregistrer'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-slate-50 text-xs text-slate-500 uppercase">
+              <th className="px-3 py-2 text-left">Client</th>
+              <th className="px-3 py-2 text-left">Libellé</th>
+              <th className="px-3 py-2 text-right">Tarif/km</th>
+              <th className="px-3 py-2 text-center">Gazole CNR</th>
+              <th className="px-3 py-2 text-center">Péages</th>
+              <th className="px-3 py-2 text-right">Forfait min.</th>
+              <th className="px-3 py-2 text-center">Statut</th>
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {tarifs.length === 0 && (
+              <tr><td colSpan={8} className="px-3 py-8 text-center text-slate-400 text-sm">Aucun barème enregistré</td></tr>
+            )}
+            {tarifs.map(t => (
+              <tr key={t.id} className="border-b hover:bg-slate-50">
+                <td className="px-3 py-2 font-medium">{clientMap[t.client_id] ?? t.client_id.slice(0,8)}</td>
+                <td className="px-3 py-2 text-slate-600">{t.libelle}</td>
+                <td className="px-3 py-2 text-right font-mono">{t.tarif_km.toFixed(4)} €</td>
+                <td className="px-3 py-2 text-center">{t.coeff_gazole ? '✓' : '—'}</td>
+                <td className="px-3 py-2 text-center">{t.peages_refactures ? '✓' : '—'}</td>
+                <td className="px-3 py-2 text-right">{t.forfait_minimum != null ? fmtEur2(t.forfait_minimum) : '—'}</td>
+                <td className="px-3 py-2 text-center">
+                  <button onClick={() => toggleActif(t)}
+                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${t.actif ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                    {t.actif ? 'Actif' : 'Inactif'}
+                  </button>
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <button onClick={() => deleteTarif(t.id)} className="text-red-400 hover:text-red-600 text-xs">Suppr.</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="grid grid-cols-2 gap-6">
+        {/* ── Indices CNR ── */}
+        <div className="bg-white rounded-xl border p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-slate-800">Indices CNR gazole</h3>
+            <button onClick={() => setShowCnrForm(v => !v)}
+              className="px-3 py-1.5 bg-[color:var(--primary)] text-white rounded-lg text-sm font-medium hover:opacity-90">
+              + Ajouter
+            </button>
+          </div>
+          {showCnrForm && (
+            <div className="mb-4 p-3 border rounded-lg bg-slate-50 grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Année</label>
+                <input type="number" value={cAnnee} onChange={e => setCAnnee(e.target.value)} className={inp} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Mois</label>
+                <select value={cMois} onChange={e => setCMois(e.target.value)} className={inp}>
+                  {MOIS_LABELS.map((m,i) => <option key={i+1} value={i+1}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Indice gazole</label>
+                <input type="number" step="0.01" value={cIndice} onChange={e => setCIndice(e.target.value)} className={inp} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Indice de référence</label>
+                <input type="number" step="0.01" value={cRef} onChange={e => setCRef(e.target.value)} className={inp} />
+              </div>
+              <div className="col-span-2 flex justify-end gap-2">
+                <button onClick={() => setShowCnrForm(false)} className="px-3 py-1.5 border rounded-lg text-sm text-slate-600">Annuler</button>
+                <button onClick={saveCnr} disabled={saving || !cIndice}
+                  className="px-3 py-1.5 bg-[color:var(--primary)] text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
+                  {saving ? '…' : 'Enregistrer'}
+                </button>
+              </div>
+            </div>
+          )}
+          <table className="w-full text-sm">
+            <thead><tr className="border-b bg-slate-50 text-xs text-slate-500 uppercase">
+              <th className="px-3 py-2 text-left">Période</th>
+              <th className="px-3 py-2 text-right">Indice gazole</th>
+              <th className="px-3 py-2 text-right">Référence</th>
+              <th className="px-3 py-2 text-right">Variation</th>
+            </tr></thead>
+            <tbody>
+              {cnrIndices.length === 0 && (
+                <tr><td colSpan={4} className="px-3 py-6 text-center text-slate-400 text-sm">Aucun indice</td></tr>
+              )}
+              {cnrIndices.map(c => {
+                const variation = ((c.indice_gazole - c.indice_reference) / c.indice_reference * 100)
+                return (
+                  <tr key={c.id} className="border-b hover:bg-slate-50">
+                    <td className="px-3 py-2 font-medium">{MOIS_LABELS[c.mois-1]} {c.annee}</td>
+                    <td className="px-3 py-2 text-right font-mono">{c.indice_gazole.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-slate-400">{c.indice_reference.toFixed(2)}</td>
+                    <td className={`px-3 py-2 text-right font-medium ${variation >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {variation >= 0 ? '+' : ''}{variation.toFixed(1)}%
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── Calculateur CNR ── */}
+        <div className="bg-white rounded-xl border p-5">
+          <h3 className="font-semibold text-slate-800 mb-4">Calculateur gazole CNR</h3>
+          <p className="text-xs text-slate-500 mb-4">
+            Prix = km × tarif × (1 + 0,25 × (indice / référence − 1))
+          </p>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Distance (km)</label>
+              <input type="number" value={calcKm} onChange={e => setCalcKm(e.target.value)} placeholder="ex: 450" className={inp} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Tarif de base (€/km)</label>
+              <input type="number" step="0.0001" value={calcTarifBase} onChange={e => setCalcTarifBase(e.target.value)} placeholder="ex: 1.2500" className={inp} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Indice CNR du mois</label>
+                <input type="number" step="0.01" value={calcCnrIdx} onChange={e => setCalcCnrIdx(e.target.value)} placeholder="ex: 157.30" className={inp} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Indice de référence</label>
+                <input type="number" step="0.01" value={calcRef} onChange={e => setCalcRef(e.target.value)} className={inp} />
+              </div>
+            </div>
+            {calcResult != null && (
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl text-center">
+                <p className="text-xs text-blue-500 mb-1">Prix transport calculé HT</p>
+                <p className="text-2xl font-bold text-blue-700">{fmtEur2(calcResult)}</p>
+                {calcCnrIdx && calcRef && (
+                  <p className="text-xs text-blue-400 mt-1">
+                    Coefficient gazole : {(1 + 0.25 * (parseFloat(calcCnrIdx) / parseFloat(calcRef) - 1)).toFixed(4)}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function Facturation() {
@@ -1063,6 +1368,9 @@ export default function Facturation() {
           </div>
         </div>
       )}
+
+      {/* ══ TAB: TARIFS TRANSPORT ══════════════════════════════════════════════ */}
+      {tab === 'tarifs' && <TarifsTransportTab clients={clients} />}
 
       {/* ══ MODAL: Nouvelle facture ═════════════════════════════════════════════ */}
       {showForm && (
