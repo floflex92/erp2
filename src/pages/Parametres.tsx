@@ -542,6 +542,8 @@ export default function Parametres() {
                   <li>Absences RH v1.12.4 : table Supabase absences_rh + soldes CP/RTT, workflow demande/validation/refus, lib TypeScript CRUD complet, onglet Absences integre dans la page RH (v1.12.4)</li>
                   <li>Journal comptable manuel v1.12.4 : table compta_journal_manuel (OD), saisies persistees en base, RLS, integration dans la page Facturation (v1.12.4)</li>
                   <li>Tachygraphe donnees dynamiques v1.12.4 : seed idempotent 6 conducteurs avec donnees semaine courante et mois precedent, lookup dynamique conducteurs/vehicules existants (v1.12.4)</li>
+                  <li>Tachygraphe Supabase complet v1.12.4 : compliance EU calculee depuis vraies entrees tachygraphe_entrees, infractions derivees en temps reel, generation et persistance rapports (rapports_conducteurs), alertes documents depuis dates conducteurs reelles (v1.12.4)</li>
+                  <li>Clients ERP Supabase complet : fiche commerciale, conditions paiement, IBAN/BIC, contacts multiples, adresses, historique OT et factures par client — zero mock (v1.12.4)</li>
                 </ul>
               </Card>
             )}
@@ -549,28 +551,27 @@ export default function Parametres() {
             {devTab === 'en-cours' && (
               <div className="space-y-4">
                 <Card>
-                  <CardLabel>Statut PARTIEL (fonctionnel mais incomplet)</CardLabel>
+                  <CardLabel>Statut PARTIEL — Supabase partiel ou logic incomplète</CardLabel>
                   <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
-                    <li>Clients (mix reel et injection demo)</li>
-                    <li>Facturation (briques avancees en maturation)</li>
-                    <li>Paie et RH (Paie MVP pose, absences RH en base, chainage complet et gestion RH a renforcer)</li>
-                    <li>Frais</li>
-                    <li>Tachygraphe (donnees dynamiques en base, infractions et dates dynamiques, documents generate/envoi fonctionnels)</li>
+                    <li>Facturation (CRUD factures, tarifs, CNR, journal manuel et relances en Supabase ; manque lignes multi-article par facture, generation auto depuis OT et export comptable integre)</li>
+                    <li>Paie (calcul brut/net URSSAF 2026, import heures Supabase et absences validees, generation PDF ; bulletins stockes en localStorage — non partages entre appareils)</li>
+                    <li>RH (absences et entretiens en Supabase ; fiches employes et documents RH en localStorage — non partages entre appareils)</li>
                     <li>Amendes</li>
-                    <li>Espace client (portail tokenise v1.1 en place)</li>
-                    <li>Espace affreteur</li>
+                    <li>Espace client (portail tokenise v1.1, lecture factures Supabase ; onboarding et demandes transport en localStorage — non persistes cote serveur)</li>
+                    <li>Espace affreteur (suivi operationnel, OT depuis Supabase ; portail affreteur en localStorage — non persiste cote serveur)</li>
                     <li>Planning affreteur dedie (socle pose, experience specifique a finir)</li>
                     <li>Tchat / Communication (canal exploitation/conducteur v1.1)</li>
-                    <li>Coffre numerique</li>
-                    <li>Utilisateurs (workflow complet : creation, suspension, reset MDP, lien magique, badges statut, confirmation destructive)</li>
+                    <li>Utilisateurs (workflow complet : creation, suspension, reset MDP, lien magique, badges statut, confirmation destructive — depend de la fonction Netlify admin-users)</li>
                     <li>Site vitrine public (medias, preuves client et enrichissement commercial encore en cours)</li>
                   </ul>
                 </Card>
                 <Card>
-                  <CardLabel>Statut NON FINI</CardLabel>
+                  <CardLabel>Statut LOCAL uniquement (dette technique — zero Supabase)</CardLabel>
                   <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
-                    <li>Equipements (page encore surtout statique)</li>
-                    <li>Mail (encore majoritairement demo/local)</li>
+                    <li>Frais (circuit complet RH-comptable-paie fonctionnel ; entierement en localStorage — non partage, perdu si vidage du cache)</li>
+                    <li>Mail (messagerie demo complete avec pieces jointes, importance, etoiles ; entierement localStorage — pas de vrai client mail SMTP/IMAP)</li>
+                    <li>Coffre numerique (navigation categorisee, signature locale ; entierement localStorage — URLs blob uniquement, inaccessible depuis un autre appareil)</li>
+                    <li>Equipements (CRUD avec rattachement vehicule/remorque ; localStorage avec tentative de fallback Supabase si table absente)</li>
                   </ul>
                 </Card>
               </div>
@@ -600,10 +601,14 @@ export default function Parametres() {
                 <Card>
                   <CardLabel>Ce qui manque au logiciel (prioritaire)</CardLabel>
                   <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
-                    <li>Messagerie et mail 100% persistes en base (multi appareils)</li>
+                    <li>Persistance Supabase pour Frais, Mail, Coffre, Equipements (remplacement du localStorage)</li>
+                    <li>Portails Espace client et Espace affreteur persistes en base (onboarding, demandes, contrats)</li>
+                    <li>Bulletins de paie et fiches employes persistes en Supabase (multi appareils)</li>
+                    <li>Messagerie reelle SMTP/IMAP (multi appareils, multi utilisateurs)</li>
+                    <li>Lignes multi-article par facture et generation automatique depuis OT</li>
+                    <li>Import fichiers tachygraphe reels (.ddd / .V1B)</li>
                     <li>Couverture de tests end-to-end multi roles</li>
                     <li>Durcissement securite avance (audit continu des endpoints publics et minimisation des surfaces service role)</li>
-
                   </ul>
                 </Card>
                 <Card>
