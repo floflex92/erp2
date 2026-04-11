@@ -539,6 +539,9 @@ export default function Parametres() {
                   <li>Corrections SEO/UX homepage v1.12.2 : titre raccourci a 44 chars (WCAG 49 max), 3 contrastes #6E6E73 → #4b4b51, barre social proof flexbox (plus de &amp;nbsp; overflow mobile), aria-label sur liens features et cartes blog, CLS produit screenshot (width/height/maxHeight), paddings sections reduits (sectionPy clamp(24,3vw,56px), blog clamp(28,3.5vw,56px), CTA clamp(40,5vw,80px)) (v1.12.2)</li>
                   <li>Observabilite erreurs applicatives : table app_error_logs, Error Boundary React, handlers window.onerror + unhandledrejection, logAppError Netlify, panel admin avec KPIs / filtres / stack traces / logs API providers et purge 30j (v1.12.3)</li>
                   <li>Activation/desactivation metiers (modules) par tenant : section Metiers actifs dans Clients ERP, cartes cliquables par metier, PATCH companies.enabled_modules via Netlify function (v1.12.3)</li>
+                  <li>Absences RH v1.12.4 : table Supabase absences_rh + soldes CP/RTT, workflow demande/validation/refus, lib TypeScript CRUD complet, onglet Absences integre dans la page RH (v1.12.4)</li>
+                  <li>Journal comptable manuel v1.12.4 : table compta_journal_manuel (OD), saisies persistees en base, RLS, integration dans la page Facturation (v1.12.4)</li>
+                  <li>Tachygraphe donnees dynamiques v1.12.4 : seed idempotent 6 conducteurs avec donnees semaine courante et mois precedent, lookup dynamique conducteurs/vehicules existants (v1.12.4)</li>
                 </ul>
               </Card>
             )}
@@ -550,9 +553,9 @@ export default function Parametres() {
                   <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
                     <li>Clients (mix reel et injection demo)</li>
                     <li>Facturation (briques avancees en maturation)</li>
-                    <li>Paie et RH (Paie MVP pose, chainage complet et gestion des absences a renforcer)</li>
+                    <li>Paie et RH (Paie MVP pose, absences RH en base, chainage complet et gestion RH a renforcer)</li>
                     <li>Frais</li>
-                    <li>Tachygraphe (lecture reelle tachygraphe_entrees en place, infractions et dates dynamiques, documents generate/envoi fonctionnels)</li>
+                    <li>Tachygraphe (donnees dynamiques en base, infractions et dates dynamiques, documents generate/envoi fonctionnels)</li>
                     <li>Amendes</li>
                     <li>Espace client (portail tokenise v1.1 en place)</li>
                     <li>Espace affreteur</li>

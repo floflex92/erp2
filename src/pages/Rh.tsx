@@ -7,10 +7,11 @@ import { importEmployeeIntakeForm, provisionEmployeeOnboarding } from '@/lib/onb
 import { createPayrollSlip } from '@/lib/payroll'
 import { buildStaffDirectory, findStaffMember, staffDisplayName } from '@/lib/staffDirectory'
 import { createEntretienRh, deleteEntretienRh, fetchEntretienRh, fetchUpcomingEntretiens, updateEntretienRh, type EntretienRh } from '@/lib/entretienRh'
+import { createAbsenceRh, deleteAbsenceRh, fetchAbsencesRh, fetchSoldeAbsences, TYPE_ABSENCE_LABELS, STATUT_ABSENCE_LABELS, STATUT_ABSENCE_COLORS, upsertSoldeAbsences, updateAbsenceRh, type AbsenceRh, type SoldeAbsences, type TypeAbsence, type StatutAbsence } from '@/lib/absencesRh'
 
 const RH_UPLOAD_CATEGORIES = ['carte_vitale', 'carte_identite', 'justificatif_domicile', 'scan_complementaire'] as const
 const inp = 'w-full rounded-xl border bg-[color:var(--surface)] px-3 py-2.5 text-sm text-[color:var(--text)] outline-none focus:border-[color:var(--primary)]'
-type RhTab = 'employes' | 'documents' | 'entretiens'
+type RhTab = 'employes' | 'documents' | 'entretiens' | 'absences'
 
 export default function Rh() {
   const { profil, accountProfil } = useAuth()
@@ -38,6 +39,24 @@ export default function Rh() {
     suivi_requis: false,
   })
   const [showEntretienForm, setShowEntretienForm] = useState(false)
+
+  // Absences RH
+  const [absences, setAbsences] = useState<AbsenceRh[]>([])
+  const [isLoadingAbsences, setIsLoadingAbsences] = useState(false)
+  const [absenceFilterEmploye, setAbsenceFilterEmploye] = useState('')
+  const [absenceFilterStatut, setAbsenceFilterStatut] = useState<StatutAbsence | 'tous'>('tous')
+  const [showAbsenceForm, setShowAbsenceForm] = useState(false)
+  const [editingAbsenceId, setEditingAbsenceId] = useState<string | null>(null)
+  const [absenceForm, setAbsenceForm] = useState<Partial<AbsenceRh>>({
+    type_absence: 'conges_payes',
+    date_debut: new Date().toISOString().slice(0, 10),
+    date_fin: new Date().toISOString().slice(0, 10),
+    nb_jours: 1,
+    statut: 'demande',
+  })
+  const [solde, setSolde] = useState<SoldeAbsences | null>(null)
+  const [soldeAnnee, setSoldeAnnee] = useState(new Date().getFullYear())
+  const [solveDraft, setSoldeDraft] = useState({ cp_acquis: '0', cp_pris: '0', rtt_acquis: '0', rtt_pris: '0' })
 
   const staff = useMemo(() => buildStaffDirectory([profil, accountProfil]), [profil, accountProfil])
   const selectedEmployee = findStaffMember(staff, selectedEmployeeId || profil?.id)
@@ -367,6 +386,149 @@ export default function Rh() {
     setShowEntretienForm(true)
   }
 
+  // ── Absences handlers ───────────────────────────────────────────────────────
+
+  useEffect(() => {
+    void (async () => {
+      setIsLoadingAbsences(true)
+      const data = await fetchAbsencesRh()
+      setAbsences(data)
+      setIsLoadingAbsences(false)
+    })()
+  }, [])
+
+  useEffect(() => {
+    if (!absenceFilterEmploye) { setSolde(null); return }
+    void (async () => {
+      const s = await fetchSoldeAbsences(absenceFilterEmploye, soldeAnnee)
+      setSolde(s)
+      if (s) {
+        setSoldeDraft({
+          cp_acquis: String(s.cp_acquis),
+          cp_pris: String(s.cp_pris),
+          rtt_acquis: String(s.rtt_acquis),
+          rtt_pris: String(s.rtt_pris),
+        })
+      } else {
+        setSoldeDraft({ cp_acquis: '0', cp_pris: '0', rtt_acquis: '0', rtt_pris: '0' })
+      }
+    })()
+  }, [absenceFilterEmploye, soldeAnnee])
+
+  function resetAbsenceForm() {
+    setEditingAbsenceId(null)
+    setShowAbsenceForm(false)
+    setAbsenceForm({
+      type_absence: 'conges_payes',
+      date_debut: new Date().toISOString().slice(0, 10),
+      date_fin: new Date().toISOString().slice(0, 10),
+      nb_jours: 1,
+      statut: 'demande',
+    })
+  }
+
+  async function handleSaveAbsence() {
+    if (!absenceForm.employe_id || !absenceForm.type_absence || !absenceForm.date_debut || !absenceForm.date_fin) {
+      setError('Collaborateur, type, date début et fin sont obligatoires.')
+      return
+    }
+    try {
+      if (editingAbsenceId) {
+        const updated = await updateAbsenceRh(editingAbsenceId, absenceForm)
+        if (updated) {
+          setAbsences(prev => prev.map(a => a.id === editingAbsenceId ? updated : a))
+          setNotice('Absence mise à jour.')
+          resetAbsenceForm()
+        } else {
+          setError("Erreur lors de la mise à jour.")
+        }
+      } else {
+        const created = await createAbsenceRh({
+          ...absenceForm as Omit<AbsenceRh, 'id' | 'created_at' | 'updated_at'>,
+          company_id: null,
+          justificatif_url: null,
+          validateur_id: null,
+          date_validation: null,
+          commentaire_rh: null,
+          created_by: profil?.id ?? null,
+        })
+        if (created) {
+          setAbsences(prev => [created, ...prev])
+          setNotice('Absence créée.')
+          resetAbsenceForm()
+        } else {
+          setError("Erreur lors de la création.")
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur inattendue.")
+    }
+  }
+
+  async function handleValiderAbsence(id: string, statut: StatutAbsence) {
+    const updated = await updateAbsenceRh(id, {
+      statut,
+      validateur_id: profil?.id ?? null,
+      date_validation: new Date().toISOString(),
+    })
+    if (updated) {
+      setAbsences(prev => prev.map(a => a.id === id ? updated : a))
+      setNotice(`Absence ${statut === 'validee' ? 'validée' : 'refusée'}.`)
+      // Déduire du solde CP ou RTT si validation
+      if (statut === 'validee' && (updated.type_absence === 'conges_payes' || updated.type_absence === 'rtt')) {
+        const annee = new Date(updated.date_debut).getFullYear()
+        const currentSolde = await fetchSoldeAbsences(updated.employe_id, annee)
+        const nb = updated.nb_jours ?? 0
+        const patch = updated.type_absence === 'conges_payes'
+          ? { cp_pris: (currentSolde?.cp_pris ?? 0) + nb }
+          : { rtt_pris: (currentSolde?.rtt_pris ?? 0) + nb }
+        await upsertSoldeAbsences({
+          employe_id: updated.employe_id,
+          annee,
+          company_id: null,
+          cp_acquis: currentSolde?.cp_acquis ?? 0,
+          cp_pris: currentSolde?.cp_pris ?? 0,
+          rtt_acquis: currentSolde?.rtt_acquis ?? 0,
+          rtt_pris: currentSolde?.rtt_pris ?? 0,
+          ...patch,
+        })
+        if (absenceFilterEmploye === updated.employe_id) {
+          const refreshed = await fetchSoldeAbsences(updated.employe_id, soldeAnnee)
+          setSolde(refreshed)
+        }
+      }
+    } else {
+      setError('Impossible de changer le statut.')
+    }
+  }
+
+  async function handleDeleteAbsence(id: string) {
+    if (!confirm('Supprimer cette absence ?')) return
+    const ok = await deleteAbsenceRh(id)
+    if (ok) {
+      setAbsences(prev => prev.filter(a => a.id !== id))
+      setNotice('Absence supprimée.')
+      if (editingAbsenceId === id) resetAbsenceForm()
+    } else {
+      setError('Impossible de supprimer.')
+    }
+  }
+
+  async function handleSaveSolde() {
+    if (!absenceFilterEmploye) return
+    const updated = await upsertSoldeAbsences({
+      employe_id: absenceFilterEmploye,
+      annee: soldeAnnee,
+      company_id: null,
+      cp_acquis: parseFloat(solveDraft.cp_acquis) || 0,
+      cp_pris: parseFloat(solveDraft.cp_pris) || 0,
+      rtt_acquis: parseFloat(solveDraft.rtt_acquis) || 0,
+      rtt_pris: parseFloat(solveDraft.rtt_pris) || 0,
+    })
+    if (updated) { setSolde(updated); setNotice('Soldes enregistrés.') }
+    else setError('Impossible de sauvegarder les soldes.')
+  }
+
   return (
     <div className="space-y-6 p-5 md:p-6">
       <div className="rounded-2xl bg-slate-950 p-6 text-white shadow-xl">
@@ -412,6 +574,13 @@ export default function Rh() {
             className={`rounded-lg px-4 py-2 text-sm font-medium ${activeTab === 'entretiens' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
           >
             Entretiens professionnels
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('absences')}
+            className={`rounded-lg px-4 py-2 text-sm font-medium ${activeTab === 'absences' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+          >
+            Absences
           </button>
         </div>
 
@@ -853,6 +1022,288 @@ export default function Rh() {
                         </div>
                       )
                     })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {activeTab === 'absences' && (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Gestion des absences</p>
+            <h3 className="mt-2 text-lg font-semibold text-slate-900">Congés, RTT & absences</h3>
+            <p className="mt-1 text-sm text-slate-500">Suivi des demandes, validation RH et soldes CP/RTT par collaborateur.</p>
+
+            {/* ── Filtres + stats ── */}
+            <div className="mt-5 flex flex-wrap gap-3 items-center justify-between">
+              <div className="flex flex-wrap gap-3">
+                <select
+                  className={`${inp} w-56`}
+                  value={absenceFilterEmploye}
+                  onChange={e => setAbsenceFilterEmploye(e.target.value)}
+                >
+                  <option value="">Tous les collaborateurs</option>
+                  {staff.map(m => (
+                    <option key={m.id} value={m.id}>{staffDisplayName(m)}</option>
+                  ))}
+                </select>
+                <select
+                  className={`${inp} w-40`}
+                  value={absenceFilterStatut}
+                  onChange={e => setAbsenceFilterStatut(e.target.value as StatutAbsence | 'tous')}
+                >
+                  <option value="tous">Tous statuts</option>
+                  {(Object.keys(STATUT_ABSENCE_LABELS) as StatutAbsence[]).map(s => (
+                    <option key={s} value={s}>{STATUT_ABSENCE_LABELS[s]}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAbsenceForm(!showAbsenceForm)}
+                className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white"
+              >
+                {showAbsenceForm ? 'Annuler' : '+ Nouvelle absence'}
+              </button>
+            </div>
+
+            {/* ── Soldes CP/RTT ── */}
+            {absenceFilterEmploye && (
+              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-slate-800">Soldes CP/RTT</p>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-slate-500">Année</label>
+                    <input
+                      type="number"
+                      className={`${inp} w-24 py-1.5 text-xs`}
+                      value={soldeAnnee}
+                      onChange={e => setSoldeAnnee(Number(e.target.value))}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  {[
+                    { label: 'CP acquis', key: 'cp_acquis' },
+                    { label: 'CP pris', key: 'cp_pris' },
+                    { label: 'RTT acquis', key: 'rtt_acquis' },
+                    { label: 'RTT pris', key: 'rtt_pris' },
+                  ].map(({ label, key }) => (
+                    <div key={key}>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        className={`${inp} py-1.5 text-xs`}
+                        value={solveDraft[key as keyof typeof solveDraft]}
+                        onChange={e => setSoldeDraft(d => ({ ...d, [key]: e.target.value }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+                {solde && (
+                  <div className="mt-3 flex gap-4 text-sm">
+                    <span className="text-emerald-700 font-semibold">
+                      CP restants : {(solde.cp_acquis - solde.cp_pris).toFixed(1)} j
+                    </span>
+                    <span className="text-blue-700 font-semibold">
+                      RTT restants : {(solde.rtt_acquis - solde.rtt_pris).toFixed(1)} j
+                    </span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void handleSaveSolde()}
+                  className="mt-3 rounded-xl bg-slate-900 px-4 py-2 text-xs font-medium text-white"
+                >
+                  Enregistrer les soldes
+                </button>
+              </div>
+            )}
+
+            {/* ── Formulaire absence ── */}
+            {showAbsenceForm && (
+              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Field label="Collaborateur">
+                    <select
+                      className={inp}
+                      value={absenceForm.employe_id || ''}
+                      onChange={e => setAbsenceForm(f => ({ ...f, employe_id: e.target.value }))}
+                    >
+                      <option value="">Sélectionner...</option>
+                      {staff.map(m => (
+                        <option key={m.id} value={m.id}>{staffDisplayName(m)}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Type d'absence">
+                    <select
+                      className={inp}
+                      value={absenceForm.type_absence || 'conges_payes'}
+                      onChange={e => setAbsenceForm(f => ({ ...f, type_absence: e.target.value as TypeAbsence }))}
+                    >
+                      {(Object.entries(TYPE_ABSENCE_LABELS) as [TypeAbsence, string][]).map(([k, v]) => (
+                        <option key={k} value={k}>{v}</option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <Field label="Date début">
+                    <input
+                      type="date"
+                      className={inp}
+                      value={absenceForm.date_debut || ''}
+                      onChange={e => setAbsenceForm(f => ({ ...f, date_debut: e.target.value }))}
+                    />
+                  </Field>
+                  <Field label="Date fin">
+                    <input
+                      type="date"
+                      className={inp}
+                      value={absenceForm.date_fin || ''}
+                      onChange={e => setAbsenceForm(f => ({ ...f, date_fin: e.target.value }))}
+                    />
+                  </Field>
+                  <Field label="Nb jours">
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      className={inp}
+                      value={absenceForm.nb_jours ?? 1}
+                      onChange={e => setAbsenceForm(f => ({ ...f, nb_jours: parseFloat(e.target.value) || 1 }))}
+                    />
+                  </Field>
+                </div>
+                <Field label="Motif (optionnel)">
+                  <input
+                    className={inp}
+                    placeholder="Précision..."
+                    value={absenceForm.motif || ''}
+                    onChange={e => setAbsenceForm(f => ({ ...f, motif: e.target.value || null }))}
+                  />
+                </Field>
+                {editingAbsenceId && (
+                  <Field label="Statut">
+                    <select
+                      className={inp}
+                      value={absenceForm.statut || 'demande'}
+                      onChange={e => setAbsenceForm(f => ({ ...f, statut: e.target.value as StatutAbsence }))}
+                    >
+                      {(Object.keys(STATUT_ABSENCE_LABELS) as StatutAbsence[]).map(s => (
+                        <option key={s} value={s}>{STATUT_ABSENCE_LABELS[s]}</option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
+                <Field label="Commentaire RH">
+                  <input
+                    className={inp}
+                    placeholder="Note interne..."
+                    value={absenceForm.commentaire_rh || ''}
+                    onChange={e => setAbsenceForm(f => ({ ...f, commentaire_rh: e.target.value || null }))}
+                  />
+                </Field>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveAbsence()}
+                    className="flex-1 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white"
+                  >
+                    {editingAbsenceId ? 'Mettre à jour' : 'Créer'}
+                  </button>
+                  {editingAbsenceId && (
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteAbsence(editingAbsenceId)}
+                      className="rounded-xl bg-red-100 px-4 py-2.5 text-sm font-medium text-red-700"
+                    >
+                      Supprimer
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ── Liste des absences ── */}
+            <div className="mt-4">
+              {isLoadingAbsences ? (
+                <p className="text-sm text-slate-400 py-6 text-center">Chargement...</p>
+              ) : (
+                <div className="space-y-2">
+                  {absences
+                    .filter(a => (!absenceFilterEmploye || a.employe_id === absenceFilterEmploye))
+                    .filter(a => absenceFilterStatut === 'tous' || a.statut === absenceFilterStatut)
+                    .map(a => {
+                      const emp = staff.find(m => m.id === a.employe_id)
+                      return (
+                        <div
+                          key={a.id}
+                          className="rounded-xl border border-slate-200 bg-white p-4 flex items-start justify-between gap-3"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUT_ABSENCE_COLORS[a.statut]}`}>
+                                {STATUT_ABSENCE_LABELS[a.statut]}
+                              </span>
+                              <span className="text-xs font-medium text-slate-700">
+                                {TYPE_ABSENCE_LABELS[a.type_absence]}
+                              </span>
+                              <span className="text-xs text-slate-500">
+                                {a.nb_jours} j · {new Date(a.date_debut).toLocaleDateString('fr-FR')} → {new Date(a.date_fin).toLocaleDateString('fr-FR')}
+                              </span>
+                            </div>
+                            {emp && (
+                              <p className="mt-1 text-xs text-slate-600 font-medium">{staffDisplayName(emp)}</p>
+                            )}
+                            {a.motif && <p className="mt-1 text-xs text-slate-500 italic">{a.motif}</p>}
+                            {a.commentaire_rh && <p className="mt-1 text-xs text-amber-700">{a.commentaire_rh}</p>}
+                          </div>
+                          <div className="flex flex-col gap-1.5 shrink-0">
+                            {a.statut === 'demande' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleValiderAbsence(a.id, 'validee')}
+                                  className="text-xs px-2.5 py-1 rounded-lg bg-green-100 text-green-700 font-medium hover:bg-green-200"
+                                >
+                                  Valider
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleValiderAbsence(a.id, 'refusee')}
+                                  className="text-xs px-2.5 py-1 rounded-lg bg-red-100 text-red-700 font-medium hover:bg-red-200"
+                                >
+                                  Refuser
+                                </button>
+                              </>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingAbsenceId(a.id)
+                                setAbsenceForm(a)
+                                setShowAbsenceForm(true)
+                              }}
+                              className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                            >
+                              Modifier
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  {absences.filter(a =>
+                    (!absenceFilterEmploye || a.employe_id === absenceFilterEmploye) &&
+                    (absenceFilterStatut === 'tous' || a.statut === absenceFilterStatut)
+                  ).length === 0 && (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
+                      <p className="text-sm text-slate-500">Aucune absence enregistrée.</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -145,6 +145,29 @@ type JournalEntry = {
   credit: number
 }
 
+type RelanceScenario = {
+  id: string
+  nom: string
+  niveau: number
+  delai_apres_echeance: number
+  type: string
+  sujet_template: string | null
+  corps_template: string | null
+  actif: boolean
+}
+
+type RelanceHistorique = {
+  id: string
+  facture_id: string
+  scenario_id: string | null
+  niveau: number
+  date_envoi: string
+  mode: string
+  montant_relance: number
+  statut: string
+  notes: string | null
+}
+
 const COMPTES_COMPTABLES = [
   '101 - Capital social', '106 - Réserves', '110 - Report à nouveau',
   '401 - Fournisseurs', '411 - Clients', '421 - Personnel – rémunérations',
@@ -493,6 +516,8 @@ export default function Facturation() {
   // Écriture comptable liée à la facture sélectionnée (Epic A3)
   const [comptaInfo, setComptaInfo] = useState<{ statut: string; numero_mouvement: number; date_ecriture: string } | null>(null)
   const [comptaLoading, setComptaLoading] = useState(false)
+  const [comptaRefreshKey, setComptaRefreshKey] = useState(0)
+  const [generatingEcriture, setGeneratingEcriture] = useState(false)
 
   // TVA tab state
   const [tvaCalcHT, setTvaCalcHT] = useState('')
@@ -505,8 +530,16 @@ export default function Facturation() {
   const [editBudget, setEditBudget] = useState<number | null>(null)
   const [budgetInput, setBudgetInput] = useState('')
 
+  // Relances state
+  const [relancesScenarios, setRelancesScenarios] = useState<RelanceScenario[]>([])
+  const [relancesHistorique, setRelancesHistorique] = useState<RelanceHistorique[]>([])
+  const [loadingRelances, setLoadingRelances] = useState(false)
+  const [showRelanceModal, setShowRelanceModal] = useState(false)
+  const [relanceScenarioId, setRelanceScenarioId] = useState('')
+
   // Journal tab state
   const [entries, setEntries] = useState<JournalEntry[]>([])
+  const [loadingJournal, setLoadingJournal] = useState(false)
   const [journalForm, setJournalForm] = useState({
     date: new Date().toISOString().split('T')[0],
     libelle: '',
@@ -552,7 +585,46 @@ export default function Facturation() {
         setComptaInfo(e ? { statut: e.statut, numero_mouvement: e.numero_mouvement, date_ecriture: e.date_ecriture } : null)
         setComptaLoading(false)
       })
-  }, [selected?.id, selected?.statut])
+  }, [selected?.id, selected?.statut, comptaRefreshKey])
+
+  // ── Chargement scénarios de relance (une fois) ────────────────────────────
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any
+    db.from('relances_scenarios').select('*').eq('actif', true).order('niveau')
+      .then(({ data }: { data: RelanceScenario[] | null }) => {
+        if (data) {
+          setRelancesScenarios(data)
+          if (data.length > 0) setRelanceScenarioId(data[0].id)
+        }
+      })
+  }, [])
+
+  // ── Chargement historique relances par facture sélectionnée ───────────────
+  useEffect(() => {
+    if (!selected) { setRelancesHistorique([]); return }
+    setLoadingRelances(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any
+    db.from('relances_historique').select('*').eq('facture_id', selected.id).order('date_envoi', { ascending: false })
+      .then(({ data }: { data: RelanceHistorique[] | null }) => {
+        setRelancesHistorique(data ?? [])
+        setLoadingRelances(false)
+      })
+  }, [selected?.id])
+
+  // ── Chargement journal manuel ─────────────────────────────────────────────
+  useEffect(() => {
+    if (tab !== 'journal') return
+    setLoadingJournal(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any
+    db.from('compta_journal_manuel').select('*').order('date', { ascending: false })
+      .then(({ data }: { data: (JournalEntry & { created_by?: string })[] | null }) => {
+        setEntries(data ?? [])
+        setLoadingJournal(false)
+      })
+  }, [tab])
 
   const clientMap = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c.nom])), [clients])
   const otMap = useMemo(() => Object.fromEntries(ots.map(o => [o.id, o.reference])), [ots])
@@ -722,6 +794,18 @@ export default function Facturation() {
     loadAll()
   }
 
+  async function generateEcriture(factureId: string) {
+    setGeneratingEcriture(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc('compta_generer_ecriture_facture', { p_facture_id: factureId })
+    setGeneratingEcriture(false)
+    if (error) {
+      setActionError(`Impossible de générer l'écriture : ${error.message}`)
+      return
+    }
+    setComptaRefreshKey(k => k + 1)
+  }
+
   async function updateStatut(f: Facture, statut: string) {
     setActionError(null)
     const extra: Record<string, string | null> = {}
@@ -732,6 +816,7 @@ export default function Facturation() {
       return
     }
     if (selected?.id === f.id) setSelected({ ...f, statut })
+    if (statut === 'envoyee' || statut === 'payee') setComptaRefreshKey(k => k + 1)
     loadAll()
   }
 
@@ -747,21 +832,84 @@ export default function Facturation() {
     loadAll()
   }
 
+  async function sendRelance() {
+    if (!selected || !relanceScenarioId) return
+    const scenario = relancesScenarios.find(s => s.id === relanceScenarioId)
+    if (!scenario) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any
+    const { error } = await db.from('relances_historique').insert({
+      facture_id: selected.id,
+      scenario_id: relanceScenarioId,
+      niveau: scenario.niveau,
+      mode: scenario.type,
+      montant_relance: selected.montant_ttc ?? selected.montant_ht,
+      statut: 'envoye',
+    })
+    if (error) { setActionError(`Erreur relance : ${error.message}`); return }
+    setShowRelanceModal(false)
+    const { data } = await db.from('relances_historique').select('*').eq('facture_id', selected.id).order('date_envoi', { ascending: false })
+    setRelancesHistorique(data ?? [])
+  }
+
+  function exportCSV() {
+    const headers = ['Numéro', 'Client', 'Émission', 'Échéance', 'Montant HT', 'TVA', 'TTC', 'Statut', 'Mode paiement', 'Notes']
+    const rows = filtered.map(f => [
+      f.numero,
+      clientMap[f.client_id] ?? '',
+      new Date(f.date_emission).toLocaleDateString('fr-FR'),
+      f.date_echeance ? new Date(f.date_echeance).toLocaleDateString('fr-FR') : '',
+      f.montant_ht.toFixed(2),
+      (f.montant_tva ?? 0).toFixed(2),
+      (f.montant_ttc ?? f.montant_ht).toFixed(2),
+      STATUT_LABELS[f.statut] ?? f.statut,
+      f.mode_paiement ? (MODE_PAIEMENT_LABELS[f.mode_paiement] ?? f.mode_paiement) : '',
+      f.notes ?? '',
+    ])
+    const csv = [headers, ...rows]
+      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';'))
+      .join('\n')
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `factures_${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   // ── Journal helpers ─────────────────────────────────────────────────────────
-  function addEntry(e: React.SyntheticEvent<HTMLFormElement>) {
+  async function addEntry(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     const debit = parseFloat(journalForm.debit) || 0
     const credit = parseFloat(journalForm.credit) || 0
     if (!journalForm.libelle || !journalForm.compte || (debit === 0 && credit === 0)) return
-    setEntries(prev => [...prev, {
-      id: Math.random().toString(36).slice(2),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any
+    const { data: inserted } = await db.from('compta_journal_manuel').insert({
       date: journalForm.date,
       libelle: journalForm.libelle,
       compte: journalForm.compte,
       debit,
       credit,
-    }])
+    }).select().maybeSingle()
+    if (inserted) setEntries(prev => [inserted, ...prev])
     setJournalForm(f => ({ ...f, libelle: '', compte: '', debit: '', credit: '' }))
+  }
+
+  async function deleteJournalEntry(id: string) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from('compta_journal_manuel').delete().eq('id', id)
+    setEntries(prev => prev.filter(x => x.id !== id))
+  }
+
+  async function clearAllJournalEntries() {
+    if (!confirm('Effacer toutes les écritures manuelles ?')) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from('compta_journal_manuel').delete().not('id', 'is', null)
+    setEntries([])
   }
 
   const totalDebit = entries.reduce((s, e) => s + e.debit, 0)
@@ -784,9 +932,14 @@ export default function Facturation() {
           <p className="text-slate-500 text-sm">{list.length} facture{list.length !== 1 ? 's' : ''} · CA {fmtEur(totalCA)}</p>
         </div>
         {tab === 'factures' && (
-          <button onClick={() => setShowForm(true)} className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors">
-            + Nouvelle facture
-          </button>
+          <div className="flex gap-2">
+            <button onClick={exportCSV} className="border border-slate-300 text-slate-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors">
+              ↓ CSV
+            </button>
+            <button onClick={() => setShowForm(true)} className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors">
+              + Nouvelle facture
+            </button>
+          </div>
         )}
       </div>
 
@@ -914,7 +1067,14 @@ export default function Facturation() {
                   {selected.notes && <div className="col-span-2"><span className="text-xs font-medium text-slate-500">Notes</span><p className="text-slate-600 mt-0.5">{selected.notes}</p></div>}
                   {(selected.statut === 'envoyee' || selected.statut === 'payee') && (
                     <div className="col-span-2 border-t pt-4 mt-1">
-                      <p className="text-xs font-medium text-slate-500 mb-2">Écriture comptable</p>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-medium text-slate-500">Écriture comptable</p>
+                        <button
+                          onClick={() => setComptaRefreshKey(k => k + 1)}
+                          className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                          title="Actualiser"
+                        >↻</button>
+                      </div>
                       {comptaLoading ? (
                         <p className="text-xs text-slate-400">Vérification...</p>
                       ) : comptaInfo ? (
@@ -926,9 +1086,54 @@ export default function Facturation() {
                           </span>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">⏳ En attente</span>
-                          <span className="text-xs text-slate-400">Aucune écriture générée</span>
+                        <div className="flex items-start flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">⏳ Aucune écriture</span>
+                            <span className="text-xs text-slate-400">Le trigger DB devrait l'avoir créée automatiquement</span>
+                          </div>
+                          <button
+                            onClick={() => void generateEcriture(selected.id)}
+                            disabled={generatingEcriture}
+                            className="text-xs px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                          >
+                            {generatingEcriture ? 'Génération...' : "Générer l'écriture manuellement"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* ── Relances ── */}
+                  {(selected.statut === 'en_retard' || selected.statut === 'envoyee') && (
+                    <div className="col-span-2 border-t pt-4 mt-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-medium text-slate-500">Relances</p>
+                        <button
+                          onClick={() => setShowRelanceModal(true)}
+                          className="text-xs px-2.5 py-1 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors"
+                        >+ Envoyer une relance</button>
+                      </div>
+                      {loadingRelances ? (
+                        <p className="text-xs text-slate-400">Chargement...</p>
+                      ) : relancesHistorique.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic">Aucune relance envoyée</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {relancesHistorique.map(r => (
+                            <div key={r.id} className="flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-2">
+                                <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium">N{r.niveau}</span>
+                                <span className="text-slate-600">{new Date(r.date_envoi).toLocaleDateString('fr-FR')}</span>
+                                <span className="text-slate-400 capitalize">{r.mode}</span>
+                              </div>
+                              <span className={`px-1.5 py-0.5 rounded font-medium ${
+                                r.statut === 'envoye' ? 'bg-green-100 text-green-700'
+                                : r.statut === 'echec' ? 'bg-red-100 text-red-600'
+                                : 'bg-slate-100 text-slate-500'
+                              }`}>
+                                {r.statut === 'envoye' ? 'Enregistrée' : r.statut === 'echec' ? 'Échec' : 'Annulée'}
+                              </span>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -1374,12 +1579,14 @@ export default function Facturation() {
           {/* Journal entries table */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
             <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-700">Journal comptable ({entries.length} écritures)</p>
+              <p className="text-sm font-semibold text-slate-700">Journal comptable ({entries.length} écriture{entries.length !== 1 ? 's' : ''})</p>
               {entries.length > 0 && (
-                <button onClick={() => setEntries([])} className="text-xs text-slate-400 hover:text-red-500 transition-colors">Effacer tout</button>
+                <button onClick={() => void clearAllJournalEntries()} className="text-xs text-slate-400 hover:text-red-500 transition-colors">Effacer tout</button>
               )}
             </div>
-            {entries.length === 0 ? (
+            {loadingJournal ? (
+              <div className="p-8 text-center text-slate-400 text-sm">Chargement...</div>
+            ) : entries.length === 0 ? (
               <div className="p-8 text-center text-slate-400 text-sm">Aucune écriture saisie. Utilisez le formulaire ci-dessus pour commencer.</div>
             ) : (
               <table className="w-full text-sm">
@@ -1399,7 +1606,7 @@ export default function Facturation() {
                       <td className="px-4 py-2.5 text-right font-medium text-slate-800">{e.debit > 0 ? fmtEur(e.debit) : '—'}</td>
                       <td className="px-4 py-2.5 text-right font-medium text-slate-800">{e.credit > 0 ? fmtEur(e.credit) : '—'}</td>
                       <td className="px-4 py-2.5 text-right">
-                        <button onClick={() => setEntries(prev => prev.filter(x => x.id !== e.id))} className="text-xs text-slate-400 hover:text-red-500 transition-colors">✕</button>
+                        <button onClick={() => void deleteJournalEntry(e.id)} className="text-xs text-slate-400 hover:text-red-500 transition-colors">✕</button>
                       </td>
                     </tr>
                   ))}
@@ -1420,6 +1627,46 @@ export default function Facturation() {
 
       {/* ══ TAB: TARIFS TRANSPORT ══════════════════════════════════════════════ */}
       {tab === 'tarifs' && <TarifsTransportTab clients={clients} />}
+
+      {/* ══ MODAL: Relance ══════════════════════════════════════════════════════ */}
+      {showRelanceModal && selected && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h3 className="text-base font-semibold">Envoyer une relance</h3>
+              <button onClick={() => setShowRelanceModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-slate-600">Facture <span className="font-mono font-medium">{selected.numero}</span> — {clientMap[selected.client_id] ?? '—'}</p>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Scénario de relance</label>
+                <select value={relanceScenarioId} onChange={e => setRelanceScenarioId(e.target.value)} className={inp}>
+                  {relancesScenarios.map(s => (
+                    <option key={s.id} value={s.id}>Niveau {s.niveau} — {s.nom} (+{s.delai_apres_echeance}j)</option>
+                  ))}
+                </select>
+              </div>
+              {relancesScenarios.find(s => s.id === relanceScenarioId)?.corps_template && (
+                <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-600 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                  {(relancesScenarios.find(s => s.id === relanceScenarioId)?.corps_template ?? '')
+                    .replace('{{numero}}', selected.numero)
+                    .replace('{{montant}}', fmtEur(selected.montant_ttc ?? selected.montant_ht))
+                    .replace('{{echeance}}', selected.date_echeance ? new Date(selected.date_echeance).toLocaleDateString('fr-FR') : '—')
+                  }
+                </div>
+              )}
+            </div>
+            <div className="px-5 pb-5 flex justify-end gap-2">
+              <button onClick={() => setShowRelanceModal(false)} className="px-3 py-1.5 border rounded-lg text-sm text-slate-600 hover:bg-slate-50">Annuler</button>
+              <button
+                onClick={() => void sendRelance()}
+                disabled={!relanceScenarioId}
+                className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+              >Enregistrer la relance</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══ MODAL: Nouvelle facture ═════════════════════════════════════════════ */}
       {showForm && (

@@ -84,6 +84,7 @@ interface AlerteEnvoyee {
 
 interface TachyEntreeRow {
   conducteur_id: string
+  vehicule_id: string | null
   type_activite: string
   duree_minutes: number | null
   date_debut: string
@@ -177,9 +178,9 @@ function aggregateTachyData(c: ConducteurDB, entries: TachyEntreeRow[], nowDate:
     if (e.type_activite === 'conduite') {
       if (startedAt >= dayStart) dailyDriveMinutes += dur
       if (startedAt >= weekStart) weeklyDriveMinutes += dur
-    } else if (e.type_activite === 'pause') {
-      if (startedAt >= dayStart) dailyPauseMinutes += dur
     } else if (e.type_activite === 'repos') {
+      if (startedAt >= dayStart) dailyPauseMinutes += dur
+    } else if (e.type_activite === 'disponibilite') {
       if (startedAt >= dayStart) dailyReposMinutes += dur
     }
   }
@@ -204,38 +205,67 @@ function aggregateTachyData(c: ConducteurDB, entries: TachyEntreeRow[], nowDate:
   }
 }
 
-function deriveInfractions(conducteurs: ConducteurDB[], entries: TachyEntreeRow[], nowDate: Date): Infraction[] {
+function deriveInfractions(
+  conducteurs: ConducteurDB[],
+  entries: TachyEntreeRow[],
+  vehiculePlates: Record<string, string>,
+  nowDate: Date,
+): Infraction[] {
   const result: Infraction[] = []
-  const dayStart = new Date(nowDate); dayStart.setHours(0, 0, 0, 0)
-  const weekStart = new Date(dayStart); weekStart.setDate(dayStart.getDate() - ((dayStart.getDay() + 6) % 7))
-  const todayISO = nowDate.toISOString().slice(0, 10)
+  const weekStart = new Date(nowDate)
+  weekStart.setHours(0, 0, 0, 0)
+  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7))
+
   for (const c of conducteurs) {
-    const myEntries = entries.filter(e => e.conducteur_id === c.id)
+    const myEntries = entries
+      .filter(e => e.conducteur_id === c.id)
+      .sort((a, b) => a.date_debut.localeCompare(b.date_debut))
     if (myEntries.length === 0) continue
-    let dailyDriveMinutes = 0, weeklyDriveMinutes = 0, dailyPauseMinutes = 0, continuousDriveMinutes = 0
-    for (const e of [...myEntries].sort((a, b) => a.date_debut.localeCompare(b.date_debut))) {
-      const dur = Number(e.duree_minutes ?? 0)
-      const startedAt = new Date(e.date_debut)
-      if (e.type_activite === 'conduite') {
-        if (startedAt >= dayStart) { dailyDriveMinutes += dur; continuousDriveMinutes += dur }
-        if (startedAt >= weekStart) weeklyDriveMinutes += dur
-      } else if (e.type_activite === 'pause' || e.type_activite === 'repos') {
-        if (startedAt >= dayStart) { dailyPauseMinutes += dur; continuousDriveMinutes = 0 }
+
+    let weeklyDriveMinutes = 0
+    const days = [...new Set(myEntries.map(e => e.date_debut.slice(0, 10)))].sort()
+
+    for (const dayISO of days) {
+      const dayEntries = myEntries.filter(e => e.date_debut.slice(0, 10) === dayISO)
+      let dailyDrive = 0, dailyPause = 0, continuous = 0, maxContinuous = 0
+
+      const firstWithVeh = dayEntries.find(e => e.vehicule_id)
+      const vehicule = firstWithVeh?.vehicule_id
+        ? (vehiculePlates[firstWithVeh.vehicule_id] ?? '-')
+        : '-'
+      const firstDrive = dayEntries.find(e => e.type_activite === 'conduite')
+      const heure = firstDrive
+        ? new Date(firstDrive.date_debut).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', hour12: false })
+        : '00:00'
+
+      for (const e of dayEntries) {
+        const dur = Number(e.duree_minutes ?? 0)
+        if (e.type_activite === 'conduite') {
+          dailyDrive += dur
+          weeklyDriveMinutes += dur
+          continuous += dur
+          if (continuous > maxContinuous) maxContinuous = continuous
+        } else if (e.type_activite === 'repos' || e.type_activite === 'disponibilite') {
+          dailyPause += dur
+          continuous = 0
+        }
+      }
+
+      if (dailyDrive > 540) {
+        result.push({ id: `${c.id}-j-crit-${dayISO}`, conducteurId: c.id, vehicule, type: 'temps_conduite', gravite: 'critique', date: dayISO, heure, description: `Temps de conduite journalier dépassé — ${fmtMin(dailyDrive)}`, valeurMesuree: fmtMin(dailyDrive), valeurLimite: '9h00', lieu: '-', statut: 'nouvelle', signee: false })
+      } else if (dailyDrive > 480) {
+        result.push({ id: `${c.id}-j-maj-${dayISO}`, conducteurId: c.id, vehicule, type: 'temps_conduite', gravite: 'majeure', date: dayISO, heure, description: `Conduite journalière proche du seuil — ${fmtMin(dailyDrive)}`, valeurMesuree: fmtMin(dailyDrive), valeurLimite: '9h00', lieu: '-', statut: 'nouvelle', signee: false })
+      }
+      if (maxContinuous > 270) {
+        result.push({ id: `${c.id}-cont-${dayISO}`, conducteurId: c.id, vehicule, type: 'conduite_continue', gravite: 'critique', date: dayISO, heure, description: `Conduite continue sans pause — ${fmtMin(maxContinuous)}`, valeurMesuree: fmtMin(maxContinuous), valeurLimite: '4h30', lieu: '-', statut: 'nouvelle', signee: false })
+      }
+      if (dailyDrive > 270 && dailyPause < 45) {
+        result.push({ id: `${c.id}-pause-${dayISO}`, conducteurId: c.id, vehicule, type: 'pause_manquante', gravite: 'mineure', date: dayISO, heure, description: `Pause insuffisante après ${fmtMin(dailyDrive)} de conduite`, valeurMesuree: fmtMin(dailyPause), valeurLimite: '45 min', lieu: '-', statut: 'nouvelle', signee: false })
       }
     }
-    if (dailyDriveMinutes > 540) {
-      result.push({ id: `${c.id}-real-j-crit`, conducteurId: c.id, vehicule: '-', type: 'temps_conduite', gravite: 'critique', date: todayISO, heure: '00:00', description: `Temps de conduite journalier dépassé — ${fmtMin(dailyDriveMinutes)}`, valeurMesuree: fmtMin(dailyDriveMinutes), valeurLimite: '9h00', lieu: '-', statut: 'nouvelle', signee: false })
-    } else if (dailyDriveMinutes > 480) {
-      result.push({ id: `${c.id}-real-j-maj`, conducteurId: c.id, vehicule: '-', type: 'temps_conduite', gravite: 'majeure', date: todayISO, heure: '00:00', description: `Conduite journalière proche du seuil — ${fmtMin(dailyDriveMinutes)}`, valeurMesuree: fmtMin(dailyDriveMinutes), valeurLimite: '9h00', lieu: '-', statut: 'nouvelle', signee: false })
-    }
+
     if (weeklyDriveMinutes > 3360) {
-      result.push({ id: `${c.id}-real-sem`, conducteurId: c.id, vehicule: '-', type: 'temps_conduite', gravite: 'majeure', date: todayISO, heure: '00:00', description: `Temps de conduite hebdomadaire dépassé — ${fmtMin(weeklyDriveMinutes)}`, valeurMesuree: fmtMin(weeklyDriveMinutes), valeurLimite: '56h00', lieu: '-', statut: 'nouvelle', signee: false })
-    }
-    if (continuousDriveMinutes > 270) {
-      result.push({ id: `${c.id}-real-cont`, conducteurId: c.id, vehicule: '-', type: 'conduite_continue', gravite: 'critique', date: todayISO, heure: '00:00', description: `Conduite continue sans pause de 45 min — ${fmtMin(continuousDriveMinutes)}`, valeurMesuree: fmtMin(continuousDriveMinutes), valeurLimite: '4h30', lieu: '-', statut: 'nouvelle', signee: false })
-    }
-    if (dailyDriveMinutes > 270 && dailyPauseMinutes < 45) {
-      result.push({ id: `${c.id}-real-pause`, conducteurId: c.id, vehicule: '-', type: 'pause_manquante', gravite: 'mineure', date: todayISO, heure: '00:00', description: `Pause insuffisante après ${fmtMin(dailyDriveMinutes)} de conduite`, valeurMesuree: fmtMin(dailyPauseMinutes), valeurLimite: '45 min', lieu: '-', statut: 'nouvelle', signee: false })
+      result.push({ id: `${c.id}-weekly`, conducteurId: c.id, vehicule: '-', type: 'temps_conduite', gravite: 'majeure', date: nowDate.toISOString().slice(0, 10), heure: '00:00', description: `Temps de conduite hebdomadaire dépassé — ${fmtMin(weeklyDriveMinutes)}`, valeurMesuree: fmtMin(weeklyDriveMinutes), valeurLimite: '56h00', lieu: '-', statut: 'nouvelle', signee: false })
     }
   }
   return result
@@ -596,6 +626,25 @@ function ModalReleve({
 
 // ─── Modal Attestation d'activité ─────────────────────────────────────────────
 
+function buildSemainesRanges(debut: Date, fin: Date) {
+  const weeks: Array<{ start: Date; end: Date; label: string }> = []
+  const cur = new Date(debut)
+  let idx = 1
+  while (cur <= fin) {
+    const wStart = new Date(cur)
+    const wEnd = new Date(cur)
+    wEnd.setDate(wEnd.getDate() + 6)
+    if (wEnd > fin) wEnd.setTime(fin.getTime())
+    const d1 = wStart.getDate().toString().padStart(2, '0')
+    const d2 = wEnd.getDate().toString().padStart(2, '0')
+    const m = MOIS_FR[wStart.getMonth()].toLowerCase()
+    weeks.push({ start: wStart, end: new Date(wEnd), label: `Sem. ${idx} (${d1}–${d2} ${m})` })
+    cur.setDate(cur.getDate() + 7)
+    idx++
+  }
+  return weeks
+}
+
 function ModalAttestation({
   conducteur, tachyData, config, onClose, onSaved, onDeliver,
 }: {
@@ -608,24 +657,63 @@ function ModalAttestation({
 }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState<Rapport | null>(null)
+  const [monthlyEntries, setMonthlyEntries] = useState<TachyEntreeRow[]>([])
+  const [loadingMonthly, setLoadingMonthly] = useState(true)
   const today = fmtDate(new Date().toISOString().slice(0, 10))
   const prevMonth = new Date(); prevMonth.setDate(0)
   const debut = firstDayOfMonth(prevMonth.getFullYear(), prevMonth.getMonth())
   const fin = lastDayOfMonth(prevMonth.getFullYear(), prevMonth.getMonth())
-  // Données mensuelles calculées
-  const joursTravail = 20; const joursRepos = 8; const joursCongé = 2
-  const conduiteTotale = Math.round(tachyData.tempsConduiteSem * 4.3)
-  const autresTravaux = Math.round(conduiteTotale * 0.15)
-  const distanceMois = tachyData.distanceSem * 4
+
+  useEffect(() => {
+    async function load() {
+      const { data } = await supabase
+        .from('tachygraphe_entrees')
+        .select('conducteur_id, vehicule_id, type_activite, duree_minutes, date_debut')
+        .eq('conducteur_id', conducteur.id)
+        .gte('date_debut', toISO(debut) + 'T00:00:00')
+        .lte('date_debut', toISO(fin) + 'T23:59:59')
+        .order('date_debut', { ascending: true })
+      setMonthlyEntries((data ?? []) as TachyEntreeRow[])
+      setLoadingMonthly(false)
+    }
+    void load()
+  }, [conducteur.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Données mensuelles calculées depuis les entrées réelles (fallback sur estimation si vide)
+  const conduiteTotaleReelle = monthlyEntries
+    .filter(e => e.type_activite === 'conduite')
+    .reduce((acc, e) => acc + Number(e.duree_minutes ?? 0), 0)
+  const autresTravauxReels = monthlyEntries
+    .filter(e => e.type_activite !== 'conduite' && e.type_activite !== 'repos')
+    .reduce((acc, e) => acc + Number(e.duree_minutes ?? 0), 0)
+  const conduiteFallback = Math.round(tachyData.tempsConduiteSem * 4.3)
+  const conduiteTotale = loadingMonthly || conduiteTotaleReelle === 0 ? conduiteFallback : conduiteTotaleReelle
+  const autresTravaux = loadingMonthly || autresTravauxReels === 0 ? Math.round(conduiteTotale * 0.12) : autresTravauxReels
+  const distanceMois = Math.round(conduiteTotale * 0.75)
+  const joursTravail = monthlyEntries.length > 0
+    ? new Set(monthlyEntries.map(e => e.date_debut.slice(0, 10))).size
+    : 20
+  const joursRepos = Math.max(0, 30 - joursTravail - 2)
+  const joursCongé = 2
   const nbMissions = 12 + (hashId(conducteur.id) % 8)
 
-  // Détail semaines
-  const semaines = [
-    { label: 'Sem. 1 (01–07 mars)', conduite: fmtMin(Math.round(conduiteTotale / 4.3 * 1.1)), autres: fmtMin(Math.round(autresTravaux / 4)), repos: '2 j' },
-    { label: 'Sem. 2 (08–14 mars)', conduite: fmtMin(Math.round(conduiteTotale / 4.3 * 0.9)), autres: fmtMin(Math.round(autresTravaux / 4)), repos: '2 j' },
-    { label: 'Sem. 3 (15–21 mars)', conduite: fmtMin(Math.round(conduiteTotale / 4.3 * 1.05)), autres: fmtMin(Math.round(autresTravaux / 4)), repos: '2 j' },
-    { label: 'Sem. 4 (22–28 mars)', conduite: fmtMin(Math.round(conduiteTotale / 4.3 * 0.95)), autres: fmtMin(Math.round(autresTravaux / 4)), repos: '2 j' },
-  ]
+  // Semaines dynamiques
+  const weekRanges = buildSemainesRanges(debut, fin)
+  const semaines = weekRanges.map(w => {
+    const wEntries = monthlyEntries.filter(e => {
+      const d = new Date(e.date_debut)
+      return d >= w.start && d <= w.end
+    })
+    const wDrive = wEntries.filter(e => e.type_activite === 'conduite').reduce((a, e) => a + Number(e.duree_minutes ?? 0), 0)
+    const wAutres = wEntries.filter(e => e.type_activite !== 'conduite' && e.type_activite !== 'repos').reduce((a, e) => a + Number(e.duree_minutes ?? 0), 0)
+    const fallbackDrive = Math.round(conduiteTotale / Math.max(weekRanges.length, 1))
+    return {
+      label: w.label,
+      conduite: fmtMin(wDrive > 0 ? wDrive : fallbackDrive),
+      autres: fmtMin(wAutres > 0 ? wAutres : Math.round(autresTravaux / Math.max(weekRanges.length, 1))),
+      repos: '2 j',
+    }
+  })
 
   async function handleSave(alsoSend: boolean) {
     setSaving(true)
@@ -1527,6 +1615,7 @@ export default function Tachygraphe() {
   const [loading, setLoading] = useState(true)
 
   const [conducteurs, setConducteurs] = useState<ConducteurDB[]>([])
+  const [_vehiculePlates, setVehiculePlates] = useState<Record<string, string>>({})
   const [tachyData, setTachyData] = useState<Record<string, TachyData>>({})
   const [infractions, setInfractions] = useState<Infraction[]>([])
   const [alertesDoc, setAlertesDoc] = useState<AlerteDoc[]>([])
@@ -1548,11 +1637,17 @@ export default function Tachygraphe() {
 
   const loadData = useCallback(async () => {
     setLoading(true)
-    const [cRes, rRes, cfg] = await Promise.all([
+    const [cRes, rRes, cfg, vRes] = await Promise.all([
       supabase.from('conducteurs').select('id,nom,prenom,numero_permis,carte_tachy_numero,carte_tachy_expiration,permis_expiration,fco_expiration,statut,email').eq('statut', 'actif'),
       (supabase.from('rapports_conducteurs' as any).select('*').order('created_at', { ascending: false }) as any),
       loadConfig(),
+      supabase.from('vehicules').select('id, immatriculation'),
     ])
+    const plates: Record<string, string> = {}
+    for (const v of ((vRes.data ?? []) as Array<{ id: string; immatriculation: string }>)) {
+      plates[v.id] = v.immatriculation
+    }
+    setVehiculePlates(plates)
     const conds = (cRes.data ?? []) as ConducteurDB[]
     const visibleConducteurs = isConducteurSession && currentConducteurId
       ? conds.filter(conducteur =>
@@ -1569,7 +1664,7 @@ export default function Tachygraphe() {
       const conducteurIds = visibleConducteurs.map(c => c.id)
       const { data: entriesData } = await supabase
         .from('tachygraphe_entrees')
-        .select('conducteur_id, type_activite, duree_minutes, date_debut')
+        .select('conducteur_id, vehicule_id, type_activite, duree_minutes, date_debut')
         .in('conducteur_id', conducteurIds)
         .gte('date_debut', weekStart.toISOString())
         .order('date_debut', { ascending: true })
@@ -1582,7 +1677,7 @@ export default function Tachygraphe() {
       td[c.id] = aggregateTachyData(c, cEntries, nowDate)
     }
     setTachyData(td)
-    setInfractions(deriveInfractions(visibleConducteurs, tachyEntries, nowDate))
+    setInfractions(deriveInfractions(visibleConducteurs, tachyEntries, plates, nowDate))
     setAlertesDoc(makeAlertesDoc(visibleConducteurs))
     setRapports(((rRes.data ?? []) as Rapport[]).filter(rapport => visibleIds.has(rapport.conducteur_id)))
     setConfig(cfg)

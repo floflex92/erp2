@@ -5,6 +5,7 @@ import { ensureEmployeeRecord, getEmployeeRecord, listEmployeeRecords, subscribe
 import { BAREME_URSSAF_2026, calculatePayrollPreview, createPayrollSlip, listPayrollSlips, savePayrollConfig, subscribePayroll } from '@/lib/payroll'
 import { buildStaffDirectory, findStaffMember, staffDisplayName } from '@/lib/staffDirectory'
 import { supabase } from '@/lib/supabase'
+import { computeAbsenceHeuresFromAbsences, fetchAbsencesValideesPeriode, type AbsenceRh } from '@/lib/absencesRh'
 
 const inp = 'w-full rounded-xl border bg-[color:var(--surface)] px-3 py-2.5 text-sm text-[color:var(--text)] outline-none focus:border-[color:var(--primary)]'
 
@@ -49,6 +50,8 @@ export default function Paie() {
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [importingTachy, setImportingTachy] = useState(false)
+  const [importingAbsences, setImportingAbsences] = useState(false)
+  const [absencesValidees, setAbsencesValidees] = useState<AbsenceRh[]>([])
   const [form, setForm] = useState({
     conventionCollective: 'CCN transports routiers et activites auxiliaires du transport - IDCC 16',
     jobCoefficient: '',
@@ -211,6 +214,32 @@ export default function Paie() {
     }
   }
 
+  async function importFromAbsences() {
+    if (!employee) return
+    const periode = parsePeriodLabel(form.periodLabel)
+    if (!periode) {
+      setError('Format de période non reconnu (ex : "Avril 2026").')
+      return
+    }
+    setImportingAbsences(true)
+    setError(null)
+    try {
+      const data = await fetchAbsencesValideesPeriode(employee.id, periode.debut, periode.fin)
+      setAbsencesValidees(data)
+      const { totalHeures } = computeAbsenceHeuresFromAbsences(data)
+      if (data.length === 0) {
+        setNotice(`Aucune absence validée trouvée pour ${form.periodLabel}.`)
+      } else {
+        setForm(current => ({ ...current, absenceHours: String(totalHeures) }))
+        setNotice(`${data.length} absence(s) importée(s) — ${totalHeures}h d'absence saisies automatiquement.`)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur import absences.')
+    } finally {
+      setImportingAbsences(false)
+    }
+  }
+
   function saveConfig() {
     if (!employee) return
     savePayrollConfig(employee.id, {
@@ -339,10 +368,41 @@ export default function Paie() {
               >
                 {importingTachy ? 'Import en cours...' : '⬇ Importer depuis tachygraphe'}
               </button>
+              <button
+                type="button"
+                onClick={() => void importFromAbsences()}
+                disabled={importingAbsences}
+                className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm font-medium text-amber-200 hover:bg-amber-500/20 disabled:opacity-50"
+              >
+                {importingAbsences ? 'Import en cours...' : '⬇ Importer absences RH'}
+              </button>
               {form.sourceHeures !== 'manuel' && (
                 <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs text-emerald-300">Source : {form.sourceHeures}</span>
               )}
             </div>
+
+            {/* Détail absences importées */}
+            {absencesValidees.length > 0 && (() => {
+              const { detail } = computeAbsenceHeuresFromAbsences(absencesValidees)
+              return (
+                <div className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/5 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-300 mb-2">Absences validées importées ({form.periodLabel})</p>
+                  <div className="space-y-1">
+                    {absencesValidees.map(a => (
+                      <div key={a.id} className="flex justify-between text-xs text-amber-200">
+                        <span>{a.nb_jours} j — {new Date(a.date_debut).toLocaleDateString('fr-FR')} → {new Date(a.date_fin).toLocaleDateString('fr-FR')}</span>
+                        <span className="text-amber-300">{a.type_absence.replace(/_/g, ' ')}</span>
+                      </div>
+                    ))}
+                    {detail.length > 0 && (
+                      <p className="mt-2 text-xs text-amber-300 font-medium border-t border-amber-400/20 pt-1">
+                        Total non rémunéré : {detail.reduce((s, d) => s + d.heures, 0)}h
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
 
             <div className="mt-4 grid gap-4 md:grid-cols-3">
               <Field label="Heures travaillees">
