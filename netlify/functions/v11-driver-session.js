@@ -115,9 +115,9 @@ async function listMissions(dbClient, tenantKey, auth, query, body) {
 
   const { data, error } = await dbClient
     .from('ordres_transport')
-    .select('id, reference, statut, statut_operationnel, date_chargement_prevue, date_livraison_prevue, vehicule_id, client_id')
+    .select('id, reference, statut, statut_transport, statut_operationnel, date_chargement_prevue, date_livraison_prevue, vehicule_id, client_id')
     .eq('conducteur_id', conducteurId)
-    .in('statut', ['planifie', 'en_cours', 'livre', 'facture'])
+    .not('statut_transport', 'in', '("termine","annule")')
     .order('updated_at', { ascending: false })
     .limit(100)
 

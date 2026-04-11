@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
@@ -9,31 +9,35 @@ import { useTheme } from '@/lib/theme'
 const PLANNING_HEADER_COLLAPSED_KEY = 'nexora_planning_header_collapsed_v1'
 
 const PAGE_TITLES: Record<string, string> = {
-  '/dashboard': 'Vue d’ensemble',
+  '/dashboard': 'Tableau de bord',
+  '/dashboard-conducteur': 'Mon tableau de bord',
+  '/planning-conducteur': 'Mon planning',
+  '/frais-rapide': 'Saisie frais rapide',
   '/tachygraphe': 'Chronotachygraphe',
   '/amendes': 'PV & Amendes',
   '/map-live': 'Map live',
-  '/war-room': 'War Room Exploitation',
+  '/war-room': 'War Room — Surveillance',
+  '/ops-center': 'Centre Opérations',
   '/feuille-route': 'Feuille de route',
   '/planning': 'Planning',
   '/demandes-clients': 'Demandes clients',
   '/espace-client': 'Espace client',
   '/espace-affreteur': 'Espace affreteur',
   '/transports': 'Ordres de transport',
-  '/entrepots': 'Entrepôts & Dépôts',
+  '/entrepots': 'Entrepots & Depots',
   '/chauffeurs': 'Conducteurs',
   '/rh': 'Ressources humaines',
   '/vehicules': 'Camions',
   '/remorques': 'Remorques',
   '/equipements': 'Equipements',
   '/maintenance': 'Atelier',
-  '/tasks': 'Gestionnaire de tâches',
+  '/tasks': 'Taches',
   '/clients': 'Clients',
-  '/facturation': 'Comptabilité',
-  '/reglements': 'Règlements & Recouvrement',
-  '/tresorerie': 'Trésorerie',
+  '/facturation': 'Facturation',
+  '/reglements': 'Reglements & Recouvrement',
+  '/tresorerie': 'Tresorerie',
   '/analytique-transport': 'Analytique Transport',
-  '/comptabilite': 'États légaux',
+  '/comptabilite': 'Etats legaux',
   '/paie': 'Paie',
   '/frais': 'Frais',
   '/prospection': 'Prospection',
@@ -46,9 +50,33 @@ const PAGE_TITLES: Record<string, string> = {
   '/mentions-legales': 'Mentions legales',
 }
 
+function PlusIcon() {
+  return <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 5v14M5 12h14" /></svg>
+}
 function SearchIcon() {
   return <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
 }
+
+// Action rapide contextuelle selon le rôle actif
+const ROLE_QUICK_ACTION: Record<string, { label: string; to: string; onlyOnPage?: string }> = {
+  exploitant:     { label: 'Créer un OT',         to: '/transports', onlyOnPage: '/planning' },
+  admin:          { label: 'Créer un OT',         to: '/transports', onlyOnPage: '/planning' },
+  super_admin:    { label: 'Créer un OT',         to: '/transports', onlyOnPage: '/planning' },
+  dirigeant:      { label: 'Créer un OT',         to: '/transports', onlyOnPage: '/planning' },
+  conducteur:     { label: 'Saisir un frais',     to: '/frais-rapide' },
+  conducteur_affreteur: { label: 'Saisir un frais', to: '/frais-rapide' },
+  commercial:     { label: 'Nouveau prospect',    to: '/prospection' },
+  comptable:      { label: 'Nouvelle facture',    to: '/facturation' },
+  facturation:    { label: 'Nouvelle facture',    to: '/facturation' },
+  administratif:  { label: 'Nouvelle facture',    to: '/facturation' },
+  mecanicien:     { label: 'Nouvelle intervention', to: '/maintenance' },
+  maintenance:    { label: 'Nouvelle intervention', to: '/maintenance' },
+  flotte:         { label: 'Voir les camions',    to: '/vehicules' },
+  rh:             { label: 'Fiche conducteur',    to: '/chauffeurs' },
+  logisticien:    { label: 'Voir entrepôts',      to: '/entrepots' },
+}
+
+
 function BellIcon() {
   return <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6.5 8.5a5.5 5.5 0 1 1 11 0c0 5.5 2 6.5 2 6.5h-15s2-1 2-6.5Z" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>
 }
@@ -60,6 +88,9 @@ function SunIcon() {
 }
 function MoonIcon() {
   return <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20 15.8A8.5 8.5 0 0 1 8.2 4a9 9 0 1 0 11.8 11.8Z" /></svg>
+}
+function NightIcon() {
+  return <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20 15.8A8.5 8.5 0 0 1 8.2 4a9 9 0 1 0 11.8 11.8Z" /><circle cx="17" cy="4" r="1" fill="currentColor" stroke="none" /><circle cx="20" cy="7" r="0.7" fill="currentColor" stroke="none" /></svg>
 }
 function ChevronIcon({ open }: { open: boolean }) {
   return <svg className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m6 9 6 6 6-6" /></svg>
@@ -274,6 +305,7 @@ export default function AppLayout() {
           borderColor: 'var(--border)',
           background: 'var(--surface)',
         }}
+        onMouseDown={e => e.stopPropagation()}
       >
         <div className="border-b px-3 py-3" style={{ borderColor: 'var(--border)' }}>
           <p className="truncate text-sm font-semibold">{displayName}</p>
@@ -332,7 +364,7 @@ export default function AppLayout() {
           )}
           <button
             type="button"
-            onClick={signOut}
+            onClick={async () => { await signOut(); navigate('/login', { replace: true }) }}
             className="block w-full rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-[color:var(--primary-soft)]"
           >
             Se deconnecter
@@ -468,9 +500,10 @@ export default function AppLayout() {
                   onClick={toggleTheme}
                   className="nx-btn flex h-11 w-11 items-center justify-center shadow-sm"
                   style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-                  aria-label="Basculer le theme"
+                  aria-label={theme === 'light' ? 'Passer en mode sombre' : theme === 'dark' ? 'Passer en mode nocturne' : 'Passer en mode clair'}
+                  title={theme === 'light' ? 'Mode sombre' : theme === 'dark' ? 'Mode nocturne' : 'Mode clair'}
                 >
-                  {theme === 'light' ? <MoonIcon /> : <SunIcon />}
+                  {theme === 'light' ? <MoonIcon /> : theme === 'dark' ? <NightIcon /> : <SunIcon />}
                 </button>
 
                 <button
@@ -514,6 +547,22 @@ export default function AppLayout() {
         <main id="app-main-content" className={isPlanning ? 'flex-1 min-h-0' : 'relative z-0 flex-1'}>
           <Outlet />
         </main>
+
+        {/* Bouton action rapide contextuel par rôle */}
+        {role && ROLE_QUICK_ACTION[role] && (!ROLE_QUICK_ACTION[role].onlyOnPage || location.pathname === ROLE_QUICK_ACTION[role].onlyOnPage) && (
+          <Link
+            to={ROLE_QUICK_ACTION[role].to}
+            className="fixed bottom-6 right-6 z-[80] flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-xl transition-all hover:scale-105 active:scale-95"
+            style={{
+              background: 'linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 70%, #5856D6))',
+              boxShadow: '0 4px 20px color-mix(in srgb, var(--primary) 45%, transparent)',
+            }}
+            title={ROLE_QUICK_ACTION[role].label}
+          >
+            <PlusIcon />
+            <span className="hidden sm:inline">{ROLE_QUICK_ACTION[role].label}</span>
+          </Link>
+        )}
       </div>
     </div>
   )

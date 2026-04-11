@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import NexoraTruckLogo from '@/components/layout/NexoraTruckLogo'
-import { firstPage, ROLE_ACCESS, ROLE_LABELS, type Role, useAuth } from '@/lib/auth'
+import { firstPage, normalizeRole, ROLE_ACCESS, ROLE_LABELS, type Role, useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
 
 const ROLES: Role[] = ['dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable', 'rh', 'conducteur', 'conducteur_affreteur', 'client', 'affreteur', 'administratif', 'facturation', 'flotte', 'maintenance', 'observateur', 'demo', 'investisseur', 'logisticien']
-const ROLE_SET = new Set<Role>(Object.keys(ROLE_LABELS) as Role[])
 
 const ROLE_META: Partial<Record<Role, { accent: string; desc: string }>> = {
   admin: { accent: 'from-slate-700 to-slate-900', desc: 'Toutes les vues visibles sans restriction.' },
@@ -45,12 +44,6 @@ type SessionUser = {
   prenom: string | null
   email: string | null
   last_sign_in_at: string | null
-}
-
-function normalizeRole(value: unknown): Role | null {
-  if (typeof value !== 'string') return null
-  const token = value.trim().toLowerCase() as Role
-  return ROLE_SET.has(token) ? token : null
 }
 
 async function loadSupabaseUsers(accessToken: string): Promise<SessionUser[]> {
@@ -256,7 +249,7 @@ export default function SessionPicker() {
             <span className="hidden text-sm text-slate-400 sm:block">{user?.email}</span>
             <button
               type="button"
-              onClick={signOut}
+              onClick={async () => { await signOut(); navigate('/login', { replace: true }) }}
               className="flex items-center gap-2 rounded-xl border border-red-800/50 bg-red-950/40 px-4 py-2 text-sm font-medium text-red-300 transition-colors hover:bg-red-900/50 hover:text-red-200"
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

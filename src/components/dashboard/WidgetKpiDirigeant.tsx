@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { ST_EN_COURS, ST_TERMINE } from '@/lib/transportCourses'
 
 interface KpiData {
   ca_mois: number
@@ -63,12 +64,12 @@ export function WidgetKpiDirigeant() {
           .gte('created_at', startOfMonth),
         supabase
           .from('ordres_transport')
-          .select('statut, date_livraison_prevue')
+          .select('statut_transport, date_livraison_prevue')
           .gte('created_at', startOfMonth),
         supabase
           .from('ordres_transport')
           .select('id')
-          .eq('statut', 'en_cours'),
+          .in('statut_transport', ST_EN_COURS),
       ])
 
       const margeRows = margeRes.data ?? []
@@ -78,8 +79,8 @@ export function WidgetKpiDirigeant() {
       const ca = margeRows.reduce((s, r) => s + (r.chiffre_affaires ?? 0), 0)
       const marge = margeRows.reduce((s, r) => s + (r.marge_brute ?? 0), 0)
       const nbOt = otRows.length
-      const nbRetard = otRows.filter(r => r.statut === 'en_cours' && r.date_livraison_prevue && r.date_livraison_prevue < nowStr).length
-      const nbLivres = otRows.filter(r => r.statut === 'livre').length
+      const nbRetard = otRows.filter(r => ST_EN_COURS.includes(r.statut_transport as never) && r.date_livraison_prevue && r.date_livraison_prevue < nowStr).length
+      const nbLivres = otRows.filter(r => ST_TERMINE.includes(r.statut_transport as never)).length
 
       setData({
         ca_mois: ca,

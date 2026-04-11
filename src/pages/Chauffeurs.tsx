@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { ST_PLANIFIE, ST_EN_COURS } from '@/lib/transportCourses'
 import type { Tables, TablesInsert } from '@/lib/database.types'
 
 type Conducteur = Tables<'conducteurs'>
@@ -9,7 +10,7 @@ type Affectation = Tables<'affectations'>
 type ConducteurDocument = Tables<'conducteur_documents'>
 type ConducteurEvent = Tables<'conducteur_evenements_rh'>
 type RhEventForm = Omit<TablesInsert<'conducteur_evenements_rh'>, 'conducteur_id'>
-type OtLite = Pick<Tables<'ordres_transport'>, 'id' | 'conducteur_id' | 'reference' | 'statut' | 'date_chargement_prevue' | 'date_livraison_prevue'>
+type OtLite = Pick<Tables<'ordres_transport'>, 'id' | 'conducteur_id' | 'reference' | 'statut' | 'statut_transport' | 'date_chargement_prevue' | 'date_livraison_prevue'>
 
 const LICENSE_CATEGORIES = ['B', 'BE', 'C1', 'C1E', 'C', 'CE', 'D1', 'D1E', 'D', 'DE'] as const
 const RH_EVENT_TYPES = ['arret_maladie', 'avertissement', 'mise_a_pied', 'visite_medicale', 'entretien', 'accident_travail', 'retour_poste', 'autre'] as const
@@ -187,8 +188,8 @@ export default function Chauffeurs() {
         supabase.from('affectations').select('*').eq('actif', true),
         supabase
           .from('ordres_transport')
-          .select('id,conducteur_id,reference,statut,date_chargement_prevue,date_livraison_prevue')
-          .in('statut', ['planifie', 'en_cours'])
+          .select('id,conducteur_id,reference,statut,statut_transport,date_chargement_prevue,date_livraison_prevue')
+          .in('statut_transport', [...ST_PLANIFIE, ...ST_EN_COURS])
           .not('conducteur_id', 'is', null)
           .order('date_chargement_prevue', { ascending: true, nullsFirst: false }),
       ])
@@ -206,8 +207,9 @@ export default function Chauffeurs() {
       }
       for (const conducteurId of Object.keys(groupedOrders)) {
         groupedOrders[conducteurId].sort((left, right) => {
-          if (left.statut === 'en_cours' && right.statut !== 'en_cours') return -1
-          if (right.statut === 'en_cours' && left.statut !== 'en_cours') return 1
+          const isEnCours = (st: string | null) => ST_EN_COURS.includes(st as never)
+          if (isEnCours(left.statut_transport) && !isEnCours(right.statut_transport)) return -1
+          if (isEnCours(right.statut_transport) && !isEnCours(left.statut_transport)) return 1
           const leftTs = new Date(left.date_chargement_prevue ?? left.date_livraison_prevue ?? 0).getTime()
           const rightTs = new Date(right.date_chargement_prevue ?? right.date_livraison_prevue ?? 0).getTime()
           return leftTs - rightTs
@@ -794,7 +796,7 @@ export default function Chauffeurs() {
                         <div>
                           <div className="text-xs font-semibold text-slate-700">{firstOt.reference}</div>
                           <div className="text-xs text-slate-500">
-                            {firstOt.statut === 'en_cours' ? 'En cours' : 'Planifie'} · {formatDateTimeShort(firstOt.date_chargement_prevue ?? firstOt.date_livraison_prevue)}
+                            {ST_EN_COURS.includes(firstOt.statut_transport as never) ? 'En cours' : 'Planifie'} · {formatDateTimeShort(firstOt.date_chargement_prevue ?? firstOt.date_livraison_prevue)}
                           </div>
                           {otList.length > 1 && (
                             <div className="mt-1 text-[11px] text-slate-400">+{otList.length - 1} autre{otList.length - 1 > 1 ? 's' : ''} mission{otList.length - 1 > 1 ? 's' : ''}</div>

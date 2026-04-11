@@ -1,5 +1,6 @@
 ﻿import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { ST_CONFIRME, ST_PLANIFIE, ST_EN_COURS } from '@/lib/transportCourses'
 
 interface Mission {
   id: string
@@ -113,7 +114,7 @@ export function WidgetMiniCarteVehicules() {
         const { data: ordersData, error: ordersError } = await supabase
           .from('ordres_transport')
           .select('id, reference, statut_operationnel, conducteurs(nom, prenom), etapes_mission(ordre, ville, adresses(latitude, longitude, ville))')
-          .in('statut', ['confirme', 'planifie', 'en_cours'])
+          .in('statut_transport', [...ST_CONFIRME, ...ST_PLANIFIE, ...ST_EN_COURS])
           .limit(30)
 
         if (ordersError) throw ordersError

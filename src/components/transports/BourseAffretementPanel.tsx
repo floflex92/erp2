@@ -90,7 +90,7 @@ export default function BourseAffretementPanel({ orders, clientMap, onRefresh }:
   )
 
   const openOrders = useMemo(
-    () => orders.filter(order => order.statut !== 'livre' && order.statut !== 'facture' && order.statut !== 'annule'),
+    () => orders.filter(order => order.statut_transport !== 'termine' && order.statut_transport !== 'annule'),
     [orders],
   )
 

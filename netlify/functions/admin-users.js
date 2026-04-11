@@ -470,6 +470,32 @@ async function updateAdminUser({ admin, sessionClient, currentUser }, rawBody) {
     return json(200, { ok: true, deleted: true })
   }
 
+  if (action === 'reset_password') {
+    if (!admin) return json(400, { error: 'Service role required.' })
+    if (!targetProfile.user_id) return json(400, { error: 'No auth account linked to this profile.' })
+    const { data: authUser, error: authErr } = await admin.auth.admin.getUserById(targetProfile.user_id)
+    if (authErr) return json(400, { error: authErr.message })
+    const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
+      type: 'recovery',
+      email: authUser.user.email,
+    })
+    if (linkErr) return json(400, { error: linkErr.message })
+    return json(200, { ok: true, recovery_link: linkData.properties.action_link })
+  }
+
+  if (action === 'magic_link') {
+    if (!admin) return json(400, { error: 'Service role required.' })
+    if (!targetProfile.user_id) return json(400, { error: 'No auth account linked to this profile.' })
+    const { data: authUser, error: authErr } = await admin.auth.admin.getUserById(targetProfile.user_id)
+    if (authErr) return json(400, { error: authErr.message })
+    const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
+      type: 'magiclink',
+      email: authUser.user.email,
+    })
+    if (linkErr) return json(400, { error: linkErr.message })
+    return json(200, { ok: true, magic_link: linkData.properties.action_link })
+  }
+
   const effectiveRole = role ?? normalizeRole(targetProfile.role)
   if (!effectiveRole) return json(400, { error: 'Invalid role.' })
 
@@ -518,6 +544,8 @@ async function updateAdminUser({ admin, sessionClient, currentUser }, rawBody) {
     patch.account_status = 'desactive'
   } else if (action === 'enable') {
     patch.account_status = 'actif'
+  } else if (action === 'suspend') {
+    patch.account_status = 'suspendu'
   }
 
   const { error } = await dbClient.from('profils').update(patch).eq('id', id)

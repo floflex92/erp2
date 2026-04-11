@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { ST_BROUILLON, ST_CONFIRME, ST_PLANIFIE, ST_EN_COURS, TRANSPORT_STATUS_LABELS } from '@/lib/transportCourses'
 
 interface TrackingOverviewData {
   enCours: number
@@ -13,6 +14,7 @@ interface FocusTransport {
   id: string
   reference: string
   statut: string
+  statut_transport: string | null
   statut_operationnel: string | null
   date_livraison_prevue: string | null
 }
@@ -25,13 +27,9 @@ function isToday(iso: string | null) {
 }
 
 function statusLabel(value: string | null) {
-  const normalized = (value ?? '').toLowerCase()
-  if (normalized === 'en_cours') return 'En cours'
-  if (normalized === 'planifie') return 'Planifie'
-  if (normalized === 'confirme') return 'Confirme'
-  if (normalized === 'termine' || normalized === 'livre') return 'Termine'
-  if (!normalized) return 'Non defini'
-  return normalized.replace(/_/g, ' ')
+  if (!value) return 'Non defini'
+  const key = value as keyof typeof TRANSPORT_STATUS_LABELS
+  return TRANSPORT_STATUS_LABELS[key] ?? value.replace(/_/g, ' ')
 }
 
 function etaLabel(value: string | null) {
@@ -64,20 +62,20 @@ export function WidgetTrackingOverview() {
           supabase
             .from('ordres_transport')
             .select('id, date_livraison_prevue')
-            .eq('statut', 'en_cours'),
+            .in('statut_transport', ST_EN_COURS),
           supabase
             .from('ordres_transport')
             .select('id, date_livraison_prevue')
-            .in('statut', ['en_cours', 'confirme']),
+            .in('statut_transport', [...ST_EN_COURS, ...ST_CONFIRME]),
           supabase
             .from('ordres_transport')
             .select('id', { count: 'exact', head: true })
-            .in('statut', ['brouillon', 'confirme'])
+            .in('statut_transport', [...ST_BROUILLON, ...ST_CONFIRME])
             .or('conducteur_id.is.null,vehicule_id.is.null'),
           supabase
             .from('ordres_transport')
-            .select('id, reference, statut, statut_operationnel, date_livraison_prevue')
-            .in('statut', ['confirme', 'planifie', 'en_cours'])
+            .select('id, reference, statut, statut_transport, statut_operationnel, date_livraison_prevue')
+            .in('statut_transport', [...ST_CONFIRME, ...ST_PLANIFIE, ...ST_EN_COURS])
             .order('date_livraison_prevue', { ascending: true, nullsFirst: false })
             .limit(6),
         ])
@@ -178,7 +176,7 @@ export function WidgetTrackingOverview() {
             >
               {focusRows.map(item => (
                 <option key={item.id} value={item.id}>
-                  {item.reference} - {statusLabel(item.statut)}
+                  {item.reference} - {statusLabel(item.statut_transport ?? item.statut)}
                 </option>
               ))}
             </select>
@@ -186,7 +184,7 @@ export function WidgetTrackingOverview() {
             {selectedTransport && (
               <div className="rounded-lg border px-2.5 py-2 text-xs" style={{ borderColor: 'var(--border)', background: 'var(--surface-soft)', color: 'var(--text-secondary)' }}>
                 <p>
-                  {selectedTransport.reference} - {statusLabel(selectedTransport.statut_operationnel ?? selectedTransport.statut)}
+                  {selectedTransport.reference} - {statusLabel(selectedTransport.statut_operationnel ?? selectedTransport.statut_transport ?? selectedTransport.statut)}
                 </p>
                 <p className="mt-1">ETA: {etaLabel(selectedTransport.date_livraison_prevue)}</p>
               </div>

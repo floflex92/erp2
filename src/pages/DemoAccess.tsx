@@ -5,34 +5,20 @@ import { useAuth } from '@/lib/auth'
 
 export default function DemoAccessPage() {
   const navigate = useNavigate()
-  const { user, setSessionRole } = useAuth()
+  const { user } = useAuth()
   const [checking, setChecking] = useState(true)
 
-  // Vérifier si l'utilisateur a déjà rempli le formulaire
   useEffect(() => {
     if (!user) {
       navigate('/')
       return
     }
-
-    // Marquer qu'on a accepté le formulaire démo
-    const hasCompletedDemoForm = sessionStorage.getItem('demo_form_completed')
-    if (hasCompletedDemoForm) {
-      navigate('/dashboard')
-    }
-
     setChecking(false)
   }, [user, navigate])
 
   const handleFormSuccess = () => {
-    // Enregistrer dans sessionStorage que le formulaire a été complété
-    sessionStorage.setItem('demo_form_completed', 'true')
-    
-    // Activer le rôle demo
-    setSessionRole('demo')
-    
-    // Rediriger vers le dashboard
-    navigate('/dashboard')
+    // Formulaire démo complété — le rôle est géré par le profil en base (demo-magic-link)
+    navigate('/dashboard', { replace: true })
   }
 
   if (checking) {

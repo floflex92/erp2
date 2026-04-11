@@ -4,6 +4,7 @@ const ROLE_VALUES = ['admin', 'dirigeant', 'exploitant', 'mecanicien', 'commerci
 const ROLE_SET = new Set(ROLE_VALUES)
 const ADMIN_ROLES = new Set(['admin', 'super_admin', 'dirigeant'])
 const ACCOUNT_STATUSES = new Set(['actif', 'suspendu', 'archive', 'desactive'])
+const ALL_MODULE_KEYS = ['dashboard', 'planning', 'fleet', 'workshop', 'hr', 'accounting', 'documents', 'settings']
 const ALL_PAGE_KEYS = [
   'dashboard', 'tasks', 'chauffeurs', 'rh', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports',
   'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning',
@@ -65,6 +66,12 @@ function sanitizeAllowedPages(value) {
   return Array.from(new Set(value.filter(item => typeof item === 'string').map(item => item.trim()).filter(item => ALL_PAGE_KEYS.includes(item))))
 }
 
+function sanitizeModules(value) {
+  if (!Array.isArray(value)) return ALL_MODULE_KEYS
+  const filtered = value.filter(item => typeof item === 'string' && ALL_MODULE_KEYS.includes(item))
+  return filtered.length > 0 ? filtered : ALL_MODULE_KEYS
+}
+
 function sanitizeTenantKey(value) {
   if (typeof value !== 'string') return null
   const token = normalizeToken(value)
@@ -104,13 +111,15 @@ async function authorize(event) {
 }
 
 async function listClients({ admin, dbClient }) {
-  const [{ data: tenants, error: tenantsError }, { data: profiles, error: profilesError }] = await Promise.all([
+  const [{ data: tenants, error: tenantsError }, { data: profiles, error: profilesError }, { data: companies, error: companiesError }] = await Promise.all([
     dbClient.from('erp_v11_tenants').select('*').order('display_name', { ascending: true }),
-    dbClient.from('profils').select('id, user_id, role, nom, prenom, matricule, account_status, account_type, tenant_key, max_concurrent_screens, created_at, updated_at').order('nom', { ascending: true }),
+    dbClient.from('profils').select('id, user_id, role, matricule, nom, prenom, tenant_key, max_concurrent_screens, created_at, updated_at').order('nom', { ascending: true }),
+    dbClient.from('companies').select('id, name, slug, status, enabled_modules'),
   ])
 
   if (tenantsError) return { error: tenantsError.message }
   if (profilesError) return { error: profilesError.message }
+  if (companiesError) return { error: companiesError.message }
 
   let authById = new Map()
   if (admin) {
@@ -128,10 +137,19 @@ async function listClients({ admin, dbClient }) {
     }
   })
 
+  // Merge enabled_modules from companies into each tenant row
+  const companiesById = new Map((companies ?? []).map(c => [c.id, c]))
+  const enrichedTenants = (tenants ?? []).map(t => ({
+    ...t,
+    enabled_modules: companiesById.get(t.company_id)?.enabled_modules ?? null,
+    company_status: companiesById.get(t.company_id)?.status ?? null,
+  }))
+
   return {
-    tenants: tenants ?? [],
+    tenants: enrichedTenants,
     employees,
     allPageKeys: ALL_PAGE_KEYS,
+    allModuleKeys: ALL_MODULE_KEYS,
   }
 }
 
@@ -180,6 +198,15 @@ async function updateTenant({ dbClient }, body) {
   }
 
   return json(200, { ok: true })
+}
+
+async function updateTenantModules({ dbClient }, body) {
+  const companyId = typeof body.company_id === 'number' && body.company_id > 0 ? body.company_id : null
+  if (!companyId) return json(400, { error: 'company_id requis et doit etre un entier positif.' })
+  const modules = sanitizeModules(body.enabled_modules)
+  const { error } = await dbClient.from('companies').update({ enabled_modules: modules }).eq('id', companyId)
+  if (error) return json(400, { error: error.message })
+  return json(200, { ok: true, enabled_modules: modules })
 }
 
 async function updateEmployee({ dbClient }, body) {
@@ -232,6 +259,7 @@ export async function handler(event) {
     try {
       const body = typeof event.body === 'string' && event.body.length > 0 ? JSON.parse(event.body) : {}
       if (body.kind === 'employee') return await updateEmployee(auth, body)
+      if (body.kind === 'modules') return await updateTenantModules(auth, body)
       return await updateTenant(auth, body)
     } catch {
       return json(400, { error: 'Invalid JSON payload.' })

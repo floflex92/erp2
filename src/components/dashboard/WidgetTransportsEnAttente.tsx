@@ -1,10 +1,11 @@
 ﻿import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { ST_BROUILLON, ST_CONFIRME, TRANSPORT_STATUS_LABELS } from '@/lib/transportCourses'
 
 interface OTRow {
   id: string
   reference: string
-  statut: string
+  statut_transport: string | null
   type_transport: string
   date_livraison_prevue: string | null
   date_chargement_prevue: string | null
@@ -14,8 +15,8 @@ interface OTRow {
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  brouillon: { label: 'Brouillon', color: 'nx-status-warning' },
-  confirme: { label: 'Confirme', color: 'nx-status-success' },
+  en_attente_validation: { label: 'En attente validation', color: 'nx-status-warning' },
+  valide: { label: 'Validé', color: 'nx-status-success' },
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -43,8 +44,8 @@ export function WidgetTransportsEnAttente() {
   useEffect(() => {
     supabase
       .from('ordres_transport')
-      .select('id, reference, statut, type_transport, date_livraison_prevue, date_chargement_prevue, conducteur_id, vehicule_id, clients(nom)')
-      .in('statut', ['brouillon', 'confirme'])
+      .select('id, reference, statut_transport, type_transport, date_livraison_prevue, date_chargement_prevue, conducteur_id, vehicule_id, clients(nom)')
+      .in('statut_transport', [...ST_BROUILLON, ...ST_CONFIRME])
       .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
       .limit(20)
       .then(({ data }) => {
@@ -74,7 +75,7 @@ export function WidgetTransportsEnAttente() {
     <div className="divide-y divide-slate-100">
       {rows.map(ot => {
         const late = isLate(ot.date_livraison_prevue)
-        const statusCfg = STATUS_LABELS[ot.statut] ?? { label: ot.statut, color: 'nx-status-warning' }
+        const statusCfg = STATUS_LABELS[ot.statut_transport ?? ''] ?? { label: TRANSPORT_STATUS_LABELS[ot.statut_transport as never] ?? (ot.statut_transport ?? '—'), color: 'nx-status-warning' }
         const noDriver = !ot.conducteur_id
         const noVehicle = !ot.vehicule_id
         return (

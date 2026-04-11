@@ -7,9 +7,10 @@ import { ErpV11Settings } from '@/components/settings/ErpV11Settings'
 import OllamaChat from '@/components/OllamaChat'
 import { ErpClientsSettings } from '@/components/settings/ErpClientsSettings'
 import { DriverGroupsSettings } from '@/components/settings/DriverGroupsSettings'
+import { ObservabilitePanel } from '@/components/settings/ObservabilitePanel'
 
 // ── Menu items ────────────────────────────────────────────────────────────────
-type MenuId = 'compte' | 'entreprise' | 'signature' | 'rgpd' | 'utilisateurs' | 'aide' | 'modules' | 'developpement' | 'clients-erp' | 'groupes-conducteurs'
+type MenuId = 'compte' | 'entreprise' | 'signature' | 'rgpd' | 'utilisateurs' | 'aide' | 'modules' | 'developpement' | 'clients-erp' | 'groupes-conducteurs' | 'observabilite'
 
 type MenuItem = {
   id: MenuId
@@ -40,6 +41,9 @@ function IconAide() {
 function IconModules() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
 }
+function IconEye() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+}
 
 const inp = 'w-full rounded-xl border bg-[color:var(--surface)] px-3 py-2.5 text-sm text-[color:var(--text)] outline-none focus:border-[color:var(--primary)]'
 
@@ -62,7 +66,7 @@ function readFileAsDataUrl(file: File) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-const DEPLOYED_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.10.14'
+const DEPLOYED_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.12.3'
 
 export default function Parametres() {
   const { role, sessionRole, isAdmin, isDemoSession, profil, accountProfil, tenantAllowedPages } = useAuth()
@@ -178,6 +182,7 @@ export default function Parametres() {
     { id: 'developpement', label: 'Developpement',     icon: <IconModules /> },
     { id: 'groupes-conducteurs', label: 'Groupes conducteurs', icon: <IconUtilisateurs /> },
     ...(isCompanyManager ? [{ id: 'modules' as MenuId, label: 'Modules ERP', icon: <IconModules /> }] : []),
+    ...(isAdmin ? [{ id: 'observabilite' as MenuId, label: 'Observabilite', icon: <IconEye /> }] : []),
   ]
 
   return (
@@ -512,6 +517,28 @@ export default function Parametres() {
                   <li>Accessibilite site public : variables CSS WCAG AA (text-secondary et text-discreet), suppression gradient SiteSection, couleurs footer corrigees (v1.10.15)</li>
                   <li>Audit SEO et corrections techniques v1.10.17 : GTM conditionnel au consentement RGPD (AnalyticsLoader), og:image:width/height sur toutes les pages, og:image:alt personnalisable par page, schemas AggregateRating et VideoObject sur la HomePage, logo Organization mis a jour vers PNG 192px avec ImageObject complet et sameAs reseaux sociaux, suppression directive Host: non standard dans robots.txt (v1.10.17)</li>
                   <li>Lisibilite heroes v1.10.18 : overlay sombre rgba(0,0,0,0.45) + textes en blanc (#FFFFFF, rgba(255,255,255,0.8), rgba(255,255,255,0.7)) sur 11 pages heroiques ; liens hero passes en bleu clair #93C5FD sur fond sombre (v1.10.18)</li>
+                  <li>Design system ERP anti-fatigue visuelle v1.10.19 : refonte variables CSS (mode clair/sombre/nocturne WCAG AA), typographie Inter + hierarchie KPI lisible, mode nocturne night cycle toggle 3 etats, blocs planning lisibilite, boutons disabled WCAG, scrollbar fine (v1.10.19)</li>
+                  <li>Correctif securite RLS Supabase v1.10.19 : activation Row Level Security sur 4 tables publiques sans protection (erp_v11_tenants, permissions, platform_admins, role_permissions) avec policies strictes (is_platform_admin) (v1.10.19)</li>
+                  <li>Acces demo Magic Link v1.10.20 : remplacement du formulaire multi-champs par un acces instantane 1 email sur la page Login ; function Netlify demo-magic-link avec rate limiting IP, upsert profil demo, generation lien unique Supabase sans mot de passe expose (v1.10.20)</li>
+                  <li>Presentation ERP TMS en PDF sur le site public : page /presentation avec visionneuse integree et telechargement direct (v1.10.21)</li>
+                  <li>Refactoring complet systeme auth v1.10.22 : suppression screen limit mort, correction securite ?? null (plus de role admin par defaut sur echec profil), exports unifies RESERVED_ADMIN_EMAIL_ROLE / normalizeRole / fallbackRoleFromEmail, isDemoSession derive du role reel, simplification signIn/signOut, nettoyage dupliques RequireAuth / SessionPicker / Login / DemoAccess (v1.10.22)</li>
+                  <li>Fix deconnexion v1.10.22 : scope local immediat (logout sans appel reseau), reset profilLoading dans signOut, protection race condition TOKEN_REFRESHED, fix dropdown portal (mousedown stopPropagation) (v1.10.22)</li>
+                  <li>Connexion Google OAuth v1.10.22 : signInWithOAuth provider google, redirectTo /login, loader visuel, bootstrap profil automatique pour nouveaux utilisateurs Google (v1.10.22)</li>
+                  <li>CRM Prospection complet v1.11.0 : pipeline Kanban multi-etapes, contacts, devis avec auto-pricing, relances schedulees, dashboard pipeline commercial (v1.11.0)</li>
+                  <li>War Room Imprevu v1.11.0 : suivi temps reel des imprévus operationnels (panne, retard, absence), liaison OT/vehicule/conducteur, escalade par priorite, realtime Supabase (v1.11.0)</li>
+                  <li>Analytique Transport v1.11.0 : marge par mission, cout/km, vues synthese/missions/clients/flotte, saisie couts directs par OT (v1.11.0)</li>
+                  <li>Reglements clients v1.11.0 : module dedie suivi reglements, statuts et historique (v1.11.0)</li>
+                  <li>Tresorerie v1.11.0 : module tresorerie dedie (v1.11.0)</li>
+                  <li>Paie transport MVP v1.11.0 : bulletins de paie, parametrage convention collective transport, calcul brut/net (v1.11.0)</li>
+                  <li>Radar km a vide Planning v1.11.0 : badge taux de charge 30j par vehicule dans le Gantt, estimation km a vide, code couleur vert/orange/rouge (v1.11.0)</li>
+                  <li>Badge statut maintenance Planning v1.11.0 : indicateurs MAINT et HS sur les lignes vehicule du Gantt (v1.11.0)</li>
+                  <li>Page Integrations API v1.12.0 : repertoire complet des 9 intégrations (Webfleet #1, Samsara #2, Google Maps indispensable ; roadmap Geotab, Trans.eu, Timocom, HERE, OpenStreetMap, VDO), positionnement honnete PAR integration, lien depuis footer et page Telematique (v1.12.0)</li>
+                  <li>Performance site public v1.12.0 : chargement polices Google Fonts non bloquant (media=print onload), preconnect fonts, suppression @import CSS render-blocking, Vite chunks separes pour homepage, reportCompressedSize desactive (v1.12.0)</li>
+                  <li>Corrections audit UX v1.12.0 : 5 echecs contraste corriges (WCAG AA), 27 touch targets 44px (nav, boutons, icones sociales), animation box-shadow non composite supprimee, hauteur page reduite de plus de 5 600px, debordement largeur contenu corrige (v1.12.0)</li>
+                  <li>Fix ancres liens API v1.12.1 : textes de liens uniques par API sur la page Integrations ("Documentation Webfleet", "Documentation Samsara"…) au lieu du texte generique "Documentation officielle" non discriminant pour les crawlers SEO (v1.12.1)</li>
+                  <li>Corrections SEO/UX homepage v1.12.2 : titre raccourci a 44 chars (WCAG 49 max), 3 contrastes #6E6E73 → #4b4b51, barre social proof flexbox (plus de &amp;nbsp; overflow mobile), aria-label sur liens features et cartes blog, CLS produit screenshot (width/height/maxHeight), paddings sections reduits (sectionPy clamp(24,3vw,56px), blog clamp(28,3.5vw,56px), CTA clamp(40,5vw,80px)) (v1.12.2)</li>
+                  <li>Observabilite erreurs applicatives : table app_error_logs, Error Boundary React, handlers window.onerror + unhandledrejection, logAppError Netlify, panel admin avec KPIs / filtres / stack traces / logs API providers et purge 30j (v1.12.3)</li>
+                  <li>Activation/desactivation metiers (modules) par tenant : section Metiers actifs dans Clients ERP, cartes cliquables par metier, PATCH companies.enabled_modules via Netlify function (v1.12.3)</li>
                 </ul>
               </Card>
             )}
@@ -523,17 +550,16 @@ export default function Parametres() {
                   <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
                     <li>Clients (mix reel et injection demo)</li>
                     <li>Facturation (briques avancees en maturation)</li>
-                    <li>Paie et RH (flux utiles, chainage et persistance a renforcer)</li>
+                    <li>Paie et RH (Paie MVP pose, chainage complet et gestion des absences a renforcer)</li>
                     <li>Frais</li>
-                    <li>Prospection</li>
-                    <li>Tachygraphe (extension v1.1 posee, activite conducteur)</li>
+                    <li>Tachygraphe (lecture reelle tachygraphe_entrees en place, infractions et dates dynamiques, documents generate/envoi fonctionnels)</li>
                     <li>Amendes</li>
                     <li>Espace client (portail tokenise v1.1 en place)</li>
                     <li>Espace affreteur</li>
                     <li>Planning affreteur dedie (socle pose, experience specifique a finir)</li>
                     <li>Tchat / Communication (canal exploitation/conducteur v1.1)</li>
                     <li>Coffre numerique</li>
-                    <li>Utilisateurs (administration basique, workflow complet a finaliser)</li>
+                    <li>Utilisateurs (workflow complet : creation, suspension, reset MDP, lien magique, badges statut, confirmation destructive)</li>
                     <li>Site vitrine public (medias, preuves client et enrichissement commercial encore en cours)</li>
                   </ul>
                 </Card>
@@ -564,7 +590,7 @@ export default function Parametres() {
                     <li>Connectivite et discussion inter-ERP</li>
                     <li>Planning affreteur dedie dans un onglet specifique</li>
                     <li>Groupage multi-courses figeable et deliable en gardant les courses independantes</li>
-                    <li>Workflow commercial complet pour demandes demo, prospection et qualification compte</li>
+                    <li>Workflow commercial complet pour demandes demo, prospection et qualification compte (Magic Link pose, formulaire commercial a finaliser)</li>
                     <li>Portail client ERP multi-tenant complet avec parametrage fin par client</li>
                   </ul>
                 </Card>
@@ -573,11 +599,8 @@ export default function Parametres() {
                   <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
                     <li>Messagerie et mail 100% persistes en base (multi appareils)</li>
                     <li>Couverture de tests end-to-end multi roles</li>
-                    <li>Finalisation Tachygraphe et Amendes en mode production</li>
                     <li>Durcissement securite avance (audit continu des endpoints publics et minimisation des surfaces service role)</li>
-                    <li>Observabilite (erreurs, journaux, traces)</li>
-                    <li>Workflow admin complet de gestion des utilisateurs (page posee, actions via Supabase direct)</li>
-                    <li>Migration progressive statut_transport sur tous les ecrans (vagues 2 a 4)</li>
+
                   </ul>
                 </Card>
                 <Card>
@@ -606,6 +629,14 @@ export default function Parametres() {
             <SectionHeader title="Modules ERP" subtitle="Configuration des modules et fournisseurs de services" />
             <ErpV11Settings />
             <OllamaChat />
+          </div>
+        )}
+
+        {/* ─ Observabilite ──────────────────────────────────────────── */}
+        {activeMenu === 'observabilite' && isAdmin && (
+          <div className="space-y-4">
+            <SectionHeader title="Observabilite" subtitle="Erreurs applicatives, journaux API et traces" />
+            <ObservabilitePanel />
           </div>
         )}
       </div>

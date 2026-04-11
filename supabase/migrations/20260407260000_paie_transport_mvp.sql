@@ -146,69 +146,78 @@ CREATE INDEX IF NOT EXISTS bulletins_paie_statut_idx ON public.bulletins_paie(st
 
 -- ─── 4. Vue agrégation mensuelle heures conducteur ────────────────────────────
 -- Alimente le formulaire paie depuis journee_travail (tachygraphe)
-CREATE OR REPLACE VIEW public.v_heures_paie_mois AS
-SELECT
-  jt.conducteur_id,
-  date_trunc('month', jt.jour)::date                         AS mois_debut,
-  to_char(date_trunc('month', jt.jour), 'YYYY-MM')           AS mois_label,
-  -- Heures brutes
-  round(sum(jt.minutes_travail)::numeric / 60.0, 2)          AS heures_travail_total,
-  round(sum(jt.minutes_conduite)::numeric / 60.0, 2)         AS heures_conduite_total,
-  round(sum(jt.minutes_repos)::numeric / 60.0, 2)            AS heures_repos_total,
-  -- Jours
-  count(DISTINCT jt.jour)                                    AS jours_travailles,
-  -- Heures supplémentaires brutes (au-delà 151.67h/mois)
-  greatest(0, round(sum(jt.minutes_travail)::numeric / 60.0 - 151.67, 2)) AS heures_sup_brutes,
-  -- HS 25% : entre 151.67h et 163.67h (plage de 12h selon accord branche IDCC 16)
-  greatest(0, least(
-    round(sum(jt.minutes_travail)::numeric / 60.0 - 151.67, 2),
-    12.00
-  ))                                                         AS heures_sup_25,
-  -- HS 50% : au-delà de 163.67h
-  greatest(0, round(sum(jt.minutes_travail)::numeric / 60.0 - 163.67, 2)) AS heures_sup_50,
-  -- Nombre de missions
-  sum(jt.nb_missions)                                        AS nb_missions_total,
-  -- Source majoritaire
-  (SELECT jt2.source FROM public.journee_travail jt2
-   WHERE jt2.conducteur_id = jt.conducteur_id
-     AND date_trunc('month', jt2.jour) = date_trunc('month', jt.jour)
-   GROUP BY jt2.source ORDER BY count(*) DESC LIMIT 1)       AS source_principale
-FROM public.journee_travail jt
-GROUP BY jt.conducteur_id, date_trunc('month', jt.jour);
+-- Créée seulement si journee_travail existe (defensive)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'journee_travail') THEN
+    EXECUTE $view$
+    CREATE OR REPLACE VIEW public.v_heures_paie_mois AS
+    SELECT
+      jt.conducteur_id,
+      date_trunc('month', jt.jour)::date                         AS mois_debut,
+      to_char(date_trunc('month', jt.jour), 'YYYY-MM')           AS mois_label,
+      round(sum(jt.minutes_travail)::numeric / 60.0, 2)          AS heures_travail_total,
+      round(sum(jt.minutes_conduite)::numeric / 60.0, 2)         AS heures_conduite_total,
+      round(sum(jt.minutes_repos)::numeric / 60.0, 2)            AS heures_repos_total,
+      count(DISTINCT jt.jour)                                    AS jours_travailles,
+      greatest(0, round(sum(jt.minutes_travail)::numeric / 60.0 - 151.67, 2)) AS heures_sup_brutes,
+      greatest(0, least(
+        round(sum(jt.minutes_travail)::numeric / 60.0 - 151.67, 2),
+        12.00
+      ))                                                         AS heures_sup_25,
+      greatest(0, round(sum(jt.minutes_travail)::numeric / 60.0 - 163.67, 2)) AS heures_sup_50,
+      sum(jt.nb_missions)                                        AS nb_missions_total,
+      (SELECT jt2.source FROM public.journee_travail jt2
+       WHERE jt2.conducteur_id = jt.conducteur_id
+         AND date_trunc('month', jt2.jour) = date_trunc('month', jt.jour)
+       GROUP BY jt2.source ORDER BY count(*) DESC LIMIT 1)       AS source_principale
+    FROM public.journee_travail jt
+    GROUP BY jt.conducteur_id, date_trunc('month', jt.jour);
+    $view$;
+  ELSE
+    RAISE NOTICE 'Table journee_travail non trouvée - vue v_heures_paie_mois non créée (sera créée après migration tachygraphe)';
+  END IF;
+END $$;
 
 -- ─── 5. Vue coût salarial par OT (pilotage exploitation-paie) ─────────────────
--- Répartit le coût mensuel sur les OTs exécutés pendant la période
-CREATE OR REPLACE VIEW public.v_cout_salarial_ot AS
-SELECT
-  ot.id                                                      AS ot_id,
-  ot.reference                                               AS ot_reference,
-  ot.conducteur_id,
-  ot.date_chargement_prevue,
-  ot.date_livraison_prevue,
-  ot.prix_ht                                                 AS ca_ot,
-  bp.periode_label,
-  bp.cout_employeur_total                                    AS cout_mensuel_conducteur,
-  bp.jours_travailles                                        AS jours_paie,
-  -- Coût journalier approché (coût mensuel / jours travaillés)
-  CASE WHEN bp.jours_travailles > 0
-    THEN round(bp.cout_employeur_total / bp.jours_travailles, 2)
-    ELSE NULL
-  END                                                        AS cout_journalier_estime,
-  -- Nombre de jours OT (approximation linéaire)
-  (ot.date_livraison_prevue - ot.date_chargement_prevue + 1) AS duree_ot_jours,
-  -- Coût salarial attribuable à cet OT
-  CASE WHEN bp.jours_travailles > 0 AND ot.date_livraison_prevue IS NOT NULL AND ot.date_chargement_prevue IS NOT NULL
-    THEN round(
-      bp.cout_employeur_total / bp.jours_travailles
-      * (ot.date_livraison_prevue - ot.date_chargement_prevue + 1), 2)
-    ELSE NULL
-  END                                                        AS cout_salarial_ot_estime
-FROM public.ordres_transport ot
-JOIN public.bulletins_paie bp ON bp.conducteur_id = ot.conducteur_id
-  AND ot.date_chargement_prevue >= bp.periode_debut
-  AND ot.date_chargement_prevue <= bp.periode_fin
-WHERE ot.conducteur_id IS NOT NULL
-  AND bp.statut IN ('valide', 'envoye', 'archive');
+-- Créée seulement si bulletins_paie et ordres_transport existent
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ordres_transport') THEN
+    EXECUTE $view$
+    CREATE OR REPLACE VIEW public.v_cout_salarial_ot AS
+    SELECT
+      ot.id                                                      AS ot_id,
+      ot.reference                                               AS ot_reference,
+      ot.conducteur_id,
+      ot.date_chargement_prevue,
+      ot.date_livraison_prevue,
+      ot.prix_ht                                                 AS ca_ot,
+      bp.periode_label,
+      bp.cout_employeur_total                                    AS cout_mensuel_conducteur,
+      bp.jours_travailles                                        AS jours_paie,
+      CASE WHEN bp.jours_travailles > 0
+        THEN round(bp.cout_employeur_total / bp.jours_travailles, 2)
+        ELSE NULL
+      END                                                        AS cout_journalier_estime,
+      (ot.date_livraison_prevue::date - ot.date_chargement_prevue::date + 1) AS duree_ot_jours,
+      CASE WHEN bp.jours_travailles > 0 AND ot.date_livraison_prevue IS NOT NULL AND ot.date_chargement_prevue IS NOT NULL
+        THEN round(
+          bp.cout_employeur_total / bp.jours_travailles
+          * (ot.date_livraison_prevue::date - ot.date_chargement_prevue::date + 1), 2)
+        ELSE NULL
+      END                                                        AS cout_salarial_ot_estime
+    FROM public.ordres_transport ot
+    JOIN public.bulletins_paie bp ON bp.conducteur_id = ot.conducteur_id
+      AND ot.date_chargement_prevue >= bp.periode_debut
+      AND ot.date_chargement_prevue <= bp.periode_fin
+    WHERE ot.conducteur_id IS NOT NULL
+      AND bp.statut IN ('valide', 'envoye', 'archive');
+    $view$;
+  ELSE
+    RAISE NOTICE 'Table ordres_transport non trouvée - vue v_cout_salarial_ot non créée';
+  END IF;
+END $$;
 
 -- ─── 6. RLS bulletins_paie ────────────────────────────────────────────────────
 ALTER TABLE public.bulletins_paie ENABLE ROW LEVEL SECURITY;
@@ -219,10 +228,10 @@ CREATE POLICY "rh_admin_manage_bulletins_paie"
   ON public.bulletins_paie
   FOR ALL
   USING (
-    COALESCE(public.current_app_role() IN ('rh', 'admin', 'dirigeant'), false)
+    COALESCE(public.get_user_role() IN ('rh', 'admin', 'dirigeant'), false)
   )
   WITH CHECK (
-    COALESCE(public.current_app_role() IN ('rh', 'admin', 'dirigeant'), false)
+    COALESCE(public.get_user_role() IN ('rh', 'admin', 'dirigeant'), false)
   );
 
 -- Conducteur : lecture de ses propres bulletins validés
@@ -257,8 +266,8 @@ DROP POLICY IF EXISTS "rh_admin_manage_payroll_config" ON public.payroll_config_
 CREATE POLICY "rh_admin_manage_payroll_config"
   ON public.payroll_config_annuel
   FOR ALL
-  USING (COALESCE(public.current_app_role() IN ('rh', 'admin', 'dirigeant'), false))
-  WITH CHECK (COALESCE(public.current_app_role() IN ('rh', 'admin', 'dirigeant'), false));
+  USING (COALESCE(public.get_user_role() IN ('rh', 'admin', 'dirigeant'), false))
+  WITH CHECK (COALESCE(public.get_user_role() IN ('rh', 'admin', 'dirigeant'), false));
 
 -- ─── 7. Fonction de contrôle conformité sociale ───────────────────────────────
 -- Retourne les alertes pour un bulletin en préparation

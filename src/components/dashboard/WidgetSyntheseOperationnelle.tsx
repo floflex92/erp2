@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { ST_BROUILLON, ST_CONFIRME, ST_EN_COURS, ST_TERMINE } from '@/lib/transportCourses'
 
 interface SyntheseData {
   brouillon: number
@@ -23,10 +24,10 @@ export function WidgetSyntheseOperationnelle() {
     async function load() {
       try {
         const [brouillonRes, confirmeRes, enCoursRes, livreRes, alertesRes] = await Promise.all([
-          supabase.from('ordres_transport').select('id', { count: 'exact', head: true }).eq('statut', 'brouillon'),
-          supabase.from('ordres_transport').select('id', { count: 'exact', head: true }).eq('statut', 'confirme'),
-          supabase.from('ordres_transport').select('id', { count: 'exact', head: true }).eq('statut', 'en_cours'),
-          supabase.from('ordres_transport').select('id', { count: 'exact', head: true }).eq('statut', 'livre'),
+          supabase.from('ordres_transport').select('id', { count: 'exact', head: true }).in('statut_transport', ST_BROUILLON),
+          supabase.from('ordres_transport').select('id', { count: 'exact', head: true }).in('statut_transport', ST_CONFIRME),
+          supabase.from('ordres_transport').select('id', { count: 'exact', head: true }).in('statut_transport', ST_EN_COURS),
+          supabase.from('ordres_transport').select('id', { count: 'exact', head: true }).in('statut_transport', ST_TERMINE),
           supabase.from('vue_conducteur_alertes').select('id', { count: 'exact', head: true }).lte('days_remaining', 30),
         ])
 

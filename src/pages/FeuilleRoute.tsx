@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
+import { ST_EN_COURS, TRANSPORT_STATUS_LABELS } from '@/lib/transportCourses'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import type { Tables, TablesInsert, TablesUpdate } from '@/lib/database.types'
 import { listAffretementContractsForDriverEmail } from '@/lib/affretementPortal'
@@ -41,6 +42,7 @@ type DriverProgressAction = {
   prefillNote: string
   operationalStatus: string
   missionStatus: string
+  missionTransportStatus: string
   stageType: 'chargement' | 'livraison' | null
   stageStatus: string | null
   setRealDate: boolean
@@ -61,6 +63,9 @@ type CmrSignatureEvent = {
 }
 
 const STATUS_LABELS: Record<string, string> = {
+  // statut_transport
+  ...TRANSPORT_STATUS_LABELS,
+  // legacy statut
   brouillon: 'Brouillon',
   confirme: 'Confirmee',
   planifie: 'Planifiee',
@@ -71,6 +76,7 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 const STATUS_BADGE: Record<string, string> = {
+  // legacy statut
   brouillon: 'bg-slate-100 text-slate-600',
   confirme: 'nx-status-warning',
   planifie: 'nx-status-warning',
@@ -78,6 +84,16 @@ const STATUS_BADGE: Record<string, string> = {
   livre: 'nx-status-success',
   facture: 'nx-status-success',
   annule: 'nx-status-error',
+  // statut_transport
+  en_attente_validation: 'bg-slate-100 text-slate-600',
+  valide: 'nx-status-warning',
+  en_attente_planification: 'nx-status-warning',
+  planifie_transport: 'nx-status-warning',
+  en_cours_approche_chargement: 'nx-status-warning',
+  en_chargement: 'nx-status-warning',
+  en_transit: 'nx-status-warning',
+  en_livraison: 'nx-status-warning',
+  termine: 'nx-status-success',
 }
 
 const DRIVER_PROGRESS_ACTIONS: DriverProgressAction[] = [
@@ -88,6 +104,7 @@ const DRIVER_PROGRESS_ACTIONS: DriverProgressAction[] = [
     prefillNote: 'Depart vers le site de chargement.',
     operationalStatus: 'prise_en_charge',
     missionStatus: 'en_cours',
+    missionTransportStatus: 'en_cours_approche_chargement',
     stageType: null,
     stageStatus: null,
     setRealDate: false,
@@ -99,6 +116,7 @@ const DRIVER_PROGRESS_ACTIONS: DriverProgressAction[] = [
     prefillNote: 'Arrive sur site, chargement en cours.',
     operationalStatus: 'prise_en_charge',
     missionStatus: 'en_cours',
+    missionTransportStatus: 'en_chargement',
     stageType: 'chargement',
     stageStatus: 'en_cours',
     setRealDate: false,
@@ -110,6 +128,7 @@ const DRIVER_PROGRESS_ACTIONS: DriverProgressAction[] = [
     prefillNote: 'Chargement termine, depart valide.',
     operationalStatus: 'a_l_heure',
     missionStatus: 'en_cours',
+    missionTransportStatus: 'en_transit',
     stageType: 'chargement',
     stageStatus: 'realise',
     setRealDate: true,
@@ -121,6 +140,7 @@ const DRIVER_PROGRESS_ACTIONS: DriverProgressAction[] = [
     prefillNote: 'En route vers le site de livraison.',
     operationalStatus: 'a_l_heure',
     missionStatus: 'en_cours',
+    missionTransportStatus: 'en_livraison',
     stageType: 'livraison',
     stageStatus: 'en_cours',
     setRealDate: false,
@@ -132,6 +152,7 @@ const DRIVER_PROGRESS_ACTIONS: DriverProgressAction[] = [
     prefillNote: 'Livraison effectuee.',
     operationalStatus: 'termine',
     missionStatus: 'livre',
+    missionTransportStatus: 'termine',
     stageType: 'livraison',
     stageStatus: 'realise',
     setRealDate: true,
@@ -295,9 +316,9 @@ function routeBucket(ot: OT): RouteBucket {
   const now = Date.now()
   const start = ot.date_chargement_prevue ? new Date(ot.date_chargement_prevue).getTime() : null
   const end = ot.date_livraison_prevue ? new Date(ot.date_livraison_prevue).getTime() : start
-  if (ot.statut === 'livre' || ot.statut === 'facture' || ot.statut === 'annule') return 'past'
+  if (ot.statut_transport === 'termine' || ot.statut_transport === 'annule') return 'past'
   if (end !== null && end < now) return 'past'
-  if (ot.statut === 'en_cours') return 'current'
+  if (ST_EN_COURS.includes(ot.statut_transport as never)) return 'current'
   if (start !== null && start <= now && (end === null || end >= now)) return 'current'
   return 'future'
 }
@@ -361,7 +382,7 @@ export default function FeuilleRoute() {
   const [searchQuery, setSearchQuery] = useState('')
   const [bucketFilter, setBucketFilter] = useState<'all' | RouteBucket>('all')
   const [showPanneForm, setShowPanneForm] = useState(false)
-  const [panneForm, setPanneForm] = useState({ vehicule_id: '', description: '', urgence: false })
+  const [panneForm, setPanneForm] = useState({ type: 'panne_vehicule', vehicule_id: '', description: '', urgence: false })
   const [savingPanne, setSavingPanne] = useState(false)
 
   const isConducteurSession = role === 'conducteur' || role === 'conducteur_affreteur'
@@ -385,20 +406,44 @@ export default function FeuilleRoute() {
     setSavingPanne(true)
     try {
       const vehicule_id = panneForm.vehicule_id || Object.keys(vehiculeMap)[0] || null
-      const { error: errPanne } = await supabase.from('flotte_entretiens').insert({
+      const priorite = panneForm.urgence ? 'critique' : (panneForm.type === 'accident' ? 'elevee' : 'normale')
+      const titres: Record<string, string> = {
+        panne_vehicule: 'Panne vehicule signalee par conducteur',
+        retard_livraison: 'Retard prevu signale par conducteur',
+        refus_chargement: 'Refus de chargement signale par conducteur',
+        accident: 'Accident / incident signale par conducteur',
+        autre: 'Signalement terrain conducteur',
+      }
+
+      // Toujours insérer dans imprevu_exploitation
+      const { error: errImprevu } = await (supabase as any).from('imprevu_exploitation').insert({
+        type: panneForm.type,
+        titre: titres[panneForm.type] ?? 'Signalement conducteur',
+        description: panneForm.description,
+        priorite,
         vehicule_id: vehicule_id || null,
-        maintenance_type: 'reparation',
-        service_date: new Date().toISOString().slice(0, 10),
-        cout_ht: 0,
-        notes: panneForm.description,
-        priority: panneForm.urgence ? 'urgente' : 'haute',
-        statut: 'planifie',
-        covered_by_contract: false,
-      } as any)
-      if (errPanne) throw errPanne
+        conducteur_id: conducteur?.id ?? null,
+        created_by: profil?.id ?? null,
+      })
+      if (errImprevu) throw errImprevu
+
+      // Pour une panne véhicule : aussi insérer dans flotte_entretiens
+      if (panneForm.type === 'panne_vehicule') {
+        await supabase.from('flotte_entretiens').insert({
+          vehicule_id: vehicule_id || null,
+          maintenance_type: 'reparation',
+          service_date: new Date().toISOString().slice(0, 10),
+          cout_ht: 0,
+          notes: panneForm.description,
+          priority: panneForm.urgence ? 'urgente' : 'haute',
+          statut: 'planifie',
+          covered_by_contract: false,
+        } as any)
+      }
+
       setShowPanneForm(false)
-      setPanneForm({ vehicule_id: '', description: '', urgence: false })
-      pushToast('Panne signalée — OT créé en urgence pour le responsable atelier.')
+      setPanneForm({ type: 'panne_vehicule', vehicule_id: '', description: '', urgence: false })
+      pushToast('Signalement transmis a l exploitation.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors du signalement')
     } finally {
@@ -547,7 +592,7 @@ export default function FeuilleRoute() {
 
       const otPatch: TablesUpdate<'ordres_transport'> = {
         statut_operationnel: action.operationalStatus,
-        statut: action.missionStatus,
+        statut_transport: action.missionTransportStatus,
       }
       if (progressKey === 'livre') {
         otPatch.date_livraison_reelle = nowIso
@@ -881,36 +926,63 @@ export default function FeuilleRoute() {
           <div className="flex items-center justify-between gap-2 mb-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-600">⚠ Signalement terrain</p>
-              <p className="text-sm font-semibold text-slate-900">Signaler une panne ou problème véhicule</p>
+              <p className="text-sm font-semibold text-slate-900">Signaler un incident ou problème terrain</p>
             </div>
             <button type="button" onClick={() => setShowPanneForm(p => !p)}
               className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-500/20">
-              {showPanneForm ? 'Annuler' : 'Signaler une panne'}
+              {showPanneForm ? 'Annuler' : 'Signaler un incident'}
             </button>
           </div>
           {showPanneForm && (
             <form onSubmit={e => void signalerPanne(e)} className="space-y-3 border-t border-rose-500/20 pt-3">
               <div>
-                <label className="text-xs font-medium text-slate-700 block mb-1">Véhicule concerné</label>
-                <select value={panneForm.vehicule_id} onChange={e => setPanneForm(f => ({ ...f, vehicule_id: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-rose-500 focus:outline-none">
-                  <option value="">— Sélectionner</option>
-                  {Object.entries(vehiculeMap).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-                </select>
+                <label className="text-xs font-medium text-slate-700 block mb-2">Type d’incident *</label>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {([
+                    { key: 'panne_vehicule', label: '🔧 Panne véhicule' },
+                    { key: 'retard_livraison', label: '⏰ Retard livraison' },
+                    { key: 'refus_chargement', label: '❌ Refus chargement' },
+                    { key: 'accident', label: '🚨 Accident / incident' },
+                    { key: 'autre', label: '📝 Autre' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setPanneForm(f => ({ ...f, type: opt.key }))}
+                      className={`rounded-xl border py-2.5 px-2 text-center text-xs font-semibold transition-colors ${
+                        panneForm.type === opt.key
+                          ? 'border-rose-500/60 bg-rose-500/15 text-rose-800'
+                          : 'border-slate-300 bg-white text-slate-700 hover:border-rose-500/40'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
+              {(panneForm.type === 'panne_vehicule' || panneForm.type === 'accident') && (
+                <div>
+                  <label className="text-xs font-medium text-slate-700 block mb-1">Véhicule concerné</label>
+                  <select value={panneForm.vehicule_id} onChange={e => setPanneForm(f => ({ ...f, vehicule_id: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-rose-500 focus:outline-none">
+                    <option value="">— Sélectionner</option>
+                    {Object.entries(vehiculeMap).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                  </select>
+                </div>
+              )}
               <div>
-                <label className="text-xs font-medium text-slate-700 block mb-1">Description du problème *</label>
+                <label className="text-xs font-medium text-slate-700 block mb-1">Description *</label>
                 <textarea required value={panneForm.description} onChange={e => setPanneForm(f => ({ ...f, description: e.target.value }))}
-                  rows={3} placeholder="Décrivez le problème constaté, les symptômes, les circonstances..."
+                  rows={3} placeholder="Décrivez la situation, les circonstances, les actions déjà prises..."
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-rose-500 focus:outline-none resize-none" />
               </div>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={panneForm.urgence} onChange={e => setPanneForm(f => ({ ...f, urgence: e.target.checked }))} className="rounded" />
-                <span className="text-sm font-medium text-rose-700">Véhicule immobilisé — priorité urgente</span>
+                <span className="text-sm font-medium text-rose-700">⚡ Situation critique — priorité urgente</span>
               </label>
               <button type="submit" disabled={savingPanne}
                 className="w-full rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60">
-                {savingPanne ? 'Envoi...' : '⚡ Signaler au responsable atelier'}
+                {savingPanne ? 'Envoi...' : '⚡ Signaler à l’exploitation'}
               </button>
             </form>
           )}
@@ -968,6 +1040,7 @@ export default function FeuilleRoute() {
               savingProgressByOtId={savingProgressByOtId}
               signingCmrByOtId={signingCmrByOtId}
               onCrmNoteChange={(otId, value) => setCrmNotesByOtId(current => ({ ...current, [otId]: value }))}
+              isConducteurSession={isConducteurSession}
               onSaveDriverProgress={saveDriverProgress}
               onSignCmr={signCmr}
             />
@@ -988,6 +1061,7 @@ export default function FeuilleRoute() {
               savingProgressByOtId={savingProgressByOtId}
               signingCmrByOtId={signingCmrByOtId}
               onCrmNoteChange={(otId, value) => setCrmNotesByOtId(current => ({ ...current, [otId]: value }))}
+              isConducteurSession={isConducteurSession}
               onSaveDriverProgress={saveDriverProgress}
               onSignCmr={signCmr}
             />
@@ -1008,6 +1082,7 @@ export default function FeuilleRoute() {
               savingProgressByOtId={savingProgressByOtId}
               signingCmrByOtId={signingCmrByOtId}
               onCrmNoteChange={(otId, value) => setCrmNotesByOtId(current => ({ ...current, [otId]: value }))}
+              isConducteurSession={isConducteurSession}
               onSaveDriverProgress={saveDriverProgress}
               onSignCmr={signCmr}
             />
@@ -1054,6 +1129,7 @@ function RouteSection({
   onCrmNoteChange,
   onSaveDriverProgress,
   onSignCmr,
+  isConducteurSession,
 }: {
   title: string
   subtitle: string
@@ -1071,6 +1147,7 @@ function RouteSection({
   onCrmNoteChange: (otId: string, value: string) => void
   onSaveDriverProgress: (order: OT, steps: EtapeMission[], progressKey: DriverProgressKey) => Promise<void>
   onSignCmr: (order: OT) => Promise<void>
+  isConducteurSession?: boolean
 }) {
   const groupedOrders = useMemo(() => {
     const assignedByDriver: Record<string, OT[]> = {}
@@ -1177,8 +1254,8 @@ function RouteSection({
                     <p className="font-mono text-xs text-slate-500">{order.reference}</p>
                     <p className="text-sm font-semibold text-white">{clientsMap[order.client_id] ?? 'Client non renseigne'}</p>
                   </div>
-                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${statusClass(order.statut)}`}>
-                    {statusLabel(order.statut)}
+                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${statusClass(order.statut_transport ?? order.statut)}`}>
+                    {statusLabel(order.statut_transport ?? order.statut)}
                   </span>
                 </div>
 
@@ -1202,6 +1279,28 @@ function RouteSection({
                   </div>
                 )}
 
+                {isConducteurSession && (loadStep?.contact_tel || unloadStep?.contact_tel) && (
+                  <div className="mt-3 flex flex-col gap-2">
+                    {loadStep?.contact_tel && (
+                      <a
+                        href={`tel:${loadStep.contact_tel}`}
+                        className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/20"
+                      >
+                        <span className="text-lg">📞</span>
+                        <span>Chargement — {[loadStep.contact_nom, loadStep.contact_tel].filter(Boolean).join(' · ')}</span>
+                      </a>
+                    )}
+                    {unloadStep?.contact_tel && (
+                      <a
+                        href={`tel:${unloadStep.contact_tel}`}
+                        className="flex items-center gap-3 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm font-semibold text-sky-300 hover:bg-sky-500/20"
+                      >
+                        <span className="text-lg">📞</span>
+                        <span>Livraison — {[unloadStep.contact_nom, unloadStep.contact_tel].filter(Boolean).join(' · ')}</span>
+                      </a>
+                    )}
+                  </div>
+                )}
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   {gpsLink ? (
                     <a
@@ -1262,10 +1361,10 @@ function RouteSection({
                         value={crmNotesByOtId[order.id] ?? ''}
                         onChange={event => onCrmNoteChange(order.id, event.target.value)}
                         placeholder="Commentaire terrain (retard, attente quai, reserve, observation)."
-                        className="mt-3 w-full rounded-xl border border-slate-700/80 bg-slate-900/80 px-3 py-2 text-xs text-slate-100 outline-none focus:border-cyan-500/60"
-                        rows={3}
+                        className={`mt-3 w-full rounded-xl border border-slate-700/80 bg-slate-900/80 px-3 text-slate-100 outline-none focus:border-cyan-500/60 ${isConducteurSession ? 'py-3 text-sm' : 'py-2 text-xs'}`}
+                        rows={isConducteurSession ? 4 : 3}
                       />
-                      <div className="mt-2 flex flex-wrap gap-2">
+                      <div className={`mt-3 ${isConducteurSession ? 'flex flex-col gap-3' : 'flex flex-wrap gap-2'}`}>
                         {DRIVER_PROGRESS_ACTIONS.map(action => (
                           <button
                             key={action.key}
@@ -1273,13 +1372,20 @@ function RouteSection({
                             onClick={() => void onSaveDriverProgress(order, steps, action.key)}
                             disabled={Boolean(savingStep)}
                             title={action.description}
-                            className={`rounded-xl border px-3 py-2 text-[11px] font-semibold transition-colors ${
+                            className={`rounded-xl border transition-colors ${
+                              isConducteurSession
+                                ? 'w-full px-4 py-4 text-base font-bold text-left'
+                                : 'px-3 py-2 text-[11px] font-semibold'
+                            } ${
                               activeDriverStep === action.key
                                 ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-100'
                                 : 'border-slate-700/80 bg-slate-900/70 text-white hover:border-cyan-500/45 hover:text-cyan-100'
                             } ${savingStep ? 'opacity-70' : ''}`}
                           >
                             {savingStep === action.key ? 'Enregistrement...' : action.label}
+                            {isConducteurSession && action.description && (
+                              <span className="block text-xs font-normal opacity-70 mt-0.5">{action.description}</span>
+                            )}
                           </button>
                         ))}
                       </div>

@@ -490,6 +490,10 @@ export default function Facturation() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Facture | null>(null)
 
+  // Écriture comptable liée à la facture sélectionnée (Epic A3)
+  const [comptaInfo, setComptaInfo] = useState<{ statut: string; numero_mouvement: number; date_ecriture: string } | null>(null)
+  const [comptaLoading, setComptaLoading] = useState(false)
+
   // TVA tab state
   const [tvaCalcHT, setTvaCalcHT] = useState('')
   const [tvaCalcTaux, setTvaCalcTaux] = useState(20)
@@ -525,6 +529,30 @@ export default function Facturation() {
   }
 
   useEffect(() => { loadAll() }, [])
+
+  useEffect(() => {
+    if (!selected) { setComptaInfo(null); return }
+    if (selected.statut === 'brouillon' || selected.statut === 'annulee') { setComptaInfo(null); return }
+    setComptaLoading(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any
+    db
+      .from('compta_pieces')
+      .select('id')
+      .eq('source_table', 'factures')
+      .eq('source_id', selected.id)
+      .maybeSingle()
+      .then(async ({ data: piece }: { data: { id: string } | null }) => {
+        if (!piece) { setComptaInfo(null); setComptaLoading(false); return }
+        const { data: e } = await db
+          .from('compta_ecritures')
+          .select('statut, numero_mouvement, date_ecriture')
+          .eq('piece_id', piece.id)
+          .maybeSingle()
+        setComptaInfo(e ? { statut: e.statut, numero_mouvement: e.numero_mouvement, date_ecriture: e.date_ecriture } : null)
+        setComptaLoading(false)
+      })
+  }, [selected?.id, selected?.statut])
 
   const clientMap = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c.nom])), [clients])
   const otMap = useMemo(() => Object.fromEntries(ots.map(o => [o.id, o.reference])), [ots])
@@ -884,6 +912,27 @@ export default function Facturation() {
                     </div>
                   </div>
                   {selected.notes && <div className="col-span-2"><span className="text-xs font-medium text-slate-500">Notes</span><p className="text-slate-600 mt-0.5">{selected.notes}</p></div>}
+                  {(selected.statut === 'envoyee' || selected.statut === 'payee') && (
+                    <div className="col-span-2 border-t pt-4 mt-1">
+                      <p className="text-xs font-medium text-slate-500 mb-2">Écriture comptable</p>
+                      {comptaLoading ? (
+                        <p className="text-xs text-slate-400">Vérification...</p>
+                      ) : comptaInfo ? (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">✓ Générée</span>
+                          <span className="text-xs text-slate-500">Mouvement VT-{comptaInfo.numero_mouvement} · {new Date(comptaInfo.date_ecriture).toLocaleDateString('fr-FR')}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${comptaInfo.statut === 'validee' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>
+                            {comptaInfo.statut === 'validee' ? 'Validée' : 'Brouillon'}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">⏳ En attente</span>
+                          <span className="text-xs text-slate-400">Aucune écriture générée</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

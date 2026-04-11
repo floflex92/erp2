@@ -6,9 +6,6 @@ import { type TenantModule, MODULE_TO_PAGES } from './tenantAdmin'
 const SESSION_TIMEOUT_MS = 8000
 const PROFILE_TIMEOUT_MS = 8000
 const LOGIN_TIMEOUT_MS = 10000
-const SCREEN_HEARTBEAT_MS = 25000
-const SCREEN_LIMIT_ERROR_STORAGE_KEY = 'nexora_screen_limit_error_v1'
-const SCREEN_ID_STORAGE_KEY = 'nexora_screen_id_v1'
 
 const ROLE_VALUES = ['admin', 'super_admin', 'dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable', 'rh', 'conducteur', 'conducteur_affreteur', 'client', 'affreteur', 'administratif', 'facturation', 'flotte', 'maintenance', 'observateur', 'demo', 'investisseur', 'logisticien'] as const
 const ROLE_SET = new Set<string>(ROLE_VALUES)
@@ -34,7 +31,9 @@ const ROLE_ALIASES: Record<string, Role> = {
   finance: 'facturation',
   investor: 'investisseur',
 }
-const RESERVED_ADMIN_EMAIL_ROLE: Record<string, Role> = {
+// Source de vérité unique pour les emails réservés → rôle garanti.
+// Exporté pour que RequireAuth puisse l'importer sans dupliquer.
+export const RESERVED_ADMIN_EMAIL_ROLE: Record<string, Role> = {
   'admin@erp-demo.fr': 'admin',
   'contact@nexora-truck.fr': 'admin',
   'direction@erp-demo.fr': 'dirigeant',
@@ -67,16 +66,16 @@ export const ROLE_LABELS: Record<Role, string> = {
 }
 
 export const ROLE_ACCESS: Record<Role, string[]> = {
-  admin: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'super-admin', 'reglements', 'tresorerie', 'analytique-transport', 'war-room'],
-  super_admin: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'super-admin', 'reglements', 'tresorerie', 'analytique-transport', 'war-room'],
-  dirigeant: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'reglements', 'tresorerie', 'analytique-transport', 'war-room'],
-  exploitant: ['dashboard', 'tasks', 'chauffeurs', 'vehicules', 'remorques', 'equipements', 'transports', 'entrepots', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'demandes-clients', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'war-room'],
+  admin: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'super-admin', 'reglements', 'tresorerie', 'analytique-transport', 'ops-center'],
+  super_admin: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'super-admin', 'reglements', 'tresorerie', 'analytique-transport', 'ops-center'],
+  dirigeant: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'reglements', 'tresorerie', 'analytique-transport', 'ops-center'],
+  exploitant: ['dashboard', 'ops-center', 'tasks', 'chauffeurs', 'vehicules', 'remorques', 'equipements', 'transports', 'entrepots', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'demandes-clients', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   mecanicien: ['tasks', 'vehicules', 'remorques', 'equipements', 'maintenance', 'frais', 'tachygraphe', 'parametres', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   commercial: ['dashboard', 'tasks', 'transports', 'clients', 'facturation', 'frais', 'prospection', 'demandes-clients', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'reglements', 'analytique-transport'],
   comptable: ['dashboard', 'tasks', 'facturation', 'comptabilite', 'paie', 'frais', 'clients', 'amendes', 'demandes-clients', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'reglements', 'tresorerie', 'analytique-transport'],
   rh: ['tasks', 'chauffeurs', 'rh', 'paie', 'frais', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
-  conducteur: ['tasks', 'feuille-route', 'frais', 'tachygraphe', 'amendes', 'parametres', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
-  conducteur_affreteur: ['tasks', 'feuille-route', 'tachygraphe', 'amendes', 'parametres', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
+  conducteur: ['dashboard-conducteur', 'tasks', 'feuille-route', 'frais', 'frais-rapide', 'tachygraphe', 'amendes', 'planning-conducteur', 'parametres', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
+  conducteur_affreteur: ['dashboard-conducteur', 'tasks', 'feuille-route', 'frais-rapide', 'tachygraphe', 'amendes', 'planning-conducteur', 'parametres', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   client: ['tasks', 'espace-client', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   affreteur: ['tasks', 'espace-affreteur', 'transports', 'entrepots', 'planning', 'map-live', 'feuille-route', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   administratif: ['dashboard', 'tasks', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'reglements', 'tresorerie', 'analytique-transport'],
@@ -86,7 +85,7 @@ export const ROLE_ACCESS: Record<Role, string[]> = {
   observateur: ['dashboard', 'planning', 'transports', 'clients', 'communication', 'inter-erp', 'coffre', 'mentions-legales'],
   demo: ['dashboard', 'tasks', 'chauffeurs', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'frais', 'planning', 'feuille-route', 'prospection', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'reglements', 'tresorerie', 'analytique-transport'],
   investisseur: ['dashboard', 'transports', 'clients', 'facturation', 'communication', 'inter-erp', 'coffre', 'mentions-legales', 'analytique-transport'],
-  logisticien: ['dashboard', 'tasks', 'entrepots', 'transports', 'planning', 'map-live', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
+  logisticien: ['dashboard', 'ops-center', 'tasks', 'entrepots', 'transports', 'planning', 'map-live', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
 }
 
 export const CHAT_BLOCKED_PAIRS: [Role, Role][] = [
@@ -123,6 +122,31 @@ export function canAccess(
 
 export function firstPage(role: Role, tenantAllowedPages?: string[] | null, enabledModules?: TenantModule[] | null): string {
   if (role === 'admin' || role === 'super_admin') return '/parametres'
+
+  // Page d'accueil préférée par rôle — expérience terrain optimisée
+  const ROLE_FIRST_PAGE: Partial<Record<Role, string>> = {
+    conducteur:           'dashboard-conducteur',
+    conducteur_affreteur: 'dashboard-conducteur',
+    exploitant:           'ops-center',
+    comptable:            'facturation',
+    facturation:          'facturation',
+    administratif:        'facturation',
+    commercial:           'dashboard',
+    dirigeant:            'dashboard',
+    observateur:          'dashboard',
+    investisseur:         'dashboard',
+    mecanicien:           'maintenance',
+    maintenance:          'maintenance',
+    flotte:               'vehicules',
+    rh:                   'rh',
+    affreteur:            'espace-affreteur',
+    client:               'espace-client',
+    logisticien:          'entrepots',
+  }
+
+  const preferred = ROLE_FIRST_PAGE[role]
+  if (preferred && canAccess(role, preferred, tenantAllowedPages, enabledModules)) return `/${preferred}`
+
   const allowedPages = (ROLE_ACCESS[role] ?? []).filter(page => canAccess(role, page, tenantAllowedPages, enabledModules))
   return '/' + (allowedPages[0] ?? ROLE_ACCESS[role]?.[0] ?? 'dashboard')
 }
@@ -135,19 +159,15 @@ export interface Profil {
   prenom: string | null
   email?: string | null
   domain?: string | null
+  // true pour les profils créés via le système de démo local (demoUsers.ts)
   isDemo?: boolean
   tenantKey?: string | null
   tenantAllowedPages?: string[] | null
   // MULTI-TENANT Phase 1 : company_id isole les donnees par tenant.
-  // Derive depuis profils.company_id (source de verite : base de donnees).
   // Vaut 1 pour toutes les donnees historiques (tenant_test / migration).
   companyId?: number | null
-  // TENANT ADMIN SETTINGS : modules actifs pour ce tenant.
-  // NULL = tous les modules sont actifs (comportement par defaut).
+  // TENANT ADMIN SETTINGS : modules actifs pour ce tenant (null = tous actifs).
   enabledModules?: TenantModule[] | null
-  // SECURITE : si false, l'utilisateur ne peut pas se connecter.
-  loginEnabled?: boolean
-  forcePasswordReset?: boolean
 }
 
 function normalizeAllowedPages(value: unknown): string[] | null {
@@ -159,49 +179,6 @@ function normalizeAllowedPages(value: unknown): string[] | null {
   return items.length > 0 ? Array.from(new Set(items)) : null
 }
 
-function getOrCreateScreenId(): string {
-  const existing = window.sessionStorage.getItem(SCREEN_ID_STORAGE_KEY)
-  if (existing) return existing
-
-  const generated = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-    ? crypto.randomUUID()
-    : `screen-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-
-  window.sessionStorage.setItem(SCREEN_ID_STORAGE_KEY, generated)
-  return generated
-}
-
-async function callScreenSessionApi(
-  method: 'POST' | 'PUT' | 'DELETE',
-  accessToken: string,
-  payload: Record<string, unknown>,
-): Promise<{ ok: boolean; error: string | null; code?: string | null }> {
-  try {
-    const response = await fetch('/.netlify/functions/screen-session', {
-      method,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-      keepalive: method === 'DELETE',
-    })
-
-    const body = await response.json().catch(() => ({})) as { error?: string; code?: string }
-    if (!response.ok) {
-      return {
-        ok: false,
-        error: body.error ?? 'Controle des ecrans impossible.',
-        code: body.code ?? null,
-      }
-    }
-
-    return { ok: true, error: null }
-  } catch {
-    return { ok: false, error: 'Controle des ecrans indisponible.', code: null }
-  }
-}
-
 function normalizeRoleToken(value: string): string {
   return value
     .trim()
@@ -211,14 +188,16 @@ function normalizeRoleToken(value: string): string {
     .replace(/[\s-]+/g, '_')
 }
 
-function normalizeRole(value: unknown): Role | null {
+// Exporté — utilisé par SessionPicker et RequireAuth (plus de copie locale nécessaire)
+export function normalizeRole(value: unknown): Role | null {
   if (typeof value !== 'string') return null
   const token = normalizeRoleToken(value)
   if (ROLE_SET.has(token)) return token as Role
   return ROLE_ALIASES[token] ?? null
 }
 
-function fallbackRoleFromEmail(email: string | null | undefined): Role | null {
+// Exporté — utilisé par RequireAuth pour le bootstrap du profil
+export function fallbackRoleFromEmail(email: string | null | undefined): Role | null {
   if (!email) return null
   const normalized = email.trim().toLowerCase()
   const reservedRole = RESERVED_ADMIN_EMAIL_ROLE[normalized]
@@ -233,6 +212,64 @@ function fallbackRoleFromEmail(email: string | null | undefined): Role | null {
 function fallbackUserMatricule(profileId: string) {
   const token = profileId.replace(/[^a-z0-9]/gi, '').slice(0, 8).toUpperCase() || 'UNKNOWN'
   return `USR-${token}`
+}
+
+type ProfileRow = {
+  id: string
+  role: string
+  matricule?: string | null
+  nom: string | null
+  prenom: string | null
+  tenant_key?: string | null
+  max_concurrent_screens?: number | null
+  company_id?: number | null
+}
+
+const PROFILE_REQUIRED_COLUMNS = ['id', 'role', 'nom', 'prenom'] as const
+const PROFILE_OPTIONAL_COLUMNS = ['matricule', 'tenant_key', 'max_concurrent_screens', 'company_id'] as const
+
+function findMissingProfileColumn(error: { code?: string | null; message?: string | null; details?: string | null; hint?: string | null } | null): string | null {
+  if (!error) return null
+  const raw = [error.code, error.message, error.details, error.hint].filter(Boolean).join(' ').toLowerCase()
+  if (!raw) return null
+  return PROFILE_OPTIONAL_COLUMNS.find(column => raw.includes(column)) ?? null
+}
+
+function normalizeProfileRow(data: ProfileRow): ProfileRow {
+  return {
+    id: data.id,
+    role: data.role,
+    matricule: data.matricule?.trim() || fallbackUserMatricule(data.id),
+    nom: data.nom ?? null,
+    prenom: data.prenom ?? null,
+    tenant_key: data.tenant_key?.trim() || 'default',
+    max_concurrent_screens: typeof data.max_concurrent_screens === 'number' ? data.max_concurrent_screens : 1,
+    company_id: typeof data.company_id === 'number' ? data.company_id : 1,
+  }
+}
+
+async function fetchProfileRow(userId: string): Promise<ProfileRow | null> {
+  let optionalColumns = [...PROFILE_OPTIONAL_COLUMNS]
+
+  for (;;) {
+    const selectColumns = [...PROFILE_REQUIRED_COLUMNS, ...optionalColumns].join(', ')
+    const { data, error } = await supabase
+      .from('profils')
+      .select(selectColumns)
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    if (!error) {
+      return data ? normalizeProfileRow(data as unknown as ProfileRow) : null
+    }
+
+    const missingColumn = findMissingProfileColumn(error)
+    if (!missingColumn || !optionalColumns.includes(missingColumn as typeof PROFILE_OPTIONAL_COLUMNS[number])) {
+      throw error
+    }
+
+    optionalColumns = optionalColumns.filter(column => column !== missingColumn)
+  }
 }
 
 function canUseSessionPickerForUser(user: User | null, baseRole: Role | null): boolean {
@@ -277,14 +314,13 @@ interface AuthContextType {
   sessionRole: Role | null
   isAdmin: boolean
   canUseSessionPicker: boolean
+  // true quand l'utilisateur connecté a le rôle 'demo'
   isDemoSession: boolean
   loading: boolean
   profilLoading: boolean
   authError: string | null
-  screenLimitError: string | null
   tenantAllowedPages: string[] | null
   // MULTI-TENANT Phase 1 : company_id de l'utilisateur courant.
-  // Vaut 1 pour toutes les donnees historiques (tenant_test / migration).
   companyId: number | null
   // TENANT ADMIN SETTINGS : modules actifs pour le tenant courant.
   enabledModules: TenantModule[] | null
@@ -307,77 +343,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [profilLoading, setProfilLoading] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
-  const [screenLimitError, setScreenLimitError] = useState<string | null>(null)
-
-  async function claimScreenSlot(currentSession: Session) {
-    const screenId = getOrCreateScreenId()
-    const result = await callScreenSessionApi('POST', currentSession.access_token, {
-      screen_id: screenId,
-      label: `${window.location.pathname}${window.location.search}`,
-    })
-
-    if (!result.ok) {
-      if (result.code !== 'SCREEN_LIMIT_EXCEEDED') {
-        setScreenLimitError(null)
-        window.localStorage.removeItem(SCREEN_LIMIT_ERROR_STORAGE_KEY)
-        return { ok: true, error: null }
-      }
-
-      const message = result.error ?? "Trop d'ecrans ouverts pour ce compte."
-      setScreenLimitError(message)
-      setAuthError(message)
-      window.localStorage.setItem(SCREEN_LIMIT_ERROR_STORAGE_KEY, message)
-      await supabase.auth.signOut()
-      return { ok: false, error: message }
-    }
-
-    setScreenLimitError(null)
-    window.localStorage.removeItem(SCREEN_LIMIT_ERROR_STORAGE_KEY)
-    return { ok: true, error: null }
-  }
-
-  async function releaseScreenSlot(currentSession: Session | null) {
-    if (!currentSession) return
-    const screenId = window.sessionStorage.getItem(SCREEN_ID_STORAGE_KEY)
-    if (!screenId) return
-
-    await callScreenSessionApi('DELETE', currentSession.access_token, {
-      screen_id: screenId,
-    })
-  }
 
   async function loadProfil(user: User) {
     setProfilLoading(true)
 
     try {
-      const { data, error } = await withTimeout(
-        supabase
-          .from('profils')
+      const data = await withTimeout(fetchProfileRow(user.id), PROFILE_TIMEOUT_MS, 'profile load')
           // MULTI-TENANT Phase 1 : company_id ajouté au select
-          .select('id, role, matricule, nom, prenom, tenant_key, max_concurrent_screens, company_id')
-          .eq('user_id', user.id)
-          .maybeSingle(),
-        PROFILE_TIMEOUT_MS,
-        'profile load',
-      )
-
-      if (error) throw error
 
       // Si aucun profil en base, on en crée un via le RPC sécurisé (SECURITY DEFINER).
       // Le RPC détermine le rôle depuis la liste d'emails réservés ou les métadonnées Auth.
-      type ProfileRow = { id: string; role: string; matricule: string; nom: string | null; prenom: string | null; tenant_key: string | null; max_concurrent_screens?: number | null; company_id?: number | null }
       let profileData: ProfileRow | null = data
-        ? {
-            id: data.id,
-            role: data.role,
-            matricule: data.matricule || fallbackUserMatricule(data.id),
-            nom: data.nom,
-            prenom: data.prenom,
-            tenant_key: data.tenant_key ?? 'default',
-            max_concurrent_screens: data.max_concurrent_screens ?? 1,
-            company_id: typeof (data as ProfileRow).company_id === 'number' ? (data as ProfileRow).company_id : 1,
-          }
-        : null
       if (!profileData) {
         const rpcClient = supabase as unknown as { rpc: (fn: string) => Promise<{ data: unknown; error: { message?: string } | null }> }
         const { data: rpcResult, error: rpcError } = await rpcClient.rpc('upsert_my_profile')
@@ -386,16 +362,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         if (rpcResult && typeof rpcResult === 'object' && 'id' in rpcResult) {
           const raw = rpcResult as { id: string; role: string; matricule?: string | null; nom: string | null; prenom: string | null; tenant_key?: string | null }
-          profileData = {
+          profileData = normalizeProfileRow({
             id: raw.id,
             role: raw.role,
-            matricule: raw.matricule?.trim() || fallbackUserMatricule(raw.id),
+            matricule: raw.matricule ?? null,
             nom: raw.nom,
             prenom: raw.prenom,
             tenant_key: raw.tenant_key ?? 'default',
             max_concurrent_screens: 1,
             company_id: 1, // defaut migration : tenant_test
-          }
+          })
         }
       }
 
@@ -483,18 +459,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data } = await withTimeout(supabase.auth.getSession(), SESSION_TIMEOUT_MS, 'session load')
         if (!active) return
 
-        if (data.session) {
-          const claim = await claimScreenSlot(data.session)
-          if (!claim.ok) {
-            setSession(null)
-            setAccountProfil(null)
-            setSessionProfilState(null)
-            setSessionRoleState(null)
-            setProfilLoading(false)
-            return
-          }
-        }
-
         setSession(data.session)
 
         if (data.session?.user) {
@@ -520,24 +484,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
       if (!active) return
 
-      void (async () => {
-        if (s) {
-          const claim = await claimScreenSlot(s)
-          if (!claim.ok) {
-            setSession(null)
-            setAccountProfil(null)
-            setSessionProfilState(null)
-            setSessionRoleState(null)
-            setProfilLoading(false)
-            return
-          }
-        }
+      // INITIAL_SESSION : déjà géré par getSession() ci-dessus → pas de double loadProfil
+      if (event === 'INITIAL_SESSION') return
 
-        setSession(s)
-      })()
+      // TOKEN_REFRESHED : même utilisateur, juste mettre à jour le token.
+      // Vérifier que session est encore active pour éviter la race avec signOut().
+      if (event === 'TOKEN_REFRESHED') {
+        if (s) setSession(s)
+        return
+      }
+
+      // SIGNED_IN, SIGNED_OUT, USER_UPDATED, etc.
+      setSession(s)
       setAuthError(null)
 
       if (s?.user) {
@@ -555,39 +516,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe()
     }
   }, [])
-
-  useEffect(() => {
-    if (!session) return
-    if (screenLimitError) return
-
-    const screenId = getOrCreateScreenId()
-    const timer = window.setInterval(() => {
-      void callScreenSessionApi('PUT', session.access_token, {
-        screen_id: screenId,
-      }).then(async result => {
-        if (!result.ok && result.code === 'SCREEN_LIMIT_EXCEEDED') {
-          const message = result.error ?? "Trop d'ecrans ouverts pour ce compte."
-          setScreenLimitError(message)
-          setAuthError(message)
-          window.localStorage.setItem(SCREEN_LIMIT_ERROR_STORAGE_KEY, message)
-          await supabase.auth.signOut()
-        }
-      })
-    }, SCREEN_HEARTBEAT_MS)
-
-    const onBeforeUnload = () => {
-      void callScreenSessionApi('DELETE', session.access_token, {
-        screen_id: screenId,
-      })
-    }
-
-    window.addEventListener('beforeunload', onBeforeUnload)
-
-    return () => {
-      window.clearInterval(timer)
-      window.removeEventListener('beforeunload', onBeforeUnload)
-    }
-  }, [session, screenLimitError])
 
   function setSessionRole(r: Role) { setSessionRoleState(r) }
   function resetSessionRole() { setSessionRoleState(null) }
@@ -619,21 +547,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signIn(email: string, password: string) {
     setAuthError(null)
-    setScreenLimitError(null)
     try {
-      const { data, error } = await withTimeout(
+      const { error } = await withTimeout(
         supabase.auth.signInWithPassword({ email, password }),
         LOGIN_TIMEOUT_MS,
         'login',
       )
-
-      if (!error && data.session) {
-        const claim = await claimScreenSlot(data.session)
-        if (!claim.ok) {
-          return { error: claim.error }
-        }
-      }
-
       return { error: error?.message ?? null }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown auth error'
@@ -642,16 +561,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut() {
-    try {
-      await releaseScreenSlot(session)
-    } catch {
-      // Echec de release (réseau indisponible ou Netlify absent) : continuer quand même
-    }
-    await supabase.auth.signOut()
-    setSessionRoleState(null)
+    // Vider l'état immédiatement — l'UI réagit sans attendre la réponse réseau
+    setSession(null)
+    setAccountProfil(null)
     setSessionProfilState(null)
-    setScreenLimitError(null)
+    setSessionRoleState(null)
     setAuthError(null)
+    setProfilLoading(false)
+    // scope:'local' — supprime le token localStorage immédiatement, sans appel réseau.
+    // Évite la race condition où un TOKEN_REFRESHED en cours restaurerait la session.
+    try {
+      await supabase.auth.signOut({ scope: 'local' })
+    } catch {
+      // Ignoré — la session locale est déjà effacée
+    }
   }
 
   const profil = session?.user ? (sessionProfil ?? accountProfil) : null
@@ -665,8 +588,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
   const isAdmin = baseRole === 'admin' || baseRole === 'super_admin' || baseRole === 'dirigeant'
   const canUseSessionPicker = canUseSessionPickerForUser(session?.user ?? null, baseRole)
-  const isDemoSession = false
-  const role = session?.user ? (sessionProfil?.role ?? sessionRole ?? baseRole ?? 'admin') : null
+  // role : jamais nullé vers 'admin' — si le profil ne peut pas se charger, role reste null
+  const role = session?.user ? (sessionProfil?.role ?? sessionRole ?? baseRole ?? null) : null
+  // isDemoSession : dérivé du rôle réel (plus jamais hardcodé à false)
+  const isDemoSession = role === 'demo'
   const tenantAllowedPages = profil?.tenantAllowedPages ?? null
   // MULTI-TENANT Phase 1 : company_id de l'utilisateur courant (priorite : session > account > defaut)
   const companyId = profil?.companyId ?? accountProfil?.companyId ?? null
@@ -688,7 +613,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       profilLoading,
       authError,
-      screenLimitError,
       tenantAllowedPages,
       companyId,
       enabledModules,

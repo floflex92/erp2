@@ -133,11 +133,11 @@ export async function handler(event) {
       prix_ht, distance_km,
       chargement_lat, chargement_lng,
       livraison_lat, livraison_lng,
-      statut
+      statut_transport
     `)
     .is('conducteur_id', null)
     .is('vehicule_id', null)
-    .in('statut', ['planifie', 'en_attente'])
+    .in('statut_transport', ['planifie', 'en_attente_planification', 'valide'])
     .gte('date_chargement_prevue', date_debut)
     .lte('date_chargement_prevue', date_fin)
     .order('date_chargement_prevue', { ascending: true })

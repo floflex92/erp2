@@ -165,6 +165,9 @@ export default function TelématiqueTransportPage() {
 
       <SiteSection eyebrow="En savoir plus" title="Pages complémentaires" description="Approfondir les sujets reliés à la télématique transport." muted>
         <div className="flex flex-wrap gap-3">
+          <Link to="/integrations" className="inline-flex rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-[var(--site-text)] transition-colors hover:bg-slate-50">
+            Toutes les intégrations API
+          </Link>
           <Link to="/erp-transport-routier" className="inline-flex rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-[var(--site-text)] transition-colors hover:bg-slate-50">
             ERP transport routier
           </Link>

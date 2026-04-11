@@ -5,17 +5,29 @@ interface OTRow {
   id: string
   reference: string
   statut: string
+  statut_transport: string | null
   updated_at: string
   clients: { nom: string } | null
 }
 
 const STATUT_META: Record<string, { label: string; icon: string; color: string }> = {
+  // legacy statut
   brouillon: { label: 'Brouillon cree', icon: '📝', color: 'text-slate-500' },
   confirme: { label: 'Confirme', icon: '✅', color: 'text-blue-700' },
   en_cours: { label: 'En route', icon: '🚛', color: 'text-blue-700' },
   livre: { label: 'Livre', icon: '📦', color: 'text-green-700' },
   facture: { label: 'Facture', icon: '🧾', color: 'text-slate-700' },
   annule: { label: 'Annule', icon: '❌', color: 'text-red-600' },
+  // statut_transport
+  en_attente_validation: { label: 'En attente validation', icon: '📝', color: 'text-slate-500' },
+  valide: { label: 'Valide', icon: '✅', color: 'text-blue-700' },
+  en_attente_planification: { label: 'A planifier', icon: '📋', color: 'text-indigo-600' },
+  planifie: { label: 'Planifie', icon: '📅', color: 'text-indigo-700' },
+  en_cours_approche_chargement: { label: 'En approche', icon: '🚛', color: 'text-amber-600' },
+  en_chargement: { label: 'En chargement', icon: '🚛', color: 'text-amber-600' },
+  en_transit: { label: 'En transit', icon: '🚛', color: 'text-blue-700' },
+  en_livraison: { label: 'En livraison', icon: '🚚', color: 'text-blue-700' },
+  termine: { label: 'Termine', icon: '📦', color: 'text-green-700' },
 }
 
 function timeAgo(iso: string) {
@@ -36,7 +48,7 @@ export function WidgetActiviteRecente() {
   useEffect(() => {
     supabase
       .from('ordres_transport')
-      .select('id, reference, statut, updated_at, clients(nom)')
+      .select('id, reference, statut, statut_transport, updated_at, clients(nom)')
       .order('updated_at', { ascending: false })
       .limit(15)
       .then(({ data }) => {
@@ -64,7 +76,7 @@ export function WidgetActiviteRecente() {
   return (
     <div className="divide-y divide-slate-100">
       {rows.map(ot => {
-        const meta = STATUT_META[ot.statut] ?? { label: ot.statut, icon: '•', color: 'text-slate-500' }
+        const meta = STATUT_META[ot.statut_transport ?? ot.statut] ?? { label: ot.statut_transport ?? ot.statut, icon: '•', color: 'text-slate-500' }
         return (
           <div key={ot.id} className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-slate-50">
             <span className="shrink-0 text-base">{meta.icon}</span>

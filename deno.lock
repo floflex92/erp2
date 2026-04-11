@@ -11,6 +11,7 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
+        "npm:@anthropic-ai/sdk@0.82",
         "npm:@eslint/js@^9.39.4",
         "npm:@supabase/supabase-js@^2.100.1",
         "npm:@tailwindcss/vite@^4.2.2",

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 
-export type ThemeMode = 'light' | 'dark'
+export type ThemeMode = 'light' | 'dark' | 'night'
 
 interface ThemeContextType {
   theme: ThemeMode
@@ -14,7 +14,7 @@ function getInitialTheme(): ThemeMode {
   if (typeof window === 'undefined') return 'light'
 
   const stored = window.localStorage.getItem('nexora-theme')
-  if (stored === 'light' || stored === 'dark') return stored
+  if (stored === 'light' || stored === 'dark' || stored === 'night') return stored
 
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
@@ -24,12 +24,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
-    document.documentElement.style.colorScheme = theme
+    const colorScheme = theme === 'light' ? 'light' : 'dark'
+    document.documentElement.style.colorScheme = colorScheme
     window.localStorage.setItem('nexora-theme', theme)
   }, [theme])
 
   function toggleTheme() {
-    setTheme(current => current === 'light' ? 'dark' : 'light')
+    setTheme(current => {
+      if (current === 'light') return 'dark'
+      if (current === 'dark') return 'night'
+      return 'light'
+    })
   }
 
   return (

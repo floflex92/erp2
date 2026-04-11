@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { ST_EN_COURS } from '@/lib/transportCourses'
 
 interface KpiData {
   nb_clients: number
@@ -58,7 +59,7 @@ export function WidgetKpiCommercial() {
       const [clientsRes, margeRes, otRes, facturesRes, prospectsRes, prospectsGagnesRes] = await Promise.all([
         supabase.from('clients').select('id', { count: 'exact', head: true }),
         supabase.from('vue_marge_ot').select('chiffre_affaires').gte('created_at', startOfMonth),
-        supabase.from('ordres_transport').select('id', { count: 'exact', head: true }).eq('statut', 'en_cours'),
+        supabase.from('ordres_transport').select('id', { count: 'exact', head: true }).in('statut_transport', ST_EN_COURS),
         supabase.from('factures').select('id', { count: 'exact', head: true }).eq('statut', 'en_retard'),
         (supabase.from('prospects' as any).select('id', { count: 'exact', head: true }).in('statut', ['lead', 'qualification', 'devis_envoye', 'negociation', 'closing']) as any),
         (supabase.from('prospects' as any).select('id', { count: 'exact', head: true }).eq('statut', 'gagne') as any),

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
+import { ST_BROUILLON, ST_CONFIRME, ST_PLANIFIE, ST_EN_COURS, ST_TERMINE, OT_STATUT_LABELS, OT_STATUT_BADGE_CLS, OT_STATUT_BLOCK_CLS } from '@/lib/transportCourses'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { STATUT_OPS, StatutOpsDot, type StatutOps } from '@/lib/statut-ops'
 import SiteMapPicker from '@/components/transports/SiteMapPicker'
@@ -20,7 +21,7 @@ type OT = {
   id: string; reference: string; client_nom: string
   date_chargement_prevue: string | null; date_livraison_prevue: string | null
   type_transport: string; nature_marchandise: string | null
-  statut: string; conducteur_id: string | null; vehicule_id: string | null
+  statut: string; statut_transport: string | null; conducteur_id: string | null; vehicule_id: string | null
   remorque_id: string | null; prix_ht: number | null; statut_operationnel: string | null
   distance_km: number | null; donneur_ordre_id: string | null
   chargement_site_id: string | null; livraison_site_id: string | null
@@ -349,21 +350,11 @@ function blockPosDay(startISO: string | null, endISO: string | null, selectedDay
 
 // â”€â”€â”€ Color constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-const STATUT_CLS: Record<string,string> = {
-  planifie: 'bg-indigo-600 border-indigo-500',
-  en_cours: 'bg-emerald-600 border-emerald-500',
-  livre:    'bg-teal-600 border-teal-500',
-  facture:  'bg-violet-700 border-violet-600',
-}
-const BADGE_CLS: Record<string,string> = {
-  brouillon:'bg-slate-700 text-slate-400', confirme:'bg-blue-900/60 text-blue-300',
-  planifie: 'bg-indigo-900/60 text-indigo-300', en_cours:'bg-emerald-900/60 text-emerald-300',
-  livre:    'bg-teal-900/60 text-teal-300',    facture: 'bg-violet-900/60 text-violet-300',
-}
-const STATUT_LABEL: Record<string,string> = {
-  brouillon:'Brouillon', confirme:'Confirme', planifie:'Planifie',
-  en_cours:'En cours', livre:'Livre', facture:'Facture', annule:'Annule',
-}
+// Aliases vers la source de vérité centralisée dans transportCourses.ts.
+// Ne pas redéfinir ces valeurs localement — modifier OT_STATUT_* dans transportCourses.ts.
+const STATUT_CLS = OT_STATUT_BLOCK_CLS
+const BADGE_CLS  = OT_STATUT_BADGE_CLS
+const STATUT_LABEL = OT_STATUT_LABELS
 const CUSTOM_COLORS = [
   'bg-sky-600 border-sky-500','bg-rose-600 border-rose-500','bg-amber-600 border-amber-500',
   'bg-lime-600 border-lime-500','bg-fuchsia-600 border-fuchsia-500','bg-cyan-600 border-cyan-500',
@@ -574,6 +565,8 @@ function uid(): string { return Math.random().toString(36).slice(2) + Date.now()
 
 export default function Planning() {
   const { role } = useAuth()
+  // Guard contre les race conditions : on ne rechargera pas pendant une écriture active.
+  const isMutatingRef = useRef(false)
   const [weekStart,   setWeekStart]   = useState(() => getMonday(new Date()))
   const [selectedDay, setSelectedDay] = useState(() => toISO(new Date()))
   const [tab,         setTab]         = useState<Tab>('conducteurs')
@@ -657,6 +650,7 @@ export default function Planning() {
 
   // Filtres & recherche
   const [poolSearch,    setPoolSearch]    = useState('')
+  const [collapsedPoolGroups, setCollapsedPoolGroups] = useState<Set<string>>(new Set())
   const [resourceSearch, setResourceSearch] = useState('')
   const [filterType,    setFilterType]    = useState('')
   const [filterClient,  setFilterClient]  = useState('')
@@ -1042,8 +1036,10 @@ export default function Planning() {
   }, [])
 
   const loadAll = useCallback(async () => {
+    // Guard : ne pas recharger si une mutation est en cours (évite race condition).
+    if (isMutatingRef.current) return
     // ── Sélect OT canonique (schema stable depuis les migrations du 2026-03-30) ──
-    const OT_SELECT = 'id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, donneur_ordre_id, chargement_site_id, livraison_site_id, groupage_id, groupage_fige, est_affretee, clients!ordres_transport_client_id_fkey(nom)'
+    const OT_SELECT = 'id, reference, statut, statut_transport, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, donneur_ordre_id, chargement_site_id, livraison_site_id, groupage_id, groupage_fige, est_affretee, clients!ordres_transport_client_id_fkey(nom)'
     const SITE_SELECT = 'id, nom, adresse, entreprise_id, usage_type, horaires_ouverture, jours_ouverture, notes_livraison, latitude, longitude, created_at, updated_at'
 
     // Fenêtre glissante centrée sur la semaine affichée :
@@ -1082,7 +1078,7 @@ export default function Planning() {
     if (otR.error) {
       const fallback = await supabase
         .from('ordres_transport')
-        .select('id, reference, statut, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, chargement_site_id, livraison_site_id, groupage_id, groupage_fige, clients!ordres_transport_client_id_fkey(nom)')
+        .select('id, reference, statut, statut_transport, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, chargement_site_id, livraison_site_id, groupage_id, groupage_fige, clients!ordres_transport_client_id_fkey(nom)')
         .or(otDateFilter)
         .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
       if (!fallback.error) finalOtR = fallback as typeof finalOtR
@@ -1108,7 +1104,7 @@ export default function Planning() {
         id: r.id, reference: r.reference, client_nom: (Array.isArray(r.clients) ? r.clients[0] : r.clients)?.nom ?? '-',
         date_chargement_prevue: r.date_chargement_prevue, date_livraison_prevue: r.date_livraison_prevue,
         type_transport: r.type_transport, nature_marchandise: r.nature_marchandise,
-        statut: r.statut, conducteur_id: r.conducteur_id, vehicule_id: r.vehicule_id,
+        statut: r.statut, statut_transport: (r as OtLoadRow & { statut_transport?: string | null }).statut_transport ?? null, conducteur_id: r.conducteur_id, vehicule_id: r.vehicule_id,
         remorque_id: r.remorque_id, prix_ht: r.prix_ht, statut_operationnel: r.statut_operationnel,
         distance_km: r.distance_km ?? null, donneur_ordre_id: r.donneur_ordre_id ?? null,
         chargement_site_id: r.chargement_site_id ?? null, livraison_site_id: r.livraison_site_id ?? null,
@@ -1118,7 +1114,7 @@ export default function Planning() {
       const scopedPlanning = ots.filter(o => planningScope === 'affretement' ? o.est_affretee : !o.est_affretee)
       const cancelled = scopedPlanning.filter(o => o.statut === 'annule')
       const principalPlanning = scopedPlanning.filter(o => o.statut !== 'annule')
-      const isDraftStatut = (ot: OT) => ot.statut === 'brouillon' || ot.statut === 'confirme'
+      const isDraftStatut = (ot: OT) => ST_BROUILLON.includes((ot.statut_transport ?? '') as never) || ST_CONFIRME.includes((ot.statut_transport ?? '') as never)
       const hasAssignedResource = (ot: OT) => Boolean(ot.conducteur_id || ot.vehicule_id || ot.remorque_id)
       setCancelledOTs(cancelled)
       setPool(principalPlanning.filter(o => isDraftStatut(o) && !hasAssignedResource(o)))
@@ -1149,14 +1145,17 @@ export default function Planning() {
   useEffect(() => { void loadAll() }, [loadAll])
 
   // Chargement radar km à vide (synthèse par véhicule, 30 jours)
+  // NOTE: v_radar_km_vide_synthese est une vue Supabase non typée (looseSupabase).
+  // Si la structure de la vue change, mettre à jour le type KmVideRow ci-dessous.
   useEffect(() => {
+    type KmVideRow = { vehicule_id: string; taux_charge_pct: number | null; total_km_vide_estime: number | null }
     async function fetchKmVide() {
-      const { data } = await looseSupabase
+      const { data, error } = await looseSupabase
         .from('v_radar_km_vide_synthese')
         .select('vehicule_id, taux_charge_pct, total_km_vide_estime')
-      if (!data) return
-      const map = new Map<string, { taux_charge_pct: number | null; total_km_vide_estime: number | null }>()
-      for (const row of (data as { vehicule_id: string; taux_charge_pct: number | null; total_km_vide_estime: number | null }[])) {
+      if (error || !data) return
+      const map = new Map<string, Pick<KmVideRow, 'taux_charge_pct' | 'total_km_vide_estime'>>()
+      for (const row of (data as KmVideRow[])) {
         map.set(row.vehicule_id, { taux_charge_pct: row.taux_charge_pct, total_km_vide_estime: row.total_km_vide_estime })
       }
       setKmVideSynthese(map)
@@ -1169,7 +1168,11 @@ export default function Planning() {
   useEffect(() => {
     const debouncedLoad = () => {
       if (realtimeReloadTimer.current) clearTimeout(realtimeReloadTimer.current)
-      realtimeReloadTimer.current = setTimeout(() => { void loadAll() }, 2000)
+      // Ne pas recharger si une mutation est en cours : isMutatingRef est relâché
+      // après la mutation → le prochain événement realtime déclenchera le rechargement.
+      realtimeReloadTimer.current = setTimeout(() => {
+        if (!isMutatingRef.current) void loadAll()
+      }, 2000)
     }
 
     const db = looseSupabase
@@ -1326,6 +1329,7 @@ export default function Planning() {
     if (!ensureWriteAllowed('Mise a jour de course')) return
     if (!ensureGroupageEditable(selected, 'Mise a jour')) return
     setSaving(true)
+    isMutatingRef.current = true
     const payload = {
       reference:              editDraft.reference || selected.reference,
       nature_marchandise:     editDraft.nature_marchandise || null,
@@ -1343,6 +1347,7 @@ export default function Planning() {
       distance_km:            editDraft.distance_km !== '' ? Number.parseFloat(editDraft.distance_km) : null,
     }
     const result = await supabase.from('ordres_transport').update(payload).eq('id', selected.id)
+    isMutatingRef.current = false
     setSaving(false)
     if (result.error) {
       pushPlanningNotice(`Erreur: ${result.error.message}`, 'error')
@@ -1375,6 +1380,7 @@ export default function Planning() {
     const targets = assignModal.applyToGroupage ? getGroupageMembersForOt(assignModal.ot) : [assignModal.ot]
     const otId = assignModal.ot.id
     setSaving(true)
+    isMutatingRef.current = true
     const plannedStartISO = toDateTimeISO(assignModal.date_chargement, assignModal.time_chargement)
     const plannedEndISO = toDateTimeISO(assignModal.date_livraison, assignModal.time_livraison)
     let lastAuditSummary: { message: string; hasBlocking: boolean } | null = null
@@ -1440,7 +1446,7 @@ export default function Planning() {
       if (upd.length !== prev.length) saveCustomBlocks(upd)
       return upd
     })
-    setSaving(false); setAssignModal(null); loadAll()
+    setSaving(false); isMutatingRef.current = false; setAssignModal(null); loadAll()
     pushPlanningNotice(
       lastAuditSummary
         ? `${assignModal.applyToGroupage ? 'Lot programme.' : 'Affectation enregistree.'} ${lastAuditSummary.message}`
@@ -3122,7 +3128,7 @@ export default function Planning() {
       .slice(0, 40)
   }, [bottomDockConflicts, ganttOTs, unresourced])
 
-  const canMove   = (ot: OT) => (ot.statut === 'planifie' || ot.statut === 'confirme') && !ot.groupage_fige
+  const canMove   = (ot: OT) => (ST_PLANIFIE.includes((ot.statut_transport ?? '') as never) || ST_CONFIRME.includes((ot.statut_transport ?? '') as never)) && !ot.groupage_fige
   const canUnlock = canMove
 
   function ghostPos(rowId: string): React.CSSProperties | null {
@@ -3446,10 +3452,19 @@ export default function Planning() {
               { label: 'Affrete', color: 'text-blue-400', list: affrete },
               { label: 'A planifier', color: 'text-slate-500', list: standard },
             ]
-            return groups.filter(g => g.list.length > 0).map(group => (
+            return groups.filter(g => g.list.length > 0).map(group => {
+              const isCollapsed = collapsedPoolGroups.has(group.label)
+              return (
               <div key={group.label} className="mb-1">
-                <p className={`text-[10px] font-bold uppercase tracking-wider px-1 py-1 ${group.color}`}>{group.label} ({group.list.length})</p>
-                {group.list.map(ot => {
+                <button
+                  type="button"
+                  onClick={() => setCollapsedPoolGroups(prev => { const s = new Set(prev); s.has(group.label) ? s.delete(group.label) : s.add(group.label); return s })}
+                  className={`w-full flex items-center justify-between px-1 py-1 rounded hover:bg-slate-800/60 transition-colors group ${group.color}`}
+                >
+                  <span className="text-[10px] font-bold uppercase tracking-wider">{group.label} ({group.list.length})</span>
+                  <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isCollapsed ? '-rotate-90' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                {!isCollapsed && group.list.map(ot => {
                   const isLate = !!ot.date_livraison_prevue && ot.date_livraison_prevue.slice(0,10) < nowDate
                   const clientDot = clientColorMap[ot.client_nom]
                   const chargSite = ot.chargement_site_id ? logisticSites.find(s => s.id === ot.chargement_site_id) : null
@@ -3509,13 +3524,13 @@ export default function Planning() {
                   )
                 })}
               </div>
-            ))
+            )})
           })()}
         </div>
       </div>
 
       {/* -- Gantt area ---------------------------------------------------------- */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
 
         {/* â”€â”€ Top bar â”€â”€ */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700 bg-slate-900 flex-shrink-0 gap-3">
@@ -3886,6 +3901,9 @@ export default function Planning() {
             {colorMode==='conducteur' && <span className="italic text-slate-600">? cliquer sur le point pour choisir</span>}
           </div>
         </div>
+
+        {/* ── scrollable view area ───────────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto min-h-0">
 
         {/* â”€â”€ WEEK VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {viewMode === 'semaine' && (
@@ -4448,7 +4466,9 @@ export default function Planning() {
           </div>
         )}
 
-        <div className="sticky bottom-0 z-[30] mb-2">
+        </div>{/* end scrollable view area */}
+
+        <div className="flex-shrink-0 z-[30]">
           {bottomDockCollapsed ? (
             <div className="border border-slate-800 bg-slate-950/95 px-4 py-2 rounded-t-xl">
               <div className="flex items-center justify-between gap-3">
@@ -4944,7 +4964,7 @@ export default function Planning() {
                               .from('ordres_transport')
                               .select('livraison_lat, livraison_lng')
                               .eq('vehicule_id', retourChargeForm.vehicule_id)
-                              .eq('statut', 'livre')
+                              .in('statut_transport', ST_TERMINE)
                               .order('date_livraison_prevue', { ascending: false })
                               .limit(1)
                               .maybeSingle()
@@ -6098,7 +6118,7 @@ export default function Planning() {
               Modifier dates / ressources
             </button>
 
-            {(contextMenu.ot.statut === 'livre' || contextMenu.ot.statut === 'en_cours') && (
+            {(ST_EN_COURS.includes((contextMenu.ot.statut_transport ?? '') as never) || contextMenu.ot.statut_transport === 'termine') && (
               <button
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-violet-300 hover:bg-violet-900/30 hover:text-violet-200 transition-colors text-left"
                 onClick={async () => {

@@ -333,7 +333,7 @@ function TabIllustration({ tab }: { tab: FeatureTab['key'] }) {
 /* ── Shared padding ────────────────────────────────────────── */
 
 const sectionPx: React.CSSProperties = { paddingInline: 'clamp(24px, 8vw, 160px)' }
-const sectionPy: React.CSSProperties = { paddingBlock: 'clamp(80px, 12vw, 160px)' }
+const sectionPy: React.CSSProperties = { paddingBlock: 'clamp(24px, 3vw, 56px)' }
 
 /* ── Component ─────────────────────────────────────────────── */
 
@@ -342,7 +342,7 @@ export default function HomePage() {
   const [videoOpen, setVideoOpen] = useState(false)
 
   useSiteMeta({
-    title: 'ERP transport routier, TMS et gestion flotte — NEXORA Truck',
+    title: 'ERP transport routier — TMS & flotte | NEXORA Truck',
     description: 'Pilotez exploitation, flotte et conducteurs depuis un seul ERP transport : planning, TMS, télématique, IA et facturation centralisés pour transporteurs routiers.',
     canonicalPath: '/',
     keywords: 'ERP transport, logiciel transport, TMS transport, gestion flotte, planning transport, exploitation transport, télématique transport, chronotachygraphe, IA transport, NEXORA Truck',
@@ -455,7 +455,7 @@ export default function HomePage() {
 
       {/* ── 1. HERO ── */}
       <section
-        className="relative flex min-h-[85vh] w-full flex-col items-center justify-center overflow-hidden text-center"
+        className="relative flex min-h-[76vh] w-full flex-col items-center justify-center overflow-hidden text-center"
         style={{ ...sectionPx, ...sectionPy }}
         aria-labelledby="home-hero-heading"
       >
@@ -494,7 +494,7 @@ export default function HomePage() {
               >
                 Essai gratuit
               </Link>
-              <p className="site-hero-cta-note mt-3 text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>
+              <p className="site-hero-cta-note mt-3 text-sm" style={{ color: 'rgba(255,255,255,0.9)' }}>
                 Accès immédiat. Aucun engagement.
               </p>
             </div>
@@ -517,13 +517,13 @@ export default function HomePage() {
         data-reveal
         aria-label="Aperçu du logiciel ERP transport NEXORA Truck"
       >
-        <div className="mx-auto" style={{ width: '90vw', maxWidth: '1400px' }}>
+        <div className="mx-auto" style={{ width: '100%', maxWidth: '1400px' }}>
           <div className="overflow-hidden rounded-xl bg-white shadow-[0_20px_80px_rgba(0,0,0,0.08)]">
             <div className="flex items-center gap-2 border-b px-4 py-3" style={{ borderColor: '#E5E5E5' }}>
               <span className="h-3 w-3 rounded-full" style={{ background: '#FF5F57' }} />
               <span className="h-3 w-3 rounded-full" style={{ background: '#FEBC2E' }} />
               <span className="h-3 w-3 rounded-full" style={{ background: '#28C840' }} />
-              <span className="ml-4 flex-1 rounded-md px-3 py-1 text-xs" style={{ background: '#F5F5F7', color: '#86868B' }}>
+              <span className="ml-4 flex-1 rounded-md px-3 py-1 text-xs" style={{ background: '#F5F5F7', color: '#636369' }}>
                 nexora-truck.fr/app/dashboard
               </span>
             </div>
@@ -532,11 +532,13 @@ export default function HomePage() {
               alt="Aperçu du planning NEXORA Truck"
               className="w-full"
               loading="eager"
-              style={{ display: 'block' }}
+              width="1400"
+              height="840"
+              style={{ display: 'block', maxHeight: '600px', objectFit: 'contain' }}
             />
           </div>
         </div>
-        <p className="mt-6 text-center text-sm" style={{ color: '#86868B' }}>
+        <p className="mt-6 text-center text-sm" style={{ color: '#636369' }}>
           Vue exploitation — Planning, carte, KPIs temps réel
         </p>
       </section>
@@ -544,11 +546,14 @@ export default function HomePage() {
       {/* ── 3. SOCIAL PROOF BAR ── */}
       <section
         className="w-full bg-white text-center"
-        style={{ ...sectionPx, paddingBlock: 'clamp(40px, 6vw, 80px)' }}
+        style={{ ...sectionPx, paddingBlock: 'clamp(28px, 4vw, 56px)' }}
         data-reveal
       >
-        <p className="text-sm font-medium tracking-wide" style={{ color: '#6E6E73' }}>
-          +120 transporteurs&nbsp;&nbsp;·&nbsp;&nbsp;4.8/5 satisfaction&nbsp;&nbsp;·&nbsp;&nbsp;98,7 % disponibilité&nbsp;&nbsp;·&nbsp;&nbsp;Opérationnel en 72 h
+        <p className="text-sm font-medium tracking-wide flex flex-wrap justify-center gap-x-4 gap-y-1" style={{ color: '#4b4b51' }}>
+          <span>+120 transporteurs</span>
+          <span>4.8/5 satisfaction</span>
+          <span>98,7 % disponibilité</span>
+          <span>Opérationnel en 72 h</span>
         </p>
       </section>
 
@@ -566,7 +571,7 @@ export default function HomePage() {
         >
           Votre exploitation mérite mieux qu’un tableur.
         </h2>
-        <div className="mt-16 grid gap-x-20 gap-y-16 md:grid-cols-2">
+        <div className="mt-8 grid gap-x-20 gap-y-8 md:grid-cols-2">
           {([
             ['planning', 'Planning éclaté', 'Les changements de mission en cascade vous font perdre du temps et créent du stress.'],
             ['error', 'Erreurs coûteuses', 'La double saisie génère des litiges, des retards et des coûts cachés évitables.'],
@@ -576,12 +581,12 @@ export default function HomePage() {
             <div key={title}>
               <PainIcon kind={icon} />
               <h3 className="mt-5 text-xl font-semibold" style={{ color: '#000000' }}>{title}</h3>
-              <p className="mt-2" style={{ color: '#6E6E73' }}>{desc}</p>
+              <p className="mt-2" style={{ color: '#4b4b51' }}>{desc}</p>
             </div>
           ))}
         </div>
-        <p className="mt-16 text-lg font-medium" style={{ color: '#1D1D1F' }}>
-          Vous vous reconnaissez ? Il y a une meilleure façon de faire.
+        <p className="mt-8 text-lg font-medium" style={{ color: '#1D1D1F' }}>
+          Vous vous reconnaissez&nbsp;? Il y a une meilleure façon de faire.
         </p>
       </section>
 
@@ -614,14 +619,15 @@ export default function HomePage() {
           ))}
         </div>
 
-        <div className="mt-12 grid items-center gap-12 lg:grid-cols-2">
+        <div className="mt-8 grid items-center gap-8 lg:grid-cols-2">
           <div>
             <h3 className="text-2xl font-semibold" style={{ color: '#000000' }}>{currentTab.title}</h3>
-            <p className="mt-4 text-lg leading-8" style={{ color: '#6E6E73' }}>{currentTab.description}</p>
+            <p className="mt-4 text-lg leading-8" style={{ color: '#4b4b51' }}>{currentTab.description}</p>
             <p className="mt-5 text-base font-semibold" style={{ color: '#2563EB' }}>{currentTab.benefit}</p>
             {currentTab.link && (
               <Link
                 to={currentTab.link}
+                aria-label={`En savoir plus sur ${currentTab.title}`}
                 className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-sky-700 transition-colors hover:text-sky-900"
               >
                 En savoir plus
@@ -650,7 +656,7 @@ export default function HomePage() {
           Opérationnel en 72 h. Pas en 6 mois.
         </h2>
 
-        <div className="relative mt-16 grid gap-16 md:grid-cols-3 md:gap-8">
+        <div className="relative mt-8 grid gap-8 md:grid-cols-3">
           {/* Connecting line (desktop only) */}
           <div
             className="absolute left-[16.67%] right-[16.67%] top-8 hidden h-px md:block"
@@ -670,12 +676,12 @@ export default function HomePage() {
                 {num}
               </div>
               <h3 className="mt-6 text-xl font-semibold" style={{ color: '#000000' }}>{title}</h3>
-              <p className="mt-2" style={{ color: '#6E6E73' }}>{desc}</p>
+              <p className="mt-2" style={{ color: '#4b4b51' }}>{desc}</p>
             </div>
           ))}
         </div>
 
-        <p className="mt-16 text-lg font-medium" style={{ color: '#1D1D1F' }}>
+        <p className="mt-8 text-lg font-medium" style={{ color: '#1D1D1F' }}>
           Pas de projet IT. Pas de consultant. Vous êtes autonome.
         </p>
       </section>
@@ -700,19 +706,19 @@ export default function HomePage() {
               >
                 {value}
               </p>
-              <p className="mt-3" style={{ color: '#6E6E73', fontSize: '16px' }}>{label}</p>
+              <p className="mt-3" style={{ color: '#4b4b51', fontSize: '16px' }}>{label}</p>
             </div>
           ))}
         </div>
 
-        <blockquote className="mx-auto mt-24 max-w-3xl text-center">
+        <blockquote className="mx-auto mt-12 max-w-3xl text-center">
           <p
             className="font-light italic leading-relaxed"
             style={{ fontSize: 'clamp(1.3rem, 3vw, 2rem)', color: '#1D1D1F' }}
           >
             On est passé de 3 outils à NEXORA en une semaine. Ma facturation sort en 2 clics.
           </p>
-          <footer className="mt-6 text-base" style={{ color: '#6E6E73' }}>
+          <footer className="mt-6 text-base" style={{ color: '#4b4b51' }}>
             — Karim L., Dirigeant, Transport ALR (42 véhicules)
           </footer>
         </blockquote>
@@ -731,7 +737,7 @@ export default function HomePage() {
         >
           ERP transport : piloter efficacement son exploitation
         </h2>
-        <div className="mt-8 max-w-4xl space-y-4" style={{ color: '#6E6E73' }}>
+        <div className="mt-8 max-w-4xl space-y-4" style={{ color: '#4b4b51' }}>
           <p>
             Dans une entreprise de transport, la difficulté n’est pas de collecter des informations, mais de les relier au
             bon moment. Un ERP transport utile rassemble le planning transport, la gestion flotte, les statuts de mission,
@@ -759,7 +765,7 @@ export default function HomePage() {
             <p className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
               Structurer la journée avant qu’elle ne se dèrègle
             </p>
-            <p className="mt-2 text-sm leading-7" style={{ color: '#6E6E73' }}>
+            <p className="mt-2 text-sm leading-7" style={{ color: '#4b4b51' }}>
               Un planning transport efficace doit intégrer la charge réelle, les disponibilités conducteurs, la faisabilité
               flotte et les contraintes clients. L’objectif n’est pas d’écrire un plan parfait, mais de rendre les
               réaffectations rapides et lisibles quand la journée bouge.
@@ -773,7 +779,7 @@ export default function HomePage() {
             <p className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
               Relier disponibilité, maintenance et exploitation
             </p>
-            <p className="mt-2 text-sm leading-7" style={{ color: '#6E6E73' }}>
+            <p className="mt-2 text-sm leading-7" style={{ color: '#4b4b51' }}>
               La gestion flotte est vraiment utile lorsqu’elle reste connectée au pilotage opérationnel. Une indisponibilité,
               un passage atelier ou une contrainte réglementaire doivent être visibles avant l’affectation, pas après le
               départ de mission.
@@ -787,7 +793,7 @@ export default function HomePage() {
             <p className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
               Décider vite avec des statuts compréhensibles
             </p>
-            <p className="mt-2 text-sm leading-7" style={{ color: '#6E6E73' }}>
+            <p className="mt-2 text-sm leading-7" style={{ color: '#4b4b51' }}>
               Le suivi des opérations doit montrer l’avancement réel, les incidents et les points de blocage sans multiplier
               les canaux. Cette lecture améliore la relation client et réduit le temps de coordination interne.
             </p>
@@ -802,7 +808,7 @@ export default function HomePage() {
             <p className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
               Piloter les ordres de transport dans un flux unique
             </p>
-            <p className="mt-2 text-sm leading-7" style={{ color: '#6E6E73' }}>
+            <p className="mt-2 text-sm leading-7" style={{ color: '#4b4b51' }}>
               Un <Link to="/tms-transport" style={{ color: '#2563EB', fontWeight: 600 }}>TMS transport</Link> efficace relie
               la création de l'ordre à son exécution terrain et à la facturation. Séparé du reste, il produit des données
               sans les relier à l'exploitation. NEXORA Truck unifie TMS et ERP dans le même environnement.
@@ -816,7 +822,7 @@ export default function HomePage() {
             <p className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
               Données terrain et conformité intégrées
             </p>
-            <p className="mt-2 text-sm leading-7" style={{ color: '#6E6E73' }}>
+            <p className="mt-2 text-sm leading-7" style={{ color: '#4b4b51' }}>
               La <Link to="/telematique-transport" style={{ color: '#2563EB', fontWeight: 600 }}>télématique embarquée</Link> remonte
               position, kilométrage et alertes directement dans l'ERP. Le module{' '}
               <Link to="/chronotachygraphe" style={{ color: '#2563EB', fontWeight: 600 }}>chronotachygraphe</Link> assure
@@ -831,7 +837,7 @@ export default function HomePage() {
             <p className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
               Optimiser l’exploitation par l’intelligence artificielle
             </p>
-            <p className="mt-2 text-sm leading-7" style={{ color: '#6E6E73' }}>
+            <p className="mt-2 text-sm leading-7" style={{ color: '#4b4b51' }}>
               L'<Link to="/ia-transport" style={{ color: '#2563EB', fontWeight: 600 }}>IA transport</Link> de NEXORA Truck
               propose des suggestions de planning, détecte les anomalies en temps réel et optimise les tournées pour réduire
               les kilomètres à vide et améliorer la rentabilité mission.
@@ -839,7 +845,7 @@ export default function HomePage() {
           </article>
         </div>
 
-        <div className="mt-8 max-w-4xl space-y-4" style={{ color: '#6E6E73' }}>
+        <div className="mt-8 max-w-4xl space-y-4" style={{ color: '#4b4b51' }}>
           <p>
             Pour approfondir cette logique, consultez la page <Link to="/erp-transport">ERP transport</Link>, la page{' '}
             <Link to="/logiciel-transport">logiciel transport</Link>, le{' '}
@@ -855,7 +861,7 @@ export default function HomePage() {
       {/* ── 8. BLOG PREVIEW ── */}
       <section
         className="w-full bg-[#F5F5F7]"
-        style={{ ...sectionPx, paddingBlock: 'clamp(60px, 8vw, 100px)' }}
+        style={{ ...sectionPx, paddingBlock: 'clamp(28px, 3.5vw, 56px)' }}
         data-reveal
         aria-labelledby="home-blog-heading"
       >
@@ -884,6 +890,7 @@ export default function HomePage() {
             <Link
               key={article.slug}
               to={`/articles/${article.slug}`}
+              aria-label={`Lire l'article : ${article.title}`}
               className="group flex flex-col rounded-[1.8rem] border bg-white p-6 transition-all hover:-translate-y-0.5"
               style={{ borderColor: 'rgba(148,163,184,0.18)', boxShadow: '0 10px 28px rgba(15,23,42,0.06)' }}
             >
@@ -899,7 +906,7 @@ export default function HomePage() {
               >
                 {article.title}
               </h3>
-              <p className="mt-3 text-sm leading-6" style={{ color: '#6E6E73' }}>{article.description}</p>
+              <p className="mt-3 text-sm leading-6" style={{ color: '#4b4b51' }}>{article.description}</p>
               <span className="mt-5 text-xs font-semibold transition-colors" style={{ color: '#2563EB' }}>
                 Lire l'article →
               </span>
@@ -911,7 +918,7 @@ export default function HomePage() {
       {/* ── 9. FINAL CTA (with background image) ── */}
       <section
         className="relative w-full overflow-hidden text-center"
-        style={{ ...sectionPx, paddingBlock: 'clamp(100px, 14vw, 200px)' }}
+        style={{ ...sectionPx, paddingBlock: 'clamp(40px, 5vw, 80px)' }}
         data-reveal
         aria-labelledby="home-cta-heading"
       >
@@ -944,7 +951,7 @@ export default function HomePage() {
             <Link
               to="/contact"
               className="text-sm font-semibold transition-colors"
-              style={{ color: '#93C5FD' }}
+              style={{ color: '#FFFFFF' }}
             >
               Parler à un expert
             </Link>

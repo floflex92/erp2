@@ -9,6 +9,37 @@ type TenantRow = {
   is_active: boolean
   default_max_concurrent_screens: number
   allowed_pages: string[] | null
+  company_id: number | null
+  enabled_modules: string[] | null
+  company_status: string | null
+}
+
+type TenantModule = 'dashboard' | 'planning' | 'fleet' | 'workshop' | 'hr' | 'accounting' | 'documents' | 'settings'
+
+const ALL_TENANT_MODULES: TenantModule[] = [
+  'dashboard', 'planning', 'fleet', 'workshop', 'hr', 'accounting', 'documents', 'settings',
+]
+
+const TENANT_MODULE_LABELS: Record<TenantModule, string> = {
+  dashboard:  'Tableau de bord',
+  planning:   'Planning & Transports',
+  fleet:      'Flotte (vehicules, remorques, equipements)',
+  workshop:   'Atelier & Maintenance',
+  hr:         'RH, Conducteurs & Tachygraphe',
+  accounting: 'Comptabilite & Facturation',
+  documents:  'Coffre numerique',
+  settings:   'Parametres',
+}
+
+const TENANT_MODULE_ICONS: Record<TenantModule, string> = {
+  dashboard:  '📊',
+  planning:   '🗓️',
+  fleet:      '🚛',
+  workshop:   '🔧',
+  hr:         '👥',
+  accounting: '💰',
+  documents:  '🗂️',
+  settings:   '⚙️',
 }
 
 type EmployeeRow = {
@@ -32,6 +63,7 @@ type ApiPayload = {
   tenants: TenantRow[]
   employees: EmployeeRow[]
   allPageKeys: string[]
+  allModuleKeys: string[]
 }
 
 const inp = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500'
@@ -64,6 +96,7 @@ export function ErpClientsSettings() {
   const [tenantMaxScreens, setTenantMaxScreens] = useState(1)
   const [tenantIsActive, setTenantIsActive] = useState(true)
   const [tenantAllowedPages, setTenantAllowedPages] = useState<string[]>([])
+  const [tenantEnabledModules, setTenantEnabledModules] = useState<TenantModule[]>(ALL_TENANT_MODULES)
 
   useEffect(() => {
     if (!selectedTenant) return
@@ -71,6 +104,12 @@ export function ErpClientsSettings() {
     setTenantMaxScreens(selectedTenant.default_max_concurrent_screens ?? 1)
     setTenantIsActive(selectedTenant.is_active !== false)
     setTenantAllowedPages(normalizeAllowedPages(selectedTenant.allowed_pages, allPageKeys))
+    const rawModules = selectedTenant.enabled_modules
+    if (Array.isArray(rawModules) && rawModules.length > 0) {
+      setTenantEnabledModules(rawModules.filter((m): m is TenantModule => ALL_TENANT_MODULES.includes(m as TenantModule)))
+    } else {
+      setTenantEnabledModules([...ALL_TENANT_MODULES])
+    }
   }, [allPageKeys, selectedTenant])
 
   const tenantEmployees = useMemo(
@@ -206,6 +245,35 @@ export function ErpClientsSettings() {
     setTenantAllowedPages(current => current.includes(page) ? current.filter(item => item !== page) : [...current, page])
   }
 
+  function toggleModule(mod: TenantModule) {
+    setTenantEnabledModules(current =>
+      current.includes(mod) ? current.filter(m => m !== mod) : [...current, mod],
+    )
+  }
+
+  async function saveTenantModules() {
+    if (!selectedTenant?.company_id) {
+      setError('Ce tenant n\'a pas de company_id associe. Association requise avant de configurer les modules.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+    try {
+      await fetchApi('PATCH', {
+        kind: 'modules',
+        company_id: selectedTenant.company_id,
+        enabled_modules: tenantEnabledModules,
+      })
+      setNotice('Modules (metiers) mis a jour pour ce tenant.')
+      await load()
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Enregistrement modules impossible.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading) {
     return (
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -318,6 +386,59 @@ export function ErpClientsSettings() {
                       <span>{page}</span>
                     </label>
                   ))}
+                </div>
+              </div>
+
+              {/* ─ Metiers (modules) ──────────────────────────────────── */}
+              <div className="rounded-xl border border-slate-200 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Metiers actifs (modules)</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Active ou desactive un metier complet pour ce tenant.
+                      {!selectedTenant?.company_id && (
+                        <span className="ml-1 font-semibold text-amber-600">Associer d'abord ce tenant a une company pour activer cette fonction.</span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setTenantEnabledModules([...ALL_TENANT_MODULES])} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs">Tout activer</button>
+                    <button type="button" onClick={() => setTenantEnabledModules([])} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs">Tout couper</button>
+                    <button
+                      type="button"
+                      disabled={saving || !selectedTenant?.company_id}
+                      onClick={() => void saveTenantModules()}
+                      className="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+                    >
+                      Enregistrer les metiers
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {ALL_TENANT_MODULES.map(mod => {
+                    const enabled = tenantEnabledModules.includes(mod)
+                    return (
+                      <button
+                        key={mod}
+                        type="button"
+                        onClick={() => toggleModule(mod)}
+                        className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                          enabled
+                            ? 'border-indigo-400 bg-indigo-50 text-indigo-900'
+                            : 'border-slate-200 bg-slate-50 text-slate-400'
+                        }`}
+                      >
+                        <span className="text-xl leading-none">{TENANT_MODULE_ICONS[mod]}</span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold">{TENANT_MODULE_LABELS[mod]}</p>
+                          <p className={`mt-0.5 text-[10px] font-medium ${enabled ? 'text-indigo-500' : 'text-slate-400'}`}>
+                            {enabled ? 'Actif' : 'Desactive'}
+                          </p>
+                        </div>
+                        <span className={`ml-auto h-3 w-3 shrink-0 rounded-full ${enabled ? 'bg-indigo-500' : 'bg-slate-300'}`} />
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 

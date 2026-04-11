@@ -1,34 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Navigate, Outlet } from 'react-router-dom'
-import { useAuth } from '@/lib/auth'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
+import { useAuth, fallbackRoleFromEmail } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { clearDemoAndMockLocalData } from '@/lib/demoDataCleanup'
-import SessionPicker from '@/pages/SessionPicker'
-
-const RESERVED_BOOTSTRAP_ROLE_BY_EMAIL: Record<string, 'admin' | 'super_admin' | 'dirigeant'> = {
-  'admin@erp-demo.fr': 'admin',
-  'contact@nexora-truck.fr': 'admin',
-  'direction@erp-demo.fr': 'dirigeant',
-  'chabre.florent@gmail.com': 'super_admin',
-}
-
-function resolvePrivilegedBootstrapRole(user: NonNullable<ReturnType<typeof useAuth>['session']>['user']): 'admin' | 'super_admin' | 'dirigeant' | null {
-  const email = typeof user.email === 'string' ? user.email.trim().toLowerCase() : ''
-  if (email && RESERVED_BOOTSTRAP_ROLE_BY_EMAIL[email]) return RESERVED_BOOTSTRAP_ROLE_BY_EMAIL[email]
-  if (email) {
-    const localPart = email.split('@')[0] ?? ''
-    if (localPart === 'admin') return 'admin'
-    if (localPart === 'direction' || localPart === 'dirigeant') return 'dirigeant'
-  }
-
-  const appRole = typeof user.app_metadata?.role === 'string' ? user.app_metadata.role.trim().toLowerCase() : null
-  if (appRole === 'admin' || appRole === 'super_admin' || appRole === 'dirigeant') return appRole as 'admin' | 'super_admin' | 'dirigeant'
-
-  const userRole = typeof user.user_metadata?.role === 'string' ? user.user_metadata.role.trim().toLowerCase() : null
-  if (userRole === 'admin' || userRole === 'super_admin' || userRole === 'dirigeant') return userRole as 'admin' | 'super_admin' | 'dirigeant'
-
-  return null
-}
 
 function FullscreenSpinner() {
   return (
@@ -77,6 +51,7 @@ function ProfileBootstrapScreen({
 
 export default function RequireAuth() {
   const { session, loading, accountProfil, canUseSessionPicker, sessionRole, profilLoading, reloadProfil, authError } = useAuth()
+  const location = useLocation()
   const [bootstrapTick, setBootstrapTick] = useState(0)
   const [bootstrapping, setBootstrapping] = useState(false)
   const [bootstrapError, setBootstrapError] = useState<string | null>(null)
@@ -110,7 +85,7 @@ export default function RequireAuth() {
           .from('profils')
           .select('id', { head: true, count: 'exact' })
 
-        const privilegedBootstrapRole = resolvePrivilegedBootstrapRole(session.user)
+        const privilegedBootstrapRole = fallbackRoleFromEmail(session.user.email)
         const bootstrapRole = privilegedBootstrapRole ?? ((count ?? 0) === 0 ? 'admin' : 'exploitant')
         const { error } = await supabase.from('profils').insert({
           user_id: session.user.id,
@@ -167,7 +142,7 @@ export default function RequireAuth() {
     )
   }
 
-  if (canUseSessionPicker && !sessionRole) return <SessionPicker />
+  if (canUseSessionPicker && !sessionRole && location.pathname !== '/session-picker') return <Navigate to="/session-picker" replace />
 
   return <Outlet />
 }

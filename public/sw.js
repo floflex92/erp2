@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nexora-truck-v1-6-0'
+const CACHE_NAME = 'nexora-truck-v1-6-1'
 const APP_SHELL = ['/', '/index.html', '/site.webmanifest', '/favicon.svg', '/pwa-192.png', '/pwa-512.png']
 
 self.addEventListener('install', event => {

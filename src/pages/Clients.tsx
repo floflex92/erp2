@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { ST_ACTIFS } from '@/lib/transportCourses'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { getDemoSeedState, markDemoSeedState, resetDemoSeedState, seedTransportDemoData } from '@/lib/demoSeed'
 import { isDemoDataEnabled } from '@/lib/runtimeFlags'
@@ -66,16 +67,22 @@ const FACTURE_STATUT_COLORS: Record<string, string> = {
 }
 
 const OT_STATUT_LABELS: Record<string, string> = {
-  brouillon: 'Brouillon',
-  confirme: 'Confirme',
-  planifie: 'Planifie',
-  en_cours: 'En cours',
-  livre: 'Livre',
-  facture: 'Facture',
-  annule: 'Annule',
+  // legacy
+  brouillon: 'Brouillon', confirme: 'Confirme', planifie: 'Planifie',
+  en_cours: 'En cours', livre: 'Livre', facture: 'Facture', annule: 'Annule',
+  // statut_transport
+  en_attente_validation: 'En attente validation',
+  valide: 'Validé',
+  en_attente_planification: 'En attente planification',
+  en_cours_approche_chargement: 'En approche chargement',
+  en_chargement: 'En chargement',
+  en_transit: 'En transit',
+  en_livraison: 'En livraison',
+  termine: 'Terminé',
 }
 
 const OT_STATUT_COLORS: Record<string, string> = {
+  // legacy
   brouillon: 'bg-slate-100 text-slate-600',
   confirme: 'bg-blue-100 text-blue-700',
   planifie: 'bg-indigo-100 text-indigo-700',
@@ -83,6 +90,15 @@ const OT_STATUT_COLORS: Record<string, string> = {
   livre: 'bg-green-100 text-green-700',
   facture: 'bg-purple-100 text-purple-700',
   annule: 'bg-red-100 text-red-700',
+  // statut_transport
+  en_attente_validation: 'bg-slate-100 text-slate-700',
+  valide: 'bg-blue-100 text-blue-700',
+  en_attente_planification: 'bg-indigo-100 text-indigo-700',
+  en_cours_approche_chargement: 'bg-amber-100 text-amber-700',
+  en_chargement: 'bg-orange-100 text-orange-700',
+  en_transit: 'bg-purple-100 text-purple-700',
+  en_livraison: 'bg-fuchsia-100 text-fuchsia-700',
+  termine: 'bg-emerald-100 text-emerald-700',
 }
 
 const EMPTY_CLIENT: TablesInsert<'clients'> = {
@@ -359,7 +375,7 @@ export default function Clients() {
     courses.forEach(course => {
       const current = map.get(course.client_id) ?? { total: 0, active: 0, ca: 0 }
       current.total += 1
-      if (['brouillon', 'confirme', 'en_cours'].includes(course.statut)) current.active += 1
+      if (ST_ACTIFS.includes(course.statut_transport as never)) current.active += 1
       current.ca += course.prix_ht ?? 0
       map.set(course.client_id, current)
     })
@@ -439,7 +455,7 @@ export default function Clients() {
       if (facture.statut !== 'envoyee' || !facture.date_echeance) return false
       return new Date(facture.date_echeance).getTime() < Date.now()
     }).length,
-    coursesActives: courses.filter(course => ['brouillon', 'confirme', 'en_cours'].includes(course.statut)).length,
+    coursesActives: courses.filter(course => ST_ACTIFS.includes(course.statut_transport as never)).length,
   }
 
   function resetFeedback() {
@@ -1266,7 +1282,7 @@ export default function Clients() {
                         <h4 className="text-sm font-semibold text-slate-800">Visualisation des courses</h4>
                         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
                           <MiniInfo label="Courses" value={clientCourses.length.toString()} />
-                          <MiniInfo label="Actives" value={clientCourses.filter(course => ['brouillon', 'confirme', 'en_cours'].includes(course.statut)).length.toString()} />
+                          <MiniInfo label="Actives" value={clientCourses.filter(course => ST_ACTIFS.includes(course.statut_transport as never)).length.toString()} />
                           <MiniInfo label="CA HT" value={formatCurrency(currentCourseCa)} />
                         </div>
 
@@ -1279,8 +1295,8 @@ export default function Clients() {
                                 <div>
                                   <div className="flex items-center gap-2">
                                     <span className="text-sm font-medium text-slate-800">{course.reference}</span>
-                                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${OT_STATUT_COLORS[course.statut] ?? 'bg-slate-100 text-slate-600'}`}>
-                                      {OT_STATUT_LABELS[course.statut] ?? course.statut}
+                                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${OT_STATUT_COLORS[course.statut_transport ?? course.statut] ?? 'bg-slate-100 text-slate-600'}`}>
+                                      {OT_STATUT_LABELS[course.statut_transport ?? course.statut] ?? course.statut_transport ?? course.statut}
                                     </span>
                                   </div>
                                   <div className="mt-1 text-xs text-slate-500">

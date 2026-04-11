@@ -12,6 +12,8 @@ export default defineConfig({
     target: 'es2022',
     cssCodeSplit: true,
     chunkSizeWarningLimit: 200,
+    reportCompressedSize: false,
+    assetsInlineLimit: 2048,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -21,7 +23,8 @@ export default defineConfig({
           if (id.includes('node_modules/leaflet/')) return 'vendor-leaflet'
           if (id.includes('node_modules/jspdf/')) return 'vendor-pdf'
           if (id.includes('node_modules/@anthropic-ai/')) return 'vendor-ai'
-          if (id.includes('/src/site/')) return 'site-public'
+          if (id.includes('/src/site/pages/HomePage')) return 'site-home'
+          if (id.includes('/src/site/pages/') || id.includes('/src/site/components/') || id.includes('/src/site/lib/') || id.includes('/src/site/hooks/') || id.includes('/src/site/content/')) return 'site-public'
           return undefined
         },
       },

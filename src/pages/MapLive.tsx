@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { STATUT_OPS, type StatutOps } from '@/lib/statut-ops'
+import { ST_PLANIFIE, ST_EN_COURS, ST_TERMINE } from '@/lib/transportCourses'
 import type { Tables } from '@/lib/database.types'
 
 type MissionRow = {
@@ -778,8 +779,8 @@ export default function MapLive() {
         conducteurs(prenom, nom, statut),
         vehicules(immatriculation, marque, statut)
       `)
-      .in('statut', ['planifie', 'en_cours', 'livre', 'facture'])
-      .neq('statut', 'annule')
+      .in('statut_transport', [...ST_PLANIFIE, ...ST_EN_COURS, ...ST_TERMINE])
+      .neq('statut_transport', 'annule')
       .order('updated_at', { ascending: false })
       .limit(28)
 
@@ -788,8 +789,8 @@ export default function MapLive() {
       const bareR = await supabase
         .from('ordres_transport')
         .select('id, reference, statut, vehicule_id, statut_operationnel, date_livraison_prevue, distance_km, nature_marchandise')
-        .in('statut', ['planifie', 'en_cours', 'livre', 'facture'])
-        .neq('statut', 'annule')
+        .in('statut_transport', [...ST_PLANIFIE, ...ST_EN_COURS, ...ST_TERMINE])
+        .neq('statut_transport', 'annule')
         .order('updated_at', { ascending: false })
         .limit(28)
       missionRows = bareR.data as unknown[] | null

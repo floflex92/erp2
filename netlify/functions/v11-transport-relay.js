@@ -19,7 +19,7 @@ const RELAIS_SELECT = `
   conducteur_reprise_id, vehicule_reprise_id, remorque_reprise_id,
   date_reprise_prevue, date_reprise_reelle,
   created_by, created_at, updated_at,
-  ordres_transport:ot_id ( id, reference, client_nom, statut, statut_operationnel, vehicule_id, conducteur_id ),
+  ordres_transport:ot_id ( id, reference, client_nom, statut, statut_transport, statut_operationnel, vehicule_id, conducteur_id ),
   site:site_id ( id, nom, adresse, ville, code_postal, latitude, longitude ),
   conducteur_depose:conducteur_depose_id ( id, nom, prenom ),
   vehicule_depose:vehicule_depose_id ( id, immatriculation, modele ),

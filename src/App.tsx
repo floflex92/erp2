@@ -60,6 +60,7 @@ const IaTransportPage = lazy(() => import('@/site/pages/IaTransportPage'))
 const LogicielTransportPage = lazy(() => import('@/site/pages/LogicielTransportPage'))
 const FacturationTransportPage = lazy(() => import('@/site/pages/FacturationTransportPage'))
 const AffretementTransportPage = lazy(() => import('@/site/pages/AffretementTransportPage'))
+const IntegrationsPage = lazy(() => import('@/site/pages/IntegrationsPage'))
 const ArticlesPage = lazy(() => import('@/site/pages/ArticlesPage'))
 const ArticlePage = lazy(() => import('@/site/pages/articles/ArticlePage'))
 const DemoPage = lazy(() => import('@/site/pages/DemoPage'))
@@ -67,17 +68,21 @@ const ContactPage = lazy(() => import('@/site/pages/ContactPage'))
 const ERPLoginPage = lazy(() => import('@/site/pages/ERPLoginPage'))
 const PrivacyPolicyPage = lazy(() => import('@/site/pages/PrivacyPolicyPage'))
 const TermsOfUsePage = lazy(() => import('@/site/pages/TermsOfUsePage'))
+const PresentationPage = lazy(() => import('@/site/pages/PresentationPage'))
 const DemoAccess = lazy(() => import('@/pages/DemoAccess'))
 const SessionPickerPage = lazy(() => import('@/pages/SessionPicker'))
 const SuperAdmin = lazy(() => import('@/pages/SuperAdminPage'))
 const TenantAdmin = lazy(() => import('@/pages/TenantAdminPage'))
-const WarRoom     = lazy(() => import('@/pages/WarRoom'))
+const OpsCenter   = lazy(() => import('@/pages/OpsCenter'))
+const DashboardConducteur = lazy(() => import('@/pages/DashboardConducteur'))
+const PlanningConducteur = lazy(() => import('@/pages/PlanningConducteur'))
+const FraisRapide = lazy(() => import('@/pages/FraisRapide'))
 
 function RequireRole({ page, children }: { page: string; children: React.ReactNode }) {
-  const { role, loading, tenantAllowedPages, enabledModules } = useAuth()
-  if (loading) return null
+  const { role, loading, profilLoading, tenantAllowedPages, enabledModules } = useAuth()
+  if (loading || profilLoading) return <RouteFallback />
   // Pas encore de rôle (profil en cours de chargement) → on attend sans rediriger
-  if (!role) return null
+  if (!role) return <RouteFallback />
   // Rôle chargé mais pas accès à cette page → rediriger vers la première page accessible
   if (!canAccess(role as Role, page, tenantAllowedPages, enabledModules)) return <Navigate to={firstPage(role as Role, tenantAllowedPages, enabledModules)} replace />
   return <>{children}</>
@@ -85,9 +90,9 @@ function RequireRole({ page, children }: { page: string; children: React.ReactNo
 
 function RouteFallback() {
   return (
-    <div className="flex min-h-screen items-center justify-center">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-slate-950 px-6 text-white">
       <span className="sr-only">Chargement en cours…</span>
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-[color:var(--primary)] border-t-transparent" aria-hidden="true" />
+      <div className="h-7 w-7 animate-spin rounded-full border-2 border-slate-600 border-t-white" aria-hidden="true" />
     </div>
   )
 }
@@ -131,8 +136,8 @@ export default function App() {
                 <Route path="ia-transport" element={<IaTransportPage />} />
                 <Route path="facturation-transport" element={<FacturationTransportPage />} />
                 <Route path="affretement-transport" element={<AffretementTransportPage />} />
-              <Route path="mentions-legales-public" element={<MentionsLegales />} />
-              </Route>
+                <Route path="integrations" element={<IntegrationsPage />} />
+              <Route path="mentions-legales-public" element={<MentionsLegales />} />                <Route path="presentation" element={<PresentationPage />} />              </Route>
               <Route path="/login" element={<Login />} />
               <Route element={<RequireAuth />}>
                 <Route path="demo-access" element={<DemoAccess />} />
@@ -175,7 +180,11 @@ export default function App() {
                   <Route path="coffre"       element={<RequireRole page="coffre"><Coffre /></RequireRole>} />
                   <Route path="mentions-legales" element={<RequireRole page="mentions-legales"><MentionsLegales /></RequireRole>} />
                   <Route path="tenant-admin"    element={<RequireRole page="tenant-admin"><TenantAdmin /></RequireRole>} />
-                  <Route path="war-room"        element={<RequireRole page="war-room"><WarRoom /></RequireRole>} />
+                  <Route path="war-room"        element={<Navigate to="/ops-center" replace />} />
+                  <Route path="ops-center"       element={<RequireRole page="ops-center"><OpsCenter /></RequireRole>} />
+                  <Route path="dashboard-conducteur" element={<RequireRole page="dashboard-conducteur"><DashboardConducteur /></RequireRole>} />
+                  <Route path="planning-conducteur" element={<RequireRole page="planning-conducteur"><PlanningConducteur /></RequireRole>} />
+                  <Route path="frais-rapide" element={<RequireRole page="frais-rapide"><FraisRapide /></RequireRole>} />
                 </Route>
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />

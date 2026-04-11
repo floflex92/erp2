@@ -22,6 +22,37 @@ export const TRANSPORT_STATUS_FLOW = [
 ] as const
 export type TransportStatus = (typeof TRANSPORT_STATUS_FLOW)[number]
 
+/**
+ * Groupes de statut_transport équivalents aux anciens statuts legacy (champ `statut`).
+ * Utiliser ces constantes dans les filtres Supabase et les comparaisons côté client.
+ */
+/** Ancien 'brouillon' → en attente de validation */
+export const ST_BROUILLON: TransportStatus[] = ['en_attente_validation']
+/** Ancien 'confirme' → validé, prêt à planifier */
+export const ST_CONFIRME: TransportStatus[] = ['valide']
+/** Ancien 'planifie' → planifié ou en attente de planification */
+export const ST_PLANIFIE: TransportStatus[] = ['planifie', 'en_attente_planification']
+/** Ancien 'en_cours' → toutes les phases de transit */
+export const ST_EN_COURS: TransportStatus[] = [
+  'en_cours_approche_chargement',
+  'en_chargement',
+  'en_transit',
+  'en_livraison',
+]
+/** Ancien 'livre' ou 'facture' → terminé */
+export const ST_TERMINE: TransportStatus[] = ['termine']
+/** Tous les OT actifs non terminés et non annulés */
+export const ST_ACTIFS: TransportStatus[] = [
+  'en_attente_validation',
+  'valide',
+  'en_attente_planification',
+  'planifie',
+  'en_cours_approche_chargement',
+  'en_chargement',
+  'en_transit',
+  'en_livraison',
+]
+
 export const TRANSPORT_STATUS_LABELS: Record<TransportStatus, string> = {
   en_attente_validation: 'En attente validation',
   valide: 'Valide',
@@ -144,4 +175,40 @@ export async function syncOtLignes(otId: string, companyId: number, lignes: Arra
   const rows: OtLigneInsert[] = lignes.map(l => ({ ...l, ot_id: otId, company_id: companyId }))
   const { error: insErr } = await supabase.from('ot_lignes').insert(rows)
   if (insErr) throw insErr
+}
+
+// ─── Labels et styles statuts OT (source de vérité UI) ───────────────────────
+// IMPORTANT: toute modification ici se propage à toutes les pages.
+// Ne pas redéfinir ces constantes localement dans les pages.
+
+/** Libellés lisibles des statuts OT (champ `statut` legacy). */
+export const OT_STATUT_LABELS: Record<string, string> = {
+  brouillon: 'Brouillon',
+  confirme:  'Confirmé',
+  planifie:  'Planifié',
+  en_cours:  'En cours',
+  livre:     'Livré',
+  facture:   'Facturé',
+  annule:    'Annulé',
+}
+
+/** Classes Tailwind badge pour chaque statut OT. */
+export const OT_STATUT_BADGE_CLS: Record<string, string> = {
+  brouillon: 'bg-slate-700 text-slate-400',
+  confirme:  'bg-blue-900/60 text-blue-300',
+  planifie:  'bg-indigo-900/60 text-indigo-300',
+  en_cours:  'bg-emerald-900/60 text-emerald-300',
+  livre:     'bg-teal-900/60 text-teal-300',
+  facture:   'bg-violet-900/60 text-violet-300',
+  annule:    'bg-red-900/60 text-red-400',
+}
+
+/** Classes Tailwind bloc Gantt pour chaque statut OT. */
+export const OT_STATUT_BLOCK_CLS: Record<string, string> = {
+  brouillon: 'bg-slate-600 border-slate-500',
+  confirme:  'bg-blue-700 border-blue-600',
+  planifie:  'bg-indigo-600 border-indigo-500',
+  en_cours:  'bg-emerald-600 border-emerald-500',
+  livre:     'bg-teal-600 border-teal-500',
+  facture:   'bg-violet-700 border-violet-600',
 }

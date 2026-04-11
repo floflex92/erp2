@@ -85,6 +85,9 @@ export default function Utilisateurs() {
   const [editNotes, setEditNotes] = useState('')
   const [saving, setSaving] = useState(false)
 
+  const [confirmAction, setConfirmAction] = useState<{ id: string; action: string; name: string } | null>(null)
+  const [linkModal, setLinkModal] = useState<{ title: string; link: string } | null>(null)
+
   const load = useCallback(async () => {
     if (!session?.access_token) return
     setLoading(true)
@@ -153,8 +156,9 @@ export default function Utilisateurs() {
     }
   }
 
-  async function applyAction(id: string, action: 'enable' | 'disable' | 'archive' | 'delete') {
+  async function applyAction(id: string, action: 'enable' | 'disable' | 'suspend' | 'archive' | 'delete') {
     if (!session?.access_token) return
+    setConfirmAction(null)
     setError(null)
     setNotice(null)
     try {
@@ -163,6 +167,23 @@ export default function Utilisateurs() {
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Action impossible.')
+    }
+  }
+
+  async function requestLink(id: string, action: 'reset_password' | 'magic_link') {
+    if (!session?.access_token) return
+    setError(null)
+    try {
+      const data = await adminRequest<{ ok: boolean; recovery_link?: string; magic_link?: string }>(
+        session.access_token, 'PATCH', { id, action }
+      )
+      const link = data.recovery_link ?? data.magic_link ?? ''
+      setLinkModal({
+        title: action === 'reset_password' ? 'Lien de reinitialisation MDP' : 'Lien de connexion magique',
+        link,
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Impossible de generer le lien.')
     }
   }
 
@@ -345,7 +366,9 @@ export default function Utilisateurs() {
                         <option value="desactive">Desactive</option>
                         <option value="archive">Archive</option>
                       </select>
-                    ) : (user.account_status ?? 'actif')}
+                    ) : (
+                      <StatusBadge status={user.account_status ?? 'actif'} />
+                    )}
                   </td>
                   <td className="px-3 py-2">
                     {editId === user.id ? (
@@ -390,9 +413,12 @@ export default function Utilisateurs() {
                       <div className="flex flex-wrap gap-2">
                         <button type="button" onClick={() => startEdit(user)} className="rounded border border-slate-300 px-2 py-1 text-xs">Editer</button>
                         <button type="button" onClick={() => void applyAction(user.id, 'enable')} className="rounded border border-emerald-300 px-2 py-1 text-xs text-emerald-700">Activer</button>
-                        <button type="button" onClick={() => void applyAction(user.id, 'disable')} className="rounded border border-amber-300 px-2 py-1 text-xs text-amber-700">Desactiver</button>
-                        <button type="button" onClick={() => void applyAction(user.id, 'archive')} className="rounded border border-slate-300 px-2 py-1 text-xs">Archiver</button>
-                        <button type="button" onClick={() => void applyAction(user.id, 'delete')} className="rounded border border-red-300 px-2 py-1 text-xs text-red-700">Supprimer</button>
+                        <button type="button" onClick={() => void applyAction(user.id, 'suspend')} className="rounded border border-amber-300 px-2 py-1 text-xs text-amber-700">Suspendre</button>
+                        <button type="button" onClick={() => void applyAction(user.id, 'disable')} className="rounded border border-orange-300 px-2 py-1 text-xs text-orange-700">Desactiver</button>
+                        <button type="button" onClick={() => void requestLink(user.id, 'reset_password')} className="rounded border border-blue-300 px-2 py-1 text-xs text-blue-700">Reinit. MDP</button>
+                        <button type="button" onClick={() => void requestLink(user.id, 'magic_link')} className="rounded border border-violet-300 px-2 py-1 text-xs text-violet-700">Lien magique</button>
+                        <button type="button" onClick={() => setConfirmAction({ id: user.id, action: 'archive', name: [user.prenom, user.nom].filter(Boolean).join(' ') || user.email || user.id })} className="rounded border border-slate-300 px-2 py-1 text-xs">Archiver</button>
+                        <button type="button" onClick={() => setConfirmAction({ id: user.id, action: 'delete', name: [user.prenom, user.nom].filter(Boolean).join(' ') || user.email || user.id })} className="rounded border border-red-300 px-2 py-1 text-xs text-red-700">Supprimer</button>
                       </div>
                     )}
                   </td>
@@ -449,8 +475,63 @@ export default function Utilisateurs() {
           </table>
         </div>
       </div>
+      {confirmAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+            <p className="text-sm font-medium text-slate-800">
+              Confirmer <span className="font-bold">{confirmAction.action === 'delete' ? 'la suppression' : "l'archivage"}</span> de <span className="font-bold">{confirmAction.name}</span>&nbsp;?
+            </p>
+            {confirmAction.action === 'delete' && (
+              <p className="mt-1 text-xs text-red-600">Cette action est irreversible. Le compte auth sera supprime.</p>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setConfirmAction(null)} className="rounded border border-slate-300 px-3 py-1.5 text-sm">Annuler</button>
+              <button
+                type="button"
+                onClick={() => void applyAction(confirmAction.id, confirmAction.action as 'archive' | 'delete')}
+                className={`rounded px-3 py-1.5 text-sm text-white ${confirmAction.action === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-slate-700 hover:bg-slate-800'}`}
+              >
+                Confirmer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {linkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+            <h3 className="text-sm font-semibold text-slate-800">{linkModal.title}</h3>
+            <p className="mt-1 text-xs text-slate-500">Copiez ce lien et transmettez-le a l'utilisateur. Il expire rapidement.</p>
+            <div className="mt-3 flex items-center gap-2">
+              <input readOnly value={linkModal.link} className="w-full rounded border border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-xs text-slate-700 outline-none" />
+              <button
+                type="button"
+                onClick={() => { void navigator.clipboard.writeText(linkModal.link); setNotice('Lien copie !') }}
+                className="shrink-0 rounded border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-50"
+              >
+                Copier
+              </button>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button type="button" onClick={() => setLinkModal(null)} className="rounded border border-slate-300 px-3 py-1.5 text-sm">Fermer</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const variants: Record<string, string> = {
+    actif: 'bg-emerald-100 text-emerald-700',
+    suspendu: 'bg-amber-100 text-amber-700',
+    desactive: 'bg-red-100 text-red-700',
+    archive: 'bg-slate-100 text-slate-600',
+  }
+  const cls = variants[status] ?? 'bg-gray-100 text-gray-700'
+  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{status}</span>
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

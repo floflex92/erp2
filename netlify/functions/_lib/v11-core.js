@@ -14,11 +14,19 @@ export const VALID_LEGACY_TENANT_KEYS = new Set(['default', 'tenant_test'])
 // company_id de reference pour les donnees de migration (toutes les donnees pre-multitenant)
 export const DEFAULT_COMPANY_ID = 1
 
-const ROLE_VALUES = ['admin', 'dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable', 'rh', 'conducteur', 'logisticien']
+// IMPORTANT: cette liste DOIT rester synchronisée avec ROLE_VALUES dans src/lib/auth.tsx.
+// Toute divergence provoque des 401 silencieux pour les rôles manquants.
+const ROLE_VALUES = [
+  'admin', 'super_admin', 'dirigeant', 'exploitant', 'mecanicien', 'commercial',
+  'comptable', 'rh', 'conducteur', 'conducteur_affreteur', 'client', 'affreteur',
+  'administratif', 'facturation', 'flotte', 'maintenance', 'observateur', 'demo',
+  'investisseur', 'logisticien',
+]
 const ROLE_SET = new Set(ROLE_VALUES)
 const ROLE_ALIASES = {
   administrateur: 'admin',
   administrator: 'admin',
+  superadmin: 'super_admin',
   direction: 'dirigeant',
   exploitation: 'exploitant',
   atelier: 'mecanicien',
@@ -28,11 +36,20 @@ const ROLE_ALIASES = {
   ressources_humaines: 'rh',
   chauffeur: 'conducteur',
   driver: 'conducteur',
+  conducteuraffreteur: 'conducteur_affreteur',
+  driver_affreteur: 'conducteur_affreteur',
+  subcontractor_driver: 'conducteur_affreteur',
+  customer: 'client',
+  subcontractor: 'affreteur',
+  affretement: 'affreteur',
+  finance: 'facturation',
+  investor: 'investisseur',
 }
 const RESERVED_ADMIN_EMAIL_ROLE = {
   'admin@erp-demo.fr': 'admin',
   'contact@nexora-truck.fr': 'admin',
   'direction@erp-demo.fr': 'dirigeant',
+  'chabre.florent@gmail.com': 'super_admin',
 }
 
 function isEmailRoleFallbackEnabled() {
@@ -425,6 +442,29 @@ export async function writeCache(dbClient, tenantKey, cacheKey, scope, payload, 
 export async function logApiEvent(dbClient, payload) {
   try {
     await dbClient.from('erp_v11_api_logs').insert(payload)
+  } catch {
+    // non-blocking logging path
+  }
+}
+
+// NOTE SECURITE: utilise systemClient (service role) pour bypasser RLS en ecriture securisee.
+// La table app_error_logs a une policy INSERT pour authenticated, mais Netlify functions
+// utilisent service_role qui bypasse RLS. SELECT reste restreint aux admins.
+export async function logAppError(systemClient, {
+  source = 'netlify',
+  error_type = 'api_error',
+  message,
+  stack_trace = null,
+  context = null,
+} = {}) {
+  try {
+    await systemClient.from('app_error_logs').insert({
+      source,
+      error_type,
+      message: String(message ?? 'Unknown error').slice(0, 500),
+      stack_trace: stack_trace ? String(stack_trace).slice(0, 2000) : null,
+      context,
+    })
   } catch {
     // non-blocking logging path
   }
