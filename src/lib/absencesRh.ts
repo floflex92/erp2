@@ -12,7 +12,14 @@ export type TypeAbsence =
   | 'absence_autorisee'
   | 'autre'
 
-export type StatutAbsence = 'demande' | 'validee' | 'refusee' | 'annulee'
+export type StatutAbsence =
+  | 'demande'
+  | 'validee_exploitation'
+  | 'validee_direction'
+  | 'integree_paie'
+  | 'validee'
+  | 'refusee'
+  | 'annulee'
 
 export interface AbsenceRh {
   id: string
@@ -31,6 +38,13 @@ export interface AbsenceRh {
   created_by: string | null
   created_at: string
   updated_at: string
+  // Workflow multi-étapes
+  validateur_exploitation_id: string | null
+  date_validation_exploitation: string | null
+  validateur_direction_id: string | null
+  date_validation_direction: string | null
+  integre_paie_par_id: string | null
+  date_integration_paie: string | null
 }
 
 export interface SoldeAbsences {
@@ -59,6 +73,9 @@ export const TYPE_ABSENCE_LABELS: Record<TypeAbsence, string> = {
 
 export const STATUT_ABSENCE_LABELS: Record<StatutAbsence, string> = {
   demande: 'Demandé',
+  validee_exploitation: 'Validé exploitation',
+  validee_direction: 'Validé direction',
+  integree_paie: 'Intégré paie',
   validee: 'Validé',
   refusee: 'Refusé',
   annulee: 'Annulé',
@@ -66,10 +83,31 @@ export const STATUT_ABSENCE_LABELS: Record<StatutAbsence, string> = {
 
 export const STATUT_ABSENCE_COLORS: Record<StatutAbsence, string> = {
   demande: 'bg-amber-100 text-amber-700',
+  validee_exploitation: 'bg-blue-100 text-blue-700',
+  validee_direction: 'bg-indigo-100 text-indigo-700',
+  integree_paie: 'bg-purple-100 text-purple-700',
   validee: 'bg-green-100 text-green-700',
   refusee: 'bg-red-100 text-red-600',
   annulee: 'bg-slate-100 text-slate-500',
 }
+
+/** Étapes du workflow d'absence avec le rôle autorisé pour chaque transition */
+export const ABSENCE_WORKFLOW_STEPS: {
+  from: StatutAbsence
+  to: StatutAbsence
+  label: string
+  roles: string[]
+}[] = [
+  { from: 'demande', to: 'validee_exploitation', label: 'Valider (exploitation)', roles: ['exploitant', 'admin', 'super_admin'] },
+  { from: 'validee_exploitation', to: 'validee_direction', label: 'Valider (direction)', roles: ['dirigeant', 'admin', 'super_admin'] },
+  { from: 'validee_direction', to: 'integree_paie', label: 'Intégrer en paie', roles: ['rh', 'comptable', 'admin', 'super_admin'] },
+  { from: 'integree_paie', to: 'validee', label: 'Validation finale', roles: ['rh', 'dirigeant', 'admin', 'super_admin'] },
+]
+
+/** Statuts considérés comme "en cours" pour le blocage planning */
+export const STATUTS_ABSENCE_ACTIFS: StatutAbsence[] = [
+  'demande', 'validee_exploitation', 'validee_direction', 'integree_paie', 'validee',
+]
 
 // ─── CRUD absences ────────────────────────────────────────────────────────────
 
@@ -97,7 +135,7 @@ export async function fetchAbsencesValideesPeriode(
       .from('absences_rh')
       .select('*')
       .eq('employe_id', employeId)
-      .eq('statut', 'validee')
+      .in('statut', STATUTS_ABSENCE_ACTIFS)
       .lte('date_debut', periodeFin)
       .gte('date_fin', periodeDebut)
       .order('date_debut', { ascending: true })

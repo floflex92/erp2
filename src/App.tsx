@@ -30,11 +30,13 @@ const MapLive = lazy(() => import('@/pages/MapLive'))
 const Planning = lazy(() => import('@/pages/Planning'))
 const FeuilleRoute = lazy(() => import('@/pages/FeuilleRoute'))
 const EspaceClient = lazy(() => import('@/pages/EspaceClient'))
+const CompteClientDB = lazy(() => import('@/pages/CompteClientDB'))
 const EspaceAffreteur = lazy(() => import('@/pages/EspaceAffreteur'))
 const DemandesClients = lazy(() => import('@/pages/DemandesClients'))
 const Utilisateurs = lazy(() => import('@/pages/Utilisateurs'))
 const Parametres = lazy(() => import('@/pages/Parametres'))
 const Rh = lazy(() => import('@/pages/Rh'))
+const EntretiensSalaries = lazy(() => import('@/pages/EntretiensSalaries'))
 const Tchat = lazy(() => import('@/pages/Tchat'))
 const Mail = lazy(() => import('@/pages/Mail'))
 const Communication = lazy(() => import('@/pages/Communication'))
@@ -168,10 +170,12 @@ export default function App() {
                   <Route path="feuille-route" element={<RequireRole page="feuille-route"><FeuilleRoute /></RequireRole>} />
                   <Route path="planning"     element={<RequireRole page="planning"><Planning /></RequireRole>} />
                   <Route path="espace-client" element={<RequireRole page="espace-client"><EspaceClient /></RequireRole>} />
+                  <Route path="compte-client-db" element={<RequireRole page="compte-client-db"><CompteClientDB /></RequireRole>} />
                   <Route path="espace-affreteur" element={<RequireRole page="espace-affreteur"><EspaceAffreteur /></RequireRole>} />
                   <Route path="demandes-clients" element={<RequireRole page="demandes-clients"><DemandesClients /></RequireRole>} />
                   <Route path="utilisateurs" element={<RequireRole page="utilisateurs"><Utilisateurs /></RequireRole>} />
                   <Route path="rh"           element={<RequireRole page="rh"><Rh /></RequireRole>} />
+                  <Route path="entretiens-salaries" element={<RequireRole page="entretiens-salaries"><EntretiensSalaries /></RequireRole>} />
                   <Route path="parametres"   element={<RequireRole page="parametres"><Parametres /></RequireRole>} />
                   <Route path="communication" element={<RequireRole page="communication"><Communication /></RequireRole>} />
                   <Route path="inter-erp" element={<RequireRole page="inter-erp"><InterErp /></RequireRole>} />

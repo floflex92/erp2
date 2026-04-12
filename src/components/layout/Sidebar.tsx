@@ -103,6 +103,7 @@ const NAV_SECTIONS: NavSection[] = [
       { to: '/clients',          page: 'clients',          label: 'Clients',          icon: 'company' },
       { to: '/prospection',      page: 'prospection',      label: 'Prospection',      icon: 'spark' },
       { to: '/espace-client',    page: 'espace-client',    label: 'Espace client',    icon: 'client-space' },
+      { to: '/compte-client-db', page: 'compte-client-db', label: 'Compte client DB', icon: 'database' },
       { to: '/espace-affreteur', page: 'espace-affreteur', label: 'Espace affreteur', icon: 'handshake' },
     ],
   },
@@ -111,6 +112,7 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'RH',
     items: [
       { to: '/rh', page: 'rh', label: 'Ressources humaines', icon: 'rh' },
+      { to: '/entretiens-salaries', page: 'entretiens-salaries', label: 'Entretiens salaries', icon: 'interview' },
     ],
   },
   {
@@ -176,6 +178,7 @@ function NavGlyph({ type, size = 18 }: { type: string; size?: number }) {
   if (type === 'handshake')    return <svg {...common}><path d="M7 11V7a2 2 0 0 1 4 0v3" /><path d="M11 10h2l3-3a2 2 0 0 1 2.83 2.83L15 13H7a2 2 0 0 0-2 2v2" /><path d="M5 17a2 2 0 0 0 4 0" /><path d="m13 14 2 2" /></svg>
   // RH
   if (type === 'rh')           return <svg {...common}><path d="M16 19a4 4 0 0 0-8 0" /><circle cx="12" cy="9" r="3" /><path d="M19 19a3 3 0 0 0-3-3" /><path d="M18 8a2.5 2.5 0 1 1 0 5" /><path d="M5 19a3 3 0 0 1 3-3" /><path d="M6 8a2.5 2.5 0 1 0 0 5" /></svg>
+  if (type === 'interview')    return <svg {...common}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M8 2v4M16 2v4M3 10h18" /><path d="M8 14h8M8 17h5" /></svg>
   // Communications
   if (type === 'chat')         return <svg {...common}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
   if (type === 'mail')         return <svg {...common}><path d="M4 6h16v12H4z" /><path d="m4 7 8 6 8-6" /></svg>

@@ -89,6 +89,12 @@ export function saveAttachmentToVault(
   }
   state.items.unshift(record)
   saveState(state)
+
+  // Best-effort sync vers le coffre Supabase v2 sans bloquer l'UX locale.
+  void import('./employeeVault')
+    .then(module => module.saveAttachmentToEmployeeVault(ownerId, attachment, source, sourceLabel))
+    .catch(() => undefined)
+
   return record
 }
 

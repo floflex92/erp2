@@ -192,7 +192,7 @@ export const OT_STATUT_LABELS: Record<string, string> = {
   annule:    'Annulé',
 }
 
-/** Classes Tailwind badge pour chaque statut OT. */
+/** Classes Tailwind badge pour chaque statut OT (dark mode). */
 export const OT_STATUT_BADGE_CLS: Record<string, string> = {
   brouillon: 'bg-slate-700 text-slate-400',
   confirme:  'bg-blue-900/60 text-blue-300',
@@ -201,6 +201,17 @@ export const OT_STATUT_BADGE_CLS: Record<string, string> = {
   livre:     'bg-teal-900/60 text-teal-300',
   facture:   'bg-violet-900/60 text-violet-300',
   annule:    'bg-red-900/60 text-red-400',
+}
+
+/** Classes Tailwind badge pour chaque statut OT (light mode). */
+export const OT_STATUT_BADGE_LIGHT_CLS: Record<string, string> = {
+  brouillon: 'bg-slate-100 text-slate-600',
+  confirme:  'bg-blue-100 text-blue-700',
+  planifie:  'bg-indigo-100 text-indigo-700',
+  en_cours:  'bg-emerald-100 text-emerald-700',
+  livre:     'bg-teal-100 text-teal-700',
+  facture:   'bg-violet-100 text-violet-700',
+  annule:    'bg-red-100 text-red-600',
 }
 
 /** Classes Tailwind bloc Gantt pour chaque statut OT. */

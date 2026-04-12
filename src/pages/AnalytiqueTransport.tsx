@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
-type Tab = 'synthese' | 'missions' | 'clients' | 'flotte'
+type Tab = 'synthese' | 'missions' | 'clients' | 'chauffeurs' | 'flotte'
 
 interface MissionAnalytique {
   ot_id: string
@@ -31,6 +31,7 @@ interface MissionAnalytique {
 }
 
 interface Vehicule { id: string; immatriculation: string; marque: string | null; modele: string | null; numero_parc: string | null }
+interface Chauffeur { id: string; nom: string; prenom: string | null }
 
 interface CoutForm {
   km_reels: string
@@ -54,11 +55,22 @@ const fmtEur = (n: number) =>
 const fmtPct = (n: number) => `${n.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`
 const fmtN = (n: number | null, unit = '') => n !== null ? `${n.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}${unit}` : '—'
 
+function exportCSV(headers: string[], rows: string[][], filename: string) {
+  const bom = '\uFEFF'
+  const csv = bom + [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
 function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'synthese', label: 'Synthèse' },
     { key: 'missions', label: 'Missions' },
     { key: 'clients', label: 'Clients' },
+    { key: 'chauffeurs', label: 'Chauffeurs' },
     { key: 'flotte', label: 'Flotte' },
   ]
   return (
@@ -450,11 +462,18 @@ function ClientsTab({ data }: { data: MissionAnalytique[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
-        <Stat label="Marge moyenne" value={fmtPct(moyennePct)}
-          color={moyennePct >= 18 ? 'green' : moyennePct >= 10 ? 'amber' : 'red'} />
-        <Stat label="Clients analysés" value={String(clients.length)} color="blue" />
-        <Stat label="CA total" value={fmtEur(clients.reduce((s, c) => s + c.ca, 0))} color="slate" />
+      <div className="flex justify-between items-center">
+        <div className="grid grid-cols-3 gap-3 flex-1 mr-4">
+          <Stat label="Marge moyenne" value={fmtPct(moyennePct)}
+            color={moyennePct >= 18 ? 'green' : moyennePct >= 10 ? 'amber' : 'red'} />
+          <Stat label="Clients analysés" value={String(clients.length)} color="blue" />
+          <Stat label="CA total" value={fmtEur(clients.reduce((s, c) => s + c.ca, 0))} color="slate" />
+        </div>
+        {clients.length > 0 && <button onClick={() => {
+          const headers = ['Client', 'Missions', 'CA total', 'Coûts totaux', 'Marge €', 'Marge %', 'Km totaux']
+          const rows = clients.map(c => [c.nom, String(c.missions), c.ca.toFixed(2), c.cout.toFixed(2), c.marge.toFixed(2), c.pct !== null ? c.pct.toFixed(1) : '', String(c.km)])
+          exportCSV(headers, rows, `analytique-clients-${new Date().toISOString().slice(0, 10)}.csv`)
+        }} className={btnGhost}>Exporter CSV</button>}
       </div>
 
       <p className="text-xs text-slate-400">Les clients sont classés du moins rentable au plus rentable. Ligne orange = marge entre 10 et 18 %. Ligne rouge = marge &lt; 10 %.</p>
@@ -494,6 +513,92 @@ function ClientsTab({ data }: { data: MissionAnalytique[] }) {
   )
 }
 
+// ─── Onglet Chauffeurs ────────────────────────────────────────────────────────
+function ChauffeurTab({ data, chauffeurs }: { data: MissionAnalytique[]; chauffeurs: Chauffeur[] }) {
+  const chauffeurMap = useMemo(() =>
+    Object.fromEntries(chauffeurs.map(c => [c.id, `${c.prenom ?? ''} ${c.nom}`.trim()])), [chauffeurs])
+
+  const chauffeurAgg = useMemo(() => {
+    const map: Record<string, { nom: string; missions: number; km: number; coutTotal: number; ca: number; coutCarbu: number; coutPeages: number }> = {}
+    data.forEach(m => {
+      const cId = m.conducteur_id ?? '__sans'
+      const nom = chauffeurMap[cId] ?? 'Non affecté'
+      if (!map[cId]) map[cId] = { nom, missions: 0, km: 0, coutTotal: 0, ca: 0, coutCarbu: 0, coutPeages: 0 }
+      map[cId].missions++
+      map[cId].km += m.km_reels ?? 0
+      map[cId].coutCarbu += m.cout_carburant
+      map[cId].coutPeages += m.cout_peages
+      map[cId].coutTotal += m.cout_total
+      map[cId].ca += m.prix_vente_ht
+    })
+    return Object.values(map).sort((a, b) => b.ca - a.ca)
+  }, [data, chauffeurMap])
+
+  function doExport() {
+    const headers = ['Chauffeur', 'Missions', 'Km totaux', 'Carburant', 'Péages', 'Coûts totaux', 'CA', 'Marge €', 'Marge %', 'Coût/km']
+    const rows = chauffeurAgg.map(r => {
+      const marge = r.ca - r.coutTotal
+      const pct = r.ca > 0 ? (marge / r.ca * 100).toFixed(1) : ''
+      const coutKm = r.km > 0 ? ((r.coutCarbu + r.coutPeages) / r.km).toFixed(3) : ''
+      return [r.nom, String(r.missions), String(r.km), r.coutCarbu.toFixed(2), r.coutPeages.toFixed(2), r.coutTotal.toFixed(2), r.ca.toFixed(2), marge.toFixed(2), pct, coutKm]
+    })
+    exportCSV(headers, rows, `analytique-chauffeurs-${new Date().toISOString().slice(0, 10)}.csv`)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <p className="text-xs text-slate-400">Agrégation par conducteur — CA, coûts, marge et coût/km.</p>
+        {chauffeurAgg.length > 0 && <button onClick={doExport} className={btnGhost}>Exporter CSV</button>}
+      </div>
+
+      {chauffeurAgg.length === 0 ? (
+        <div className="text-center py-10 text-slate-400">Aucune donnée</div>
+      ) : (
+        <div className="overflow-auto rounded-lg border border-slate-200">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50">
+              <tr>
+                {['Chauffeur', 'Missions', 'Km', 'Carburant', 'Péages', 'Coûts', 'CA', 'Marge', 'Marge %', 'Coût/km'].map(h => (
+                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 border-b border-slate-200">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {chauffeurAgg.map((r, i) => {
+                const marge = r.ca - r.coutTotal
+                const pct = r.ca > 0 ? marge / r.ca * 100 : null
+                const coutKm = r.km > 0 ? (r.coutCarbu + r.coutPeages) / r.km : null
+                const rowBg = pct !== null && pct < 10 ? 'bg-red-50' : pct !== null && pct < 18 ? 'bg-amber-50' : ''
+                return (
+                  <tr key={i} className={`border-b border-slate-100 last:border-0 hover:opacity-80 ${rowBg}`}>
+                    <td className="px-3 py-3 font-semibold text-slate-800">{r.nom}</td>
+                    <td className="px-3 py-3 text-center text-slate-600">{r.missions}</td>
+                    <td className="px-3 py-3 text-right text-slate-700">{r.km.toLocaleString('fr-FR')} km</td>
+                    <td className="px-3 py-3 text-right text-slate-700">{fmtEur(r.coutCarbu)}</td>
+                    <td className="px-3 py-3 text-right text-slate-700">{fmtEur(r.coutPeages)}</td>
+                    <td className="px-3 py-3 text-right text-slate-700">{fmtEur(r.coutTotal)}</td>
+                    <td className="px-3 py-3 text-right text-slate-700">{fmtEur(r.ca)}</td>
+                    <td className={`px-3 py-3 text-right font-semibold ${marge < 0 ? 'text-red-700' : 'text-slate-800'}`}>{fmtEur(marge)}</td>
+                    <td className="px-3 py-3"><MargeBadge pct={pct} /></td>
+                    <td className="px-3 py-3 text-right">
+                      {coutKm !== null
+                        ? <span className={`text-xs font-semibold ${coutKm > 0.5 ? 'text-red-600' : coutKm > 0.35 ? 'text-amber-600' : 'text-green-700'}`}>
+                            {coutKm.toFixed(3)} €/km
+                          </span>
+                        : <span className="text-slate-300 text-xs">—</span>}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Onglet Flotte ────────────────────────────────────────────────────────────
 function FlotteTab({ data, vehicules }: { data: MissionAnalytique[]; vehicules: Vehicule[] }) {
   const vehiculeMap = useMemo(() =>
@@ -518,7 +623,17 @@ function FlotteTab({ data, vehicules }: { data: MissionAnalytique[]; vehicules: 
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-slate-400">Coût/km = (carburant + péages) / km réels saisis. Données basées sur les missions avec coûts renseignés.</p>
+      <div className="flex justify-between items-center">
+        <p className="text-xs text-slate-400">Coût/km = (carburant + péages) / km réels saisis. Données basées sur les missions avec coûts renseignés.</p>
+        {flotteAgg.length > 0 && <button onClick={() => {
+          const headers = ['Véhicule', 'Missions', 'Km totaux', 'Carburant', 'Péages', 'Coûts totaux', 'CA', 'Marge', 'Coût/km']
+          const rows = flotteAgg.map(r => {
+            const coutKm = r.km > 0 ? ((r.coutCarbu + r.coutPeages) / r.km).toFixed(3) : ''
+            return [r.immat, String(r.missions), String(r.km), r.coutCarbu.toFixed(2), r.coutPeages.toFixed(2), r.coutTotal.toFixed(2), r.ca.toFixed(2), (r.ca - r.coutTotal).toFixed(2), coutKm]
+          })
+          exportCSV(headers, rows, `analytique-flotte-${new Date().toISOString().slice(0, 10)}.csv`)
+        }} className={btnGhost}>Exporter CSV</button>}
+      </div>
 
       {flotteAgg.length === 0 ? (
         <div className="text-center py-10 text-slate-400">Aucune donnée — saisir les coûts depuis l'onglet Missions</div>
@@ -569,16 +684,19 @@ export default function AnalytiqueTransport() {
   const [tab, setTab] = useState<Tab>('synthese')
   const [data, setData] = useState<MissionAnalytique[]>([])
   const [vehicules, setVehicules] = useState<Vehicule[]>([])
+  const [chauffeurs, setChauffeurs] = useState<Chauffeur[]>([])
   const [loading, setLoading] = useState(true)
 
   async function load() {
     setLoading(true)
-    const [missions, vehs] = await Promise.all([
+    const [missions, vehs, chauf] = await Promise.all([
       (supabase.from('vue_analytique_missions' as any).select('*').order('created_at', { ascending: false }) as any),
       supabase.from('vehicules').select('id, immatriculation, marque, modele, numero_parc').order('immatriculation'),
+      supabase.from('conducteurs').select('id, nom, prenom').order('nom'),
     ])
     setData(missions.data ?? [])
     setVehicules(vehs.data ?? [])
+    setChauffeurs((chauf.data ?? []) as Chauffeur[])
     setLoading(false)
   }
 
@@ -598,6 +716,7 @@ export default function AnalytiqueTransport() {
           {tab === 'synthese'  && <SyntheseTab data={data} />}
           {tab === 'missions'  && <MissionsTab data={data} onRefresh={load} />}
           {tab === 'clients'   && <ClientsTab data={data} />}
+          {tab === 'chauffeurs' && <ChauffeurTab data={data} chauffeurs={chauffeurs} />}
           {tab === 'flotte'    && <FlotteTab data={data} vehicules={vehicules} />}
         </>
       )}

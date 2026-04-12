@@ -21,6 +21,7 @@ import {
   TRANSPORT_SOURCES,
   TRANSPORT_STATUS_FLOW,
   TRANSPORT_STATUS_LABELS,
+  OT_STATUT_BADGE_LIGHT_CLS,
   type TransportStatus,
   type OtLigne,
   listOtLignes,
@@ -57,14 +58,7 @@ type OtLigneDraft = {
   notes: string | null
 }
 
-const STATUT_COLORS: Record<string, string> = {
-  brouillon:   'bg-slate-100 text-slate-600',
-  confirme:    'bg-blue-100 text-blue-700',
-  en_cours:    'bg-yellow-100 text-yellow-700',
-  livre:       'bg-green-100 text-green-700',
-  facture:     'bg-purple-100 text-purple-700',
-  annule:      'bg-red-100 text-red-600',
-}
+
 const STATUT_LABELS: Record<string, string> = {
   brouillon: 'Brouillon', confirme: 'Confirmé', en_cours: 'En cours',
   livre: 'Livré', facture: 'Facturé', annule: 'Annulé',
@@ -906,7 +900,7 @@ export default function Transports() {
                 <p className="text-xs font-mono text-slate-400 mb-0.5">{selected.reference}</p>
                 <h3 className="text-lg font-bold text-slate-800">{clientMap[selected.client_id] ?? '—'}</h3>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUT_COLORS[selected.statut] ?? 'bg-slate-100 text-slate-600'}`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${OT_STATUT_BADGE_LIGHT_CLS[selected.statut] ?? 'bg-slate-100 text-slate-600'}`}>
                     {STATUT_LABELS[selected.statut] ?? selected.statut}
                   </span>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TRANSPORT_STATUS_COLORS[selected.statut_transport as TransportStatus] ?? 'bg-slate-100 text-slate-600'}`}>

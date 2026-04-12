@@ -27,6 +27,23 @@ interface Facture {
   date_echeance: string | null
 }
 
+interface FactureFournisseur {
+  id: string
+  numero: string
+  fournisseur_nom: string
+  montant_ht: number
+  montant_ttc: number | null
+  statut: string
+  date_echeance: string | null
+}
+
+interface MatchScore {
+  facture: Facture | FactureFournisseur
+  type: 'client' | 'fournisseur'
+  score: number   // 0-100
+  detail: string
+}
+
 interface Client { id: string; nom: string }
 
 interface FluxPrevisionnel {
@@ -358,32 +375,74 @@ function MouvementsTab() {
   )
 }
 
+// ─── Scoring de rapprochement ────────────────────────────────────────────────
+function scoreMatch(mvt: Mouvement, facture: Facture | FactureFournisseur, type: 'client' | 'fournisseur'): MatchScore {
+  const facMontant = facture.montant_ttc ?? facture.montant_ht
+  const mvtAbs = Math.abs(mvt.montant)
+  let score = 0
+  const details: string[] = []
+
+  // Montant exact (±0.01) = +50, ±2% = +35, ±5% = +20
+  const ecartPct = facMontant > 0 ? Math.abs(mvtAbs - facMontant) / facMontant : 1
+  if (ecartPct <= 0.0001) { score += 50; details.push('Montant exact') }
+  else if (ecartPct <= 0.02) { score += 35; details.push(`Montant ±${(ecartPct * 100).toFixed(1)}%`) }
+  else if (ecartPct <= 0.05) { score += 20; details.push(`Montant ±${(ecartPct * 100).toFixed(1)}%`) }
+
+  // Date (si date_echeance & date_operation proches) ±3j = +25, ±7j = +15, ±15j = +8
+  const dateEch = facture.date_echeance
+  if (dateEch && mvt.date_operation) {
+    const diff = Math.abs((new Date(mvt.date_operation).getTime() - new Date(dateEch).getTime()) / 86400000)
+    if (diff <= 3) { score += 25; details.push(`Date ±${Math.round(diff)}j`) }
+    else if (diff <= 7) { score += 15; details.push(`Date ±${Math.round(diff)}j`) }
+    else if (diff <= 15) { score += 8; details.push(`Date ±${Math.round(diff)}j`) }
+  }
+
+  // Référence / mots-clés dans le libellé : numéro facture ou nom
+  const lib = mvt.libelle.toLowerCase()
+  const ref = mvt.reference_banque?.toLowerCase() || ''
+  const num = facture.numero.toLowerCase()
+  const nom = type === 'client'
+    ? '' // nom client résolu plus tard dans le composant
+    : (facture as FactureFournisseur).fournisseur_nom?.toLowerCase() || ''
+
+  if (lib.includes(num) || ref.includes(num)) { score += 25; details.push('Réf. facture trouvée') }
+  else if (nom && (lib.includes(nom.slice(0, 8)) || ref.includes(nom.slice(0, 8)))) { score += 15; details.push('Nom trouvé') }
+
+  return { facture, type, score, detail: details.join(' · ') || 'Aucun critère' }
+}
+
 // ─── Onglet Rapprochement bancaire ───────────────────────────────────────────
 function RapprochementTab() {
   const [mouvements, setMouvements] = useState<Mouvement[]>([])
   const [factures, setFactures] = useState<Facture[]>([])
+  const [factFourn, setFactFourn] = useState<FactureFournisseur[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedMvt, setSelectedMvt] = useState<Mouvement | null>(null)
-  const [selectedFact, setSelectedFact] = useState<Facture | null>(null)
+  const [selectedMatch, setSelectedMatch] = useState<MatchScore | null>(null)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
+  const [mode, setMode] = useState<'credits' | 'debits'>('credits')
+  const [autoBatching, setAutoBatching] = useState(false)
 
   async function load() {
     setLoading(true)
-    const [m, f, c] = await Promise.all([
+    const [m, f, ff, c] = await Promise.all([
       (supabase.from('mouvements_bancaires' as any).select('*')
         .eq('statut', 'a_rapprocher')
-        .gt('montant', 0)
         .order('date_operation', { ascending: false })
-        .limit(100) as any),
+        .limit(200) as any),
       supabase.from('factures').select('id, numero, client_id, montant_ht, montant_ttc, statut, date_echeance')
         .in('statut', ['envoyee', 'en_retard'])
         .order('date_echeance'),
+      (supabase.from('compta_factures_fournisseurs' as any).select('id, numero, fournisseur_nom, montant_ht, montant_ttc, statut, date_echeance')
+        .in('statut', ['a_payer', 'en_retard'])
+        .order('date_echeance') as any),
       supabase.from('clients').select('id, nom').order('nom'),
     ])
     setMouvements(m.data ?? [])
     setFactures(f.data ?? [])
+    setFactFourn(ff.data ?? [])
     setClients(c.data ?? [])
     setLoading(false)
   }
@@ -393,40 +452,104 @@ function RapprochementTab() {
   const clientMap = useMemo(() =>
     Object.fromEntries(clients.map(c => [c.id, c.nom])), [clients])
 
-  async function rapprocher() {
-    if (!selectedMvt || !selectedFact) return
-    setSaving(true)
-    const montantRapproche = selectedFact.montant_ttc ?? selectedFact.montant_ht
-    const ecart = selectedMvt.montant - montantRapproche
+  // Filtrer mouvements selon le mode
+  const mvtFiltered = useMemo(() =>
+    mode === 'credits'
+      ? mouvements.filter(m => m.montant > 0)
+      : mouvements.filter(m => m.montant < 0),
+    [mouvements, mode])
+
+  // Calculer les scores pour le mouvement sélectionné
+  const matchScores = useMemo(() => {
+    if (!selectedMvt) return []
+    const pool = mode === 'credits'
+      ? factures.map(f => ({ ...scoreMatch(selectedMvt, f, 'client'), clientNom: clientMap[(f as Facture).client_id] }))
+      : factFourn.map(f => scoreMatch(selectedMvt, f, 'fournisseur'))
+    // Injecter le nom client dans le score si mode crédits
+    if (mode === 'credits') {
+      for (const m of pool) {
+        const lib = selectedMvt.libelle.toLowerCase()
+        const ref = selectedMvt.reference_banque?.toLowerCase() || ''
+        const nom = (m as any).clientNom?.toLowerCase() || ''
+        if (nom && m.score < 100 && (lib.includes(nom.slice(0, 8)) || ref.includes(nom.slice(0, 8)))) {
+          if (!m.detail.includes('Nom trouvé')) { m.score += 15; m.detail += (m.detail ? ' · ' : '') + 'Nom client trouvé' }
+        }
+      }
+    }
+    return (pool as MatchScore[]).sort((a, b) => b.score - a.score)
+  }, [selectedMvt, factures, factFourn, clientMap, mode])
+
+  // Meilleurs matches auto (score >= 70) pour le batch
+  const autoMatches = useMemo(() => {
+    const result: { mvt: Mouvement; match: MatchScore }[] = []
+    const usedFactIds = new Set<string>()
+    for (const mvt of mvtFiltered) {
+      const pool = mode === 'credits'
+        ? factures.map(f => scoreMatch(mvt, f, 'client'))
+        : factFourn.map(f => scoreMatch(mvt, f, 'fournisseur'))
+      const best = pool.filter(m => m.score >= 70 && !usedFactIds.has(m.facture.id)).sort((a, b) => b.score - a.score)[0]
+      if (best) { result.push({ mvt, match: best }); usedFactIds.add(best.facture.id) }
+    }
+    return result
+  }, [mvtFiltered, factures, factFourn, mode])
+
+  async function rapprocher(mvt: Mouvement, match: MatchScore) {
+    const facMontant = match.facture.montant_ttc ?? match.facture.montant_ht
+    const ecart = Math.abs(mvt.montant) - facMontant
+
+    const insertData: Record<string, unknown> = {
+      mouvement_bancaire_id: mvt.id,
+      montant_rapproche: facMontant,
+      ecart,
+      mode: 'manuel',
+    }
+    if (match.type === 'client') insertData.facture_id = match.facture.id
+    else insertData.facture_fournisseur_id = match.facture.id
+
+    const updateFacture = match.type === 'client'
+      ? supabase.from('factures').update({ statut: 'payee', date_paiement: mvt.date_operation }).eq('id', match.facture.id)
+      : (supabase.from('compta_factures_fournisseurs' as any) as any).update({ statut: 'payee', date_paiement: mvt.date_operation }).eq('id', match.facture.id)
 
     await Promise.all([
-      (supabase.from('rapprochements_bancaires' as any) as any).insert({
-        mouvement_bancaire_id: selectedMvt.id,
-        facture_id: selectedFact.id,
-        montant_rapproche: montantRapproche,
-        ecart,
-        mode: 'manuel',
-      }),
-      (supabase.from('mouvements_bancaires' as any) as any).update({ statut: 'rapproche' }).eq('id', selectedMvt.id),
-      supabase.from('factures').update({
-        statut: 'payee',
-        date_paiement: selectedMvt.date_operation,
-      }).eq('id', selectedFact.id),
+      (supabase.from('rapprochements_bancaires' as any) as any).insert(insertData),
+      (supabase.from('mouvements_bancaires' as any) as any).update({ statut: 'rapproche' }).eq('id', mvt.id),
+      updateFacture,
     ])
+  }
 
-    setSuccess(`Rapprochement enregistré — ${selectedFact.numero} ↔ ${fmtEur(selectedMvt.montant)}${Math.abs(ecart) > 0.01 ? ` (écart : ${fmtEur(ecart)})` : ''}`)
+  async function rapprocherSelection() {
+    if (!selectedMvt || !selectedMatch) return
+    setSaving(true)
+    await rapprocher(selectedMvt, selectedMatch)
+    const facNum = selectedMatch.facture.numero
+    const montant = fmtEur(Math.abs(selectedMvt.montant))
+    const ecart = Math.abs(selectedMvt.montant) - (selectedMatch.facture.montant_ttc ?? selectedMatch.facture.montant_ht)
+    setSuccess(`Rapproché — ${facNum} ↔ ${montant}${Math.abs(ecart) > 0.01 ? ` (écart : ${fmtEur(ecart)})` : ''}`)
     setTimeout(() => setSuccess(null), 4000)
     setSelectedMvt(null)
-    setSelectedFact(null)
+    setSelectedMatch(null)
     setSaving(false)
     load()
   }
 
-  // Suggestion auto : même montant à ± 1 €
-  const suggestionFact = useMemo(() => {
-    if (!selectedMvt) return null
-    return factures.find(f => Math.abs((f.montant_ttc ?? f.montant_ht) - selectedMvt.montant) <= 1)
-  }, [selectedMvt, factures])
+  async function rapprochementAuto() {
+    if (autoMatches.length === 0) return
+    setAutoBatching(true)
+    let count = 0
+    for (const { mvt, match } of autoMatches) {
+      await rapprocher(mvt, match)
+      count++
+    }
+    setSuccess(`Auto-rapprochement : ${count} correspondance(s) traitée(s)`)
+    setTimeout(() => setSuccess(null), 5000)
+    setAutoBatching(false)
+    setSelectedMvt(null)
+    setSelectedMatch(null)
+    load()
+  }
+
+  const scoreColor = (s: number) =>
+    s >= 70 ? 'bg-green-100 text-green-700' : s >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
 
   return (
     <div className="space-y-4">
@@ -438,26 +561,45 @@ function RapprochementTab() {
         <div className="text-center py-10 text-slate-400">Chargement...</div>
       ) : (
         <>
+          {/* Mode toggle + auto btn */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex gap-2">
+              <button onClick={() => { setMode('credits'); setSelectedMvt(null); setSelectedMatch(null) }}
+                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${mode === 'credits' ? 'bg-green-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                Crédits → Factures clients ({mouvements.filter(m => m.montant > 0).length})
+              </button>
+              <button onClick={() => { setMode('debits'); setSelectedMvt(null); setSelectedMatch(null) }}
+                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${mode === 'debits' ? 'bg-red-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                Débits → Factures fournisseurs ({mouvements.filter(m => m.montant < 0).length})
+              </button>
+            </div>
+            {autoMatches.length > 0 && (
+              <button onClick={rapprochementAuto} disabled={autoBatching} className={btnPrimary}>
+                {autoBatching ? 'Rapprochement...' : `⚡ Auto-rapprocher ${autoMatches.length} match(es) (score ≥ 70)`}
+              </button>
+            )}
+          </div>
+
           <p className="text-sm text-slate-500">
-            Sélectionnez un mouvement (crédit) et la facture correspondante, puis cliquez sur Rapprocher.
+            Sélectionnez un mouvement puis la facture correspondante. Le scoring combine montant, date d'échéance et mots-clés du libellé.
           </p>
 
           {/* Bouton Rapprocher */}
-          {selectedMvt && selectedFact && (
+          {selectedMvt && selectedMatch && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between gap-4">
               <div className="text-sm">
                 <span className="font-semibold text-blue-800">{selectedMvt.libelle.slice(0, 40)}</span>
                 <span className="mx-2 text-blue-400">↔</span>
-                <span className="font-semibold text-blue-800">{selectedFact.numero}</span>
-                {Math.abs(selectedMvt.montant - (selectedFact.montant_ttc ?? selectedFact.montant_ht)) > 0.01 && (
-                  <span className="ml-2 text-amber-700 text-xs">
-                    Écart : {fmtEur(selectedMvt.montant - (selectedFact.montant_ttc ?? selectedFact.montant_ht))}
-                  </span>
-                )}
+                <span className="font-semibold text-blue-800">{selectedMatch.facture.numero}</span>
+                <span className="ml-2"><span className={`px-1.5 py-0.5 rounded text-xs font-medium ${scoreColor(selectedMatch.score)}`}>Score {selectedMatch.score}</span></span>
+                {(() => {
+                  const ecart = Math.abs(selectedMvt.montant) - (selectedMatch.facture.montant_ttc ?? selectedMatch.facture.montant_ht)
+                  return Math.abs(ecart) > 0.01 ? <span className="ml-2 text-amber-700 text-xs">Écart : {fmtEur(ecart)}</span> : null
+                })()}
               </div>
               <div className="flex gap-2">
-                <button onClick={() => { setSelectedMvt(null); setSelectedFact(null) }} className={btnGhost}>Annuler</button>
-                <button onClick={rapprocher} disabled={saving} className={btnPrimary}>
+                <button onClick={() => { setSelectedMvt(null); setSelectedMatch(null) }} className={btnGhost}>Annuler</button>
+                <button onClick={rapprocherSelection} disabled={saving} className={btnPrimary}>
                   {saving ? 'Rapprochement...' : 'Rapprocher'}
                 </button>
               </div>
@@ -465,62 +607,86 @@ function RapprochementTab() {
           )}
 
           <div className="grid md:grid-cols-2 gap-4">
-            {/* Mouvements à rapprocher */}
+            {/* Mouvements */}
             <div className="border border-slate-200 rounded-xl overflow-hidden">
               <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200">
-                <h3 className="text-sm font-semibold text-slate-700">Entrées bancaires ({mouvements.length})</h3>
+                <h3 className="text-sm font-semibold text-slate-700">
+                  {mode === 'credits' ? `Entrées bancaires (${mvtFiltered.length})` : `Sorties bancaires (${mvtFiltered.length})`}
+                </h3>
               </div>
-              {mouvements.length === 0 ? (
-                <p className="text-center py-8 text-slate-400 text-sm">Aucun crédit à rapprocher</p>
+              {mvtFiltered.length === 0 ? (
+                <p className="text-center py-8 text-slate-400 text-sm">
+                  Aucun {mode === 'credits' ? 'crédit' : 'débit'} à rapprocher
+                </p>
               ) : (
                 <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto">
-                  {mouvements.map(m => (
+                  {mvtFiltered.map(m => (
                     <button
                       key={m.id}
-                      onClick={() => setSelectedMvt(selectedMvt?.id === m.id ? null : m)}
+                      onClick={() => { setSelectedMvt(selectedMvt?.id === m.id ? null : m); setSelectedMatch(null) }}
                       className={`w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors ${
                         selectedMvt?.id === m.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
                       }`}
                     >
                       <div className="flex justify-between items-center">
                         <span className="text-xs text-slate-400">{m.date_operation}</span>
-                        <span className="font-semibold text-green-700 text-sm">+{fmtEur(m.montant)}</span>
+                        <span className={`font-semibold text-sm ${m.montant >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                          {m.montant >= 0 ? '+' : ''}{fmtEur(m.montant)}
+                        </span>
                       </div>
                       <p className="text-sm text-slate-700 truncate mt-0.5">{m.libelle}</p>
+                      {m.reference_banque && <p className="text-xs text-slate-400 mt-0.5">Réf : {m.reference_banque}</p>}
                     </button>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Factures à rapprocher */}
+            {/* Factures avec scores */}
             <div className="border border-slate-200 rounded-xl overflow-hidden">
               <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200">
-                <h3 className="text-sm font-semibold text-slate-700">Factures envoyées ({factures.length})</h3>
+                <h3 className="text-sm font-semibold text-slate-700">
+                  {mode === 'credits'
+                    ? `Factures clients (${factures.length})`
+                    : `Factures fournisseurs (${factFourn.length})`}
+                  {selectedMvt && matchScores.length > 0 && (
+                    <span className="ml-2 text-xs font-normal text-slate-400">— triées par score</span>
+                  )}
+                </h3>
               </div>
-              {factures.length === 0 ? (
-                <p className="text-center py-8 text-slate-400 text-sm">Toutes les factures sont rapprochées</p>
+              {(mode === 'credits' ? factures.length : factFourn.length) === 0 ? (
+                <p className="text-center py-8 text-slate-400 text-sm">Aucune facture à rapprocher</p>
               ) : (
                 <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto">
-                  {factures.map(f => {
-                    const isSuggested = suggestionFact?.id === f.id
+                  {(selectedMvt ? matchScores : (mode === 'credits'
+                    ? factures.map(f => ({ facture: f, type: 'client' as const, score: 0, detail: '' }))
+                    : factFourn.map(f => ({ facture: f, type: 'fournisseur' as const, score: 0, detail: '' }))
+                  )).map(ms => {
+                    const f = ms.facture
+                    const isSelected = selectedMatch?.facture.id === f.id
                     return (
                       <button
                         key={f.id}
-                        onClick={() => setSelectedFact(selectedFact?.id === f.id ? null : f)}
+                        onClick={() => setSelectedMatch(isSelected ? null : ms)}
                         className={`w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors ${
-                          selectedFact?.id === f.id ? 'bg-blue-50 border-l-4 border-blue-500' :
-                          isSuggested ? 'bg-amber-50 border-l-4 border-amber-400' : ''
+                          isSelected ? 'bg-blue-50 border-l-4 border-blue-500' :
+                          ms.score >= 70 ? 'bg-green-50/50 border-l-4 border-green-400' :
+                          ms.score >= 40 ? 'bg-amber-50/50 border-l-2 border-amber-300' : ''
                         }`}
                       >
                         <div className="flex justify-between items-center">
                           <div className="flex items-center gap-1.5">
                             <span className="font-mono text-xs text-slate-500">{f.numero}</span>
-                            {isSuggested && <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Suggestion</span>}
+                            {ms.score > 0 && (
+                              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${scoreColor(ms.score)}`}>{ms.score}</span>
+                            )}
                           </div>
                           <span className="font-semibold text-slate-800 text-sm">{fmtEur(f.montant_ttc ?? f.montant_ht)}</span>
                         </div>
-                        <p className="text-sm text-slate-600 truncate mt-0.5">{clientMap[f.client_id] ?? '—'}</p>
+                        <p className="text-sm text-slate-600 truncate mt-0.5">
+                          {ms.type === 'client' ? clientMap[(f as Facture).client_id] ?? '—' : (f as FactureFournisseur).fournisseur_nom}
+                        </p>
+                        {ms.detail && <p className="text-xs text-slate-400 mt-0.5">{ms.detail}</p>}
                         {f.date_echeance && (
                           <p className="text-xs text-slate-400 mt-0.5">Éch. {f.date_echeance}</p>
                         )}

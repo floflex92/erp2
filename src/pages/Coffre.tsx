@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { ensureEmployeeJobSheets, ensurePolicyDocuments, HR_CATEGORY_LABELS, listHrDocumentsForViewer, signHrDocument, subscribeHrDocuments, type HrDocumentCategory, type HrDocumentRecord } from '@/lib/hrDocuments'
+import { listEmployeeVaultDocumentsForViewer, listEmployeeVaultExportsForViewer, logEmployeeVaultDocumentAction, requestEmployeeVaultExport, signEmployeeVaultDocument, type EmployeeVaultExportRecord } from '@/lib/employeeVault'
 import { buildStaffDirectory, findStaffMember, staffDisplayName } from '@/lib/staffDirectory'
 import { listVaultRecords, subscribeVaultUpdates, type VaultRecord } from '@/lib/vault'
 
@@ -79,6 +80,9 @@ export default function Coffre() {
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ name: string; url: string } | null>(null)
+  const [usingSupabaseVault, setUsingSupabaseVault] = useState(false)
+  const [exportHistory, setExportHistory] = useState<EmployeeVaultExportRecord[]>([])
+  const [requestingExport, setRequestingExport] = useState(false)
 
   const staff = useMemo(
     () => buildStaffDirectory([profil, accountProfil]),
@@ -97,13 +101,32 @@ export default function Coffre() {
     ensureEmployeeJobSheets(staff, profil)
 
     const loadVault = () => setItems(listVaultRecords(profil.id))
-    const loadHrDocs = () => setEmployeeDocs(listHrDocumentsForViewer(profil.id, role, effectiveEmployeeId))
+    const loadHrDocs = async () => {
+      try {
+        const remoteDocs = await listEmployeeVaultDocumentsForViewer(profil.id, role, effectiveEmployeeId)
+        if (remoteDocs.length > 0) {
+          setEmployeeDocs(remoteDocs)
+          const exports = await listEmployeeVaultExportsForViewer(profil.id, role, effectiveEmployeeId)
+          setExportHistory(exports)
+          setUsingSupabaseVault(true)
+          return
+        }
+      } catch {
+        // Fallback automatique vers le coffre legacy en cas d'indisponibilite distant.
+      }
+
+      setEmployeeDocs(listHrDocumentsForViewer(profil.id, role, effectiveEmployeeId))
+      setExportHistory([])
+      setUsingSupabaseVault(false)
+    }
 
     loadVault()
-    loadHrDocs()
+    void loadHrDocs()
 
     const stopVault = subscribeVaultUpdates(loadVault)
-    const stopHr = subscribeHrDocuments(loadHrDocs)
+    const stopHr = subscribeHrDocuments(() => {
+      void loadHrDocs()
+    })
     return () => {
       stopVault()
       stopHr()
@@ -153,7 +176,15 @@ export default function Coffre() {
     }
 
     try {
-      signHrDocument(document.id, employee)
+      if (usingSupabaseVault) {
+        await signEmployeeVaultDocument(document.id, staffDisplayName(employee))
+        if (role) {
+          const refreshed = await listEmployeeVaultDocumentsForViewer(currentProfil.id, role, effectiveEmployeeId)
+          setEmployeeDocs(refreshed)
+        }
+      } else {
+        signHrDocument(document.id, employee)
+      }
       setError(null)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Signature numerique impossible.'
@@ -161,8 +192,31 @@ export default function Coffre() {
     }
   }
 
-  function handlePreview(name: string, url: string) {
+  function handlePreview(name: string, url: string, documentId?: string) {
+    if (usingSupabaseVault && documentId) {
+      void logEmployeeVaultDocumentAction(documentId, 'preview')
+    }
     setPreview({ name, url })
+  }
+
+  async function handleRequestExport() {
+    if (!role) {
+      setError('Role utilisateur manquant pour demander un export.')
+      return
+    }
+
+    setRequestingExport(true)
+    try {
+      await requestEmployeeVaultExport(currentProfil.id, role, effectiveEmployeeId)
+      const refreshedExports = await listEmployeeVaultExportsForViewer(currentProfil.id, role, effectiveEmployeeId)
+      setExportHistory(refreshedExports)
+      setError(null)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Demande d export impossible.'
+      setError(message)
+    } finally {
+      setRequestingExport(false)
+    }
   }
 
   return (
@@ -246,6 +300,38 @@ export default function Coffre() {
         {error && (
           <div className="border-b px-5 py-3 text-sm text-rose-300" style={{ borderColor: 'rgba(244,114,182,0.25)', background: 'rgba(127,29,29,0.24)' }}>
             {error}
+          </div>
+        )}
+
+        {usingSupabaseVault && (
+          <div className="border-b px-5 py-4" style={{ borderColor: 'var(--border)' }}>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-white">Export dossier coffre</p>
+                <p className="mt-1 text-xs text-slate-400">Demande un paquet ZIP des documents visibles selon vos droits.</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleRequestExport}
+                disabled={requestingExport}
+                className="rounded-xl bg-[color:var(--primary)] px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
+              >
+                {requestingExport ? 'Demande en cours...' : 'Demander un export'}
+              </button>
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {exportHistory.length === 0 ? (
+                <p className="text-xs text-slate-500">Aucune demande d export pour ce profil.</p>
+              ) : (
+                exportHistory.slice(0, 5).map(item => (
+                  <div key={item.id} className="flex flex-col gap-1 rounded-xl border px-3 py-2 text-xs text-slate-300 md:flex-row md:items-center md:justify-between" style={{ borderColor: 'var(--border)' }}>
+                    <span>Demande {new Date(item.createdAt).toLocaleString('fr-FR')} - scope {item.scope}</span>
+                    <span className="text-slate-400">Statut: {item.status}{item.fileName ? ` - ${item.fileName}` : ''}</span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
 
@@ -394,7 +480,7 @@ function DocumentSection({
   docs: HrDocumentRecord[]
   empty: string
   onSign: (document: HrDocumentRecord) => void
-  onPreview: (name: string, url: string) => void
+  onPreview: (name: string, url: string, documentId?: string) => void
   currentProfileId: string
   highlighted?: boolean
 }) {
@@ -419,7 +505,7 @@ function DocumentSection({
               key={document.id}
               document={document}
               canSign={document.employeeId === currentProfileId && document.requiresSignature && !document.signedAt}
-              onPreview={() => onPreview(document.fileName, document.url)}
+              onPreview={() => onPreview(document.fileName, document.url, document.id)}
               onSign={() => onSign(document)}
             />
           ))}

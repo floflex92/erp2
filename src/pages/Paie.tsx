@@ -6,6 +6,7 @@ import { BAREME_URSSAF_2026, calculatePayrollPreview, createPayrollSlip, listPay
 import { buildStaffDirectory, findStaffMember, staffDisplayName } from '@/lib/staffDirectory'
 import { supabase } from '@/lib/supabase'
 import { computeAbsenceHeuresFromAbsences, fetchAbsencesValideesPeriode, type AbsenceRh } from '@/lib/absencesRh'
+import { linkPayrollBonusesToAccounting, listPayrollBonusLinkStatuses, listValidatedUnpaidBonusesForPayroll, type PayrollBonusLinkStatus } from '@/lib/payrollBonusBridge'
 
 const inp = 'w-full rounded-xl border bg-[color:var(--surface)] px-3 py-2.5 text-sm text-[color:var(--text)] outline-none focus:border-[color:var(--primary)]'
 
@@ -49,9 +50,11 @@ export default function Paie() {
   const [, setExpensesVersion] = useState(0)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isGeneratingSlip, setIsGeneratingSlip] = useState(false)
   const [importingTachy, setImportingTachy] = useState(false)
   const [importingAbsences, setImportingAbsences] = useState(false)
   const [absencesValidees, setAbsencesValidees] = useState<AbsenceRh[]>([])
+  const [bonusLinkStatusesBySlip, setBonusLinkStatusesBySlip] = useState<Record<string, PayrollBonusLinkStatus>>({})
   const [form, setForm] = useState({
     conventionCollective: 'CCN transports routiers et activites auxiliaires du transport - IDCC 16',
     jobCoefficient: '',
@@ -130,6 +133,32 @@ export default function Paie() {
       jobTitle: employeeRecord.jobTitle ?? current.jobTitle,
     }))
   }, [employeeRecord])
+
+  useEffect(() => {
+    if (!employee) {
+      setBonusLinkStatusesBySlip({})
+      return
+    }
+
+    let isMounted = true
+    void listPayrollBonusLinkStatuses(employee.id)
+      .then(rows => {
+        if (!isMounted) return
+        const map: Record<string, PayrollBonusLinkStatus> = {}
+        for (const row of rows) {
+          if (!map[row.payrollSlipId]) map[row.payrollSlipId] = row
+        }
+        setBonusLinkStatusesBySlip(map)
+      })
+      .catch(() => {
+        if (!isMounted) return
+        setBonusLinkStatusesBySlip({})
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [employee, slips.length])
 
   const preview = useMemo(() => {
     if (!employeeRecord) return null
@@ -254,9 +283,14 @@ export default function Paie() {
     setError(null)
   }
 
-  function generateSlip() {
-    if (!employee) return
+  async function generateSlip() {
+    if (!employee || isGeneratingSlip) return
+    setIsGeneratingSlip(true)
     try {
+      const validatedBonuses = await listValidatedUnpaidBonusesForPayroll(employee.id, form.periodLabel)
+      const manualPerformanceBonus = Number.parseFloat(form.performanceBonus) || 0
+      const performanceBonusWithObjectives = manualPerformanceBonus + validatedBonuses.totalAmount
+
       createPayrollSlip(employee, currentProfil, {
         periodLabel: form.periodLabel,
         workedHours: Number.parseFloat(form.workedHours),
@@ -266,7 +300,7 @@ export default function Paie() {
         heuresNuit: Number.parseFloat(form.heuresNuit) || 0,
         joursTravailles: Number.parseFloat(form.joursTravailles) || 0,
         sourceHeures: form.sourceHeures,
-        performanceBonus: Number.parseFloat(form.performanceBonus),
+        performanceBonus: performanceBonusWithObjectives,
         exceptionalBonus: Number.parseFloat(form.exceptionalBonus),
         indemniteRepasExo: Number.parseFloat(form.indemniteRepasExo) || 0,
         nbRepas: Number.parseFloat(form.nbRepas) || 0,
@@ -279,10 +313,33 @@ export default function Paie() {
         advanceDeduction: Number.parseFloat(form.advanceDeduction),
         otherDeduction: Number.parseFloat(form.otherDeduction),
       })
-      setNotice(`Bulletin de paie genere pour ${staffDisplayName(employee)}.`)
+
+      let syncMessage = ''
+      if (validatedBonuses.totalAmount > 0) {
+        const latestSlip = listPayrollSlips(employee.id)[0]
+        if (latestSlip) {
+          const bridgeResult = await linkPayrollBonusesToAccounting({
+            profilId: employee.id,
+            periodLabel: form.periodLabel,
+            payrollSlipId: latestSlip.id,
+            payrollPeriodLabel: latestSlip.periodLabel,
+            bonusCalculations: validatedBonuses.items,
+          })
+
+          if (bridgeResult.status === 'linked') {
+            syncMessage = ` | Bonus objectifs integres (${validatedBonuses.totalAmount.toFixed(2)} EUR) et OD comptable ${bridgeResult.accountingEntryId ?? 'cree'}.`
+          } else {
+            syncMessage = ` | Bulletin genere avec bonus (${validatedBonuses.totalAmount.toFixed(2)} EUR), mais liaison comptable en echec: ${bridgeResult.errorMessage ?? 'erreur inconnue'}.`
+          }
+        }
+      }
+
+      setNotice(`Bulletin de paie genere pour ${staffDisplayName(employee)}${syncMessage}`)
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Generation paie impossible.')
+    } finally {
+      setIsGeneratingSlip(false)
     }
   }
 
@@ -496,8 +553,13 @@ export default function Paie() {
               </div>
             )}
 
-            <button type="button" onClick={generateSlip} className="mt-4 rounded-xl bg-[color:var(--primary)] px-4 py-3 text-sm font-medium text-white">
-              Generer le bulletin PDF
+            <button
+              type="button"
+              onClick={generateSlip}
+              disabled={isGeneratingSlip}
+              className="mt-4 rounded-xl bg-[color:var(--primary)] px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isGeneratingSlip ? 'Generation en cours...' : 'Generer le bulletin PDF'}
             </button>
 
             {preview && (
@@ -537,15 +599,47 @@ export default function Paie() {
               <div className="px-5 py-10 text-sm text-slate-400">Aucun bulletin genere pour ce collaborateur.</div>
             ) : (
               <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                {slips.map(slip => (
+                {slips.map(slip => {
+                  const bonusStatus = bonusLinkStatusesBySlip[slip.id]
+                  return (
                   <div key={slip.id} className="flex flex-col gap-2 px-5 py-4 md:flex-row md:items-center md:justify-between">
                     <div>
                       <p className="text-sm font-semibold text-white">{slip.periodLabel}</p>
                       <p className="mt-1 text-xs text-slate-400">Brut {formatMoney(slip.grossSubject)} EUR - Net {formatMoney(slip.netToPay)} EUR</p>
                       <p className="mt-1 text-xs text-slate-500">Genere le {formatDateTime(slip.createdAt)}</p>
+                      {bonusStatus && (
+                        <p className="mt-1 text-xs text-slate-300">
+                          Rapprochement primes: {bonusStatus.status === 'linked'
+                            ? 'OK'
+                            : bonusStatus.status === 'pending'
+                              ? 'En cours'
+                              : 'Echec'}
+                          {bonusStatus.accountingEntryId
+                            ? ` | OD ${bonusStatus.accountingEntryId.slice(0, 8)}`
+                            : ''}
+                          {bonusStatus.errorMessage
+                            ? ` | ${bonusStatus.errorMessage}`
+                            : ''}
+                        </p>
+                      )}
                     </div>
+                    {bonusStatus && (
+                      <span className={`inline-flex self-start rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        bonusStatus.status === 'linked'
+                          ? 'bg-emerald-500/20 text-emerald-300'
+                          : bonusStatus.status === 'pending'
+                            ? 'bg-amber-500/20 text-amber-300'
+                            : 'bg-rose-500/20 text-rose-300'
+                      }`}>
+                        {bonusStatus.status === 'linked'
+                          ? 'Rapproche'
+                          : bonusStatus.status === 'pending'
+                            ? 'A rapprocher'
+                            : 'Erreur rapprochement'}
+                      </span>
+                    )}
                   </div>
-                ))}
+                )})}
               </div>
             )}
           </div>

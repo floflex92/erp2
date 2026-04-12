@@ -6,8 +6,9 @@ import { ensureEmployeeJobSheets, ensurePolicyDocuments, generateEmploymentContr
 import { importEmployeeIntakeForm, provisionEmployeeOnboarding } from '@/lib/onboarding'
 import { createPayrollSlip } from '@/lib/payroll'
 import { buildStaffDirectory, findStaffMember, staffDisplayName } from '@/lib/staffDirectory'
-import { createEntretienRh, deleteEntretienRh, fetchEntretienRh, fetchUpcomingEntretiens, updateEntretienRh, type EntretienRh } from '@/lib/entretienRh'
-import { createAbsenceRh, deleteAbsenceRh, fetchAbsencesRh, fetchSoldeAbsences, TYPE_ABSENCE_LABELS, STATUT_ABSENCE_LABELS, STATUT_ABSENCE_COLORS, upsertSoldeAbsences, updateAbsenceRh, type AbsenceRh, type SoldeAbsences, type TypeAbsence, type StatutAbsence } from '@/lib/absencesRh'
+import { createAbsenceRh, deleteAbsenceRh, fetchAbsencesRh, fetchSoldeAbsences, TYPE_ABSENCE_LABELS, STATUT_ABSENCE_LABELS, STATUT_ABSENCE_COLORS, ABSENCE_WORKFLOW_STEPS, upsertSoldeAbsences, updateAbsenceRh, type AbsenceRh, type SoldeAbsences, type TypeAbsence, type StatutAbsence } from '@/lib/absencesRh'
+import { generateCongeDocumentPDF } from '@/lib/congePdf'
+import EntretiensSalaries from '@/pages/EntretiensSalaries'
 
 const RH_UPLOAD_CATEGORIES = ['carte_vitale', 'carte_identite', 'justificatif_domicile', 'scan_complementaire'] as const
 const inp = 'w-full rounded-xl border bg-[color:var(--surface)] px-3 py-2.5 text-sm text-[color:var(--text)] outline-none focus:border-[color:var(--primary)]'
@@ -27,19 +28,6 @@ export default function Rh() {
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   
-  // Entretiens RH
-  const [entretiens, setEntretiens] = useState<EntretienRh[]>([])
-  const [upcomingEntretiens, setUpcomingEntretiens] = useState<EntretienRh[]>([])
-  const [isLoadingEntretiens, setIsLoadingEntretiens] = useState(false)
-  const [editingEntretienId, setEditingEntretienId] = useState<string | null>(null)
-  const [entretienForm, setEntretienForm] = useState<Partial<EntretienRh>>({
-    type: 'entretien_professionnel',
-    duree_minutes: 60,
-    statut: 'planifie',
-    suivi_requis: false,
-  })
-  const [showEntretienForm, setShowEntretienForm] = useState(false)
-
   // Absences RH
   const [absences, setAbsences] = useState<AbsenceRh[]>([])
   const [isLoadingAbsences, setIsLoadingAbsences] = useState(false)
@@ -94,10 +82,6 @@ export default function Rh() {
     return unique.sort((left, right) => (ROLE_LABELS[left] ?? left).localeCompare(ROLE_LABELS[right] ?? right, 'fr'))
   }, [staff])
 
-  const evaluatorsOptions = useMemo(() => {
-    return staff.filter(member => member.role === 'rh' || member.role === 'dirigeant' || member.role === 'admin')
-  }, [staff])
-
   useEffect(() => {
     if (!profil) return
     staff.forEach(member => {
@@ -134,43 +118,6 @@ export default function Rh() {
     }
     setEmployeeDraft(selectedEmployeeRecord)
   }, [selectedEmployeeRecord])
-
-  // Load entretiens RH from Supabase
-  useEffect(() => {
-    const loadEntretiens = async () => {
-      setIsLoadingEntretiens(true)
-      const data = await fetchEntretienRh()
-      setEntretiens(data)
-      setIsLoadingEntretiens(false)
-    }
-    void loadEntretiens()
-  }, [])
-
-  // Load upcoming entretiens for dashboard
-  useEffect(() => {
-    const loadUpcoming = async () => {
-      const data = await fetchUpcomingEntretiens(7)
-      setUpcomingEntretiens(data)
-    }
-    void loadUpcoming()
-  }, [])
-
-  // Reset form when not editing
-  useEffect(() => {
-    if (!editingEntretienId) {
-      setEntretienForm({
-        type: 'entretien_professionnel',
-        duree_minutes: 60,
-        statut: 'planifie',
-        suivi_requis: false,
-      })
-    } else {
-      const editing = entretiens.find(e => e.id === editingEntretienId)
-      if (editing) {
-        setEntretienForm(editing)
-      }
-    }
-  }, [editingEntretienId, entretiens])
 
   if (!profil) return null
   const actor = profil
@@ -319,73 +266,6 @@ export default function Rh() {
     setError(null)
   }
 
-  // Entretiens RH handlers
-  async function handleSaveEntretien() {
-    if (!entretienForm.employe_id || !entretienForm.titre || !entretienForm.date_planifiee) {
-      setError('Collaborateur, titre et date sont obligatoires.')
-      return
-    }
-
-    try {
-      if (editingEntretienId) {
-        const updated = await updateEntretienRh(editingEntretienId, entretienForm as Partial<EntretienRh>)
-        if (updated) {
-          setEntretiens(entretiens.map(e => e.id === editingEntretienId ? updated : e))
-          setNotice('Entretien mis à jour.')
-          resetEntretienForm()
-        } else {
-          setError('Erreur lors de la mise à jour.')
-        }
-      } else {
-        const created = await createEntretienRh(entretienForm as Omit<EntretienRh, 'id' | 'created_at' | 'updated_at'>)
-        if (created) {
-          setEntretiens([...entretiens, created])
-          setNotice('Entretien créé.')
-          resetEntretienForm()
-        } else {
-          setError('Erreur lors de la création.')
-        }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors de l\'enregistrement.')
-    }
-  }
-
-  async function handleDeleteEntretien(id: string) {
-    if (!confirm('Supprimer cet entretien ?')) return
-    try {
-      const success = await deleteEntretienRh(id)
-      if (success) {
-        setEntretiens(entretiens.filter(e => e.id !== id))
-        setNotice('Entretien supprimé.')
-        if (editingEntretienId === id) {
-          resetEntretienForm()
-        }
-      } else {
-        setError('Erreur lors de la suppression.')
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors de la suppression.')
-    }
-  }
-
-  function resetEntretienForm() {
-    setEditingEntretienId(null)
-    setShowEntretienForm(false)
-    setEntretienForm({
-      type: 'entretien_professionnel',
-      duree_minutes: 60,
-      statut: 'planifie',
-      suivi_requis: false,
-    })
-  }
-
-  function handleEditEntretien(entretien: EntretienRh) {
-    setEditingEntretienId(entretien.id)
-    setEntretienForm(entretien)
-    setShowEntretienForm(true)
-  }
-
   // ── Absences handlers ───────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -466,15 +346,34 @@ export default function Rh() {
   }
 
   async function handleValiderAbsence(id: string, statut: StatutAbsence) {
+    const now = new Date().toISOString()
+    const userId = profil?.id ?? null
+
+    // Champs spécifiques selon l'étape du workflow
+    const stepFields: Partial<AbsenceRh> = {}
+    if (statut === 'validee_exploitation') {
+      stepFields.validateur_exploitation_id = userId
+      stepFields.date_validation_exploitation = now
+    } else if (statut === 'validee_direction') {
+      stepFields.validateur_direction_id = userId
+      stepFields.date_validation_direction = now
+    } else if (statut === 'integree_paie') {
+      stepFields.integre_paie_par_id = userId
+      stepFields.date_integration_paie = now
+    } else if (statut === 'validee') {
+      stepFields.validateur_id = userId
+      stepFields.date_validation = now
+    }
+
     const updated = await updateAbsenceRh(id, {
       statut,
-      validateur_id: profil?.id ?? null,
-      date_validation: new Date().toISOString(),
+      ...stepFields,
     })
     if (updated) {
       setAbsences(prev => prev.map(a => a.id === id ? updated : a))
-      setNotice(`Absence ${statut === 'validee' ? 'validée' : 'refusée'}.`)
-      // Déduire du solde CP ou RTT si validation
+      const stepLabel = STATUT_ABSENCE_LABELS[statut]
+      setNotice(statut === 'refusee' ? 'Absence refusée.' : `Étape : ${stepLabel}.`)
+      // Déduire du solde CP ou RTT à la validation finale uniquement
       if (statut === 'validee' && (updated.type_absence === 'conges_payes' || updated.type_absence === 'rtt')) {
         const annee = new Date(updated.date_debut).getFullYear()
         const currentSolde = await fetchSoldeAbsences(updated.employe_id, annee)
@@ -757,276 +656,7 @@ export default function Rh() {
         </>
         )}
 
-        {activeTab === 'entretiens' && (
-          <>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Suivi RH</p>
-            <h3 className="mt-2 text-lg font-semibold text-slate-900">Entretiens professionnels</h3>
-            <p className="mt-1 text-sm text-slate-500">Planification et suivi des entretiens d'évaluation, bilan de compétences et réunions management.</p>
-
-            {upcomingEntretiens.length > 0 && (
-              <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0">
-                    <span className="text-2xl">⏰</span>
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-blue-900">Entretiens à planifier</h4>
-                    <p className="text-sm text-blue-700 mt-1">
-                      {upcomingEntretiens.length} entretien{upcomingEntretiens.length > 1 ? 's' : ''} planifié{upcomingEntretiens.length > 1 ? 's' : ''} au cours des 7 prochains jours
-                    </p>
-                    <ul className="mt-2 space-y-1">
-                      {upcomingEntretiens.slice(0, 3).map(e => {
-                        const emp = staff.find(m => m.id === e.employe_id)
-                        return (
-                          <li key={e.id} className="text-xs text-blue-800">
-                            • {new Date(e.date_planifiee).toLocaleDateString('fr-FR')} - {emp ? staffDisplayName(emp) : 'Employé inconnu'} ({e.titre})
-                          </li>
-                        )
-                      })}
-                      {upcomingEntretiens.length > 3 && (
-                        <li className="text-xs text-blue-700 italic">et {upcomingEntretiens.length - 3} autre{upcomingEntretiens.length - 3 > 1 ? 's' : ''}...</li>
-                      )}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="mt-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 flex-1">
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-2xl font-bold text-slate-900">{entretiens.length}</p>
-                    <p className="text-xs text-slate-600 mt-1">Entretiens</p>
-                  </div>
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-2xl font-bold text-slate-900">{entretiens.filter(e => e.statut === 'planifie').length}</p>
-                    <p className="text-xs text-slate-600 mt-1">Planifiés</p>
-                  </div>
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-2xl font-bold text-slate-900">{entretiens.filter(e => e.statut === 'effectue').length}</p>
-                    <p className="text-xs text-slate-600 mt-1">Effectués</p>
-                  </div>
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-2xl font-bold text-amber-700">{entretiens.filter(e => e.suivi_requis && e.statut === 'effectue').length}</p>
-                    <p className="text-xs text-slate-600 mt-1">Suivi requis</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowEntretienForm(!showEntretienForm)}
-                  className="ml-4 h-fit rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white whitespace-nowrap"
-                >
-                  {showEntretienForm ? 'Annuler' : '+ Ajouter'}
-                </button>
-              </div>
-
-              {showEntretienForm && (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <Field label="Collaborateur">
-                      <select
-                        className={inp}
-                        value={entretienForm.employe_id || ''}
-                        onChange={e => setEntretienForm({ ...entretienForm, employe_id: e.target.value })}
-                      >
-                        <option value="">Sélectionner...</option>
-                        {staff.map(member => (
-                          <option key={member.id} value={member.id}>
-                            {staffDisplayName(member)}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Évaluateur">
-                      <select
-                        className={inp}
-                        value={entretienForm.evaluateur_id || ''}
-                        onChange={e => setEntretienForm({ ...entretienForm, evaluateur_id: e.target.value || null })}
-                      >
-                        <option value="">Non assigné</option>
-                        {evaluatorsOptions.map(member => (
-                          <option key={member.id} value={member.id}>
-                            {staffDisplayName(member)}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <Field label="Type d'entretien">
-                      <select
-                        className={inp}
-                        value={entretienForm.type || 'entretien_professionnel'}
-                        onChange={e => setEntretienForm({ ...entretienForm, type: e.target.value as EntretienRh['type'] })}
-                      >
-                        <option value="evaluation_annuelle">Évaluation annuelle</option>
-                        <option value="entretien_professionnel">Entretien professionnel</option>
-                        <option value="bilan_competences">Bilan de compétences</option>
-                        <option value="reunion_management">Réunion management</option>
-                        <option value="autre">Autre</option>
-                      </select>
-                    </Field>
-                  </div>
-                  <Field label="Titre / Objet">
-                    <input
-                      className={inp}
-                      placeholder="Ex: Évaluation performance Q1 2026"
-                      value={entretienForm.titre || ''}
-                      onChange={e => setEntretienForm({ ...entretienForm, titre: e.target.value })}
-                    />
-                  </Field>
-                  <Field label="Description (optionnel)">
-                    <textarea
-                      className={inp}
-                      rows={2}
-                      placeholder="Notes supplémentaires..."
-                      value={entretienForm.description || ''}
-                      onChange={e => setEntretienForm({ ...entretienForm, description: e.target.value || null })}
-                    />
-                  </Field>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <Field label="Date planifiée">
-                      <input
-                        className={inp}
-                        type="date"
-                        value={entretienForm.date_planifiee || ''}
-                        onChange={e => setEntretienForm({ ...entretienForm, date_planifiee: e.target.value })}
-                      />
-                    </Field>
-                    <Field label="Heure">
-                      <input
-                        className={inp}
-                        type="time"
-                        value={entretienForm.heure_debut || ''}
-                        onChange={e => setEntretienForm({ ...entretienForm, heure_debut: e.target.value })}
-                      />
-                    </Field>
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <Field label="Durée (minutes)">
-                      <input
-                        className={inp}
-                        type="number"
-                        min="15"
-                        step="15"
-                        value={entretienForm.duree_minutes || 60}
-                        onChange={e => setEntretienForm({ ...entretienForm, duree_minutes: parseInt(e.target.value) })}
-                      />
-                    </Field>
-                    <Field label="Statut">
-                      <select
-                        className={inp}
-                        value={entretienForm.statut || 'planifie'}
-                        onChange={e => setEntretienForm({ ...entretienForm, statut: e.target.value as EntretienRh['statut'] })}
-                      >
-                        <option value="planifie">Planifié</option>
-                        <option value="effectue">Effectué</option>
-                        <option value="reporte">Reporté</option>
-                        <option value="annule">Annulé</option>
-                      </select>
-                    </Field>
-                  </div>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={entretienForm.suivi_requis || false}
-                      onChange={e => setEntretienForm({ ...entretienForm, suivi_requis: e.target.checked })}
-                      className="rounded border border-slate-200"
-                    />
-                    <span className="text-sm text-slate-700">Suivi requis</span>
-                  </label>
-                  {entretienForm.suivi_requis && (
-                    <Field label="Date de suivi prévue">
-                      <input
-                        className={inp}
-                        type="date"
-                        value={entretienForm.date_suivi_prevu || ''}
-                        onChange={e => setEntretienForm({ ...entretienForm, date_suivi_prevu: e.target.value })}
-                      />
-                    </Field>
-                  )}
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void handleSaveEntretien()}
-                      disabled={isLoadingEntretiens}
-                      className="flex-1 rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
-                    >
-                      {editingEntretienId ? 'Mettre à jour' : 'Créer'}
-                    </button>
-                    {editingEntretienId && (
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteEntretien(editingEntretienId)}
-                        disabled={isLoadingEntretiens}
-                        className="rounded-xl bg-red-100 px-4 py-3 text-sm font-medium text-red-700 disabled:opacity-50"
-                      >
-                        Supprimer
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {entretiens.length === 0 ? (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
-                  <p className="text-sm text-slate-500">Aucun entretien pour le moment.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {entretiens
-                    .sort((a, b) => new Date(b.date_planifiee).getTime() - new Date(a.date_planifiee).getTime())
-                    .map(entretien => {
-                      const employee = staff.find(m => m.id === entretien.employe_id)
-                      const statusColors: Record<string, string> = {
-                        planifie: 'bg-blue-50 border-blue-200 text-blue-700',
-                        effectue: 'bg-green-50 border-green-200 text-green-700',
-                        reporte: 'bg-yellow-50 border-yellow-200 text-yellow-700',
-                        annule: 'bg-slate-50 border-slate-200 text-slate-600',
-                      }
-                      return (
-                        <div key={entretien.id} className={`rounded-lg border p-4 ${statusColors[entretien.statut] || statusColors.planifie}`}>
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1">
-                              <h4 className="font-semibold text-sm">{entretien.titre}</h4>
-                              {employee && <p className="text-xs mt-1 opacity-75">{staffDisplayName(employee)}</p>}
-                              <div className="flex gap-2 mt-2 flex-wrap">
-                                <span className="text-xs px-2 py-0.5 rounded bg-white/50 font-medium">
-                                  {new Date(entretien.date_planifiee).toLocaleDateString('fr-FR')}
-                                </span>
-                                {entretien.heure_debut && (
-                                  <span className="text-xs px-2 py-0.5 rounded bg-white/50 font-medium">
-                                    {entretien.heure_debut}
-                                  </span>
-                                )}
-                                <span className="text-xs px-2 py-0.5 rounded bg-white/50 font-medium">
-                                  {entretien.duree_minutes} min
-                                </span>
-                              </div>
-                              {entretien.description && <p className="text-xs mt-2 opacity-75">{entretien.description}</p>}
-                              {entretien.suivi_requis && entretien.date_suivi_prevu && (
-                                <p className="text-xs mt-2 opacity-75">
-                                  📌 Suivi prévu: {new Date(entretien.date_suivi_prevu).toLocaleDateString('fr-FR')}
-                                </p>
-                              )}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleEditEntretien(entretien)}
-                              className="text-xs px-2 py-1 rounded border bg-white/30 hover:bg-white/50 transition"
-                            >
-                              Éditer
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    })}
-                </div>
-              )}
-            </div>
-          </>
-        )}
+        {activeTab === 'entretiens' && <EntretiensSalaries />}
 
         {activeTab === 'absences' && (
           <>
@@ -1261,25 +891,55 @@ export default function Rh() {
                             )}
                             {a.motif && <p className="mt-1 text-xs text-slate-500 italic">{a.motif}</p>}
                             {a.commentaire_rh && <p className="mt-1 text-xs text-amber-700">{a.commentaire_rh}</p>}
+                            {/* Indicateur de progression du workflow */}
+                            <div className="mt-2 flex items-center gap-1 text-[10px]">
+                              {[
+                                { key: 'demande', label: 'Demande', date: a.created_at },
+                                { key: 'validee_exploitation', label: 'Exploitation', date: a.date_validation_exploitation },
+                                { key: 'validee_direction', label: 'Direction', date: a.date_validation_direction },
+                                { key: 'integree_paie', label: 'Paie', date: a.date_integration_paie },
+                                { key: 'validee', label: 'Final', date: a.date_validation },
+                              ].map((step, i, arr) => {
+                                const done = !!step.date
+                                return (
+                                  <span key={step.key} className="flex items-center gap-1">
+                                    <span className={`inline-block w-2 h-2 rounded-full ${done ? 'bg-green-500' : 'bg-slate-300'}`} />
+                                    <span className={done ? 'text-green-700 font-medium' : 'text-slate-400'}>
+                                      {step.label}
+                                      {step.date && <span className="ml-0.5 font-normal text-slate-400">({new Date(step.date).toLocaleDateString('fr-FR')})</span>}
+                                    </span>
+                                    {i < arr.length - 1 && <span className="text-slate-300 mx-0.5">→</span>}
+                                  </span>
+                                )
+                              })}
+                            </div>
                           </div>
                           <div className="flex flex-col gap-1.5 shrink-0">
-                            {a.statut === 'demande' && (
-                              <>
+                            {/* Bouton workflow : prochaine étape selon rôle */}
+                            {(() => {
+                              const nextStep = ABSENCE_WORKFLOW_STEPS.find(
+                                s => s.from === a.statut && profil?.role && s.roles.includes(profil.role),
+                              )
+                              if (!nextStep) return null
+                              return (
                                 <button
                                   type="button"
-                                  onClick={() => void handleValiderAbsence(a.id, 'validee')}
+                                  onClick={() => void handleValiderAbsence(a.id, nextStep.to)}
                                   className="text-xs px-2.5 py-1 rounded-lg bg-green-100 text-green-700 font-medium hover:bg-green-200"
                                 >
-                                  Valider
+                                  {nextStep.label}
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => void handleValiderAbsence(a.id, 'refusee')}
-                                  className="text-xs px-2.5 py-1 rounded-lg bg-red-100 text-red-700 font-medium hover:bg-red-200"
-                                >
-                                  Refuser
-                                </button>
-                              </>
+                              )
+                            })()}
+                            {/* Refuser à tout moment sauf si déjà terminé */}
+                            {a.statut !== 'validee' && a.statut !== 'refusee' && a.statut !== 'annulee' && (
+                              <button
+                                type="button"
+                                onClick={() => void handleValiderAbsence(a.id, 'refusee')}
+                                className="text-xs px-2.5 py-1 rounded-lg bg-red-100 text-red-700 font-medium hover:bg-red-200"
+                              >
+                                Refuser
+                              </button>
                             )}
                             <button
                               type="button"
@@ -1292,6 +952,31 @@ export default function Rh() {
                             >
                               Modifier
                             </button>
+                            {/* Document de congé PDF quand validée */}
+                            {a.statut === 'validee' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const empName = staff.find(m => m.id === a.employe_id)
+                                  const findName = (uid: string | null) => {
+                                    if (!uid) return null
+                                    const member = staff.find(m => m.id === uid)
+                                    return member ? staffDisplayName(member) : uid.slice(0, 8)
+                                  }
+                                  generateCongeDocumentPDF({
+                                    absence: a,
+                                    employeNom: empName ? staffDisplayName(empName) : 'Employe',
+                                    validateurExploitationNom: findName(a.validateur_exploitation_id),
+                                    validateurDirectionNom: findName(a.validateur_direction_id),
+                                    integrePaieParNom: findName(a.integre_paie_par_id),
+                                    validateurFinalNom: findName(a.validateur_id),
+                                  })
+                                }}
+                                className="text-xs px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 font-medium hover:bg-indigo-200"
+                              >
+                                PDF congé
+                              </button>
+                            )}
                           </div>
                         </div>
                       )

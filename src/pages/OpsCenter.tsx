@@ -448,7 +448,7 @@ export default function OpsCenter() {
     try {
       const [etapesRes, historiquesRes] = await Promise.all([
         supabase.from('etapes_mission').select('id, ot_id, ordre, type_etape, ville, adresse_libre, statut_etape, date_prevue, date_reelle').eq('ot_id', id).order('ordre', { ascending: true }),
-        supabase.from('ordres_transport_statut_history').select('id, ot_id, statut_nouveau, commentaire, created_at').eq('ot_id', id).order('created_at', { ascending: false }).limit(10),
+        (supabase.from('ordres_transport_statut_history' as any).select('id, ot_id, statut_nouveau, commentaire, created_at').eq('ot_id', id).order('created_at', { ascending: false }).limit(10) as any),
       ])
       setEtapes((etapesRes.data ?? []) as unknown as EtapeMission[])
       setHistorique((historiquesRes.data ?? []) as StatutHistorique[])

@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+﻿import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ST_BROUILLON, ST_CONFIRME, ST_PLANIFIE, ST_EN_COURS, ST_TERMINE, OT_STATUT_LABELS, OT_STATUT_BADGE_CLS, OT_STATUT_BLOCK_CLS } from '@/lib/transportCourses'
+import { ST_BROUILLON, ST_CONFIRME, ST_PLANIFIE, ST_EN_COURS, ST_TERMINE } from '@/lib/transportCourses'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { STATUT_OPS, StatutOpsDot, type StatutOps } from '@/lib/statut-ops'
 import SiteMapPicker from '@/components/transports/SiteMapPicker'
+import { ComplianceCountersBar } from '@/components/planning/ComplianceCountersBar'
 import {
   getAffretementContextByOtId,
   listAffretementContracts,
@@ -13,562 +14,56 @@ import {
 } from '@/lib/affretementPortal'
 import { validatePlanningDropAudit, type CEAlert } from '@/lib/ce561Validation'
 import { createLogisticSite, updateLogisticSite, type LogisticSite } from '@/lib/transportCourses'
+import { listCourseTemplates, saveCourseTemplate, deleteCourseTemplate, type CourseTemplate } from '@/lib/courseTemplates'
+import { fetchCustomRows, fetchCustomBlocks, deleteCustomRow as dbDeleteCustomRow, deleteCustomBlock as dbDeleteCustomBlock, type RemoteCustomRow, type RemoteCustomBlock } from '@/lib/planningCustomBlocks'
+import { generatePlanningWeekPDF } from '@/lib/planningPdf'
+import { fetchAbsencesValideesPeriode, TYPE_ABSENCE_LABELS, type AbsenceRh } from '@/lib/absencesRh'
 import { useAuth } from '@/lib/auth'
-
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-type OT = {
-  id: string; reference: string; client_nom: string
-  date_chargement_prevue: string | null; date_livraison_prevue: string | null
-  type_transport: string; nature_marchandise: string | null
-  statut: string; statut_transport: string | null; conducteur_id: string | null; vehicule_id: string | null
-  remorque_id: string | null; prix_ht: number | null; statut_operationnel: string | null
-  distance_km: number | null; donneur_ordre_id: string | null
-  chargement_site_id: string | null; livraison_site_id: string | null
-  groupage_id: string | null; groupage_fige: boolean
-  est_affretee: boolean
-}
-type Conducteur = { id: string; nom: string; prenom: string; statut: string }
-type Vehicule   = { id: string; immatriculation: string; marque: string | null; modele: string | null; statut: string }
-type Remorque   = { id: string; immatriculation: string; type_remorque: string; statut: string }
-type ClientRef  = { id: string; nom: string; actif: boolean | null }
-type Affectation = {
-  id: string
-  conducteur_id: string | null
-  vehicule_id: string | null
-  remorque_id: string | null
-  actif: boolean
-}
-type Tab        = 'conducteurs' | 'camions' | 'remorques'
-type ViewMode   = 'semaine' | 'jour'
-type PlanningScope = 'principal' | 'affretement'
-type ColorMode  = 'statut' | 'conducteur' | 'type' | 'client'
-type AssignForm = {
-  ot: OT; conducteur_id: string; vehicule_id: string; remorque_id: string
-  date_chargement: string; time_chargement: string; date_livraison: string; time_livraison: string
-  applyToGroupage: boolean
-}
-type EditDraft = {
-  reference: string; nature_marchandise: string; prix_ht: string; statut: string
-  statut_operationnel: string | null
-  conducteur_id: string; vehicule_id: string; remorque_id: string
-  date_chargement: string; time_chargement: string; date_livraison: string; time_livraison: string
-  donneur_ordre_id: string
-  chargement_site_id: string
-  livraison_site_id: string
-  distance_km: string
-}
-type PlanningInlineType = 'course' | 'hlp' | 'maintenance' | 'repos'
-type CustomRow   = { id: string; label: string; subtitle: string }
-type CustomBlock = {
-  id: string
-  rowId: string
-  label: string
-  dateStart: string
-  dateEnd: string
-  color: string
-  otId?: string
-  kind?: Exclude<PlanningInlineType, 'course'>
-}
-type DragState   = { ot: OT | null; kind: 'pool'|'block'|'custom'; durationDays: number; durationMinutes: number; customBlockId?: string }
-type NativeDragPayload = {
-  kind: 'pool' | 'block' | 'custom'
-  otId?: string
-  durationDays: number
-  durationMinutes: number
-  customBlockId?: string
-}
-type BlockMetrics = { leftPct: number; widthPct: number }
-type RowOrderMap = Record<Tab, string[]>
-type ContextMenu = { x: number; y: number; ot: OT } | null
-type AffretementContext = NonNullable<ReturnType<typeof getAffretementContextByOtId>>
-type RowConflict = { first: OT; second: OT; overlapMinutes: number }
-type BottomDockTab = 'missions' | 'non_affectees' | 'conflits' | 'affretement' | 'groupages' | 'non_programmees' | 'annulees' | 'urgences' | 'retour_charge' | 'entrepots' | 'relais'
-
-// ─── Types Relais ─────────────────────────────────────────────────────────────
-type TransportRelaisStatut = 'en_attente' | 'assigne' | 'en_cours_reprise' | 'termine' | 'annule'
-type TypeRelais = 'depot_marchandise' | 'relais_conducteur'
-
-type TransportRelaisRecord = {
-  id: string
-  ot_id: string
-  type_relais: TypeRelais
-  statut: TransportRelaisStatut
-  site_id: string | null
-  site: { id: string; nom: string; adresse: string; ville: string | null } | null
-  lieu_nom: string
-  lieu_adresse: string | null
-  lieu_lat: number | null
-  lieu_lng: number | null
-  conducteur_depose_id: string | null
-  vehicule_depose_id: string | null
-  remorque_depose_id: string | null
-  date_depot: string
-  conducteur_reprise_id: string | null
-  vehicule_reprise_id: string | null
-  remorque_reprise_id: string | null
-  date_reprise_prevue: string | null
-  date_reprise_reelle: string | null
-  notes: string | null
-  created_at: string
-  updated_at: string
-  ordres_transport: { id: string; reference: string; client_nom: string; statut: string; statut_operationnel: string | null; vehicule_id: string | null; conducteur_id: string | null } | null
-  conducteur_depose: { id: string; nom: string; prenom: string } | null
-  vehicule_depose: { id: string; immatriculation: string; modele: string | null } | null
-  conducteur_reprise: { id: string; nom: string; prenom: string } | null
-  vehicule_reprise: { id: string; immatriculation: string; modele: string | null } | null
-  remorque_reprise: { id: string; immatriculation: string } | null
-}
-
-type RelaisModalMode = 'depot' | 'relais_conducteur' | 'assign' | null
-type RelaisModal = {
-  mode: RelaisModalMode
-  ot: OT | null
-  relais: TransportRelaisRecord | null
-}
-
-type RelaisDepotForm = {
-  type_relais: TypeRelais
-  site_id: string
-  lieu_nom: string
-  lieu_adresse: string
-  date_depot: string
-  conducteur_depose_id: string
-  vehicule_depose_id: string
-  remorque_depose_id: string
-  notes: string
-}
-
-type RelaisAssignForm = {
-  conducteur_reprise_id: string
-  vehicule_reprise_id: string
-  remorque_reprise_id: string
-  date_reprise_prevue: string
-  notes: string
-}
-
-type RetourChargeSuggestion = {
-  id: string
-  reference: string
-  client_nom: string
-  date_chargement_prevue: string | null
-  date_livraison_prevue: string | null
-  nature_marchandise: string | null
-  prix_ht: number | null
-  distance_km: number | null
-  dist_vide_km: number | null
-  score_rentabilite: number
-  duree_vide_estimee_h: number | null
-  retour_depot_ok: boolean
-  explication_ia: string | null
-  ia_provider: string
-}
-
-type RetourChargeForm = {
-  vehicule_id: string
-  date_debut: string
-  date_fin: string
-  retour_depot_avant: string
-  rayon_km: number
-}
-type SiteUsageType = 'chargement' | 'livraison' | 'mixte'
-type SiteKind = 'chargement' | 'livraison'
-type SiteDraft = {
-  entreprise_id: string
-  nom: string
-  adresse: string
-  usage_type: SiteUsageType
-  horaires_ouverture: string
-  jours_ouverture: string
-  notes_livraison: string
-  latitude: number | null
-  longitude: number | null
-  showMap: boolean
-}
-type SiteLoadRow = {
-  id: string
-  nom: string
-  adresse: string
-  entreprise_id?: string | null
-  usage_type?: string | null
-  horaires_ouverture?: string | null
-  jours_ouverture?: string | null
-  notes_livraison?: string | null
-  latitude?: number | null
-  longitude?: number | null
-  created_at?: string | null
-  updated_at?: string | null
-}
-// AddressLoadRow supprimé (non utilisé)
-type GeneratedInlineEvent = {
-  id: string
-  rowId: string
-  label: string
-  dateStart: string
-  dateEnd: string
-  color: string
-  kind: Exclude<PlanningInlineType, 'course'>
-}
-type PlanningUrgence = {
-  id: string
-  level: 'critique' | 'haute' | 'moyenne'
-  source: 'retard' | 'non_affectee' | 'conflit'
-  label: string
-  detail: string
-  otId?: string
-  rowId?: string
-  score: number
-}
-
-function getUpdateFailureReason(result: { error?: { message?: string } | null; data?: unknown }) {
-  if (result.error?.message) return result.error.message
-  if (Array.isArray(result.data)) {
-    return 'Ecriture distante refusee, fallback local detecte (verifier droits/RLS Supabase).'
-  }
-  if (result.data == null) {
-    return 'Aucune ligne distante mise a jour (OT introuvable ou non accessible).'
-  }
-  return 'Mise a jour non confirmee sur la base distante.'
-}
-
-const ACTIVE_AFFRETEMENT_STATUSES: AffretementContract['status'][] = ['propose', 'accepte', 'en_cours', 'termine']
-
-// â”€â”€â”€ Date helpers (timezone-safe) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-function getMonday(d: Date): Date {
-  const date = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-  const day = date.getDay()
-  date.setDate(date.getDate() - (day === 0 ? 6 : day - 1))
-  return date
-}
-function addDays(d: Date, n: number): Date { const r = new Date(d.getFullYear(), d.getMonth(), d.getDate()); r.setDate(r.getDate() + n); return r }
-// Timezone-safe ISO string (uses local date components, not UTC)
-function toISO(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-}
-// Timezone-safe parse (creates local midnight, not UTC)
-function parseDay(s: string): Date {
-  const [y, m, d] = s.split('-').map(Number)
-  return new Date(y, m - 1, d)
-}
-function daysDiff(a: Date, b: Date): number { return Math.round((b.getTime() - a.getTime()) / 86400000) }
-function snapToQuarter(minutes: number): number { return Math.round(minutes / 15) * 15 }
-function minutesFromMidnight(iso: string): number { const d = new Date(iso); return d.getHours() * 60 + d.getMinutes() }
-function toDateTimeISO(date: string, time: string): string { return `${date}T${time || '08:00'}:00` }
-function toDateTimeFromDate(d: Date): string {
-  return `${toISO(d)}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:00`
-}
-function isoToTime(iso: string | null): string {
-  if (!iso) return '08:00'
-  if (iso.includes('T')) return iso.slice(11, 16)
-  return '08:00'
-}
-function isoToDate(iso: string | null): string {
-  if (!iso) return toISO(new Date())
-  return iso.slice(0, 10)
-}
-
-const DAY_NAMES   = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']
-const MONTH_NAMES = ['jan','fev','mar','avr','mai','juin','juil','aout','sep','oct','nov','dec']
-function fmtWeek(start: Date): string {
-  const end = addDays(start, 6)
-  if (start.getMonth() === end.getMonth())
-    return `${start.getDate()}-${end.getDate()} ${MONTH_NAMES[start.getMonth()]} ${start.getFullYear()}`
-  return `${start.getDate()} ${MONTH_NAMES[start.getMonth()]} - ${end.getDate()} ${MONTH_NAMES[end.getMonth()]} ${end.getFullYear()}`
-}
-function fmtDay(d: Date): string {
-  return `${DAY_NAMES[(d.getDay() + 6) % 7]} ${d.getDate()} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`
-}
-
-function toTimeValue(iso: string | null, fallbackDayISO: string): number {
-  const safeISO = iso && iso.includes('T') ? iso : `${fallbackDayISO}T08:00:00`
-  const d = new Date(safeISO)
-  if (!Number.isFinite(d.getTime())) return new Date(`${fallbackDayISO}T08:00:00`).getTime()
-  return d.getTime()
-}
-
-// â”€â”€â”€ Block position (week view) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-function getWeekBlockMetrics(ot: OT, weekStart: Date): BlockMetrics | null {
-  const weekStartMs    = weekStart.getTime()
-  const weekDurationMs = 7 * 24 * 60 * 60 * 1000
-  const weekEndMs      = weekStartMs + weekDurationMs  // exclusif : lundi suivant 00:00
-
-  const startISO = ot.date_chargement_prevue ?? ot.date_livraison_prevue
-  const endISO   = ot.date_livraison_prevue  ?? ot.date_chargement_prevue
-  if (!startISO || !endISO) return null
-
-  const startMs = toTimeValue(startISO, startISO.slice(0, 10))
-  const endMs   = toTimeValue(endISO,   endISO.slice(0, 10))
-
-  if (endMs < weekStartMs || startMs >= weekEndMs) return null
-
-  const visStartMs = Math.max(startMs, weekStartMs)
-  const visEndMs   = Math.min(endMs,   weekEndMs)
-
-  // Largeur minimale 30 minutes pour rester lisible
-  const minWidthMs = 30 * 60 * 1000
-  const left  = (visStartMs - weekStartMs) / weekDurationMs
-  const width = Math.max(minWidthMs, visEndMs - visStartMs) / weekDurationMs
-
-  return { leftPct: left * 100, widthPct: width * 100 }
-}
-
-function blockPos(ot: OT, weekStart: Date): React.CSSProperties | null {
-  const metrics = getWeekBlockMetrics(ot, weekStart)
-  if (!metrics) return null
-  return { position:'absolute', top:'6px', height:'52px', left:`calc(${metrics.leftPct}% + 2px)`, width:`calc(${metrics.widthPct}% - 4px)` }
-}
-
-// Block position (day view - full 24h)
-
-const DAY_START_MIN  = 0            // 00:00
-const DAY_TOTAL_MIN  = 24 * 60      // 00:00 - 23:59
-
-function getDayBlockMetrics(startISO: string | null, endISO: string | null, selectedDay: string): BlockMetrics | null {
-  if (!startISO) return null
-  const startDate = isoToDate(startISO)
-  const endDate   = isoToDate(endISO ?? startISO)
-  if (startDate > selectedDay || endDate < selectedDay) return null
-  // Si l'OT débute avant le jour sélectionné → commence à 00:00, sinon utilise l'heure réelle
-  const startMin = startDate < selectedDay ? DAY_START_MIN : minutesFromMidnight(startISO)
-  // Si l'OT finit après le jour sélectionné → finit à 23:59, sinon utilise l'heure réelle
-  const endMin   = endDate   > selectedDay ? DAY_START_MIN + DAY_TOTAL_MIN : minutesFromMidnight(endISO ?? startISO)
-  const cStart = Math.max(DAY_START_MIN, Math.min(DAY_START_MIN + DAY_TOTAL_MIN, startMin))
-  const cEnd   = Math.max(cStart + 15,  Math.min(DAY_START_MIN + DAY_TOTAL_MIN, endMin > cStart ? endMin : cStart + 60))
-  const left  = (cStart - DAY_START_MIN) / DAY_TOTAL_MIN
-  const width = (cEnd   - cStart)        / DAY_TOTAL_MIN
-  if (width <= 0) return null
-  return { leftPct: left * 100, widthPct: width * 100 }
-}
-
-function blockPosDay(startISO: string | null, endISO: string | null, selectedDay: string): React.CSSProperties | null {
-  const metrics = getDayBlockMetrics(startISO, endISO, selectedDay)
-  if (!metrics) return null
-  return { position:'absolute', top:'4px', height:'52px', left:`${metrics.leftPct}%`, width:`${metrics.widthPct}%` }
-}
-
-// â”€â”€â”€ Color constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-// Aliases vers la source de vérité centralisée dans transportCourses.ts.
-// Ne pas redéfinir ces valeurs localement — modifier OT_STATUT_* dans transportCourses.ts.
-const STATUT_CLS = OT_STATUT_BLOCK_CLS
-const BADGE_CLS  = OT_STATUT_BADGE_CLS
-const STATUT_LABEL = OT_STATUT_LABELS
-const CUSTOM_COLORS = [
-  'bg-sky-600 border-sky-500','bg-rose-600 border-rose-500','bg-amber-600 border-amber-500',
-  'bg-lime-600 border-lime-500','bg-fuchsia-600 border-fuchsia-500','bg-cyan-600 border-cyan-500',
-]
-const INLINE_EVENT_COLORS: Record<Exclude<PlanningInlineType, 'course'>, string> = {
-  hlp: 'bg-slate-600 border-slate-500',
-  maintenance: 'bg-orange-600 border-orange-500',
-  repos: 'bg-indigo-600 border-indigo-500',
-}
-const INLINE_EVENT_LABELS: Record<PlanningInlineType, string> = {
-  course: 'Course',
-  hlp: 'HLP',
-  maintenance: 'Nettoyage',
-  repos: 'Pause',
-}
-const COLOR_PALETTE = [
-  '#6366f1','#ec4899','#f59e0b','#10b981',
-  '#3b82f6','#8b5cf6','#ef4444','#14b8a6',
-  '#f97316','#84cc16','#06b6d4','#fb7185',
-]
-const SITE_USAGE_LABELS: Record<SiteUsageType, string> = {
-  chargement: 'Chargement uniquement',
-  livraison: 'Livraison uniquement',
-  mixte: 'Chargement et livraison',
-}
-const EMPTY_SITE_DRAFT: SiteDraft = {
-  entreprise_id: '',
-  nom: '',
-  adresse: '',
-  usage_type: 'mixte',
-  horaires_ouverture: '',
-  jours_ouverture: '',
-  notes_livraison: '',
-  latitude: null,
-  longitude: null,
-  showMap: false,
-}
-
-function normalizeAddressValue(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-}
-
-function siteSupportsKind(site: LogisticSite, kind: SiteKind) {
-  return site.usage_type === 'mixte' || site.usage_type === kind
-}
-
-function sortLogisticSites(items: LogisticSite[]) {
-  return [...items].sort((left, right) => left.nom.localeCompare(right.nom, 'fr-FR'))
-}
-
-function makeEmptySiteDraft(entrepriseId = ''): SiteDraft {
-  return { ...EMPTY_SITE_DRAFT, entreprise_id: entrepriseId }
-}
-
-function mapSiteLoadRow(row: SiteLoadRow): LogisticSite {
-  return {
-    id: row.id,
-    nom: row.nom,
-    adresse: row.adresse,
-    entreprise_id: row.entreprise_id ?? null,
-    usage_type: (row.usage_type === 'chargement' || row.usage_type === 'livraison' || row.usage_type === 'mixte')
-      ? row.usage_type
-      : 'mixte',
-    horaires_ouverture: row.horaires_ouverture ?? null,
-    jours_ouverture: row.jours_ouverture ?? null,
-    notes_livraison: row.notes_livraison ?? null,
-    latitude: row.latitude ?? null,
-    longitude: row.longitude ?? null,
-    created_at: row.created_at ?? new Date(0).toISOString(),
-    updated_at: row.updated_at ?? new Date(0).toISOString(),
-    // Champs non charges dans ce contexte (planning simplifie)
-    code_postal: null,
-    contact_nom: null,
-    contact_tel: null,
-    est_depot_relais: false,
-    ville: null,
-    pays: null,
-    type_site: null,
-    capacite_m3: null,
-    notes: null,
-  } as unknown as LogisticSite
-}
-const TYPE_TRANSPORT_COLORS: Record<string, string> = {
-  complet:'#3b82f6', groupage:'#f59e0b', express:'#ef4444',
-  partiel:'#8b5cf6', frigorifique:'#06b6d4', vrac:'#84cc16', conventionnel:'#6b7280',
-}
-
-// â”€â”€â”€ localStorage helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-const ROWS_KEY             = 'nexora_planning_custom_rows_v1'
-const BLOCKS_KEY           = 'nexora_planning_custom_blocks_v1'
-const CONDUCTOR_COLORS_KEY = 'nexora_planning_conductor_colors_v1'
-const ROW_ORDER_KEY        = 'nexora_planning_row_order_v1'
-const SHOW_AFF_ASSETS_KEY  = 'nexora_planning_show_affretement_assets_v1'
-const COMPLIANCE_BLOCK_KEY = 'nexora_planning_compliance_block_v1'
-const COMPLIANCE_BLOCK_RULES_KEY = 'nexora_planning_compliance_block_rules_v1'
-const SIMULATION_MODE_KEY = 'nexora_planning_simulation_mode_v1'
-const AUTO_HABILLAGE_KEY = 'nexora_planning_auto_habillage_v1'
-const AUTO_PAUSE_KEY = 'nexora_planning_auto_pause_v1'
-const PLANNING_HEADER_COLLAPSED_KEY = 'nexora_planning_header_collapsed_v1'
-const BOTTOM_DOCK_HEIGHT_KEY = 'nexora_planning_bottom_dock_height_v1'
-const BOTTOM_DOCK_COLLAPSED_KEY = 'nexora_planning_bottom_dock_collapsed_v1'
-const PLANNING_SCOPE_KEY = 'nexora_planning_scope_v1'
-const BOTTOM_DOCK_VIEWPORT_OFFSET = 8
-
-const COMPLIANCE_RULE_LABELS: Record<string, string> = {
-  PERMIS_EXPIRE: 'Permis CE expire',
-  FCO_EXPIREE: 'FIMO/FCO expiree',
-  CARTE_EXPIREE: 'Carte conducteur expiree',
-  CHEVAUCHEMENT: 'Chevauchement de missions',
-  CONDUITE_JOUR_MAX: 'Conduite journaliere max depassee',
-  CONDUITE_JOUR_ETENDU: 'Conduite journaliere etendue (avertissement)',
-  CONDUITE_HEBDO_MAX: 'Conduite hebdomadaire max depassee',
-  CONDUITE_BI_HEBDO_MAX: 'Conduite bi-hebdo max depassee',
-  PAUSE_OBLIGATOIRE: 'Pause obligatoire 45 min (Art. 7 CE561)',
-  PAUSE_A_VERIFIER: 'Pause a verifier (donnees tachy absentes)',
-  REPOS_INSUFFISANT: 'Repos journalier insuffisant',
-  REPOS_REDUIT: 'Repos journalier reduit',
-  REPOS_HEBDO_INSUFFISANT: 'Repos hebdomadaire insuffisant',
-  REPOS_HEBDO_REDUIT: 'Repos hebdomadaire reduit',
-  NB_REPOS_HEBDO_REDUIT_MAX: 'Trop de repos hebdo reduits',
-  JOURS_CONSECUTIFS_MAX: 'Jours consecutifs max depasses',
-}
-
-const DEFAULT_BLOCKING_RULE_CODES = new Set<string>([
-  'PERMIS_EXPIRE',
-  'FCO_EXPIREE',
-  'CARTE_EXPIREE',
-  'CHEVAUCHEMENT',
-  'CONDUITE_JOUR_MAX',
-  'CONDUITE_HEBDO_MAX',
-  'CONDUITE_BI_HEBDO_MAX',
-  'PAUSE_OBLIGATOIRE',
-  'REPOS_INSUFFISANT',
-  'REPOS_HEBDO_INSUFFISANT',
-  'NB_REPOS_HEBDO_REDUIT_MAX',
-  'JOURS_CONSECUTIFS_MAX',
-])
-
-function loadCustomRows(): CustomRow[]   { try { return JSON.parse(localStorage.getItem(ROWS_KEY)   ?? '[]') } catch { return [] } }
-function saveCustomRows(r: CustomRow[])  { localStorage.setItem(ROWS_KEY,   JSON.stringify(r)) }
-function loadCustomBlocks(): CustomBlock[]   { try { return JSON.parse(localStorage.getItem(BLOCKS_KEY) ?? '[]') } catch { return [] } }
-function saveCustomBlocks(b: CustomBlock[])  { localStorage.setItem(BLOCKS_KEY, JSON.stringify(b)) }
-function loadConductorColors(): Record<string,string> { try { return JSON.parse(localStorage.getItem(CONDUCTOR_COLORS_KEY) ?? '{}') } catch { return {} } }
-function saveConductorColors(c: Record<string,string>) { localStorage.setItem(CONDUCTOR_COLORS_KEY, JSON.stringify(c)) }
-function loadRowOrder(): RowOrderMap { try { return JSON.parse(localStorage.getItem(ROW_ORDER_KEY) ?? '{}') } catch { return {} as RowOrderMap } }
-function saveRowOrder(o: RowOrderMap)  { localStorage.setItem(ROW_ORDER_KEY, JSON.stringify(o)) }
-function loadShowAffretementAssets(): boolean {
-  try {
-    const raw = localStorage.getItem(SHOW_AFF_ASSETS_KEY)
-    return raw === null ? true : raw === '1'
-  } catch {
-    return true
-  }
-}
-function saveShowAffretementAssets(value: boolean) { localStorage.setItem(SHOW_AFF_ASSETS_KEY, value ? '1' : '0') }
-function loadComplianceBlockMode(): boolean {
-  try {
-    return localStorage.getItem(COMPLIANCE_BLOCK_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-function saveComplianceBlockMode(value: boolean) { localStorage.setItem(COMPLIANCE_BLOCK_KEY, value ? '1' : '0') }
-function loadComplianceBlockingRules(): Record<string, boolean> {
-  try {
-    return JSON.parse(localStorage.getItem(COMPLIANCE_BLOCK_RULES_KEY) ?? '{}') as Record<string, boolean>
-  } catch {
-    return {}
-  }
-}
-function saveComplianceBlockingRules(value: Record<string, boolean>) {
-  localStorage.setItem(COMPLIANCE_BLOCK_RULES_KEY, JSON.stringify(value))
-}
-function loadBooleanSetting(key: string, defaultValue = false): boolean {
-  try {
-    const raw = localStorage.getItem(key)
-    if (raw == null) return defaultValue
-    return raw === '1'
-  } catch {
-    return defaultValue
-  }
-}
-function saveBooleanSetting(key: string, value: boolean) {
-  localStorage.setItem(key, value ? '1' : '0')
-}
-function loadNumberSetting(key: string, defaultValue: number): number {
-  try {
-    const raw = localStorage.getItem(key)
-    if (raw == null) return defaultValue
-    const parsed = Number(raw)
-    return Number.isFinite(parsed) ? parsed : defaultValue
-  } catch {
-    return defaultValue
-  }
-}
-function saveNumberSetting(key: string, value: number) {
-  localStorage.setItem(key, String(value))
-}
-function uid(): string { return Math.random().toString(36).slice(2) + Date.now().toString(36) }
-
-// â”€â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+import { usePlanningCompliance } from '@/hooks/useCompliancePlanning'
+import type {
+  OT, Conducteur, Vehicule, Remorque, ClientRef, Affectation,
+  Tab, ViewMode, PlanningScope, ColorMode,
+  AssignForm, EditDraft,
+  PlanningInlineType, CustomRow, CustomBlock,
+  DragState, NativeDragPayload, BlockMetrics, RowOrderMap, ContextMenu,
+  AffretementContext, RowConflict, BottomDockTab,
+  TransportRelaisStatut, TypeRelais, TransportRelaisRecord,
+  RelaisModal, RelaisDepotForm, RelaisAssignForm,
+  RetourChargeSuggestion, RetourChargeForm,
+  SiteUsageType, SiteKind, SiteDraft, SiteLoadRow,
+  GeneratedInlineEvent, PlanningUrgence,
+} from './planning/planningTypes'
+import {
+  getUpdateFailureReason, ACTIVE_AFFRETEMENT_STATUSES,
+  getMonday, addDays, toISO, parseDay, daysDiff,
+  getMonthStart, addMonths, getMonthDays, MONTH_FULL_NAMES,
+  snapToQuarter, toDateTimeISO, toDateTimeFromDate, isoToTime, isoToDate,
+  DAY_NAMES, fmtWeek, fmtDay, toTimeValue,
+  getWeekBlockMetrics, blockPos, DAY_START_MIN, DAY_TOTAL_MIN, getDayBlockMetrics, blockPosDay,
+  STATUT_CLS, BADGE_CLS, STATUT_LABEL, CUSTOM_COLORS, INLINE_EVENT_COLORS, INLINE_EVENT_LABELS, COLOR_PALETTE, TYPE_TRANSPORT_COLORS,
+  SITE_USAGE_LABELS, normalizeAddressValue, siteSupportsKind, sortLogisticSites, makeEmptySiteDraft, mapSiteLoadRow,
+  ROWS_KEY, BLOCKS_KEY,
+  SIMULATION_MODE_KEY, AUTO_HABILLAGE_KEY, AUTO_PAUSE_KEY,
+  PLANNING_HEADER_COLLAPSED_KEY, BOTTOM_DOCK_HEIGHT_KEY, BOTTOM_DOCK_COLLAPSED_KEY,
+  PLANNING_SCOPE_KEY, BOTTOM_DOCK_VIEWPORT_OFFSET,
+  COMPLIANCE_RULE_LABELS, DEFAULT_BLOCKING_RULE_CODES,
+  loadCustomRows, saveCustomRows, loadCustomBlocks, saveCustomBlocks,
+  loadConductorColors, saveConductorColors, loadRowOrder, saveRowOrder,
+  loadShowAffretementAssets, saveShowAffretementAssets,
+  loadComplianceBlockMode, saveComplianceBlockMode,
+  loadComplianceBlockingRules, saveComplianceBlockingRules,
+  loadBooleanSetting, saveBooleanSetting, loadNumberSetting, saveNumberSetting,
+  uid,
+} from './planning/planningUtils'
 
 export default function Planning() {
   const { role } = useAuth()
+  const planningComplianceService = usePlanningCompliance()
   // Guard contre les race conditions : on ne rechargera pas pendant une écriture active.
   const isMutatingRef = useRef(false)
   const [weekStart,   setWeekStart]   = useState(() => getMonday(new Date()))
   const [selectedDay, setSelectedDay] = useState(() => toISO(new Date()))
+  const [monthStart,  setMonthStart]  = useState(() => getMonthStart(new Date()))
   const [tab,         setTab]         = useState<Tab>('conducteurs')
   const [viewMode,    setViewMode]    = useState<ViewMode>('semaine')
   const [planningScope, setPlanningScope] = useState<PlanningScope>(() => {
@@ -590,7 +85,7 @@ export default function Planning() {
   const [clients,     setClients]     = useState<ClientRef[]>([])
   const [logisticSites, setLogisticSites] = useState<LogisticSite[]>([])
   const [affectations, setAffectations] = useState<Affectation[]>([])
-
+  const [conducteurAbsences, setConducteurAbsences] = useState<Map<string, AbsenceRh[]>>(new Map())
   const [assignModal,  setAssignModal]  = useState<AssignForm | null>(null)
   const [selected,     setSelected]     = useState<OT | null>(null)
   const [editDraft,    setEditDraft]    = useState<EditDraft | null>(null)
@@ -606,6 +101,15 @@ export default function Planning() {
   const dragRef = useRef<DragState | null>(null)
   const setDrag = useCallback((d: DragState | null) => { dragRef.current = d; setDragState(d) }, [])
   const [hoverRow,   setHoverRow]   = useState<{ rowId:string; dayIdx:number; timeMin:number } | null>(null)
+
+  const liveConducteurId = useMemo(() => {
+    if (tab !== 'conducteurs') return null
+    if (hoverRow?.rowId) return hoverRow.rowId
+    if (assignModal?.conducteur_id) return assignModal.conducteur_id
+    return null
+  }, [tab, hoverRow?.rowId, assignModal?.conducteur_id])
+
+  const liveComplianceDate = useMemo(() => parseDay(selectedDay), [selectedDay])
   const [savingOtId, setSavingOtId] = useState<string | null>(null)
 
   // Custom rows
@@ -630,6 +134,26 @@ export default function Planning() {
   const [newBlockDurationHours, setNewBlockDurationHours] = useState('10')
   const [newBlockDurationMinutes, setNewBlockDurationMinutes] = useState('00')
   const [creatingInlineEvent, setCreatingInlineEvent] = useState(false)
+
+  // Modèles de courses
+  const [courseTemplates,     setCourseTemplates]     = useState<CourseTemplate[]>([])
+  const [saveAsTemplateLabel, setSaveAsTemplateLabel] = useState('')
+  const [showSaveTemplate,    setShowSaveTemplate]    = useState(false)
+  const [savingTemplate,      setSavingTemplate]      = useState(false)
+
+  // Notification client
+  const [notifyClientOt, setNotifyClientOt] = useState<OT | null>(null)
+  const [notifyMessage,  setNotifyMessage]  = useState('')
+
+  // Mini-carte itinéraire (tooltip hover)
+  const [hoveredBlock,   setHoveredBlock]   = useState<{ ot: OT; x: number; y: number } | null>(null)
+
+  // Modale de confirmation (remplace window.confirm)
+  const [confirmModal, setConfirmModal] = useState<{ message: string; resolve: (v: boolean) => void } | null>(null)
+
+  function showConfirm(message: string): Promise<boolean> {
+    return new Promise(resolve => setConfirmModal({ message, resolve }))
+  }
 
   // Couleurs conducteurs
   const [conductorColors, setConductorColors] = useState<Record<string,string>>(() => loadConductorColors())
@@ -837,20 +361,88 @@ export default function Planning() {
 
     const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000)
     if (autoPauseReglementaire && durationMinutes >= 6 * 60) {
-      const pauseStart = new Date(start.getTime() + Math.floor(durationMinutes / 2) * 60000)
-      const pauseEnd = new Date(pauseStart.getTime() + 45 * 60000)
-      events.push({
-        id: `pause-${ot.id}`,
-        rowId,
-        label: `Pause 45 min ${ot.reference}`,
-        dateStart: toDateTimeFromDate(pauseStart),
-        dateEnd: toDateTimeFromDate(pauseEnd),
-        color: INLINE_EVENT_COLORS.repos,
-        kind: 'repos',
-      })
+      // Ne pas générer de pause auto si une pause matérialisée existe déjà pour cet OT
+      const hasMaterialized = customBlocks.some(b => b.kind === 'repos' && b.rowId === rowId && b.label.includes(ot.reference))
+      if (!hasMaterialized) {
+        // CE 561 : pause obligatoire de 45 min après 4h30 max de conduite
+        // Placement intelligent : si d'autres OTs existent sur la ligne, chercher un créneau libre
+        const rowItems = ganttOTs
+          .filter(o => resolveRowId(o) === rowId && o.id !== ot.id && !customOTIds.has(o.id))
+          .map(o => ({ start: new Date(o.date_chargement_prevue ?? '').getTime(), end: new Date(o.date_livraison_prevue ?? o.date_chargement_prevue ?? '').getTime() }))
+          .filter(o => Number.isFinite(o.start) && Number.isFinite(o.end))
+          .sort((a, b) => a.start - b.start)
+
+        const idealOffsetMs = Math.min(270, Math.floor(durationMinutes / 2)) * 60000
+        let pauseStart = new Date(start.getTime() + idealOffsetMs)
+        const pauseDuration = 45 * 60000
+
+        // Vérifier si le créneau idéal chevauche un autre OT; sinon trouver le premier gap libre
+        const conflicts = rowItems.some(item =>
+          pauseStart.getTime() < item.end && (pauseStart.getTime() + pauseDuration) > item.start
+        )
+        if (conflicts) {
+          // Chercher un gap entre les OTs de la ligne après le début de cet OT
+          const sortedAll = [
+            { start: start.getTime(), end: end.getTime() },
+            ...rowItems,
+          ].sort((a, b) => a.start - b.start)
+          let placed = false
+          for (let i = 0; i < sortedAll.length - 1; i++) {
+            const gapStart = sortedAll[i].end
+            const gapEnd = sortedAll[i + 1].start
+            if (gapEnd - gapStart >= pauseDuration && gapStart >= start.getTime()) {
+              pauseStart = new Date(gapStart)
+              placed = true
+              break
+            }
+          }
+          if (!placed) {
+            // Fallback : placer après la dernière mission de la journée
+            const lastEnd = sortedAll[sortedAll.length - 1].end
+            if (lastEnd >= start.getTime()) {
+              pauseStart = new Date(lastEnd)
+            }
+          }
+        }
+
+        const pauseEnd = new Date(pauseStart.getTime() + pauseDuration)
+        events.push({
+          id: `pause-${ot.id}`,
+          rowId,
+          label: `Pause 45 min ${ot.reference}`,
+          dateStart: toDateTimeFromDate(pauseStart),
+          dateEnd: toDateTimeFromDate(pauseEnd),
+          color: INLINE_EVENT_COLORS.repos,
+          kind: 'repos',
+        })
+      }
     }
 
     return events
+  }
+
+  /** Vérifie si un conducteur est absent sur une période donnée */
+  function getConducteurAbsencesForPeriod(conducteurId: string, dateDebut: string, dateFin: string): AbsenceRh[] {
+    const abs = conducteurAbsences.get(conducteurId)
+    if (!abs) return []
+    return abs.filter(a => a.date_debut <= dateFin && a.date_fin >= dateDebut)
+  }
+
+  /** Matérialise une pause auto-générée en customBlock éditable */
+  function materializePause(block: GeneratedInlineEvent) {
+    const newBlock: CustomBlock = {
+      id: uid(),
+      rowId: block.rowId,
+      label: block.label,
+      dateStart: block.dateStart,
+      dateEnd: block.dateEnd,
+      color: block.color,
+      kind: block.kind,
+    }
+    const next = [...customBlocks, newBlock]
+    setCustomBlocks(next)
+    saveCustomBlocks(next)
+    pushPlanningNotice(`Pause materialisee — vous pouvez la deplacer ou la redimensionner.`)
   }
 
   function isRuleBlocking(code: string): boolean {
@@ -1042,14 +634,22 @@ export default function Planning() {
     const OT_SELECT = 'id, reference, statut, statut_transport, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, donneur_ordre_id, chargement_site_id, livraison_site_id, groupage_id, groupage_fige, est_affretee, clients!ordres_transport_client_id_fkey(nom)'
     const SITE_SELECT = 'id, nom, adresse, entreprise_id, usage_type, horaires_ouverture, jours_ouverture, notes_livraison, latitude, longitude, created_at, updated_at'
 
-    // Fenêtre glissante centrée sur la semaine affichée :
-    //   • 7 jours en arrière  → couvre les OTs en cours / passés récents
-    //   • 21 jours en avant   → couvre 3 semaines de planning à venir
+    // Fenêtre glissante adaptée selon le mode :
+    //   • 'mois'    : 1er du mois → dernier jour du mois (± 2j buffer)
+    //   • 'semaine' : -7j / +21j centré sur weekStart
+    //   • 'jour'    : identique semaine (la fenêtre journée est incluse)
     // Les brouillons sans date (pool) sont toujours inclus via .is.null.
-    const winFrom = new Date(weekStart)
-    winFrom.setDate(winFrom.getDate() - 7)
-    const winTo = new Date(weekStart)
-    winTo.setDate(winTo.getDate() + 21)
+    let winFrom: Date, winTo: Date
+    if (viewMode === 'mois') {
+      winFrom = addDays(monthStart, -2)
+      const lastDay = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0)
+      winTo = addDays(lastDay, 2)
+    } else {
+      winFrom = new Date(weekStart)
+      winFrom.setDate(winFrom.getDate() - 7)
+      winTo = new Date(weekStart)
+      winTo.setDate(winTo.getDate() + 21)
+    }
     const winFromISO = winFrom.toISOString().slice(0, 10)
     const winToISO   = winTo.toISOString().slice(0, 10)
     // Filtre : (chargement dans fenêtre ET livraison dans fenêtre) OU pas de date (pool)
@@ -1140,9 +740,107 @@ export default function Planning() {
 
     if (aR.error) setAffectations([])
     else if (aR.data) setAffectations(aR.data)
-  }, [planningScope, weekStart])
+
+    // ── Absences RH conducteurs sur la fenêtre visible ───────────────────────
+    if (!cR.error && cR.data && cR.data.length > 0) {
+      const absMap = new Map<string, AbsenceRh[]>()
+      const results = await Promise.all(
+        (cR.data as Conducteur[]).map(c =>
+          fetchAbsencesValideesPeriode(c.id, winFromISO, winToISO).then(abs => ({ id: c.id, abs }))
+        )
+      )
+      for (const { id, abs } of results) {
+        if (abs.length > 0) absMap.set(id, abs)
+      }
+      setConducteurAbsences(absMap)
+    } else {
+      setConducteurAbsences(new Map())
+    }
+  }, [planningScope, weekStart, viewMode, monthStart])
 
   useEffect(() => { void loadAll() }, [loadAll])
+
+  // Chargement des modèles de courses (une seule fois au mount)
+  useEffect(() => {
+    void listCourseTemplates().then(setCourseTemplates)
+  }, [])
+
+  // Hydratation custom rows/blocks depuis Supabase au mount (prime sur localStorage)
+  useEffect(() => {
+    void Promise.all([fetchCustomRows(), fetchCustomBlocks()]).then(([remoteRows, remoteBlocks]) => {
+      if (remoteRows.length > 0) {
+        const rows: CustomRow[] = remoteRows.map((r: RemoteCustomRow) => ({ id: r.id, label: r.label, subtitle: r.subtitle }))
+        setCustomRows(rows)
+        localStorage.setItem(ROWS_KEY, JSON.stringify(rows))
+      }
+      if (remoteBlocks.length > 0) {
+        const blocks: CustomBlock[] = remoteBlocks.map((b: RemoteCustomBlock) => ({
+          id: b.id, rowId: b.row_id, label: b.label,
+          dateStart: b.date_start, dateEnd: b.date_end, color: b.color,
+          otId: b.ot_id ?? undefined,
+          kind: (b.kind as CustomBlock['kind']) ?? undefined,
+        }))
+        setCustomBlocks(blocks)
+        localStorage.setItem(BLOCKS_KEY, JSON.stringify(blocks))
+      }
+    })
+  }, [])
+
+  function applyTemplate(tpl: CourseTemplate) {
+    if (tpl.client_id) setNewBlockClientId(tpl.client_id)
+    if (tpl.chargement_site_id) setNewBlockChargementSiteId(tpl.chargement_site_id)
+    if (tpl.livraison_site_id) setNewBlockLivraisonSiteId(tpl.livraison_site_id)
+    if (tpl.distance_km != null) setNewBlockDistanceKm(String(tpl.distance_km))
+    if (tpl.duree_heures != null) {
+      setNewBlockDurationHours(String(Math.floor(tpl.duree_heures)))
+      setNewBlockDurationMinutes(String(Math.round((tpl.duree_heures % 1) * 60)).padStart(2, '0'))
+    }
+    if (tpl.label) setNewBlockLabel(tpl.label)
+  }
+
+  async function handleSaveAsTemplate() {
+    if (!saveAsTemplateLabel.trim()) return
+    setSavingTemplate(true)
+    const tpl = await saveCourseTemplate({
+      label: saveAsTemplateLabel.trim(),
+      type_transport: null,
+      nature_marchandise: null,
+      chargement_site_id: newBlockChargementSiteId || null,
+      livraison_site_id: newBlockLivraisonSiteId || null,
+      client_id: newBlockClientId || null,
+      distance_km: newBlockDistanceKm ? Number(newBlockDistanceKm) : null,
+      duree_heures: newBlockDurationHours
+        ? Number(newBlockDurationHours) + Number(newBlockDurationMinutes || 0) / 60
+        : null,
+      notes: null,
+    })
+    if (tpl) setCourseTemplates(prev => [...prev, tpl].sort((a, b) => a.label.localeCompare(b.label)))
+    setSaveAsTemplateLabel('')
+    setShowSaveTemplate(false)
+    setSavingTemplate(false)
+    pushPlanningNotice(tpl ? `Modele "${tpl.label}" enregistre.` : 'Erreur lors de la sauvegarde du modele.', tpl ? 'success' : 'error')
+  }
+
+  async function handleDeleteTemplate(id: string) {
+    await deleteCourseTemplate(id)
+    setCourseTemplates(prev => prev.filter(t => t.id !== id))
+  }
+
+  function openNotifyClient(ot: OT) {
+    const livDate = ot.date_livraison_prevue
+      ? new Date(ot.date_livraison_prevue).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
+      : '-'
+    const charDate = ot.date_chargement_prevue
+      ? new Date(ot.date_chargement_prevue).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
+      : '-'
+    setNotifyMessage(
+      `Bonjour,\n\nNous vous confirmons la course ${ot.reference}.\n` +
+      `Enlèvement prévu : ${charDate}\n` +
+      `Livraison prévue : ${livDate}\n\n` +
+      `Cordialement,\nNexora Truck`,
+    )
+    setNotifyClientOt(ot)
+  }
 
   // Chargement radar km à vide (synthèse par véhicule, 30 jours)
   // NOTE: v_radar_km_vide_synthese est une vue Supabase non typée (looseSupabase).
@@ -1377,6 +1075,22 @@ export default function Planning() {
     if (!assignModal) return
     if (!ensureWriteAllowed('Affectation')) return
     if (!ensureGroupageEditable(assignModal.ot, 'Affectation')) return
+    // ── Vérification absence RH ──────────────────────────────────────────────
+    if (assignModal.conducteur_id) {
+      const absConflicts = getConducteurAbsencesForPeriod(
+        assignModal.conducteur_id,
+        assignModal.date_chargement,
+        assignModal.date_livraison,
+      )
+      if (absConflicts.length > 0) {
+        const cName = conducteurs.find(c => c.id === assignModal.conducteur_id)
+        const absLabel = absConflicts.map(a => `${TYPE_ABSENCE_LABELS[a.type_absence]} (${a.date_debut} → ${a.date_fin})`).join(', ')
+        const ok = window.confirm(
+          `⚠ ${cName ? `${cName.prenom} ${cName.nom}` : 'Ce conducteur'} est en absence : ${absLabel}.\n\nVoulez-vous affecter quand meme ?`
+        )
+        if (!ok) return
+      }
+    }
     const targets = assignModal.applyToGroupage ? getGroupageMembersForOt(assignModal.ot) : [assignModal.ot]
     const otId = assignModal.ot.id
     setSaving(true)
@@ -2037,7 +1751,7 @@ export default function Planning() {
           }
           const overlapTarget = findOverlapTarget(rowId, currentSchedule.startISO, currentSchedule.endISO, movingOtIds)
           if (overlapTarget) {
-            const shouldCreateGroupage = window.confirm(`Superposition detectee avec ${overlapTarget.reference}. Voulez-vous creer un groupage deliable ?`)
+            const shouldCreateGroupage = await showConfirm(`Superposition detectee avec ${overlapTarget.reference}. Voulez-vous creer un groupage deliable ?`)
             if (shouldCreateGroupage) {
               const linked = await linkCoursesToGroupage(activeDrag.ot, overlapTarget)
               if (linked) {
@@ -2059,13 +1773,22 @@ export default function Planning() {
           setDrag(null)
           return
         }
-        const overlapTarget = findOverlapTarget(rowId, currentSchedule.startISO, currentSchedule.endISO, movingOtIds)
+        // Calcul de la nouvelle position à partir du drop X
+        const weekMs = 7 * 24 * 60 * 60 * 1000
+        const dropRatio = Math.max(0, Math.min(1, relX / rect.width))
+        const newStartMs = weekStart.getTime() + dropRatio * weekMs
+        const durationMs = activeDrag.durationMinutes * 60 * 1000
+        const newStartDate = new Date(newStartMs)
+        const newEndDate = new Date(newStartMs + durationMs)
+        const newStartISO = toDateTimeFromDate(newStartDate)
+        const newEndISO = toDateTimeFromDate(newEndDate)
+        const overlapTarget = findOverlapTarget(rowId, newStartISO, newEndISO, movingOtIds)
         if (overlapTarget) {
-          const shouldCreateGroupage = window.confirm(`Superposition detectee avec ${overlapTarget.reference}. Voulez-vous creer un groupage deliable ?`)
+          const shouldCreateGroupage = await showConfirm(`Superposition detectee avec ${overlapTarget.reference}. Voulez-vous creer un groupage deliable ?`)
           if (shouldCreateGroupage) {
             const linked = await linkCoursesToGroupage(activeDrag.ot, overlapTarget)
             if (linked) {
-              await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
+              await moveBlock(activeDrag.ot, rowId, newStartISO, newEndISO)
               if (activeDrag.customBlockId) {
                 const upd = customBlocks.filter(b => b.id !== activeDrag.customBlockId)
                 if (upd.length !== customBlocks.length) { setCustomBlocks(upd); saveCustomBlocks(upd) }
@@ -2076,7 +1799,7 @@ export default function Planning() {
             }
           }
         }
-        await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
+        await moveBlock(activeDrag.ot, rowId, newStartISO, newEndISO)
         if (activeDrag.customBlockId) {
           const upd = customBlocks.filter(b => b.id !== activeDrag.customBlockId)
           if (upd.length !== customBlocks.length) { setCustomBlocks(upd); saveCustomBlocks(upd) }
@@ -2100,7 +1823,7 @@ export default function Planning() {
           }
           const overlapTarget = findOverlapTarget(rowId, currentSchedule.startISO, currentSchedule.endISO, movingOtIds)
           if (overlapTarget) {
-            const shouldCreateGroupage = window.confirm(`Superposition detectee avec ${overlapTarget.reference}. Voulez-vous creer un groupage deliable ?`)
+            const shouldCreateGroupage = await showConfirm(`Superposition detectee avec ${overlapTarget.reference}. Voulez-vous creer un groupage deliable ?`)
             if (shouldCreateGroupage) {
               const linked = await linkCoursesToGroupage(activeDrag.ot, overlapTarget)
               if (linked) {
@@ -2124,7 +1847,7 @@ export default function Planning() {
         }
         const overlapTarget = findOverlapTarget(rowId, currentSchedule.startISO, currentSchedule.endISO, movingOtIds)
         if (overlapTarget) {
-          const shouldCreateGroupage = window.confirm(`Superposition detectee avec ${overlapTarget.reference}. Voulez-vous creer un groupage deliable ?`)
+          const shouldCreateGroupage = await showConfirm(`Superposition detectee avec ${overlapTarget.reference}. Voulez-vous creer un groupage deliable ?`)
           if (shouldCreateGroupage) {
             const linked = await linkCoursesToGroupage(activeDrag.ot, overlapTarget)
             if (linked) {
@@ -2197,6 +1920,7 @@ export default function Planning() {
   function deleteCustomRow(rowId: string) {
     setCustomRows(r => { const u = r.filter(x => x.id !== rowId); saveCustomRows(u); return u })
     setCustomBlocks(b => { const u = b.filter(x => x.rowId !== rowId); saveCustomBlocks(u); return u })
+    void dbDeleteCustomRow(rowId)
   }
   function generatePlanningCourseReference() {
     const stamp = `${Date.now()}`.slice(-8)
@@ -2418,6 +2142,7 @@ export default function Planning() {
   }
   function deleteCustomBlock(blockId: string) {
     const upd = customBlocks.filter(b => b.id !== blockId); setCustomBlocks(upd); saveCustomBlocks(upd)
+    void dbDeleteCustomBlock(blockId)
   }
   async function unassignFromCustomBlock(block: CustomBlock) {
     const linkedOT = findOTById(block.otId)
@@ -3279,6 +3004,14 @@ export default function Planning() {
             <span className="text-[9px] text-red-400 flex-shrink-0" title="OT en retard">⚠</span>
           )}
 
+          {/* Badge absence RH */}
+          {tab === 'conducteurs' && !row.isCustom && !row.isAffretementAsset && (() => {
+            const abs = conducteurAbsences.get(row.id)
+            if (!abs || abs.length === 0) return null
+            const labels = abs.map(a => `${TYPE_ABSENCE_LABELS[a.type_absence]} du ${a.date_debut} au ${a.date_fin}`).join('\n')
+            return <span className="text-[9px] bg-rose-700/40 text-rose-200 rounded px-1 py-0.5 font-bold flex-shrink-0" title={labels}>ABSENT</span>
+          })()}
+
           <p className={`text-sm font-semibold truncate ${row.isAffretementAsset ? 'text-blue-200' : 'text-slate-200'}`}>{row.primary}</p>
 
           {/* Badge scan CE561 */}
@@ -3458,7 +3191,15 @@ export default function Planning() {
               <div key={group.label} className="mb-1">
                 <button
                   type="button"
-                  onClick={() => setCollapsedPoolGroups(prev => { const s = new Set(prev); s.has(group.label) ? s.delete(group.label) : s.add(group.label); return s })}
+                  onClick={() => setCollapsedPoolGroups(prev => {
+                    const s = new Set(prev)
+                    if (s.has(group.label)) {
+                      s.delete(group.label)
+                    } else {
+                      s.add(group.label)
+                    }
+                    return s
+                  })}
                   className={`w-full flex items-center justify-between px-1 py-1 rounded hover:bg-slate-800/60 transition-colors group ${group.color}`}
                 >
                   <span className="text-[10px] font-bold uppercase tracking-wider">{group.label} ({group.list.length})</span>
@@ -3556,16 +3297,19 @@ export default function Planning() {
 
             {/* View mode */}
             <div className="flex rounded-lg border border-slate-700 overflow-hidden flex-shrink-0">
-              {(['semaine','jour'] as ViewMode[]).map(v => (
-                <button key={v} onClick={() => setViewMode(v)}
+              {(['semaine','jour','mois'] as ViewMode[]).map(v => (
+                <button key={v} onClick={() => {
+                  if (v === 'mois') setMonthStart(getMonthStart(weekStart))
+                  setViewMode(v)
+                }}
                   className={`px-3 py-1 text-xs font-medium transition-colors ${viewMode===v ? 'bg-indigo-500/25 text-indigo-100' : 'text-slate-400 hover:text-white'}`}>
-                  {v === 'semaine' ? '7 jours' : 'Journee'}
+                  {v === 'semaine' ? '7 jours' : v === 'jour' ? 'Journee' : 'Mois'}
                 </button>
               ))}
             </div>
 
             <span className="text-sm text-slate-400 truncate">
-              {viewMode === 'semaine' ? fmtWeek(weekStart) : fmtDay(parseDay(selectedDay))}
+              {viewMode === 'semaine' ? fmtWeek(weekStart) : viewMode === 'mois' ? `${MONTH_FULL_NAMES[monthStart.getMonth()]} ${monthStart.getFullYear()}` : fmtDay(parseDay(selectedDay))}
             </span>
 
             <div className="relative hidden lg:block">
@@ -3649,6 +3393,25 @@ export default function Planning() {
             >
               Regles CE561
             </button>
+
+            {/* Export PDF — uniquement en vue semaine */}
+            {viewMode === 'semaine' && (
+              <button
+                onClick={() => generatePlanningWeekPDF({
+                  weekStart,
+                  rows: visibleRows.map(r => ({ id: r.id, label: r.primary, subtitle: r.secondary })),
+                  getRowOTs: rowId => rowOTs(rowId),
+                })}
+                title="Exporter le planning de la semaine en PDF"
+                className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-xs font-medium border border-slate-700 text-slate-300 hover:border-slate-500"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+                </svg>
+                PDF
+              </button>
+            )}
             {showComplianceRules && (
               <div className={`absolute right-0 top-10 z-[81] w-80 rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-2xl max-h-96 overflow-y-auto ${drag ? 'pointer-events-none' : ''}`}>
                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-300">Blocage par regle</p>
@@ -3674,17 +3437,19 @@ export default function Planning() {
 
             <button onClick={() => {
               if (viewMode==='semaine') setWeekStart(w => addDays(w,-7))
+              else if (viewMode==='mois') setMonthStart(m => addMonths(m,-1))
               else { const d = parseDay(selectedDay); d.setDate(d.getDate()-1); setSelectedDay(toISO(d)) }
             }} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-xl font-light transition-colors">&lt;</button>
 
             <button onClick={() => {
-              const todayDate = new Date(); setWeekStart(getMonday(todayDate)); setSelectedDay(toISO(todayDate))
+              const todayDate = new Date(); setWeekStart(getMonday(todayDate)); setSelectedDay(toISO(todayDate)); setMonthStart(getMonthStart(todayDate))
             }} className="px-3 h-8 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
               Aujourd'hui
             </button>
 
             <button onClick={() => {
               if (viewMode==='semaine') setWeekStart(w => addDays(w,7))
+              else if (viewMode==='mois') setMonthStart(m => addMonths(m,1))
               else { const d = parseDay(selectedDay); d.setDate(d.getDate()+1); setSelectedDay(toISO(d)) }
             }} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-xl font-light transition-colors">&gt;</button>
           </div>
@@ -3748,6 +3513,16 @@ export default function Planning() {
             <span className="text-sm font-bold text-white">{planningScope === 'affretement' ? 'Affretement' : 'Principal'}</span>
           </div>
         </div>
+
+        {tab === 'conducteurs' && (
+          <div className="border-b border-slate-800/60 bg-slate-950/60 flex-shrink-0">
+            <ComplianceCountersBar
+              conducteurId={liveConducteurId}
+              date={liveComplianceDate}
+              service={planningComplianceService}
+            />
+          </div>
+        )}
 
         {/* Day view - mini week selector */}
         {viewMode === 'jour' && (
@@ -4027,6 +3802,8 @@ export default function Planning() {
                           draggable={canMove(ot) && !isRowEditMode && !drag}
                           onDragStart={canMove(ot)&&!isRowEditMode&&!drag ? e => onDragStartBlock(ot, e) : undefined}
                           onDragEnd={onDragEnd}
+                          onMouseEnter={!drag ? e => setHoveredBlock({ ot, x: e.clientX, y: e.clientY }) : undefined}
+                          onMouseLeave={!drag ? () => setHoveredBlock(null) : undefined}
                           className={`${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col px-2 py-1 gap-0 transition-all overflow-hidden shadow-md group/block
                             ${canMove(ot)&&!isRowEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
                             ${isDragging?'opacity-30':isSaving?'opacity-70 animate-pulse':'hover:brightness-110'}
@@ -4126,26 +3903,49 @@ export default function Planning() {
                         </div>
                       )
                     })}
-                    {generatedBlocks.map(block => {
-                      const start = block.dateStart.slice(0,10)
-                      const end = block.dateEnd.slice(0,10)
-                      const sD = parseDay(start)
-                      const eD = parseDay(end)
+                    {/* Bandes d'indisponibilité RH */}
+                    {tab === 'conducteurs' && !row.isCustom && !row.isAffretementAsset && (conducteurAbsences.get(row.id) ?? []).map(abs => {
+                      const sD = parseDay(abs.date_debut)
+                      const eD = parseDay(abs.date_fin)
                       const wE = addDays(weekStart, 6)
                       if (eD < weekStart || sD > wE) return null
                       const vS = sD < weekStart ? weekStart : sD
                       const vE = eD > wE ? wE : eD
+                      const pAbs: React.CSSProperties = {
+                        position: 'absolute', top: 0, bottom: 0,
+                        left: `${daysDiff(weekStart, vS) / 7 * 100}%`,
+                        width: `${(daysDiff(vS, vE) + 1) / 7 * 100}%`,
+                      }
+                      return (
+                        <div key={`abs-${abs.id}`} style={pAbs}
+                          title={`${TYPE_ABSENCE_LABELS[abs.type_absence]} du ${abs.date_debut} au ${abs.date_fin}`}
+                          className="bg-rose-500/15 border-l-2 border-l-rose-500/60 pointer-events-none z-[1]">
+                          <span className="absolute top-1 left-1 text-[8px] text-rose-300/70 font-semibold uppercase tracking-wider truncate max-w-full px-0.5">{TYPE_ABSENCE_LABELS[abs.type_absence]}</span>
+                        </div>
+                      )
+                    })}
+                    {generatedBlocks.map(block => {
+                      const bS = parseDay(block.dateStart)
+                      const bE = parseDay(block.dateEnd)
+                      const wE2 = addDays(weekStart, 6)
+                      if (bE < weekStart || bS > wE2) return null
+                      const vbS = bS < weekStart ? weekStart : bS
+                      const vbE = bE > wE2 ? wE2 : bE
                       const p2: React.CSSProperties = {
                         position:'absolute',
                         top:'44px',
                         height:'16px',
-                        left:`calc(${daysDiff(weekStart,vS)/7*100}% + 2px)`,
-                        width:`calc(${(daysDiff(vS,vE)+1)/7*100}% - 4px)`,
+                        left:`calc(${daysDiff(weekStart,vbS)/7*100}% + 2px)`,
+                        width:`calc(${(daysDiff(vbS,vbE)+1)/7*100}% - 4px)`,
                       }
+                      const isPause = block.kind === 'repos'
                       return (
                         <div key={block.id} style={p2}
-                          className={`${block.color} border rounded text-white/90 text-[9px] px-1.5 flex items-center overflow-hidden pointer-events-none opacity-80`}>
+                          onClick={isPause ? () => materializePause(block) : undefined}
+                          title={isPause ? 'Cliquer pour rendre la pause deplacable' : block.label}
+                          className={`${block.color} border rounded text-white/90 text-[9px] px-1.5 flex items-center overflow-hidden ${isPause ? 'cursor-pointer hover:opacity-100 hover:ring-1 hover:ring-white/40' : 'pointer-events-none'} opacity-80`}>
                           <span className="truncate">{block.label}</span>
+                          {isPause && <span className="ml-auto flex-shrink-0 text-[8px] opacity-60">&#9998;</span>}
                         </div>
                       )
                     })}
@@ -4429,13 +4229,29 @@ export default function Planning() {
                           </div>
                         )
                       })}
-                      {generatedBlocks.map(block => {
-                        const pos = blockPosDay(block.dateStart, block.dateEnd, selectedDay)
-                        if (!pos) return null
+                      {/* Bandes d'indisponibilité RH (vue jour) */}
+                      {tab === 'conducteurs' && !row.isCustom && !row.isAffretementAsset && (conducteurAbsences.get(row.id) ?? []).map(abs => {
+                        if (abs.date_debut > selectedDay || abs.date_fin < selectedDay) return null
                         return (
-                          <div key={block.id} style={{...pos, top:'42px', height:'14px'}}
-                            className={`${block.color} border rounded text-white/90 text-[9px] px-1.5 flex items-center overflow-hidden pointer-events-none opacity-80`}>
+                          <div key={`abs-day-${abs.id}`}
+                            style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: '100%' }}
+                            title={`${TYPE_ABSENCE_LABELS[abs.type_absence]} du ${abs.date_debut} au ${abs.date_fin}`}
+                            className="bg-rose-500/15 border-l-2 border-l-rose-500/60 pointer-events-none z-[1]">
+                            <span className="absolute top-1 left-1 text-[8px] text-rose-300/70 font-semibold uppercase tracking-wider">{TYPE_ABSENCE_LABELS[abs.type_absence]}</span>
+                          </div>
+                        )
+                      })}
+                      {generatedBlocks.map(block => {
+                        const gPos = blockPosDay(block.dateStart, block.dateEnd, selectedDay)
+                        if (!gPos) return null
+                        const gIsPause = block.kind === 'repos'
+                        return (
+                          <div key={block.id} style={{...gPos, top:'42px', height:'14px'}}
+                            onClick={gIsPause ? () => materializePause(block) : undefined}
+                            title={gIsPause ? 'Cliquer pour rendre la pause deplacable' : block.label}
+                            className={`${block.color} border rounded text-white/90 text-[9px] px-1.5 flex items-center overflow-hidden ${gIsPause ? 'cursor-pointer hover:opacity-100 hover:ring-1 hover:ring-white/40' : 'pointer-events-none'} opacity-80`}>
                             <span className="truncate">{block.label}</span>
+                            {gIsPause && <span className="ml-auto flex-shrink-0 text-[8px] opacity-60">&#9998;</span>}
                           </div>
                         )
                       })}
@@ -4465,6 +4281,90 @@ export default function Planning() {
             </div>
           </div>
         )}
+
+        {/* ── MONTH VIEW ──────────────────────────────────────────────────── */}
+        {viewMode === 'mois' && (() => {
+          const monthDaysList = getMonthDays(monthStart)
+          const DAY_ABBR = ['D','L','M','M','J','V','S']
+
+          function getStatutDotCls(statut: string): string {
+            const blockCls = STATUT_CLS[statut] ?? 'bg-slate-600 border-slate-500'
+            return blockCls.split(' ').find(c => c.startsWith('bg-')) ?? 'bg-slate-600'
+          }
+
+          return (
+            <div className="overflow-x-auto">
+              <div style={{ minWidth: `${176 + monthDaysList.length * 36}px` }}>
+                {/* Day headers */}
+                <div className="flex sticky top-0 z-10 bg-slate-900 border-b border-slate-700">
+                  <div className="w-44 flex-shrink-0 border-r border-slate-700 bg-slate-900 py-2" />
+                  {monthDaysList.map((day, i) => {
+                    const isToday = toISO(day) === today
+                    const isWE = day.getDay() === 0 || day.getDay() === 6
+                    return (
+                      <div key={i} className={`w-9 flex-shrink-0 border-r border-slate-700/40 last:border-r-0 text-center py-2 ${isWE ? 'bg-slate-800/40' : ''}`}>
+                        <p className={`text-[9px] font-medium ${isToday ? 'text-blue-400' : isWE ? 'text-slate-600' : 'text-slate-500'}`}>
+                          {DAY_ABBR[day.getDay()]}
+                        </p>
+                        <p className={`text-[11px] font-bold leading-tight ${isToday ? 'text-blue-400' : isWE ? 'text-slate-600' : 'text-slate-300'}`}>
+                          {day.getDate()}
+                        </p>
+                      </div>
+                    )
+                  })}
+                </div>
+                {/* Resource rows */}
+                {visibleRows.length === 0 ? (
+                  <div className="p-16 text-center text-slate-600 text-sm">Aucune ressource disponible</div>
+                ) : visibleRows.map(row => {
+                  const allRowOTs = row.isCustom ? [] : rowOTs(row.id)
+                  return (
+                    <div key={row.id} className="flex border-b border-slate-800/50 hover:bg-white/[0.01] transition-colors" style={{ height: '44px' }}>
+                      {renderRowLabel(row)}
+                      {monthDaysList.map((day, i) => {
+                        const dayISO = toISO(day)
+                        const isToday = dayISO === today
+                        const isWE = day.getDay() === 0 || day.getDay() === 6
+                        const dayOTs = allRowOTs.filter(ot => {
+                          if (!ot.date_chargement_prevue) return false
+                          const charDate = ot.date_chargement_prevue.slice(0, 10)
+                          const livDate = (ot.date_livraison_prevue ?? ot.date_chargement_prevue).slice(0, 10)
+                          return charDate <= dayISO && livDate >= dayISO
+                        })
+                        const MAX_DOTS = 3
+                        const shown = dayOTs.slice(0, MAX_DOTS)
+                        const extra = dayOTs.length - MAX_DOTS
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => { setSelectedDay(dayISO); setViewMode('jour'); setWeekStart(getMonday(day)) }}
+                            className={[
+                              'w-9 flex-shrink-0 border-r border-slate-800/40 last:border-r-0 flex flex-col items-center justify-center gap-0.5 transition-colors',
+                              isWE ? 'bg-slate-800/15' : '',
+                              isToday ? 'bg-blue-950/20' : '',
+                              dayOTs.length > 0 ? 'hover:bg-indigo-950/40 cursor-pointer' : 'hover:bg-white/[0.02]',
+                            ].join(' ')}
+                            title={dayOTs.length > 0 ? dayOTs.map(o => o.reference).join(', ') : undefined}
+                          >
+                            {dayOTs.length > 0 && (
+                              <div className="flex flex-wrap items-center justify-center gap-[2px]">
+                                {shown.map(ot => (
+                                  <span key={ot.id} className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatutDotCls(ot.statut)}`} />
+                                ))}
+                                {extra > 0 && <span className="text-[8px] font-bold text-slate-400 leading-none">+{extra}</span>}
+                              </div>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
 
         </div>{/* end scrollable view area */}
 
@@ -5333,9 +5233,12 @@ export default function Planning() {
                 ))}
               </div>
               {[
-                { label:'Conducteur', key:'conducteur_id' as const, items: conducteurs.map(c => ({ id:c.id, label:`${c.prenom} ${c.nom}` })), placeholder:'Non affecte' },
-                { label:'Camion',     key:'vehicule_id'   as const, items: vehicules.map(v  => ({ id:v.id, label:`${v.immatriculation}${v.marque?` - ${v.marque}`:''}` })), placeholder:'Non affecte' },
-                { label:'Remorque',   key:'remorque_id'   as const, items: remorques.map(r  => ({ id:r.id, label:`${r.immatriculation} - ${r.type_remorque}` })), placeholder:'Sans remorque' },
+                { label:'Conducteur', key:'conducteur_id' as const, items: conducteurs.map(c => {
+                  const isAbsent = assignModal && getConducteurAbsencesForPeriod(c.id, assignModal.date_chargement, assignModal.date_livraison).length > 0
+                  return { id: c.id, label: `${c.prenom} ${c.nom}${isAbsent ? ' ⛔ ABSENT' : ''}`, absent: isAbsent }
+                }).sort((a, b) => (a.absent ? 1 : 0) - (b.absent ? 1 : 0)), placeholder:'Non affecte' },
+                { label:'Camion',     key:'vehicule_id'   as const, items: vehicules.map(v  => ({ id:v.id, label:`${v.immatriculation}${v.marque?` - ${v.marque}`:''}`, absent: false })), placeholder:'Non affecte' },
+                { label:'Remorque',   key:'remorque_id'   as const, items: remorques.map(r  => ({ id:r.id, label:`${r.immatriculation} - ${r.type_remorque}`, absent: false })), placeholder:'Sans remorque' },
               ].map(({ label, key, items, placeholder }) => (
                 <label key={key} className="block">
                   <span className="text-xs font-medium text-slate-400">{label}</span>
@@ -5371,6 +5274,22 @@ export default function Planning() {
                 ? 'Ajustez le type, le libelle ou la duree du bloc selectionne.'
                 : 'Ajoutez un HLP, une pause, une maintenance ou un autre bloc directement sur la ligne choisie.'}
             </p>
+            {/* Modèles de courses */}
+            {newBlockType === 'course' && courseTemplates.length > 0 && (
+              <div className="mb-3 rounded-xl border border-slate-700 bg-slate-800/50 px-3 py-2.5">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Charger un modele</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {courseTemplates.map(tpl => (
+                    <div key={tpl.id} className="group flex items-center gap-1 rounded-full border border-slate-600 bg-slate-800 px-2.5 py-1">
+                      <button type="button" onClick={() => applyTemplate(tpl)} className="text-[11px] text-slate-200 hover:text-white transition-colors">
+                        {tpl.label}
+                      </button>
+                      <button type="button" onClick={() => void handleDeleteTemplate(tpl.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-rose-400 hover:text-rose-300 text-[10px] leading-none">×</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <label className="block mb-2">
               <span className="text-[11px] text-slate-400">Type</span>
               <select
@@ -5591,6 +5510,33 @@ export default function Planning() {
                 </div>
               </>
             )}
+            {/* Sauvegarder comme modèle (courses uniquement) */}
+            {newBlockType === 'course' && (
+              <div className="mb-3">
+                {showSaveTemplate ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      autoFocus
+                      value={saveAsTemplateLabel}
+                      onChange={e => setSaveAsTemplateLabel(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') void handleSaveAsTemplate(); if (e.key === 'Escape') setShowSaveTemplate(false) }}
+                      placeholder="Nom du modele..."
+                      className="flex-1 bg-slate-800 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
+                    />
+                    <button type="button" onClick={() => void handleSaveAsTemplate()} disabled={savingTemplate || !saveAsTemplateLabel.trim()} className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs rounded-xl disabled:opacity-60 transition-colors">
+                      {savingTemplate ? '...' : 'Sauvegarder'}
+                    </button>
+                    <button type="button" onClick={() => setShowSaveTemplate(false)} className="px-3 py-2 text-slate-400 hover:text-white text-xs transition-colors">
+                      Annuler
+                    </button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => { setSaveAsTemplateLabel(newBlockLabel || ''); setShowSaveTemplate(true) }} className="text-[11px] text-slate-500 hover:text-emerald-400 transition-colors">
+                    + Sauvegarder comme modele
+                  </button>
+                )}
+              </div>
+            )}
             <div className="flex gap-2 justify-end">
               <button onClick={() => { setAddBlockFor(null); setEditingCustomBlockId(null) }} className="px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">Annuler</button>
               <button onClick={() => void addCustomBlock()} disabled={creatingInlineEvent} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-60">
@@ -5658,7 +5604,10 @@ export default function Planning() {
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Ressources</p>
                 <div className="space-y-2">
                   {([
-                    { label: 'Conducteur', key: 'conducteur_id' as const, items: conducteurs.map(c => ({ id:c.id, label:`${c.prenom} ${c.nom}` })), placeholder: 'Non affecte' },
+                    { label: 'Conducteur', key: 'conducteur_id' as const, items: conducteurs.map(c => {
+                      const isAbsent = editDraft && getConducteurAbsencesForPeriod(c.id, editDraft.date_chargement, editDraft.date_livraison).length > 0
+                      return { id: c.id, label: `${c.prenom} ${c.nom}${isAbsent ? ' ⛔ ABSENT' : ''}` }
+                    }).sort((a, b) => (a.label.includes('ABSENT') ? 1 : 0) - (b.label.includes('ABSENT') ? 1 : 0)), placeholder: 'Non affecte' },
                     { label: 'Camion',     key: 'vehicule_id'   as const, items: vehicules.map(v  => ({ id:v.id, label:`${v.immatriculation}${v.marque?` - ${v.marque}`:''}` })), placeholder: 'Non affecte' },
                     { label: 'Remorque',   key: 'remorque_id'   as const, items: remorques.map(r  => ({ id:r.id, label:`${r.immatriculation} - ${r.type_remorque}` })), placeholder: 'Sans remorque' },
                   ] as const).map(({ label, key, items, placeholder }) => (
@@ -6192,6 +6141,18 @@ export default function Planning() {
 
             <div className="border-t border-slate-800 my-1"/>
 
+            {/* Notification client */}
+            <button
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-sky-300 hover:bg-sky-900/20 hover:text-sky-200 transition-colors text-left"
+              onClick={() => { setContextMenu(null); openNotifyClient(contextMenu.ot) }}>
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+              </svg>
+              Notifier le client
+            </button>
+
+            <div className="border-t border-slate-800 my-1"/>
+
             {canUnlock(contextMenu.ot) && (
               <button
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-rose-400 hover:bg-rose-900/20 hover:text-rose-300 transition-colors text-left"
@@ -6202,6 +6163,99 @@ export default function Planning() {
                 Desaffecter la course
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Tooltip mini-itinéraire ────────────────────────────────────────── */}
+      {hoveredBlock && !drag && (() => {
+        const { ot, x, y } = hoveredBlock
+        const chargSite = ot.chargement_site_id ? logisticSites.find(s => s.id === ot.chargement_site_id) : null
+        const livrSite  = ot.livraison_site_id  ? logisticSites.find(s => s.id === ot.livraison_site_id)  : null
+        if (!chargSite && !livrSite) return null
+        const tooltipX = Math.min(x + 12, window.innerWidth - 280)
+        const tooltipY = Math.min(y + 8, window.innerHeight - 140)
+        return (
+          <div
+            className="fixed z-[90] pointer-events-none rounded-xl border border-slate-600 bg-slate-950/95 shadow-2xl px-3 py-2.5 w-64"
+            style={{ left: tooltipX, top: tooltipY }}
+          >
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Itineraire</p>
+            <div className="flex flex-col gap-1">
+              {chargSite && (
+                <div className="flex items-start gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 mt-1 flex-shrink-0"/>
+                  <div>
+                    <p className="text-xs font-semibold text-white leading-tight">{chargSite.nom}</p>
+                    {chargSite.adresse && <p className="text-[10px] text-slate-400 leading-tight">{chargSite.adresse}</p>}
+                  </div>
+                </div>
+              )}
+              {chargSite && livrSite && <div className="ml-[7px] w-px h-3 bg-slate-600" />}
+              {livrSite && (
+                <div className="flex items-start gap-2">
+                  <span className="w-2 h-2 rounded-full bg-red-400 mt-1 flex-shrink-0"/>
+                  <div>
+                    <p className="text-xs font-semibold text-white leading-tight">{livrSite.nom}</p>
+                    {livrSite.adresse && <p className="text-[10px] text-slate-400 leading-tight">{livrSite.adresse}</p>}
+                  </div>
+                </div>
+              )}
+            </div>
+            {ot.distance_km != null && (
+              <p className="text-[10px] text-slate-400 mt-1.5 border-t border-slate-800 pt-1.5">{Math.round(ot.distance_km)} km</p>
+            )}
+          </div>
+        )
+      })()}
+
+      {/* ── Modale Confirmation ────────────────────────────────────────────── */}
+      {confirmModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70]" onClick={() => { confirmModal.resolve(false); setConfirmModal(null) }}>
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+            <p className="text-sm text-white mb-4">{confirmModal.message}</p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => { confirmModal.resolve(false); setConfirmModal(null) }} className="px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">Annuler</button>
+              <button onClick={() => { confirmModal.resolve(true); setConfirmModal(null) }} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-xl transition-colors">Confirmer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modale Notification client ─────────────────────────────────────── */}
+      {notifyClientOt && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setNotifyClientOt(null)}>
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-white mb-1">Notifier le client</h3>
+            <p className="text-[11px] text-slate-400 mb-3">
+              Course <span className="font-mono text-slate-300">{notifyClientOt.reference}</span> — <span className="text-slate-300">{notifyClientOt.client_nom}</span>
+            </p>
+            <textarea
+              value={notifyMessage}
+              onChange={e => setNotifyMessage(e.target.value)}
+              rows={8}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-sky-500 resize-none mb-3 font-mono"
+            />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setNotifyClientOt(null)} className="px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">
+                Fermer
+              </button>
+              <button
+                onClick={() => { void navigator.clipboard.writeText(notifyMessage); pushPlanningNotice('Message copie dans le presse-papiers.', 'success') }}
+                className="flex items-center gap-1.5 px-4 py-2 border border-slate-600 hover:border-slate-500 text-slate-300 text-sm rounded-xl transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copier
+              </button>
+              <a
+                href={`mailto:?subject=Course%20${encodeURIComponent(notifyClientOt.reference)}&body=${encodeURIComponent(notifyMessage)}`}
+                className="flex items-center gap-1.5 px-4 py-2 bg-sky-700 hover:bg-sky-600 text-white text-sm rounded-xl transition-colors"
+                onClick={() => setNotifyClientOt(null)}
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                Ouvrir messagerie
+              </a>
+            </div>
           </div>
         </div>
       )}

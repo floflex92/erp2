@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import SaisieEcrituresTab from '@/components/comptabilite/SaisieEcrituresTab'
+import PlanComptableTab from '@/components/comptabilite/PlanComptableTab'
+import TvaDeclarativeTab from '@/components/comptabilite/TvaDeclarativeTab'
+import PrimesRapprochementTab from '@/components/comptabilite/PrimesRapprochementTab'
 
-type Tab = 'balance' | 'grand-livre' | 'bilan' | 'resultat' | 'export-fec'
+type Tab = 'saisie' | 'plan-comptable' | 'primes-paie' | 'balance' | 'grand-livre' | 'bilan' | 'resultat' | 'tva' | 'export-fec'
 
 interface BalanceRow {
   exercice: number
@@ -66,10 +70,14 @@ const btnPrimary = `${btn} bg-slate-800 text-white hover:bg-slate-900`
 
 function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
   const tabs: { key: Tab; label: string }[] = [
+    { key: 'saisie', label: 'Saisie' },
+    { key: 'plan-comptable', label: 'Plan Comptable' },
+    { key: 'primes-paie', label: 'Primes paie' },
     { key: 'balance', label: 'Balance' },
     { key: 'grand-livre', label: 'Grand Livre' },
     { key: 'bilan', label: 'Bilan' },
     { key: 'resultat', label: 'Compte Résultat' },
+    { key: 'tva', label: 'TVA' },
     { key: 'export-fec', label: 'Export FEC' },
   ]
 
@@ -97,6 +105,17 @@ function BalanceTab() {
   const [loading, setLoading] = useState(true)
   const [exercice, setExercice] = useState<number>(new Date().getFullYear())
   const [error, setError] = useState<string | null>(null)
+
+  const exportCSV = () => {
+    const header = 'Code;Libellé;Débit;Crédit;Solde'
+    const rows = data.map(r => `${r.compte_code};${r.compte_libelle};${r.total_debit.toFixed(2)};${r.total_credit.toFixed(2)};${r.solde_gestion.toFixed(2)}`)
+    const csv = [header, ...rows].join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `balance_${exercice}.csv`
+    link.click()
+  }
 
   useEffect(() => {
     const fetchBalance = async () => {
@@ -139,6 +158,9 @@ function BalanceTab() {
             className={inp}
           />
         </div>
+        {data.length > 0 && (
+          <button onClick={exportCSV} className="px-4 py-2 rounded-lg text-sm font-medium border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors">Export CSV</button>
+        )}
       </div>
 
       {error && <div className="p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
@@ -191,6 +213,17 @@ function GrandLivreTab() {
   const [exercice, setExercice] = useState<number>(new Date().getFullYear())
   const [compteFilter, setCompteFilter] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
+
+  const exportCSV = () => {
+    const header = 'Date;Journal;Mv;Compte;Libellé;Débit;Crédit;Solde'
+    const rows = data.map(r => `${r.date_ecriture};${r.journal_code};${r.numero_mouvement};${r.compte_code};${r.libelle};${r.debit.toFixed(2)};${r.credit.toFixed(2)};${r.solde_courant.toFixed(2)}`)
+    const csv = [header, ...rows].join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `grand_livre_${exercice}${compteFilter ? '_' + compteFilter : ''}.csv`
+    link.click()
+  }
 
   useEffect(() => {
     const fetchGL = async () => {
@@ -248,6 +281,9 @@ function GrandLivreTab() {
             className={inp}
           />
         </div>
+        {data.length > 0 && (
+          <button onClick={exportCSV} className="px-4 py-2 rounded-lg text-sm font-medium border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors">Export CSV</button>
+        )}
       </div>
 
       {error && <div className="p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
@@ -659,22 +695,26 @@ VT|2026-04-02|411000|0.00|5000.00|Facture client...`}
 }
 
 export default function Comptabilite() {
-  const [activeTab, setActiveTab] = useState<Tab>('balance')
+  const [activeTab, setActiveTab] = useState<Tab>('saisie')
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-800 mb-1">Comptabilité Générale</h1>
-        <p className="text-sm text-slate-600">États légaux et reporting comptable</p>
+        <p className="text-sm text-slate-600">Saisie, états légaux et reporting comptable</p>
       </div>
 
       <div className="bg-white rounded-lg border border-slate-200 p-6">
         <TabBar active={activeTab} onChange={setActiveTab} />
 
+        {activeTab === 'saisie' && <SaisieEcrituresTab />}
+        {activeTab === 'plan-comptable' && <PlanComptableTab />}
+        {activeTab === 'primes-paie' && <PrimesRapprochementTab />}
         {activeTab === 'balance' && <BalanceTab />}
         {activeTab === 'grand-livre' && <GrandLivreTab />}
         {activeTab === 'bilan' && <BilanTab />}
         {activeTab === 'resultat' && <ResultatTab />}
+        {activeTab === 'tva' && <TvaDeclarativeTab />}
         {activeTab === 'export-fec' && <ExportFecTab />}
       </div>
     </div>

@@ -92,7 +92,7 @@ async function fetchMyCompanyId(): Promise<number | null> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
   const { data } = await supabase
-    .from('profils')
+    .from('profils' as any)
     .select('company_id')
     .eq('user_id', user.id)
     .single()
@@ -239,12 +239,12 @@ export async function getTenantUsers(): Promise<{ data: { users: TenantUser[] } 
   const companyId = await fetchMyCompanyId()
   if (!companyId) return { data: null, error: 'Tenant introuvable.' }
   const { data, error } = await supabase
-    .from('profils')
+    .from('profils' as any)
     .select('id, user_id, role, matricule, nom, prenom, tenant_key, login_enabled, force_password_reset, created_at, updated_at')
     .eq('company_id', companyId)
     .order('nom', { ascending: true })
   if (error) return { data: null, error: error.message }
-  return { data: { users: (data ?? []) as TenantUser[] }, error: null }
+  return { data: { users: (data ?? []) as unknown as TenantUser[] }, error: null }
 }
 
 export async function createTenantUser(payload: {
@@ -281,7 +281,7 @@ export async function updateTenantUser(
   if (payload.nom    !== undefined) updates.nom    = payload.nom
   if (payload.prenom !== undefined) updates.prenom = payload.prenom
   const { data, error } = await supabase
-    .from('profils')
+    .from('profils' as any)
     .update(updates)
     .eq('id', profilId)
     .select('id, nom, prenom, updated_at')
@@ -295,13 +295,13 @@ export async function setUserLoginEnabled(
   enabled: boolean,
 ): Promise<{ data: { user: Pick<TenantUser, 'id' | 'login_enabled' | 'updated_at'> } | null; error: string | null }> {
   const { data, error } = await supabase
-    .from('profils')
+    .from('profils' as any)
     .update({ login_enabled: enabled })
     .eq('id', profilId)
     .select('id, login_enabled, updated_at')
     .single()
   if (error) return { data: null, error: error.message }
-  return { data: { user: data as Pick<TenantUser, 'id' | 'login_enabled' | 'updated_at'> }, error: null }
+  return { data: { user: data as unknown as Pick<TenantUser, 'id' | 'login_enabled' | 'updated_at'> }, error: null }
 }
 
 export async function setUserRole(
@@ -309,13 +309,13 @@ export async function setUserRole(
   role: string,
 ): Promise<{ data: { user: Pick<TenantUser, 'id' | 'role' | 'updated_at'> } | null; error: string | null }> {
   const { data, error } = await supabase
-    .from('profils')
+    .from('profils' as any)
     .update({ role })
     .eq('id', profilId)
     .select('id, role, updated_at')
     .single()
   if (error) return { data: null, error: error.message }
-  return { data: { user: data as Pick<TenantUser, 'id' | 'role' | 'updated_at'> }, error: null }
+  return { data: { user: data as unknown as Pick<TenantUser, 'id' | 'role' | 'updated_at'> }, error: null }
 }
 
 export async function setUserAllowedPages(
@@ -331,12 +331,12 @@ export async function setUserForcePasswordReset(
   force: boolean,
 ): Promise<{ data: { user: Pick<TenantUser, 'id' | 'force_password_reset' | 'updated_at'> } | null; error: string | null }> {
   const { data, error } = await supabase
-    .from('profils')
+    .from('profils' as any)
     .update({ force_password_reset: force })
     .eq('id', profilId)
     .select('id, force_password_reset, updated_at')
     .single()
   if (error) return { data: null, error: error.message }
-  return { data: { user: data as Pick<TenantUser, 'id' | 'force_password_reset' | 'updated_at'> }, error: null }
+  return { data: { user: data as unknown as Pick<TenantUser, 'id' | 'force_password_reset' | 'updated_at'> }, error: null }
 }
 

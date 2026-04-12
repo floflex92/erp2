@@ -2,6 +2,7 @@
 import { supabase } from '@/lib/supabase'
 import { ST_PLANIFIE, ST_EN_COURS } from '@/lib/transportCourses'
 import type { Tables, TablesInsert } from '@/lib/database.types'
+import { INTERVIEW_STATUS_LABELS, listInterviewsForEmployee, type InterviewRow } from '@/lib/hrInterviewsModule'
 
 type Conducteur = Tables<'conducteurs'>
 type Vehicule = Tables<'vehicules'>
@@ -162,6 +163,8 @@ export default function Chauffeurs() {
   const [notice, setNotice] = useState<string | null>(null)
   const [rhEvents, setRhEvents] = useState<ConducteurEvent[]>([])
   const [rhDocuments, setRhDocuments] = useState<ConducteurDocument[]>([])
+  const [canonicalInterviews, setCanonicalInterviews] = useState<InterviewRow[]>([])
+  const [mappedProfileLabel, setMappedProfileLabel] = useState<string | null>(null)
   const [activeOrdersByConducteur, setActiveOrdersByConducteur] = useState<Record<string, OtLite[]>>({})
   const [rhLoading, setRhLoading] = useState(false)
   const [rhError, setRhError] = useState<string | null>(null)
@@ -274,6 +277,8 @@ export default function Chauffeurs() {
     setForm(EMPTY)
     setRhEvents([])
     setRhDocuments([])
+    setCanonicalInterviews([])
+    setMappedProfileLabel(null)
     setRhError(null)
     setEventForm(EMPTY_EVENT)
     setDocumentForm(EMPTY_DOCUMENT)
@@ -286,6 +291,8 @@ export default function Chauffeurs() {
     setForm(EMPTY)
     setRhEvents([])
     setRhDocuments([])
+    setCanonicalInterviews([])
+    setMappedProfileLabel(null)
     setRhError(null)
     setShowForm(true)
   }
@@ -297,6 +304,8 @@ export default function Chauffeurs() {
     setEventForm(EMPTY_EVENT)
     setDocumentForm(EMPTY_DOCUMENT)
     setDocumentFile(null)
+    setCanonicalInterviews([])
+    setMappedProfileLabel(null)
     setForm({
       nom: conducteur.nom,
       prenom: conducteur.prenom,
@@ -329,14 +338,43 @@ export default function Chauffeurs() {
       preferences: conducteur.preferences,
     })
     setShowForm(true)
-    void loadRhDossier(conducteur.id)
+    void loadRhDossier(conducteur.id, conducteur)
   }
 
   function set<K extends keyof TablesInsert<'conducteurs'>>(k: K, v: TablesInsert<'conducteurs'>[K]) {
     setForm(f => ({ ...f, [k]: v }))
   }
 
-  async function loadRhDossier(conducteurId: string) {
+  async function resolveProfileForConducteur(conducteur: Conducteur): Promise<{ id: string; label: string } | null> {
+    if (conducteur.matricule) {
+      const byMatricule = await (supabase as any)
+        .from('profils')
+        .select('id, nom, prenom, matricule')
+        .eq('matricule', conducteur.matricule)
+        .limit(1)
+      const row = byMatricule.data?.[0]
+      if (row?.id) {
+        const label = [row.prenom, row.nom].filter(Boolean).join(' ').trim() || row.matricule || row.id
+        return { id: row.id as string, label }
+      }
+    }
+
+    const byIdentity = await (supabase as any)
+      .from('profils')
+      .select('id, nom, prenom, matricule')
+      .ilike('nom', conducteur.nom)
+      .ilike('prenom', conducteur.prenom)
+      .limit(1)
+    const row = byIdentity.data?.[0]
+    if (row?.id) {
+      const label = [row.prenom, row.nom].filter(Boolean).join(' ').trim() || row.matricule || row.id
+      return { id: row.id as string, label }
+    }
+
+    return null
+  }
+
+  async function loadRhDossier(conducteurId: string, conducteur?: Conducteur) {
     setRhLoading(true)
     setRhError(null)
 
@@ -360,9 +398,23 @@ export default function Chauffeurs() {
 
       setRhEvents(eventsRes.data ?? [])
       setRhDocuments(documentsRes.data ?? [])
+
+      if (conducteur) {
+        const mapped = await resolveProfileForConducteur(conducteur)
+        if (mapped) {
+          const interviews = await listInterviewsForEmployee(mapped.id)
+          setCanonicalInterviews(interviews)
+          setMappedProfileLabel(mapped.label)
+        } else {
+          setCanonicalInterviews([])
+          setMappedProfileLabel(null)
+        }
+      }
     } catch (err) {
       setRhEvents([])
       setRhDocuments([])
+      setCanonicalInterviews([])
+      setMappedProfileLabel(null)
       setRhError(rhFeatureError(err, 'Chargement du dossier RH impossible.'))
     } finally {
       setRhLoading(false)
@@ -1098,6 +1150,36 @@ export default function Chauffeurs() {
                         ))}
                       </div>
                     </div>
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="text-sm font-semibold text-slate-800">Entretiens salaries (source canonique)</h4>
+                      {mappedProfileLabel && <span className="text-xs text-slate-500">Profil lie: {mappedProfileLabel}</span>}
+                    </div>
+                    {!mappedProfileLabel ? (
+                      <p className="mt-2 text-xs text-slate-400">
+                        Aucun profil salarie associe automatiquement a ce conducteur (matricule / nom-prenom).
+                      </p>
+                    ) : canonicalInterviews.length === 0 ? (
+                      <p className="mt-2 text-xs text-slate-400">Aucun entretien trouve pour ce profil.</p>
+                    ) : (
+                      <ul className="mt-3 space-y-2">
+                        {canonicalInterviews.slice(0, 8).map(interview => (
+                          <li key={interview.id} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-medium text-slate-800">{interview.interview_type?.name ?? 'Entretien'}</p>
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+                                {INTERVIEW_STATUS_LABELS[interview.status]}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {interview.planned_at ? new Date(interview.planned_at).toLocaleString('fr-FR') : 'Date non planifiee'}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 </div>
               )}

@@ -8,6 +8,7 @@ import OllamaChat from '@/components/OllamaChat'
 import { ErpClientsSettings } from '@/components/settings/ErpClientsSettings'
 import { DriverGroupsSettings } from '@/components/settings/DriverGroupsSettings'
 import { ObservabilitePanel } from '@/components/settings/ObservabilitePanel'
+import { ServicesOverviewCard } from '@/domains/services/components/ServicesOverviewCard'
 
 // ── Menu items ────────────────────────────────────────────────────────────────
 type MenuId = 'compte' | 'entreprise' | 'signature' | 'rgpd' | 'utilisateurs' | 'aide' | 'modules' | 'developpement' | 'clients-erp' | 'groupes-conducteurs' | 'observabilite'
@@ -66,10 +67,10 @@ function readFileAsDataUrl(file: File) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-const DEPLOYED_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.12.3'
+const DEPLOYED_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.12.6'
 
 export default function Parametres() {
-  const { role, sessionRole, isAdmin, isDemoSession, profil, accountProfil, tenantAllowedPages } = useAuth()
+  const { role, sessionRole, isAdmin, isDemoSession, profil, accountProfil, tenantAllowedPages, companyId } = useAuth()
   const location = useLocation()
   const logoInputRef = useRef<HTMLInputElement | null>(null)
   const signatureInputRef = useRef<HTMLInputElement | null>(null)
@@ -326,6 +327,7 @@ export default function Parametres() {
                 </div>
               </Card>
             )}
+            <ServicesOverviewCard companyId={companyId} />
           </div>
         )}
 
@@ -544,6 +546,11 @@ export default function Parametres() {
                   <li>Tachygraphe donnees dynamiques v1.12.4 : seed idempotent 6 conducteurs avec donnees semaine courante et mois precedent, lookup dynamique conducteurs/vehicules existants (v1.12.4)</li>
                   <li>Tachygraphe Supabase complet v1.12.4 : compliance EU calculee depuis vraies entrees tachygraphe_entrees, infractions derivees en temps reel, generation et persistance rapports (rapports_conducteurs), alertes documents depuis dates conducteurs reelles (v1.12.4)</li>
                   <li>Clients ERP Supabase complet : fiche commerciale, conditions paiement, IBAN/BIC, contacts multiples, adresses, historique OT et factures par client — zero mock (v1.12.4)</li>
+                  <li>Planning custom blocks Supabase v1.12.5 : lignes et blocs personnalises persistes en base, drag-and-drop inter-lignes, assignation OT aux blocs custom (v1.12.5)</li>
+                  <li>Planning pauses intelligentes v1.12.5 : placement auto dans les creneaux libres (CE 561), materialisation en bloc editable au clic (v1.12.5)</li>
+                  <li>Disponibilite RH planning v1.12.5 : bandes visuelles absence sur le Gantt, badge ABSENT, alerte et blocage d assignation sur conducteur absent, filtrage selects (v1.12.5)</li>
+                  <li>Demande d absence conducteur v1.12.5 : onglet Mes absences dans le portail conducteur, formulaire de demande, soldes CP/RTT, liste et statuts (v1.12.5)</li>
+                  <li>Workflow multi-etapes conges v1.12.6 : demande → validation exploitation → validation direction → integration paie → validation finale avec document PDF attestation de conge et circuit complet (v1.12.6)</li>
                 </ul>
               </Card>
             )}
@@ -555,7 +562,7 @@ export default function Parametres() {
                   <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
                     <li>Facturation (CRUD factures, tarifs, CNR, journal manuel et relances en Supabase ; manque lignes multi-article par facture, generation auto depuis OT et export comptable integre)</li>
                     <li>Paie (calcul brut/net URSSAF 2026, import heures Supabase et absences validees, generation PDF ; bulletins stockes en localStorage — non partages entre appareils)</li>
-                    <li>RH (absences et entretiens en Supabase ; fiches employes et documents RH en localStorage — non partages entre appareils)</li>
+                    <li>RH (entretiens en Supabase, absences workflow multi-etapes complet ; fiches employes et documents RH en localStorage — non partages entre appareils)</li>
                     <li>Amendes</li>
                     <li>Espace client (portail tokenise v1.1, lecture factures Supabase ; onboarding et demandes transport en localStorage — non persistes cote serveur)</li>
                     <li>Espace affreteur (suivi operationnel, OT depuis Supabase ; portail affreteur en localStorage — non persiste cote serveur)</li>
@@ -563,6 +570,8 @@ export default function Parametres() {
                     <li>Tchat / Communication (canal exploitation/conducteur v1.1)</li>
                     <li>Utilisateurs (workflow complet : creation, suspension, reset MDP, lien magique, badges statut, confirmation destructive — depend de la fonction Netlify admin-users)</li>
                     <li>Site vitrine public (medias, preuves client et enrichissement commercial encore en cours)</li>
+                    <li>Foundation compte_client_db_v1 (schemas core/docs/rt/audit/backup multi-compte — migrations a finaliser)</li>
+                    <li>RLS strict compte client (isolation stricte par compte ERP sur perimetre V1 — policies same_compte a consolider)</li>
                   </ul>
                 </Card>
                 <Card>
@@ -624,6 +633,29 @@ export default function Parametres() {
                     <li>Automatisation proactive des alertes transport/facturation</li>
                     <li>Integration API bourse de fret</li>
                     <li>Tracking temps reel via API externes</li>
+                  </ul>
+                </Card>
+                <Card>
+                  <CardLabel>Fonctionnalites avancees (roadmap)</CardLabel>
+                  <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
+                    <li>Application conducteurs complete (messagerie, OT, statuts terrain, BL, frais, coffre numerique, fiche client)</li>
+                    <li>Bourse de fret interne connectee (matching OT/capacite, suivi propositions, historisation attributions)</li>
+                    <li>Cartographie poids lourds (restrictions gabarit, tonnage, hauteur, matieres reglementees)</li>
+                    <li>API chronotachygraphe (temps de conduite/repos, alertes depassement, contraintes reglementaires)</li>
+                    <li>IA de recommendation et optimisation (affectations conducteur/vehicule, km a vide, marge operationnelle)</li>
+                    <li>Communication inter-ERP par reference transport (echange inter-systemes, webhook signe HMAC)</li>
+                    <li>GPS poids lourds conducteurs (itineraire conforme, alertes contraintes, guidage mission par mission)</li>
+                    <li>Portail affreteur avance (recuperation OT, facturation, dialogue affretement, adresses sans contact)</li>
+                    <li>Portail client avance (ETA predictif, suivi missions, contact conducteur, facturation)</li>
+                    <li>Connexion map live a la cartographie poids lourds</li>
+                    <li>API tracking flotte GPS (historique, georeperage, alertes entree/sortie zone, preuves de parcours)</li>
+                    <li>API tracking vitesse et niveau carburant (courbe conduite, anomalies, alertes optimisation)</li>
+                    <li>OCR fournisseurs v1 et rapprochement intelligent (scoring match, seuil auto-validation configurable)</li>
+                    <li>Rentabilite avancee (marge par client, cout au km, rentabilite camion)</li>
+                    <li>Relances impayes avancees (scenarios relance parametrables, risque client calcule)</li>
+                    <li>Amortissements flotte (gestion amortissements et impact rentabilite)</li>
+                    <li>Gestion douaniere (DAU/T1/CMR, declarations, regimes douaniers, alertes echeances)</li>
+                    <li>Gestion convois exceptionnels (autorisations prefectorales, gabarit, escortes, planning)</li>
                   </ul>
                 </Card>
               </div>
