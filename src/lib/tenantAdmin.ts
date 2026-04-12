@@ -19,43 +19,197 @@ import { supabase } from './supabase'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type TenantModule =
-  | 'dashboard'
-  | 'planning'
-  | 'fleet'
-  | 'workshop'
-  | 'hr'
-  | 'accounting'
-  | 'documents'
-  | 'settings'
+export const ALL_TENANT_MODULES = [
+  'ops-center',
+  'dashboard',
+  'dashboard-conducteur',
+  'planning',
+  'planning-conducteur',
+  'transports',
+  'feuille-route',
+  'map-live',
+  'demandes-clients',
+  'tasks',
+  'frais-rapide',
+  'chauffeurs',
+  'vehicules',
+  'remorques',
+  'equipements',
+  'maintenance',
+  'tachygraphe',
+  'amendes',
+  'entrepots',
+  'facturation',
+  'comptabilite',
+  'reglements',
+  'tresorerie',
+  'analytique-transport',
+  'frais',
+  'paie',
+  'clients',
+  'prospection',
+  'espace-client',
+  'compte-client-db',
+  'espace-affreteur',
+  'rh',
+  'entretiens-salaries',
+  'tchat',
+  'mail',
+  'inter-erp',
+  'communication',
+  'coffre',
+  'settings',
+] as const
 
-export const ALL_TENANT_MODULES: TenantModule[] = [
-  'dashboard', 'planning', 'fleet', 'workshop',
-  'hr', 'accounting', 'documents', 'settings',
-]
+export type TenantModule = (typeof ALL_TENANT_MODULES)[number]
 
-export const TENANT_MODULE_LABELS: Record<TenantModule, string> = {
-  dashboard:  'Tableau de bord',
-  planning:   'Planning',
-  fleet:      'Flotte',
-  workshop:   'Atelier',
-  hr:         'RH',
-  accounting: 'Comptabilite',
-  documents:  'Documents',
-  settings:   'Parametres',
+const TENANT_MODULE_SET = new Set<TenantModule>(ALL_TENANT_MODULES)
+
+type LegacyTenantModule = 'dashboard' | 'planning' | 'fleet' | 'workshop' | 'hr' | 'accounting' | 'documents' | 'settings'
+
+const LEGACY_TO_MODULES: Record<LegacyTenantModule, TenantModule[]> = {
+  dashboard: [
+    'ops-center',
+    'dashboard',
+    'dashboard-conducteur',
+    'tasks',
+    'transports',
+    'demandes-clients',
+    'clients',
+    'prospection',
+    'espace-client',
+    'espace-affreteur',
+    'compte-client-db',
+    'tchat',
+    'mail',
+    'inter-erp',
+    'communication',
+  ],
+  planning: ['planning', 'planning-conducteur', 'map-live', 'feuille-route'],
+  fleet: ['vehicules', 'remorques', 'equipements', 'entrepots'],
+  workshop: ['maintenance'],
+  hr: ['chauffeurs', 'rh', 'entretiens-salaries', 'paie', 'frais', 'frais-rapide', 'tachygraphe', 'amendes'],
+  accounting: ['facturation', 'comptabilite', 'reglements', 'tresorerie', 'analytique-transport'],
+  documents: ['coffre'],
+  settings: ['settings'],
 }
 
-// Mappe les slugs modules ERP (routes App.tsx) vers les modules tenant
-// Un module tenant peut couvrir plusieurs routes ERP.
+function isTenantModule(value: string): value is TenantModule {
+  return TENANT_MODULE_SET.has(value as TenantModule)
+}
+
+/**
+ * Normalise les modules sauvegardés côté tenant.
+ * Compatibilité ascendante: convertit aussi les anciens modules macro
+ * (fleet/workshop/accounting/documents) vers les modules détaillés.
+ */
+export function normalizeEnabledModules(value: unknown): TenantModule[] | null {
+  if (!Array.isArray(value)) return null
+
+  const expanded = new Set<TenantModule>()
+  for (const item of value) {
+    if (typeof item !== 'string') continue
+    const token = item.trim()
+    if (!token) continue
+
+    if (isTenantModule(token)) {
+      expanded.add(token)
+      continue
+    }
+
+    if (token in LEGACY_TO_MODULES) {
+      for (const mod of LEGACY_TO_MODULES[token as LegacyTenantModule]) expanded.add(mod)
+    }
+  }
+
+  if (expanded.size === 0) return null
+  expanded.add('settings')
+  return ALL_TENANT_MODULES.filter(mod => expanded.has(mod))
+}
+
+export const TENANT_MODULE_LABELS: Record<TenantModule, string> = {
+  'ops-center': 'Centre Ops',
+  dashboard: 'Tableau de bord',
+  'dashboard-conducteur': 'Mon accueil conducteur',
+  planning: 'Planning',
+  'planning-conducteur': 'Mon planning conducteur',
+  transports: 'OT / Fret',
+  'feuille-route': 'Feuille de route',
+  'map-live': 'Map live',
+  'demandes-clients': 'Demandes clients',
+  tasks: 'Taches',
+  'frais-rapide': 'Saisie frais rapide',
+  chauffeurs: 'Conducteurs',
+  vehicules: 'Camions',
+  remorques: 'Remorques',
+  equipements: 'Equipements',
+  maintenance: 'Atelier',
+  tachygraphe: 'Chronotachygraphe',
+  amendes: 'PV & Amendes',
+  entrepots: 'Entrepots',
+  facturation: 'Facturation',
+  comptabilite: 'Comptabilite',
+  reglements: 'Reglements',
+  tresorerie: 'Tresorerie',
+  'analytique-transport': 'Analytique transport',
+  frais: 'Frais',
+  paie: 'Paie',
+  clients: 'Clients',
+  prospection: 'Prospection',
+  'espace-client': 'Espace client',
+  'compte-client-db': 'Compte client DB',
+  'espace-affreteur': 'Espace affreteur',
+  rh: 'Ressources humaines',
+  'entretiens-salaries': 'Entretiens salaries',
+  tchat: 'Messagerie',
+  mail: 'Mail',
+  'inter-erp': 'Inter-ERP',
+  communication: 'Communication',
+  coffre: 'Coffre',
+  settings: 'Parametres',
+}
+
+// Mappe les slugs modules ERP (routes App.tsx) vers les modules tenant.
 export const MODULE_TO_PAGES: Record<TenantModule, string[]> = {
-  dashboard:  ['dashboard'],
-  planning:   ['planning', 'map-live', 'feuille-route'],
-  fleet:      ['vehicules', 'remorques', 'equipements'],
-  workshop:   ['maintenance'],
-  hr:         ['chauffeurs', 'rh', 'paie', 'tachygraphe', 'amendes', 'frais'],
-  accounting: ['facturation', 'comptabilite'],
-  documents:  ['coffre'],
-  settings:   ['parametres', 'utilisateurs', 'mentions-legales'],
+  'ops-center': ['ops-center'],
+  dashboard: ['dashboard'],
+  'dashboard-conducteur': ['dashboard-conducteur'],
+  planning: ['planning'],
+  'planning-conducteur': ['planning-conducteur'],
+  transports: ['transports'],
+  'feuille-route': ['feuille-route'],
+  'map-live': ['map-live'],
+  'demandes-clients': ['demandes-clients'],
+  tasks: ['tasks'],
+  'frais-rapide': ['frais-rapide'],
+  chauffeurs: ['chauffeurs'],
+  vehicules: ['vehicules'],
+  remorques: ['remorques'],
+  equipements: ['equipements'],
+  maintenance: ['maintenance'],
+  tachygraphe: ['tachygraphe'],
+  amendes: ['amendes'],
+  entrepots: ['entrepots'],
+  facturation: ['facturation'],
+  comptabilite: ['comptabilite'],
+  reglements: ['reglements'],
+  tresorerie: ['tresorerie'],
+  'analytique-transport': ['analytique-transport'],
+  frais: ['frais'],
+  paie: ['paie'],
+  clients: ['clients'],
+  prospection: ['prospection'],
+  'espace-client': ['espace-client'],
+  'compte-client-db': ['compte-client-db'],
+  'espace-affreteur': ['espace-affreteur'],
+  rh: ['rh'],
+  'entretiens-salaries': ['entretiens-salaries'],
+  tchat: ['tchat'],
+  mail: ['mail'],
+  'inter-erp': ['inter-erp'],
+  communication: ['communication'],
+  coffre: ['coffre'],
+  settings: ['parametres', 'utilisateurs', 'mentions-legales', 'tenant-admin', 'super-admin'],
 }
 
 export type TenantCompany = {
@@ -124,7 +278,7 @@ export function useTenantSettings() {
     } else {
       setCompany({
         ...data,
-        enabled_modules: (data.enabled_modules as TenantModule[] | null) ?? ALL_TENANT_MODULES,
+        enabled_modules: normalizeEnabledModules(data.enabled_modules) ?? [...ALL_TENANT_MODULES],
       } as TenantCompany)
       setError(null)
     }
@@ -145,8 +299,8 @@ export function useTenantSettings() {
  */
 export function useEnabledModules(): TenantModule[] {
   const { company } = useTenantSettings()
-  if (!company) return ALL_TENANT_MODULES
-  return company.enabled_modules.length > 0 ? company.enabled_modules : ALL_TENANT_MODULES
+  if (!company) return [...ALL_TENANT_MODULES]
+  return company.enabled_modules.length > 0 ? company.enabled_modules : [...ALL_TENANT_MODULES]
 }
 
 // ─── Hook : useModuleEnabled ──────────────────────────────────────────────────
@@ -223,9 +377,10 @@ export async function updateEnabledModules(
 ): Promise<{ data: { company: Pick<TenantCompany, 'id' | 'enabled_modules' | 'updated_at'> } | null; error: string | null }> {
   const companyId = await fetchMyCompanyId()
   if (!companyId) return { data: null, error: 'Tenant introuvable.' }
+  const normalized = normalizeEnabledModules(modules) ?? [...ALL_TENANT_MODULES]
   const { data, error } = await supabase
     .from('companies')
-    .update({ enabled_modules: modules })
+    .update({ enabled_modules: normalized })
     .eq('id', companyId)
     .select('id, enabled_modules, updated_at')
     .single()

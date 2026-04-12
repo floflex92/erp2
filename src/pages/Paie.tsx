@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth'
+import { readCompanySettings, subscribeCompanySettings } from '@/lib/companySettings'
 import { listApprovedExpenseTicketsForPeriod, subscribeExpenseTickets, sumApprovedExpenseReimbursements } from '@/lib/expenseTickets'
 import { ensureEmployeeRecord, getEmployeeRecord, listEmployeeRecords, subscribeEmployeeRecords } from '@/lib/employeeRecords'
 import { BAREME_URSSAF_2026, calculatePayrollPreview, createPayrollSlip, listPayrollSlips, savePayrollConfig, subscribePayroll } from '@/lib/payroll'
+import { buildPayrollPeriodSchedule, formatPayrollWorkflowDate, readPayrollValidationState, type PayrollValidationLevel, type PayrollValidationState, upsertPayrollRelease, writePayrollValidationState } from '@/lib/payrollWorkflow'
 import { buildStaffDirectory, findStaffMember, staffDisplayName } from '@/lib/staffDirectory'
 import { supabase } from '@/lib/supabase'
 import { computeAbsenceHeuresFromAbsences, fetchAbsencesValideesPeriode, type AbsenceRh } from '@/lib/absencesRh'
 import { linkPayrollBonusesToAccounting, listPayrollBonusLinkStatuses, listValidatedUnpaidBonusesForPayroll, type PayrollBonusLinkStatus } from '@/lib/payrollBonusBridge'
 
 const inp = 'w-full rounded-xl border bg-[color:var(--surface)] px-3 py-2.5 text-sm text-[color:var(--text)] outline-none focus:border-[color:var(--primary)]'
+type PaieTab = 'saisie' | 'revision'
 
 function formatMoney(value: unknown) {
   const amount = typeof value === 'number' ? value : Number(value)
@@ -53,8 +56,11 @@ export default function Paie() {
   const [isGeneratingSlip, setIsGeneratingSlip] = useState(false)
   const [importingTachy, setImportingTachy] = useState(false)
   const [importingAbsences, setImportingAbsences] = useState(false)
+  const [activeTab, setActiveTab] = useState<PaieTab>('saisie')
+  const [payrollValidations, setPayrollValidations] = useState<PayrollValidationState>(() => readPayrollValidationState())
   const [absencesValidees, setAbsencesValidees] = useState<AbsenceRh[]>([])
   const [bonusLinkStatusesBySlip, setBonusLinkStatusesBySlip] = useState<Record<string, PayrollBonusLinkStatus>>({})
+  const [companySettings, setCompanySettings] = useState(() => readCompanySettings())
   const [form, setForm] = useState({
     conventionCollective: 'CCN transports routiers et activites auxiliaires du transport - IDCC 16',
     jobCoefficient: '',
@@ -94,6 +100,17 @@ export default function Paie() {
   }, [selectedEmployeeId, staff])
 
   useEffect(() => {
+    writePayrollValidationState(payrollValidations)
+  }, [payrollValidations])
+
+  useEffect(() => {
+    function refreshCompanySettings() {
+      setCompanySettings(readCompanySettings())
+    }
+    return subscribeCompanySettings(refreshCompanySettings)
+  }, [])
+
+  useEffect(() => {
     const stopRecords = subscribeEmployeeRecords(() => setRecordsVersion(current => current + 1))
     const stopPayroll = subscribePayroll(() => setPayrollVersion(current => current + 1))
     const stopExpenses = subscribeExpenseTickets(() => setExpensesVersion(current => current + 1))
@@ -118,8 +135,76 @@ export default function Paie() {
       })
   const slips = listPayrollSlips(selectedEmployeeId || null)
   const employeeRecords = listEmployeeRecords()
+  const allSlips = useMemo(() => listPayrollSlips(null), [staff.length, form.periodLabel])
+  const slipsByEmployeeForPeriod = useMemo(() => {
+    const map = new Map<string, (typeof allSlips)[number]>()
+    for (const slip of allSlips) {
+      if (slip.periodLabel !== form.periodLabel) continue
+      if (!map.has(slip.employeeId)) {
+        map.set(slip.employeeId, slip)
+      }
+    }
+    return map
+  }, [allSlips, form.periodLabel])
+  const validationsForPeriod = useMemo(() => payrollValidations[form.periodLabel] ?? {}, [payrollValidations, form.periodLabel])
+
+  const reviewRows = useMemo(() => {
+    return staff.map(member => {
+      const periodSlip = slipsByEmployeeForPeriod.get(member.id) ?? null
+      const validationEntry = validationsForPeriod[member.id]
+      return {
+        member,
+        periodSlip,
+        hasSlip: Boolean(periodSlip),
+        validationEntry,
+        isExploitationValidated: Boolean(validationEntry?.exploitation),
+        isDirectionValidated: Boolean(validationEntry?.direction),
+        isFullyValidated: Boolean(validationEntry?.exploitation && validationEntry?.direction),
+      }
+    })
+  }, [staff, slipsByEmployeeForPeriod, validationsForPeriod])
+
+  const reviewReadyCount = reviewRows.filter(row => row.hasSlip).length
+  const reviewExploitationValidatedCount = reviewRows.filter(row => row.isExploitationValidated).length
+  const reviewDirectionValidatedCount = reviewRows.filter(row => row.isDirectionValidated).length
+  const reviewFullyValidatedCount = reviewRows.filter(row => row.isFullyValidated).length
+  const payrollSchedule = useMemo(() => buildPayrollPeriodSchedule(form.periodLabel, companySettings), [form.periodLabel, companySettings])
+  const isCurrentPeriodFullyValidated = useMemo(() => {
+    const rowsWithSlip = reviewRows.filter(row => row.hasSlip)
+    return rowsWithSlip.length > 0 && rowsWithSlip.every(row => row.isFullyValidated)
+  }, [reviewRows])
+  const selectedReviewRow = useMemo(() => reviewRows.find(row => row.member.id === selectedEmployeeId) ?? null, [reviewRows, selectedEmployeeId])
+  const currentReviewIndex = useMemo(() => reviewRows.findIndex(row => row.member.id === selectedEmployeeId), [reviewRows, selectedEmployeeId])
+  const nextReviewRow = useMemo(() => {
+    if (reviewRows.length === 0) return null
+    const startIndex = currentReviewIndex >= 0 ? currentReviewIndex + 1 : 0
+    for (let i = startIndex; i < reviewRows.length; i += 1) {
+      if (!reviewRows[i].isFullyValidated) return reviewRows[i]
+    }
+    for (let i = 0; i < startIndex && i < reviewRows.length; i += 1) {
+      if (!reviewRows[i].isFullyValidated) return reviewRows[i]
+    }
+    return null
+  }, [reviewRows, currentReviewIndex])
   const autoExpenseAmount = employee ? sumApprovedExpenseReimbursements(employee.id, form.periodLabel) : 0
   const approvedExpenseTickets = employee ? listApprovedExpenseTicketsForPeriod(employee.id, form.periodLabel) : []
+
+  useEffect(() => {
+    if (!payrollSchedule.vaultAvailableAt || !payrollSchedule.paymentScheduledAt) {
+      upsertPayrollRelease(form.periodLabel, null)
+      return
+    }
+    if (!isCurrentPeriodFullyValidated) {
+      upsertPayrollRelease(form.periodLabel, null)
+      return
+    }
+    upsertPayrollRelease(form.periodLabel, {
+      fullyValidatedAt: new Date().toISOString(),
+      vaultAvailableAt: payrollSchedule.vaultAvailableAt.toISOString(),
+      paymentScheduledAt: payrollSchedule.paymentScheduledAt.toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+  }, [form.periodLabel, isCurrentPeriodFullyValidated, payrollSchedule.paymentScheduledAt, payrollSchedule.vaultAvailableAt])
 
   useEffect(() => {
     if (!employeeRecord) return
@@ -343,6 +428,67 @@ export default function Paie() {
     }
   }
 
+  function togglePayrollValidation(employeeId: string, level: PayrollValidationLevel, shouldValidate: boolean) {
+    const actorName = [currentProfil.prenom, currentProfil.nom].filter(Boolean).join(' ') || (level === 'exploitation' ? 'Service exploitation' : 'Direction')
+    setPayrollValidations(current => {
+      const periodState = { ...(current[form.periodLabel] ?? {}) }
+      const entry = { ...(periodState[employeeId] ?? {}) }
+      if (shouldValidate) {
+        if (level === 'direction' && !entry.exploitation) {
+          entry.exploitation = {
+            validatedAt: new Date().toISOString(),
+            validatedBy: 'Service exploitation',
+          }
+        }
+        entry[level] = {
+          validatedAt: new Date().toISOString(),
+          validatedBy: actorName,
+        }
+        periodState[employeeId] = entry
+      } else {
+        delete entry[level]
+        if (level === 'exploitation') {
+          delete entry.direction
+        }
+        if (entry.exploitation || entry.direction) {
+          periodState[employeeId] = entry
+        } else {
+          delete periodState[employeeId]
+        }
+      }
+      return {
+        ...current,
+        [form.periodLabel]: periodState,
+      }
+    })
+  }
+
+  function validateCurrentAndMoveNext() {
+    if (!employee) return
+    const row = reviewRows.find(item => item.member.id === employee.id)
+    if (!row?.hasSlip) {
+      setError('Ce collaborateur n a pas encore de bulletin pour cette periode.')
+      return
+    }
+    if (!row.validationEntry?.exploitation) {
+      togglePayrollValidation(employee.id, 'exploitation', true)
+      setNotice(`Validation exploitation enregistree pour ${staffDisplayName(employee)} (${form.periodLabel}).`)
+      setError(null)
+      return
+    }
+
+    if (!row.validationEntry?.direction) {
+      togglePayrollValidation(employee.id, 'direction', true)
+      setNotice(`Validation direction enregistree pour ${staffDisplayName(employee)} (${form.periodLabel}).`)
+    } else {
+      setNotice(`Cette paie est deja validee exploitation + direction pour ${staffDisplayName(employee)}.`)
+    }
+    setError(null)
+    if (nextReviewRow?.member.id) {
+      setSelectedEmployeeId(nextReviewRow.member.id)
+    }
+  }
+
   return (
     <div className="space-y-6 p-5 md:p-6">
       <div className="nx-panel px-6 py-5" style={{ background: 'linear-gradient(135deg, #111827 0%, #0f172a 55%, #1d4ed8 100%)' }}>
@@ -361,6 +507,24 @@ export default function Paie() {
         </div>
       )}
 
+      <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+        <button
+          type="button"
+          onClick={() => setActiveTab('saisie')}
+          className={`rounded-lg px-4 py-2 text-sm font-medium ${activeTab === 'saisie' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+        >
+          Saisie paie
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('revision')}
+          className={`rounded-lg px-4 py-2 text-sm font-medium ${activeTab === 'revision' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+        >
+          Revision et validation
+        </button>
+      </div>
+
+      {activeTab === 'saisie' && (
       <div className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
         <div className="nx-panel px-5 py-5">
           <Field label="Collaborateur">
@@ -645,6 +809,276 @@ export default function Paie() {
           </div>
         </div>
       </div>
+      )}
+
+      {activeTab === 'revision' && (
+        <div className="space-y-5">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Periode</p>
+              <p className="mt-2 text-lg font-semibold text-slate-900">{form.periodLabel}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Bulletins disponibles</p>
+              <p className="mt-2 text-lg font-semibold text-slate-900">{reviewReadyCount} / {reviewRows.length}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Workflow validation</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">Exploitation {reviewExploitationValidatedCount} / {reviewRows.length}</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">Direction {reviewDirectionValidatedCount} / {reviewRows.length}</p>
+              <p className="mt-1 text-xs font-medium text-emerald-700">Complet {reviewFullyValidatedCount} / {reviewRows.length}</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+            <p className="text-sm font-semibold text-slate-900">Calendrier applique</p>
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Date butee validation</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{formatPayrollWorkflowDate(payrollSchedule.validationDeadlineAt)}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Coffre numerique</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{formatPayrollWorkflowDate(payrollSchedule.vaultAvailableAt)}</p>
+                <p className="mt-1 text-xs text-slate-500">Publication automatique a minuit si la periode est entierement validee.</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Versement collectif</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{formatPayrollWorkflowDate(payrollSchedule.paymentScheduledAt)}</p>
+                <p className="mt-1 text-xs text-slate-500">Declenchement commun de tous les salaires de la periode.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Collaborateur en revision</p>
+                <p className="mt-1 text-xs text-slate-500">Valide exploitation puis direction, et passe au suivant.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (currentReviewIndex <= 0) return
+                    setSelectedEmployeeId(reviewRows[currentReviewIndex - 1].member.id)
+                  }}
+                  disabled={currentReviewIndex <= 0}
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 disabled:opacity-45"
+                >
+                  Precedent
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (currentReviewIndex < 0 || currentReviewIndex >= reviewRows.length - 1) return
+                    setSelectedEmployeeId(reviewRows[currentReviewIndex + 1].member.id)
+                  }}
+                  disabled={currentReviewIndex < 0 || currentReviewIndex >= reviewRows.length - 1}
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 disabled:opacity-45"
+                >
+                  Suivant
+                </button>
+                <button
+                  type="button"
+                  onClick={validateCurrentAndMoveNext}
+                  disabled={!employee || !reviewRows.find(row => row.member.id === employee.id)?.hasSlip}
+                  className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-45"
+                >
+                  Valider l etape et passer au suivant
+                </button>
+              </div>
+            </div>
+
+            {employee && (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-sm font-semibold text-slate-900">{staffDisplayName(employee)}</p>
+                <p className="mt-1 text-xs text-slate-600">{employee.matricule} - {employee.email ?? 'Email non renseigne'}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {reviewRows.find(row => row.member.id === employee.id)?.hasSlip ? (
+                    <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800">Bulletin present</span>
+                  ) : (
+                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Bulletin absent</span>
+                  )}
+                  {selectedReviewRow?.isExploitationValidated ? (
+                    <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-800">Exploitation validee</span>
+                  ) : (
+                    <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">Exploitation en attente</span>
+                  )}
+                  {selectedReviewRow?.isDirectionValidated ? (
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">Direction validee</span>
+                  ) : (
+                    <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">Direction en attente</span>
+                  )}
+                </div>
+                {selectedReviewRow?.validationEntry?.exploitation && (
+                  <p className="mt-2 text-xs text-slate-600">
+                    Exploitation: {selectedReviewRow.validationEntry.exploitation.validatedBy} - {formatDateTime(selectedReviewRow.validationEntry.exploitation.validatedAt)}
+                  </p>
+                )}
+                {selectedReviewRow?.validationEntry?.direction && (
+                  <p className="mt-1 text-xs text-slate-600">
+                    Direction: {selectedReviewRow.validationEntry.direction.validatedBy} - {formatDateTime(selectedReviewRow.validationEntry.direction.validatedAt)}
+                  </p>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => employee && togglePayrollValidation(employee.id, 'exploitation', true)}
+                    disabled={!employee || !reviewRows.find(row => row.member.id === employee.id)?.hasSlip}
+                    className="rounded-xl bg-sky-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-45"
+                  >
+                    Valider exploitation
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!employee) return
+                      if (!selectedReviewRow?.isExploitationValidated) {
+                        setError('Validez d abord l exploitation avant la direction.')
+                        return
+                      }
+                      togglePayrollValidation(employee.id, 'direction', true)
+                      setError(null)
+                      setNotice(`Validation direction enregistree pour ${staffDisplayName(employee)}.`)
+                    }}
+                    disabled={!employee || !selectedReviewRow?.isExploitationValidated || selectedReviewRow?.isDirectionValidated}
+                    className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-45"
+                  >
+                    Valider direction
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => employee && togglePayrollValidation(employee.id, 'direction', false)}
+                    disabled={!employee || !selectedReviewRow?.isDirectionValidated}
+                    className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 disabled:opacity-45"
+                  >
+                    Retirer direction
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => employee && togglePayrollValidation(employee.id, 'exploitation', false)}
+                    disabled={!employee || !selectedReviewRow?.isExploitationValidated}
+                    className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 disabled:opacity-45"
+                  >
+                    Retirer exploitation
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!employee) return
+                      setActiveTab('saisie')
+                      setSelectedEmployeeId(employee.id)
+                      setNotice(`Mode saisie ouvert pour ${staffDisplayName(employee)}. Ajustez les valeurs puis regenerez le bulletin.`)
+                      setError(null)
+                    }}
+                    className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700"
+                  >
+                    Modifier la fiche
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-sm font-semibold text-slate-900">Visualisation de la fiche</p>
+            {!selectedReviewRow?.periodSlip ? (
+              <p className="mt-2 text-xs text-slate-500">Aucun bulletin disponible pour ce collaborateur et cette periode.</p>
+            ) : (
+              <div className="mt-3 space-y-3">
+                <div className="grid gap-2 md:grid-cols-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Brut soumis</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">{formatMoney(selectedReviewRow.periodSlip.grossSubject)} EUR</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Cotisations salariales</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">{formatMoney(selectedReviewRow.periodSlip.employeeContributions)} EUR</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Net a payer</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">{formatMoney(selectedReviewRow.periodSlip.netToPay)} EUR</p>
+                  </div>
+                </div>
+
+                {selectedReviewRow.periodSlip.alertesConformite.length > 0 && (
+                  <div className="space-y-2">
+                    {selectedReviewRow.periodSlip.alertesConformite.map((alert, index) => (
+                      <div
+                        key={`${selectedReviewRow.periodSlip?.id}-alert-${index}`}
+                        className={`rounded-xl border px-3 py-2 text-xs ${alert.niveau === 'bloquant' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}
+                      >
+                        {alert.niveau.toUpperCase()} - {alert.message}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="min-w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>
+                        <th className="px-3 py-2 font-semibold">Ligne cotisation</th>
+                        <th className="px-3 py-2 font-semibold">Base</th>
+                        <th className="px-3 py-2 font-semibold">Part salariale</th>
+                        <th className="px-3 py-2 font-semibold">Part patronale</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedReviewRow.periodSlip.contributionLines.map(line => (
+                        <tr key={`${selectedReviewRow.periodSlip?.id}-${line.label}`} className="border-t border-slate-100 text-slate-700">
+                          <td className="px-3 py-2">{line.label}</td>
+                          <td className="px-3 py-2">{formatMoney(line.base)} EUR</td>
+                          <td className="px-3 py-2">{formatMoney(line.employeeAmount)} EUR</td>
+                          <td className="px-3 py-2">{formatMoney(line.employerAmount)} EUR</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-sm font-semibold text-slate-900">Revision collaborateur par collaborateur</p>
+            <p className="mt-1 text-xs text-slate-500">Statut de validation sur la periode {form.periodLabel}.</p>
+            <div className="mt-4 divide-y divide-slate-100">
+              {reviewRows.map(row => (
+                <button
+                  key={row.member.id}
+                  type="button"
+                  onClick={() => setSelectedEmployeeId(row.member.id)}
+                  className={`flex w-full items-center justify-between gap-3 px-2 py-3 text-left ${selectedEmployeeId === row.member.id ? 'bg-slate-100' : ''}`}
+                >
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">{staffDisplayName(row.member)}</p>
+                    <p className="mt-1 text-xs text-slate-500">{row.member.matricule}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {row.hasSlip ? (
+                      <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800">Bulletin OK</span>
+                    ) : (
+                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Bulletin manquant</span>
+                    )}
+                    {row.isExploitationValidated ? (
+                      <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-800">Exploitation OK</span>
+                    ) : (
+                      <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">Exploitation KO</span>
+                    )}
+                    {row.isDirectionValidated ? (
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">Direction OK</span>
+                    ) : (
+                      <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">Direction KO</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -19,6 +19,7 @@ const DEFAULT_PREFS: Record<string, WidgetPrefsMap> = {
     'pipeline-prospects':      { visible: false, order: 4 },
     'conversations-live':      { visible: true,  order: 5 },
     'tracking-overview':       { visible: true,  order: 6 },
+    'eta-decision-cockpit':    { visible: true,  order: 7, size: 'full' },
   },
   dirigeant: {
     'kpi-dirigeant':           { visible: true,  order: 0 },
@@ -28,6 +29,7 @@ const DEFAULT_PREFS: Record<string, WidgetPrefsMap> = {
     'pipeline-prospects':      { visible: false, order: 4 },
     'conversations-live':      { visible: true,  order: 5 },
     'tracking-overview':       { visible: true,  order: 6 },
+    'eta-decision-cockpit':    { visible: true,  order: 7, size: 'full' },
   },
   exploitant: {
     'kpi-exploitant':          { visible: true,  order: 0 },
@@ -36,6 +38,7 @@ const DEFAULT_PREFS: Record<string, WidgetPrefsMap> = {
     'carte-vehicules':         { visible: true,  order: 3 },
     'conversations-live':      { visible: true,  order: 4 },
     'tracking-overview':       { visible: true,  order: 5 },
+    'eta-decision-cockpit':    { visible: true,  order: 6, size: 'full' },
   },
   commercial: {
     'kpi-commercial':          { visible: true,  order: 0 },
@@ -53,6 +56,7 @@ const DEFAULT_PREFS: Record<string, WidgetPrefsMap> = {
     'activite-recente':        { visible: true,  order: 4 },
     'conversations-live':      { visible: true,  order: 5 },
     'tracking-overview':       { visible: true,  order: 6 },
+    'eta-decision-cockpit':    { visible: true,  order: 7, size: 'full' },
   },
   comptable: {
     'kpi-dirigeant':           { visible: true,  order: 0 },
@@ -85,6 +89,7 @@ const DEFAULT_PREFS: Record<string, WidgetPrefsMap> = {
     'transports-attente':      { visible: true,  order: 3 },
     'conversations-live':      { visible: true,  order: 4 },
     'tracking-overview':       { visible: true,  order: 5 },
+    'eta-decision-cockpit':    { visible: true,  order: 6, size: 'full' },
   },
   observateur: {
     'kpi-dirigeant':           { visible: true,  order: 0 },
@@ -110,6 +115,7 @@ const DEFAULT_PREFS: Record<string, WidgetPrefsMap> = {
     'carte-clients':           { visible: true,  order: 4 },
     'conversations-live':      { visible: true,  order: 5 },
     'tracking-overview':       { visible: true,  order: 6 },
+    'eta-decision-cockpit':    { visible: true,  order: 7, size: 'full' },
   },
   affreteur: {
     'conversations-live':      { visible: true,  order: 0 },

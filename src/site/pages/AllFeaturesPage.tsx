@@ -1,132 +1,21 @@
 import { Link } from 'react-router-dom'
 import useSiteMeta from '@/site/hooks/useSiteMeta'
-import featuresCsv from '../../../docs/modele-fonctionnalites-page.csv?raw'
+import {
+  developedCatalogFeatures,
+  inProgressCatalogFeatures,
+  upcomingCatalogFeatures,
+  type CatalogFeature,
+} from '@/lib/featuresCatalog'
 
 const sectionPx: React.CSSProperties = { paddingInline: 'clamp(24px, 8vw, 160px)' }
 const sectionPy: React.CSSProperties = { paddingBlock: 'clamp(80px, 12vw, 160px)' }
 
-type CsvFeature = {
-  Statut?: string
-  Categorie?: string
-  Fonctionnalite?: string
-  'Description courte'?: string
-  Priorite?: string
-  Publier_sur_site?: string
-  Filtre_Statut?: string
-  Filtre_Priorite?: string
-}
+const developedFeatures = developedCatalogFeatures
+const inProgressFeatures = inProgressCatalogFeatures
+const upcomingFeatures = upcomingCatalogFeatures
 
-type SiteFeature = {
-  statut: string
-  categorie: string
-  fonctionnalite: string
-  description: string
-  priorite: string
-  publierSurSite: boolean
-  filtreStatut: number
-  filtrePriorite: number
-}
-
-function toBoolean(value?: string): boolean {
-  const normalized = (value ?? '').trim().toLowerCase()
-  if (!normalized) return true
-  return ['1', 'true', 'oui', 'yes', 'x'].includes(normalized)
-}
-
-function parseCsvLine(line: string): string[] {
-  const cells: string[] = []
-  let current = ''
-  let inQuotes = false
-
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i]
-    const next = line[i + 1]
-
-    if (char === '"') {
-      if (inQuotes && next === '"') {
-        current += '"'
-        i += 1
-      } else {
-        inQuotes = !inQuotes
-      }
-      continue
-    }
-
-    if (char === ';' && !inQuotes) {
-      cells.push(current)
-      current = ''
-      continue
-    }
-
-    current += char
-  }
-
-  cells.push(current)
-  return cells
-}
-
-function parseFeaturesFromCsv(raw: string): SiteFeature[] {
-  const lines = raw
-    .replace(/^\uFEFF/, '')
-    .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(Boolean)
-
-  if (lines.length < 2) return []
-
-  const headers = parseCsvLine(lines[0])
-  const indexByHeader = new Map(headers.map((header, index) => [header, index]))
-
-  const rows = lines.slice(1).map(line => {
-    const cells = parseCsvLine(line)
-    const row: CsvFeature = {}
-    headers.forEach((header, i) => {
-      row[header as keyof CsvFeature] = cells[i] ?? ''
-    })
-    return row
-  })
-
-  const toNumber = (value?: string, fallback = 99) => {
-    const n = Number(value)
-    return Number.isFinite(n) && n > 0 ? n : fallback
-  }
-
-  const features = rows
-    .map(row => ({
-      statut: (row.Statut ?? '').trim(),
-      categorie: (row.Categorie ?? '').trim(),
-      fonctionnalite: (row.Fonctionnalite ?? '').trim(),
-      description: (row['Description courte'] ?? '').trim(),
-      priorite: (row.Priorite ?? '').trim(),
-      publierSurSite: toBoolean(row.Publier_sur_site),
-      filtreStatut: toNumber(row.Filtre_Statut, 99),
-      filtrePriorite: toNumber(row.Filtre_Priorite, 9),
-    }))
-    .filter(item => item.fonctionnalite.length > 0 && item.publierSurSite)
-
-  const hasSortColumns =
-    indexByHeader.has('Filtre_Statut') &&
-    indexByHeader.has('Filtre_Priorite')
-
-  if (hasSortColumns) {
-    features.sort((a, b) =>
-      a.filtreStatut - b.filtreStatut ||
-      a.filtrePriorite - b.filtrePriorite ||
-      a.categorie.localeCompare(b.categorie, 'fr') ||
-      a.fonctionnalite.localeCompare(b.fonctionnalite, 'fr'),
-    )
-  }
-
-  return features
-}
-
-const allFeatures = parseFeaturesFromCsv(featuresCsv)
-const developedFeatures = allFeatures.filter(item => item.statut === 'Developpe' || item.statut === 'Disponible')
-const inProgressFeatures = allFeatures.filter(item => item.statut === 'En cours de developpement')
-const upcomingFeatures = allFeatures.filter(item => item.statut === 'Features' || item.statut === 'Prochaine feature')
-
-function FeatureList({ items }: { items: readonly SiteFeature[] }) {
-  const byCategory = items.reduce<Map<string, SiteFeature[]>>((acc, item) => {
+function FeatureList({ items }: { items: readonly CatalogFeature[] }) {
+  const byCategory = items.reduce<Map<string, CatalogFeature[]>>((acc, item) => {
     const key = item.categorie || 'Autres'
     const list = acc.get(key) ?? []
     list.push(item)
@@ -173,7 +62,7 @@ function StatusSection({
   eyebrow: string
   count: number
   background: string
-  items: readonly SiteFeature[]
+  items: readonly CatalogFeature[]
 }) {
   return (
     <section className="w-full" style={{ background, ...sectionPx, ...sectionPy }}>

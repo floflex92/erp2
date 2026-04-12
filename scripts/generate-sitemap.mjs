@@ -18,6 +18,7 @@ const pages = [
   { loc: '/',                                                                  lastmod: today,      changefreq: 'weekly',  priority: '1.0'  },
   { loc: '/fonctionnalites',                                                   lastmod: today,      changefreq: 'weekly',  priority: '0.95' },
   { loc: '/toutes-les-fonctionnalites',                                        lastmod: today,      changefreq: 'weekly',  priority: '0.92' },
+  { loc: '/versions',                                                          lastmod: today,      changefreq: 'weekly',  priority: '0.82' },
   { loc: '/solution',                                                          lastmod: today,      changefreq: 'weekly',  priority: '0.95' },
   { loc: '/planning-intelligent',                                              lastmod: today,      changefreq: 'weekly',  priority: '0.95' },
   { loc: '/avantages-roi',                                                     lastmod: today,      changefreq: 'weekly',  priority: '0.9'  },

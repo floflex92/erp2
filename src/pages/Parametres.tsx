@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { canAccess, ROLE_LABELS, useAuth } from '@/lib/auth'
+import { APP_VERSION } from '@/lib/appVersion'
 import { DEFAULT_COMPANY_NAME, readCompanySettings, subscribeCompanySettings, updateCompanySettings } from '@/lib/companySettings'
+import { releaseNotes } from '@/lib/releaseNotes'
 import { getDigitalSignature, subscribeDigitalSignatures, upsertDigitalSignature } from '@/lib/signatureStore'
 import { ErpV11Settings } from '@/components/settings/ErpV11Settings'
 import OllamaChat from '@/components/OllamaChat'
@@ -9,6 +11,12 @@ import { ErpClientsSettings } from '@/components/settings/ErpClientsSettings'
 import { DriverGroupsSettings } from '@/components/settings/DriverGroupsSettings'
 import { ObservabilitePanel } from '@/components/settings/ObservabilitePanel'
 import { ServicesOverviewCard } from '@/domains/services/components/ServicesOverviewCard'
+import {
+  developedCatalogFeatures,
+  inProgressCatalogFeatures,
+  upcomingCatalogFeatures,
+  type CatalogFeature,
+} from '@/lib/featuresCatalog'
 
 // ── Menu items ────────────────────────────────────────────────────────────────
 type MenuId = 'compte' | 'entreprise' | 'signature' | 'rgpd' | 'utilisateurs' | 'aide' | 'modules' | 'developpement' | 'clients-erp' | 'groupes-conducteurs' | 'observabilite'
@@ -67,7 +75,108 @@ function readFileAsDataUrl(file: File) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-const DEPLOYED_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.12.6'
+const DEPLOYED_VERSION = APP_VERSION
+
+const DEVELOPMENT_TAB_CONTENT: Record<'developpe' | 'en-cours' | 'features', {
+  eyebrow: string
+  title: string
+  description: string
+  items: readonly CatalogFeature[]
+  accent: string
+  badgeBg: string
+}> = {
+  developpe: {
+    eyebrow: 'Disponible',
+    title: 'Socle déjà exploitable dans l ERP',
+    description: 'Vue regroupée par domaine pour retrouver rapidement ce qui est déjà en production dans l application.',
+    items: developedCatalogFeatures,
+    accent: '#2563EB',
+    badgeBg: '#EFF6FF',
+  },
+  'en-cours': {
+    eyebrow: 'En cours',
+    title: 'Chantiers actifs à court terme',
+    description: 'Travaux déjà engagés, avec une lecture produit plus claire et moins technique que la liste brute précédente.',
+    items: inProgressCatalogFeatures,
+    accent: '#0F766E',
+    badgeBg: '#ECFDF5',
+  },
+  features: {
+    eyebrow: 'Roadmap',
+    title: 'Features prévues et axes d extension',
+    description: 'Projection des prochaines briques métier, organisée par catégorie comme sur le site public.',
+    items: upcomingCatalogFeatures,
+    accent: '#7C3AED',
+    badgeBg: '#F5F3FF',
+  },
+}
+
+const DEV_HIGHLIGHTS = [
+  { label: 'Développé', value: developedCatalogFeatures.length, accent: '#2563EB' },
+  { label: 'En cours', value: inProgressCatalogFeatures.length, accent: '#0F766E' },
+  { label: 'Features', value: upcomingCatalogFeatures.length, accent: '#7C3AED' },
+  { label: 'Versions', value: releaseNotes.length, accent: '#0F172A' },
+] as const
+
+const ERP_IN_PROGRESS_CARDS = [
+  {
+    title: 'Statut partiel',
+    subtitle: 'Modules déjà visibles mais encore incomplets côté persistance ou logique métier.',
+    items: [
+      'Facturation : lignes multi-article, génération auto depuis OT, export comptable intégré à finaliser.',
+      'Paie : calcul et import en place, mais bulletins encore stockés localement.',
+      'RH : entretiens et absences en base, fiches employés et documents encore locaux.',
+      'Portails client et affréteur : workflows présents, persistance à compléter.',
+      'Utilisateurs : workflow admin complet dépendant encore de la function Netlify dédiée.',
+      'Foundation compte client db et RLS strict : chantiers V1 encore à consolider.',
+    ],
+  },
+  {
+    title: 'Dette locale restante',
+    subtitle: 'Blocs utiles mais encore enfermés dans du localStorage ou du fallback temporaire.',
+    items: [
+      'Frais : circuit RH-comptable-paie opérationnel, non partagé entre appareils.',
+      'Mail : expérience démo complète, pas encore reliée à un vrai client SMTP/IMAP.',
+      'Coffre numérique : navigation et signature locale, sans accès multi-appareils.',
+      'Équipements : CRUD local avec fallback tant que la table dédiée n est pas stabilisée.',
+    ],
+  },
+] as const
+
+const ERP_FEATURE_CARDS = [
+  {
+    title: 'Features maintenues',
+    subtitle: 'Priorités à garder visibles dans l ERP.',
+    items: [
+      'Connectivité et discussion inter-ERP',
+      'Planning affréteur dédié',
+      'Groupage multi-courses figeable et déliable avec courses indépendantes',
+    ],
+  },
+  {
+    title: 'Ce qui manque encore',
+    subtitle: 'Travaux de fond pour fiabiliser l application au-delà du front.',
+    items: [
+      'Persistance Supabase pour Frais, Mail, Coffre et Équipements.',
+      'Portails client et affréteur pleinement persistés en base.',
+      'Bulletins de paie et fiches employés multi-appareils.',
+      'Messagerie réelle SMTP/IMAP multi-utilisateurs.',
+      'Import fichiers tachygraphe réels et couverture end-to-end multi-rôles.',
+      'Durcissement sécurité avancé sur les endpoints publics.',
+    ],
+  },
+  {
+    title: 'Extensions fortes',
+    subtitle: 'Directions produit crédibles à forte valeur.',
+    items: [
+      'IA de parsing d emails transport vers création de course.',
+      'ETA prédictif multi-contraintes et scoring automatique des demandes.',
+      'Application mobile conducteur avec mode dégradé.',
+      'Cockpit KPI ultra visuel par rôle et notifications intelligentes.',
+      'Intégration API bourse de fret et tracking temps réel externe.',
+    ],
+  },
+] as const
 
 export default function Parametres() {
   const { role, sessionRole, isAdmin, isDemoSession, profil, accountProfil, tenantAllowedPages, companyId } = useAuth()
@@ -78,7 +187,7 @@ export default function Parametres() {
   const [company, setCompany] = useState(readCompanySettings())
   const [signature, setSignature] = useState(profil ? getDigitalSignature(profil.id) : null)
   const [signatureText, setSignatureText] = useState('')
-  const [devTab, setDevTab] = useState<'developpe'|'en-cours'|'features'>('features')
+  const [devTab, setDevTab] = useState<'developpe'|'en-cours'|'features'|'versions'>('features')
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [activeMenu, setActiveMenu] = useState<MenuId>('compte')
@@ -154,6 +263,20 @@ export default function Parametres() {
     const next = updateCompanySettings({ [field]: value } as Pick<typeof company, typeof field>)
     setCompany(next)
     setNotice(field === 'rgpdCharter' ? 'Charte RGPD mise a jour.' : 'Reglement entreprise mis a jour.')
+    setError(null)
+  }
+
+  function saveCompanyPayrollSetting(field: 'payrollValidationDeadlineDay' | 'payrollVaultReleaseDay' | 'payrollPaymentDay', value: string) {
+    const parsed = Math.min(31, Math.max(1, Number.parseInt(value || '0', 10) || 1))
+    const next = updateCompanySettings({ [field]: parsed } as Pick<typeof company, typeof field>)
+    setCompany(next)
+    setNotice(
+      field === 'payrollValidationDeadlineDay'
+        ? 'Date butee de validation paie mise a jour.'
+        : field === 'payrollVaultReleaseDay'
+          ? 'Date de publication coffre paie mise a jour.'
+          : 'Date de versement paie mise a jour.',
+    )
     setError(null)
   }
 
@@ -249,8 +372,15 @@ export default function Parametres() {
         )}
 
         <div className="mb-4 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-          <p className="text-xs nx-muted">Version deploiement</p>
-          <p className="text-sm font-semibold">{DEPLOYED_VERSION}</p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs nx-muted">Version deploiement</p>
+              <p className="text-sm font-semibold">{DEPLOYED_VERSION}</p>
+            </div>
+            <Link to="/versions" className="text-xs font-semibold text-blue-600 hover:text-blue-700">
+              Voir l historique des versions
+            </Link>
+          </div>
         </div>
 
         {/* ─ Compte ─────────────────────────────────────────────────────── */}
@@ -316,6 +446,51 @@ export default function Parametres() {
                     <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={event => void handleLogoFile(event)} />
                   </div>
                 </Field>
+              </div>
+            </Card>
+            <Card>
+              <CardLabel>Calendrier paie</CardLabel>
+              <p className="mt-2 text-sm nx-subtle">Reglez la date butee de validation, la publication a minuit dans le coffre numerique et la date commune de versement des salaires.</p>
+              <div className="mt-5 grid gap-4 md:grid-cols-3">
+                <Field label="Date butee validation (jour du mois)">
+                  <input
+                    type="number"
+                    min={1}
+                    max={31}
+                    className={inp}
+                    value={company.payrollValidationDeadlineDay}
+                    onChange={event => setCompany(current => ({ ...current, payrollValidationDeadlineDay: Number.parseInt(event.target.value || '1', 10) || 1 }))}
+                    onBlur={event => saveCompanyPayrollSetting('payrollValidationDeadlineDay', event.target.value)}
+                    disabled={!isCompanyManager}
+                  />
+                </Field>
+                <Field label="Publication coffre a minuit (jour du mois suivant)">
+                  <input
+                    type="number"
+                    min={1}
+                    max={31}
+                    className={inp}
+                    value={company.payrollVaultReleaseDay}
+                    onChange={event => setCompany(current => ({ ...current, payrollVaultReleaseDay: Number.parseInt(event.target.value || '1', 10) || 1 }))}
+                    onBlur={event => saveCompanyPayrollSetting('payrollVaultReleaseDay', event.target.value)}
+                    disabled={!isCompanyManager}
+                  />
+                </Field>
+                <Field label="Versement salaires (jour du mois suivant)">
+                  <input
+                    type="number"
+                    min={1}
+                    max={31}
+                    className={inp}
+                    value={company.payrollPaymentDay}
+                    onChange={event => setCompany(current => ({ ...current, payrollPaymentDay: Number.parseInt(event.target.value || '1', 10) || 1 }))}
+                    onBlur={event => saveCompanyPayrollSetting('payrollPaymentDay', event.target.value)}
+                    disabled={!isCompanyManager}
+                  />
+                </Field>
+              </div>
+              <div className="mt-4 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--border)', background: 'var(--surface-alt, var(--bg))' }}>
+                Les bulletins restent masques dans le coffre collaborateur jusqu a validation complete de la periode, puis deviennent visibles a 00:00 a la date reglee. Le versement est planifie pour tous les salaries a la meme date commune.
               </div>
             </Card>
             {canAccess(role, 'rh', tenantAllowedPages) && (
@@ -443,224 +618,7 @@ export default function Parametres() {
         {activeMenu === 'developpement' && (
           <div className="space-y-4">
             <SectionHeader title="Developpement" subtitle="Cartographie des fonctionnalites selon leur statut" />
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setDevTab('developpe')}
-                className={`rounded-xl px-3 py-1.5 text-sm font-medium ${devTab === 'developpe' ? 'bg-blue-600 text-white' : 'bg-white text-slate-700 border border-slate-200'}`}
-              >
-                Developpe
-              </button>
-              <button
-                type="button"
-                onClick={() => setDevTab('en-cours')}
-                className={`rounded-xl px-3 py-1.5 text-sm font-medium ${devTab === 'en-cours' ? 'bg-blue-600 text-white' : 'bg-white text-slate-700 border border-slate-200'}`}
-              >
-                En cours de developpement
-              </button>
-              <button
-                type="button"
-                onClick={() => setDevTab('features')}
-                className={`rounded-xl px-3 py-1.5 text-sm font-medium ${devTab === 'features' ? 'bg-blue-600 text-white' : 'bg-white text-slate-700 border border-slate-200'}`}
-              >
-                Features
-              </button>
-            </div>
-
-            {devTab === 'developpe' && (
-              <Card>
-                <CardLabel>Statut OK DEV</CardLabel>
-                <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
-                  <li>Dashboard (widgets role et personnalisation)</li>
-                  <li>Tasks (CRUD, tri et filtres)</li>
-                  <li>Transports (OT, statuts transport, affretement, reference auto, sites logistiques, historique)</li>
-                  <li>Planning (cockpit exploitation ABC: vues jour/semaine, drag-and-drop, dock operations, urgences priorisees et retraction locale du bandeau haut)</li>
-                  <li>Feuille de route</li>
-                  <li>Map live (simulation GPS coherente avec statuts, lecture ponctualite et bascule points / itineraires)</li>
-                  <li>Inter-ERP (connectivite, discussion et espace dedie)</li>
-                  <li>Chauffeurs</li>
-                  <li>Remorques</li>
-                  <li>Maintenance (index constructeur RMI, auto-remontee des periodicites, alertes km/temps et vue mecanicien par vehicule, assignation mecanicien et priorites)</li>
-                  <li>Entretiens RH (CRUD Supabase complet, evaluations, suivi professionnel, alertes planification)</li>
-                  <li>Comptabilite lot A (socle SQL, journaux, ecritures, TVA, FEC et page dediee)</li>
-                  <li>Acces demo et onboarding public (formulaire, demandes d acces et comptes de test)</li>
-                  <li>Limitation du nombre d ecrans par utilisateur avec blocage de connexion au dela du quota</li>
-                  <li>Clients ERP multi-tenant (creation client ERP, ecrans max, pages autorisees, rattachement des employes)</li>
-                  <li>Connexion durcie face aux pannes du controle d ecrans (blocage reserve aux vrais depassements de quota)</li>
-                  <li>Navigation rapide Ctrl+K (recherche modules instantanee, navigation clavier, raccourci global)</li>
-                  <li>Demandes clients (workflow de validation)</li>
-                  <li>Login / Auth / roles (roles etendus, session admin, profils, restrictions de pages par client ERP)</li>
-                  <li>Parametres (menus par role, entreprise, juridique, aide, modules, developpement)</li>
-                  <li>Site vitrine public (accueil, solution, planning intelligent, ROI, secteur transport, a propos, demonstration, contact, SEO ERP et galerie de captures produit avec zoom)</li>
-                  <li>SEO technique du site public (meta, canonicals, sitemap, robots et FAQ structuree)</li>
-                  <li>SEO contenu et structure accueil (Hn logiques, contenu metier et optimisation images hero WebP)</li>
-                  <li>Base editoriale SEO et maillage interne (pages ERP/logiciel + 8 articles metier publies, navigation Blog dans le site public)</li>
-                  <li>SEO multi-entree site public (6 pages positionnement : ERP, TMS, gestion flotte, telematique, chronotachygraphe, IA transport + maillage interne complet + bouton SEO footer)</li>
-                  <li>Refonte SEO technique complete : titles optimises (suppr. doublons NEXORA Truck), H1 visible HomePage, H2/H3 corriges, meta descriptions metier, keywords etendus sur 15 pages</li>
-                  <li>Lien reseaux sociaux : page Facebook officielle NEXORA Truck dans le footer site public</li>
-                  <li>Parcours legal public (mentions legales, politique de confidentialite, CGU, bandeau cookies et reouverture des preferences)</li>
-                  <li>Qualite front release (warnings ESLint resolus, socle PWA installable avec manifest/service worker et optimisations de chargement initial)</li>
-                  <li>Durcissement securite backend (separation stricte client authentifie RLS et client systeme service role par endpoint)</li>
-                  <li>Normalisation de marque NEXORA Truck sur l ERP et le site public</li>
-                  <li>Google Analytics 4 (ID G-4QQVY1DQT2, script head index.html)</li>
-                  <li>Gestion multi-tenant (page Reglages tenant, RLS SECURITY DEFINER non-recursive sur profils et companies, fonctions my_company_id / my_login_enabled)</li>
-                  <li>Profils applicatifs garantis a la connexion (matricule DEFAULT, upsert corrige, bootstrap RequireAuth)</li>
-                  <li>Optimisation SEO contenu et structure 6 pages (suppression sr-only cloaking HomePage et FeaturesPage, H2 imbriques corriges en H3 sur TMS et Flotte, meta titles et descriptions recalibers &lt;60/160 chars, H1 differencies par intention, contenu TMS / Flotte / ERP reecrit avec vocabulaire transport metier concret)</li>
-                  <li>Approfondissement SEO contenu maximal (H1 + problems + solutionPillars + keyFeatures recrits sur IA, Telematique, Chronotachygraphe, TMS, Flotte, ERP routier, ERP transport, Logiciel transport ; scenarios avant/apres concrets par page ; maillage interne systematique ; sections Cas d usage ajoutees — v1.10.13)</li>
-                  <li>Multi-site logistique : page Entrepots et Depots, section Logistique dans le menu, GPS map picker, sites filtres par tenant (v1.10.12)</li>
-                  <li>Relais transport : onglet dedie, assignation conducteur/vehicule/remorque, statuts et historique (v1.10.12)</li>
-                  <li>Role Logisticien : acces entrepots, transports, planning, map-live ; droits RLS et fonctions Netlify ; simulateur metier (v1.10.12)</li>
-                  <li>Groupes de conducteurs : isolation planning par exploitant, UI Reglages, RLS et endpoint Netlify (v1.10.14)</li>
-                  <li>IA placement retour en charge : moteur interne, config provider Ollama/Anthropic, endpoint Netlify dedie (v1.10.14)</li>
-                  <li>Multi-tenant phase 1-3 : companies, permissions, super admin, isolation RLS complete ; Super Admin et Tenant Admin (v1.10.14)</li>
-                  <li>SEO site 3 nouvelles pages : Telematique Transport, Chronotachygraphe, IA Transport — maillage inter-metier complet (v1.10.14)</li>
-                  <li>SEO Bloc F : 2 nouvelles pages positionnement (Facturation Transport, Affretement Transport) + 5 articles metier supplementaires ; footer enrichi (v1.10.15)</li>
-                  <li>SEO Bloc G : balises OG image individuelles sur 10 pages du site public (v1.10.15)</li>
-                  <li>Accessibilite site public : variables CSS WCAG AA (text-secondary et text-discreet), suppression gradient SiteSection, couleurs footer corrigees (v1.10.15)</li>
-                  <li>Audit SEO et corrections techniques v1.10.17 : GTM conditionnel au consentement RGPD (AnalyticsLoader), og:image:width/height sur toutes les pages, og:image:alt personnalisable par page, schemas AggregateRating et VideoObject sur la HomePage, logo Organization mis a jour vers PNG 192px avec ImageObject complet et sameAs reseaux sociaux, suppression directive Host: non standard dans robots.txt (v1.10.17)</li>
-                  <li>Lisibilite heroes v1.10.18 : overlay sombre rgba(0,0,0,0.45) + textes en blanc (#FFFFFF, rgba(255,255,255,0.8), rgba(255,255,255,0.7)) sur 11 pages heroiques ; liens hero passes en bleu clair #93C5FD sur fond sombre (v1.10.18)</li>
-                  <li>Design system ERP anti-fatigue visuelle v1.10.19 : refonte variables CSS (mode clair/sombre/nocturne WCAG AA), typographie Inter + hierarchie KPI lisible, mode nocturne night cycle toggle 3 etats, blocs planning lisibilite, boutons disabled WCAG, scrollbar fine (v1.10.19)</li>
-                  <li>Correctif securite RLS Supabase v1.10.19 : activation Row Level Security sur 4 tables publiques sans protection (erp_v11_tenants, permissions, platform_admins, role_permissions) avec policies strictes (is_platform_admin) (v1.10.19)</li>
-                  <li>Acces demo Magic Link v1.10.20 : remplacement du formulaire multi-champs par un acces instantane 1 email sur la page Login ; function Netlify demo-magic-link avec rate limiting IP, upsert profil demo, generation lien unique Supabase sans mot de passe expose (v1.10.20)</li>
-                  <li>Presentation ERP TMS en PDF sur le site public : page /presentation avec visionneuse integree et telechargement direct (v1.10.21)</li>
-                  <li>Refactoring complet systeme auth v1.10.22 : suppression screen limit mort, correction securite ?? null (plus de role admin par defaut sur echec profil), exports unifies RESERVED_ADMIN_EMAIL_ROLE / normalizeRole / fallbackRoleFromEmail, isDemoSession derive du role reel, simplification signIn/signOut, nettoyage dupliques RequireAuth / SessionPicker / Login / DemoAccess (v1.10.22)</li>
-                  <li>Fix deconnexion v1.10.22 : scope local immediat (logout sans appel reseau), reset profilLoading dans signOut, protection race condition TOKEN_REFRESHED, fix dropdown portal (mousedown stopPropagation) (v1.10.22)</li>
-                  <li>Connexion Google OAuth v1.10.22 : signInWithOAuth provider google, redirectTo /login, loader visuel, bootstrap profil automatique pour nouveaux utilisateurs Google (v1.10.22)</li>
-                  <li>CRM Prospection complet v1.11.0 : pipeline Kanban multi-etapes, contacts, devis avec auto-pricing, relances schedulees, dashboard pipeline commercial (v1.11.0)</li>
-                  <li>War Room Imprevu v1.11.0 : suivi temps reel des imprévus operationnels (panne, retard, absence), liaison OT/vehicule/conducteur, escalade par priorite, realtime Supabase (v1.11.0)</li>
-                  <li>Analytique Transport v1.11.0 : marge par mission, cout/km, vues synthese/missions/clients/flotte, saisie couts directs par OT (v1.11.0)</li>
-                  <li>Reglements clients v1.11.0 : module dedie suivi reglements, statuts et historique (v1.11.0)</li>
-                  <li>Tresorerie v1.11.0 : module tresorerie dedie (v1.11.0)</li>
-                  <li>Paie transport MVP v1.11.0 : bulletins de paie, parametrage convention collective transport, calcul brut/net (v1.11.0)</li>
-                  <li>Radar km a vide Planning v1.11.0 : badge taux de charge 30j par vehicule dans le Gantt, estimation km a vide, code couleur vert/orange/rouge (v1.11.0)</li>
-                  <li>Badge statut maintenance Planning v1.11.0 : indicateurs MAINT et HS sur les lignes vehicule du Gantt (v1.11.0)</li>
-                  <li>Page Integrations API v1.12.0 : repertoire complet des 9 intégrations (Webfleet #1, Samsara #2, Google Maps indispensable ; roadmap Geotab, Trans.eu, Timocom, HERE, OpenStreetMap, VDO), positionnement honnete PAR integration, lien depuis footer et page Telematique (v1.12.0)</li>
-                  <li>Performance site public v1.12.0 : chargement polices Google Fonts non bloquant (media=print onload), preconnect fonts, suppression @import CSS render-blocking, Vite chunks separes pour homepage, reportCompressedSize desactive (v1.12.0)</li>
-                  <li>Corrections audit UX v1.12.0 : 5 echecs contraste corriges (WCAG AA), 27 touch targets 44px (nav, boutons, icones sociales), animation box-shadow non composite supprimee, hauteur page reduite de plus de 5 600px, debordement largeur contenu corrige (v1.12.0)</li>
-                  <li>Fix ancres liens API v1.12.1 : textes de liens uniques par API sur la page Integrations ("Documentation Webfleet", "Documentation Samsara"…) au lieu du texte generique "Documentation officielle" non discriminant pour les crawlers SEO (v1.12.1)</li>
-                  <li>Corrections SEO/UX homepage v1.12.2 : titre raccourci a 44 chars (WCAG 49 max), 3 contrastes #6E6E73 → #4b4b51, barre social proof flexbox (plus de &amp;nbsp; overflow mobile), aria-label sur liens features et cartes blog, CLS produit screenshot (width/height/maxHeight), paddings sections reduits (sectionPy clamp(24,3vw,56px), blog clamp(28,3.5vw,56px), CTA clamp(40,5vw,80px)) (v1.12.2)</li>
-                  <li>Observabilite erreurs applicatives : table app_error_logs, Error Boundary React, handlers window.onerror + unhandledrejection, logAppError Netlify, panel admin avec KPIs / filtres / stack traces / logs API providers et purge 30j (v1.12.3)</li>
-                  <li>Activation/desactivation metiers (modules) par tenant : section Metiers actifs dans Clients ERP, cartes cliquables par metier, PATCH companies.enabled_modules via Netlify function (v1.12.3)</li>
-                  <li>Absences RH v1.12.4 : table Supabase absences_rh + soldes CP/RTT, workflow demande/validation/refus, lib TypeScript CRUD complet, onglet Absences integre dans la page RH (v1.12.4)</li>
-                  <li>Journal comptable manuel v1.12.4 : table compta_journal_manuel (OD), saisies persistees en base, RLS, integration dans la page Facturation (v1.12.4)</li>
-                  <li>Tachygraphe donnees dynamiques v1.12.4 : seed idempotent 6 conducteurs avec donnees semaine courante et mois precedent, lookup dynamique conducteurs/vehicules existants (v1.12.4)</li>
-                  <li>Tachygraphe Supabase complet v1.12.4 : compliance EU calculee depuis vraies entrees tachygraphe_entrees, infractions derivees en temps reel, generation et persistance rapports (rapports_conducteurs), alertes documents depuis dates conducteurs reelles (v1.12.4)</li>
-                  <li>Clients ERP Supabase complet : fiche commerciale, conditions paiement, IBAN/BIC, contacts multiples, adresses, historique OT et factures par client — zero mock (v1.12.4)</li>
-                  <li>Planning custom blocks Supabase v1.12.5 : lignes et blocs personnalises persistes en base, drag-and-drop inter-lignes, assignation OT aux blocs custom (v1.12.5)</li>
-                  <li>Planning pauses intelligentes v1.12.5 : placement auto dans les creneaux libres (CE 561), materialisation en bloc editable au clic (v1.12.5)</li>
-                  <li>Disponibilite RH planning v1.12.5 : bandes visuelles absence sur le Gantt, badge ABSENT, alerte et blocage d assignation sur conducteur absent, filtrage selects (v1.12.5)</li>
-                  <li>Demande d absence conducteur v1.12.5 : onglet Mes absences dans le portail conducteur, formulaire de demande, soldes CP/RTT, liste et statuts (v1.12.5)</li>
-                  <li>Workflow multi-etapes conges v1.12.6 : demande → validation exploitation → validation direction → integration paie → validation finale avec document PDF attestation de conge et circuit complet (v1.12.6)</li>
-                  <li>Coffre-fort numerique salarie v1.12.7 : endpoints Netlify list/sign/process-exit, validation employee scope et script de tests fonctionnels/securite/charge (v1.12.7)</li>
-                </ul>
-              </Card>
-            )}
-
-            {devTab === 'en-cours' && (
-              <div className="space-y-4">
-                <Card>
-                  <CardLabel>Statut PARTIEL — Supabase partiel ou logic incomplète</CardLabel>
-                  <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
-                    <li>Facturation (CRUD factures, tarifs, CNR, journal manuel et relances en Supabase ; manque lignes multi-article par facture, generation auto depuis OT et export comptable integre)</li>
-                    <li>Paie (calcul brut/net URSSAF 2026, import heures Supabase et absences validees, generation PDF ; bulletins stockes en localStorage — non partages entre appareils)</li>
-                    <li>RH (entretiens en Supabase, absences workflow multi-etapes complet ; fiches employes et documents RH en localStorage — non partages entre appareils)</li>
-                    <li>Amendes</li>
-                    <li>Espace client (portail tokenise v1.1, lecture factures Supabase ; onboarding et demandes transport en localStorage — non persistes cote serveur)</li>
-                    <li>Espace affreteur (suivi operationnel, OT depuis Supabase ; portail affreteur en localStorage — non persiste cote serveur)</li>
-                    <li>Planning affreteur dedie (socle pose, experience specifique a finir)</li>
-                    <li>Tchat / Communication (canal exploitation/conducteur v1.1)</li>
-                    <li>Utilisateurs (workflow complet : creation, suspension, reset MDP, lien magique, badges statut, confirmation destructive — depend de la fonction Netlify admin-users)</li>
-                    <li>Site vitrine public (medias, preuves client et enrichissement commercial encore en cours)</li>
-                    <li>Foundation compte_client_db_v1 (schemas core/docs/rt/audit/backup multi-compte — migrations a finaliser)</li>
-                    <li>RLS strict compte client (isolation stricte par compte ERP sur perimetre V1 — policies same_compte a consolider)</li>
-                  </ul>
-                </Card>
-                <Card>
-                  <CardLabel>Statut LOCAL uniquement (dette technique — zero Supabase)</CardLabel>
-                  <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
-                    <li>Frais (circuit complet RH-comptable-paie fonctionnel ; entierement en localStorage — non partage, perdu si vidage du cache)</li>
-                    <li>Mail (messagerie demo complete avec pieces jointes, importance, etoiles ; entierement localStorage — pas de vrai client mail SMTP/IMAP)</li>
-                    <li>Coffre numerique (navigation categorisee, signature locale ; entierement localStorage — URLs blob uniquement, inaccessible depuis un autre appareil)</li>
-                    <li>Equipements (CRUD avec rattachement vehicule/remorque ; localStorage avec tentative de fallback Supabase si table absente)</li>
-                  </ul>
-                </Card>
-              </div>
-            )}
-
-            {devTab === 'features' && (
-              <div className="space-y-4">
-                <Card>
-                  <CardLabel>Features maintenues (reference)</CardLabel>
-                  <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
-                    <li>Connectivite et discussion inter-ERP</li>
-                    <li>Planning affreteur dedie</li>
-                    <li>Groupage multi-courses figeable et deliable avec courses independantes</li>
-                  </ul>
-                </Card>
-                <Card>
-                  <CardLabel>En cours de developpement (nouvelles)</CardLabel>
-                  <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
-                    <li>Entrepots et depots logistiques (capacite multi-lots posee, isolation tenant a finaliser)</li>
-                    <li>Connectivite et discussion inter-ERP</li>
-                    <li>Planning affreteur dedie dans un onglet specifique</li>
-                    <li>Groupage multi-courses figeable et deliable en gardant les courses independantes</li>
-                    <li>Workflow commercial complet pour demandes demo, prospection et qualification compte (Magic Link pose, formulaire commercial a finaliser)</li>
-                    <li>Portail client ERP multi-tenant complet avec parametrage fin par client</li>
-                  </ul>
-                </Card>
-                <Card>
-                  <CardLabel>Ce qui manque au logiciel (prioritaire)</CardLabel>
-                  <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
-                    <li>Persistance Supabase pour Frais, Mail, Coffre, Equipements (remplacement du localStorage)</li>
-                    <li>Portails Espace client et Espace affreteur persistes en base (onboarding, demandes, contrats)</li>
-                    <li>Bulletins de paie et fiches employes persistes en Supabase (multi appareils)</li>
-                    <li>Messagerie reelle SMTP/IMAP (multi appareils, multi utilisateurs)</li>
-                    <li>Lignes multi-article par facture et generation automatique depuis OT</li>
-                    <li>Import fichiers tachygraphe reels (.ddd / .V1B)</li>
-                    <li>Couverture de tests end-to-end multi roles</li>
-                    <li>Durcissement securite avance (audit continu des endpoints publics et minimisation des surfaces service role)</li>
-                  </ul>
-                </Card>
-                <Card>
-                  <CardLabel>Ajouts hype possibles</CardLabel>
-                  <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
-                    <li>Branchement Anthropic Claude sur placement retour en charge</li>
-                    <li>IA detection et parsing emails transport → creation course</li>
-                    <li>IA calcul temps de trajet multi-contraintes (ETA predictive)</li>
-                    <li>Notifications push intelligentes (retards, incidents, validation)</li>
-                    <li>Scoring automatique des demandes clients</li>
-                    <li>Cockpit KPI ultra visuel par role</li>
-                    <li>Application mobile conducteur avec mode degrade</li>
-                    <li>Automatisation proactive des alertes transport/facturation</li>
-                    <li>Integration API bourse de fret</li>
-                    <li>Tracking temps reel via API externes</li>
-                  </ul>
-                </Card>
-                <Card>
-                  <CardLabel>Fonctionnalites avancees (roadmap)</CardLabel>
-                  <ul className="mt-3 list-disc pl-5 text-sm space-y-2">
-                    <li>Application conducteurs complete (messagerie, OT, statuts terrain, BL, frais, coffre numerique, fiche client)</li>
-                    <li>Bourse de fret interne connectee (matching OT/capacite, suivi propositions, historisation attributions)</li>
-                    <li>Cartographie poids lourds (restrictions gabarit, tonnage, hauteur, matieres reglementees)</li>
-                    <li>API chronotachygraphe (temps de conduite/repos, alertes depassement, contraintes reglementaires)</li>
-                    <li>IA de recommendation et optimisation (affectations conducteur/vehicule, km a vide, marge operationnelle)</li>
-                    <li>Communication inter-ERP par reference transport (echange inter-systemes, webhook signe HMAC)</li>
-                    <li>GPS poids lourds conducteurs (itineraire conforme, alertes contraintes, guidage mission par mission)</li>
-                    <li>Portail affreteur avance (recuperation OT, facturation, dialogue affretement, adresses sans contact)</li>
-                    <li>Portail client avance (ETA predictif, suivi missions, contact conducteur, facturation)</li>
-                    <li>Connexion map live a la cartographie poids lourds</li>
-                    <li>API tracking flotte GPS (historique, georeperage, alertes entree/sortie zone, preuves de parcours)</li>
-                    <li>API tracking vitesse et niveau carburant (courbe conduite, anomalies, alertes optimisation)</li>
-                    <li>OCR fournisseurs v1 et rapprochement intelligent (scoring match, seuil auto-validation configurable)</li>
-                    <li>Rentabilite avancee (marge par client, cout au km, rentabilite camion)</li>
-                    <li>Relances impayes avancees (scenarios relance parametrables, risque client calcule)</li>
-                    <li>Amortissements flotte (gestion amortissements et impact rentabilite)</li>
-                    <li>Gestion douaniere (DAU/T1/CMR, declarations, regimes douaniers, alertes echeances)</li>
-                    <li>Gestion convois exceptionnels (autorisations prefectorales, gabarit, escortes, planning)</li>
-                  </ul>
-                </Card>
-              </div>
-            )}
+            <DevelopmentOverview devTab={devTab} setDevTab={setDevTab} />
           </div>
         )}
 
@@ -705,6 +663,289 @@ function Card({ children }: { children: ReactNode }) {
 
 function CardLabel({ children }: { children: ReactNode }) {
   return <p className="text-xs font-bold uppercase tracking-[0.22em] nx-muted">{children}</p>
+}
+
+function DevelopmentOverview({
+  devTab,
+  setDevTab,
+}: {
+  devTab: 'developpe' | 'en-cours' | 'features' | 'versions'
+  setDevTab: (tab: 'developpe' | 'en-cours' | 'features' | 'versions') => void
+}) {
+  const active = devTab === 'versions' ? null : DEVELOPMENT_TAB_CONTENT[devTab]
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] nx-muted">Pilotage produit</p>
+            <h3 className="mt-2 text-2xl font-semibold text-[color:var(--text)]">Développement ERP</h3>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[color:var(--text-muted,#475569)]">
+              Les fonctionnalités sont regroupées par statut et par domaine, avec la même logique de cartes et de surfaces que le reste de l ERP. Les onglets permettent de suivre le développé, les chantiers actifs, la roadmap et les versions.
+            </p>
+          </div>
+          <div className="rounded-full border px-4 py-2 text-sm font-semibold" style={{ borderColor: 'var(--border)', background: 'var(--surface-soft)', color: 'var(--text)' }}>
+            {developedCatalogFeatures.length + inProgressCatalogFeatures.length + upcomingCatalogFeatures.length} entrées produit
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {DEV_HIGHLIGHTS.map(item => (
+            <div key={item.label} className="rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] nx-muted">{item.label}</p>
+              <div className="mt-2 flex items-end justify-between gap-3">
+                <p className="text-2xl font-semibold text-[color:var(--text)]">{item.value}</p>
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: item.accent }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <div className="flex flex-wrap gap-2 rounded-2xl border p-2" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+        {([
+          ['developpe', 'Développement'],
+          ['en-cours', 'En cours de développement'],
+          ['features', 'Features'],
+          ['versions', 'Versions'],
+        ] as const).map(([id, label]) => {
+          const isActive = devTab === id
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setDevTab(id)}
+              className="rounded-xl border px-4 py-2 text-sm font-medium transition-colors"
+              style={isActive
+                ? {
+                    borderColor: 'var(--primary)',
+                    background: 'color-mix(in srgb, var(--primary-soft) 78%, var(--surface))',
+                    color: 'var(--text)',
+                  }
+                : {
+                    borderColor: 'var(--border)',
+                    background: 'var(--surface)',
+                    color: 'var(--muted)',
+                  }}
+            >
+              {label}
+            </button>
+          )
+        })}
+      </div>
+
+      {devTab === 'versions' ? (
+        <DevelopmentVersionsSection />
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.9fr)]">
+          <DevelopmentFeatureSection tab={active!} />
+          <DevelopmentSideCards devTab={devTab} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DevelopmentFeatureSection({
+  tab,
+}: {
+  tab: (typeof DEVELOPMENT_TAB_CONTENT)['developpe']
+}) {
+  const byCategory = tab.items.reduce<Map<string, CatalogFeature[]>>((acc, item) => {
+    const key = item.categorie || 'Autres'
+    const list = acc.get(key) ?? []
+    list.push(item)
+    acc.set(key, list)
+    return acc
+  }, new Map())
+
+  const categories = Array.from(byCategory.entries()).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], 'fr'))
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em]" style={{ color: tab.accent }}>{tab.eyebrow}</p>
+          <h3 className="mt-2 text-xl font-semibold text-slate-900">{tab.title}</h3>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-700">{tab.description}</p>
+        </div>
+        <div className="rounded-full px-4 py-2 text-sm font-semibold" style={{ background: tab.badgeBg, color: tab.accent }}>
+          {tab.items.length} fonctionnalités
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        {categories.map(([category, items]) => (
+          <div key={category} className="rounded-2xl border p-4" style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--surface) 88%, white)' }}>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: tab.accent }}>{category}</p>
+              <span className="rounded-full px-2.5 py-1 text-xs font-semibold text-slate-800" style={{ background: 'rgba(148,163,184,0.18)' }}>{items.length}</span>
+            </div>
+            <ul className="mt-3 space-y-2.5 text-sm text-slate-700">
+              {items.map(item => (
+                <li key={`${category}-${item.fonctionnalite}`} className="rounded-xl border border-slate-300/90 bg-white px-3 py-2.5">
+                  <p className="font-medium text-slate-900">{item.fonctionnalite}</p>
+                  {item.description && <p className="mt-1 text-xs leading-5 text-slate-700">{item.description}</p>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
+function DevelopmentSideCards({ devTab }: { devTab: 'developpe' | 'en-cours' | 'features' | 'versions' }) {
+  if (devTab === 'developpe') {
+    return (
+      <div className="space-y-4">
+        <DevelopmentBulletCard
+          title="Lecture ERP"
+          subtitle="Même logique visuelle que le site, mais pensée pour l usage interne."
+          items={[
+            'Les fonctionnalités proviennent maintenant d un catalogue partagé avec le site internet.',
+            'La lecture se fait par statut puis par domaine, sans inventaire monolithique.',
+            'Les cartes ERP complémentaires restent séparées pour suivre les écarts techniques.',
+          ]}
+        />
+        <DevelopmentBulletCard
+          title="Repères rapides"
+          subtitle="Les blocs déjà opérationnels les plus structurants."
+          items={[
+            'Planning transport, exploitation OT, flotte et conformité.',
+            'Facturation, analytique transport, trésorerie et comptabilité v1.',
+            'Portails, communication, CRM, observabilité et sécurité tenant.',
+          ]}
+        />
+      </div>
+    )
+  }
+
+  const cards = devTab === 'en-cours' ? ERP_IN_PROGRESS_CARDS : ERP_FEATURE_CARDS
+
+  return (
+    <div className="space-y-4">
+      {cards.map(card => (
+        <DevelopmentBulletCard key={card.title} title={card.title} subtitle={card.subtitle} items={card.items} />
+      ))}
+    </div>
+  )
+}
+
+function DevelopmentVersionsSection() {
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.9fr)]">
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-900">Versions</p>
+            <h3 className="mt-2 text-xl font-semibold text-slate-900">Historique des releases directement dans l ERP</h3>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-700">
+              Cet onglet reprend l historique de version sans passer par le site public. Tu peux donc suivre les ajouts, modifications et rectifications depuis Réglages.
+            </p>
+          </div>
+          <div className="rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800">
+            {releaseNotes.length} versions
+          </div>
+        </div>
+
+        <div className="mt-6 space-y-4">
+          {releaseNotes.map(note => (
+            <article key={note.version} className="rounded-2xl border p-4" style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--surface) 90%, white)' }}>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ background: note.version === APP_VERSION ? '#DBEAFE' : '#F1F5F9', color: note.version === APP_VERSION ? '#1D4ED8' : '#475569' }}>
+                  {note.version === APP_VERSION ? 'Version en ligne' : 'Release'}
+                </span>
+                <span className="text-sm text-slate-700">{note.date}</span>
+              </div>
+              <h4 className="mt-3 text-lg font-semibold text-slate-900">{note.version} · {note.title}</h4>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{note.summary}</p>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                <DevelopmentVersionList title="Ajouts" items={note.additions} accent="#2563EB" />
+                <DevelopmentVersionList title="Modifications" items={note.modifications} accent="#0F766E" />
+                <DevelopmentVersionList title="Rectifications" items={note.fixes} accent="#DC2626" />
+              </div>
+            </article>
+          ))}
+        </div>
+      </Card>
+
+      <div className="space-y-4">
+        <DevelopmentBulletCard
+          title="Version actuelle"
+          subtitle="Repère rapide sur la release active dans le build courant."
+          items={[
+            `Version déployée : ${APP_VERSION}`,
+            'Le numéro suit automatiquement le build courant.',
+            'Le détail métier reste centralisé dans src/lib/releaseNotes.ts.',
+          ]}
+        />
+        <DevelopmentBulletCard
+          title="Mise à jour future"
+          subtitle="Ce qui est déjà automatisé et ce qui reste éditorial."
+          items={[
+            'Le numéro de version et la date de build suivent automatiquement les builds Netlify.',
+            'La page expose une entrée de fallback si une nouvelle version n est pas encore documentée.',
+            'Pour une release pleinement détaillée, il faut encore ajouter son bloc dans le registre des releases.',
+          ]}
+        />
+      </div>
+    </div>
+  )
+}
+
+function DevelopmentVersionList({
+  title,
+  items,
+  accent,
+}: {
+  title: string
+  items: readonly string[]
+  accent: string
+}) {
+  return (
+    <div className="rounded-xl border p-3" style={{ borderColor: 'rgba(148,163,184,0.18)', background: 'rgba(255,255,255,0.8)' }}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: accent }}>{title}</p>
+      {items.length === 0 ? (
+        <p className="mt-3 text-xs leading-5 text-slate-600">Aucune entrée pour cette version.</p>
+      ) : (
+        <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+          {items.map(item => (
+            <li key={item} className="rounded-lg border border-slate-300/90 bg-white px-3 py-2">
+              {item}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function DevelopmentBulletCard({
+  title,
+  subtitle,
+  items,
+}: {
+  title: string
+  subtitle: string
+  items: readonly string[]
+}) {
+  return (
+    <Card>
+      <CardLabel>{title}</CardLabel>
+      <p className="mt-2 text-sm leading-6 text-slate-700">{subtitle}</p>
+      <ul className="mt-4 space-y-2.5 text-sm text-slate-700">
+        {items.map(item => (
+          <li key={item} className="rounded-xl border border-slate-300/90 bg-white px-3 py-2.5 leading-6">
+            {item}
+          </li>
+        ))}
+      </ul>
+    </Card>
+  )
 }
 
 function Row({ label, children }: { label: string; children: ReactNode }) {

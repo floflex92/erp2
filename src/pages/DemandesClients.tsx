@@ -1,5 +1,8 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
+import { deriveJobScoreFromTransportRequest, type JobScoreResult } from '@/lib/transportDecisionEngine'
+import { persistJobScores } from '@/lib/transportDecisionPersistence'
 import {
   listAllTransportRequests,
   listClientOnboardings,
@@ -39,8 +42,28 @@ function requestStatusClass(status: TransportRequestStatus) {
   return 'nx-status-warning'
 }
 
+function recommendationLabel(value: JobScoreResult['recommendation']) {
+  if (value === 'accepter') return 'Accepter'
+  if (value === 'a_optimiser') return 'A optimiser'
+  if (value === 'risque') return 'Risque'
+  return 'A refuser'
+}
+
+function scoreBadgeClass(color: JobScoreResult['color']) {
+  if (color === 'vert') return 'bg-emerald-600 text-white'
+  if (color === 'orange') return 'bg-amber-500 text-slate-950'
+  return 'bg-red-600 text-white'
+}
+
+function recommendationClass(value: JobScoreResult['recommendation']) {
+  if (value === 'accepter') return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  if (value === 'a_optimiser') return 'border-amber-200 bg-amber-50 text-amber-700'
+  if (value === 'risque') return 'border-orange-200 bg-orange-50 text-orange-700'
+  return 'border-red-200 bg-red-50 text-red-700'
+}
+
 export default function DemandesClients() {
-  const { role, profil } = useAuth()
+  const { role, profil, companyId } = useAuth()
 
   const [tab, setTab] = useState<'inscriptions' | 'demandes'>('inscriptions')
   const [onboardings, setOnboardings] = useState<ClientOnboardingRecord[]>([])
@@ -48,6 +71,14 @@ export default function DemandesClients() {
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [resourceContext, setResourceContext] = useState({
+    vehiclesAvailableCount: 2,
+    compatibleVehiclesCount: 2,
+    driversAvailableCount: 2,
+    exploitantLoadPct: 72,
+    serviceLoadPct: 64,
+    planningConflictCount: 0,
+  })
 
   const canCommercial = role === 'commercial' || role === 'admin' || role === 'dirigeant' || role === 'exploitant'
   const canComptable = role === 'comptable' || role === 'admin' || role === 'dirigeant' || role === 'exploitant'
@@ -64,6 +95,36 @@ export default function DemandesClients() {
     return unsubscribe
   }, [])
 
+  useEffect(() => {
+    async function loadResourceContext() {
+      try {
+        const [vehiclesRes, driversRes, liveOrdersRes] = await Promise.all([
+          supabase.from('vehicules').select('id', { count: 'exact', head: true }).in('statut', ['disponible', 'en_service', 'actif']),
+          supabase.from('conducteurs').select('id', { count: 'exact', head: true }).eq('statut', 'actif'),
+          supabase.from('ordres_transport').select('id', { count: 'exact', head: true }).in('statut_transport', ['planifie', 'en_cours_approche_chargement', 'en_chargement', 'en_transit', 'en_livraison']),
+        ])
+
+        const vehiclesAvailableCount = vehiclesRes.count ?? 2
+        const driversAvailableCount = driversRes.count ?? 2
+        const liveOrders = liveOrdersRes.count ?? 0
+        const openRequests = requests.filter(item => item.status === 'soumise' || item.status === 'en_etude' || item.status === 'modification_demandee').length
+
+        setResourceContext({
+          vehiclesAvailableCount,
+          compatibleVehiclesCount: Math.max(1, vehiclesAvailableCount - Math.min(1, liveOrders)),
+          driversAvailableCount,
+          exploitantLoadPct: Math.min(96, 48 + (liveOrders * 7) + (openRequests * 3)),
+          serviceLoadPct: Math.min(94, 42 + (openRequests * 8)),
+          planningConflictCount: liveOrders > vehiclesAvailableCount ? liveOrders - vehiclesAvailableCount : 0,
+        })
+      } catch {
+        setResourceContext(current => current)
+      }
+    }
+
+    void loadResourceContext()
+  }, [requests])
+
   const pendingOnboardings = useMemo(
     () => onboardings.filter(item => item.status !== 'validee' && item.status !== 'refusee').length,
     [onboardings],
@@ -72,6 +133,43 @@ export default function DemandesClients() {
     () => requests.filter(item => item.status === 'soumise' || item.status === 'en_etude' || item.status === 'modification_demandee').length,
     [requests],
   )
+  const requestScores = useMemo<Record<string, JobScoreResult>>(
+    () => Object.fromEntries(
+      requests.map(item => [
+        item.id,
+        deriveJobScoreFromTransportRequest(item, {
+          ...resourceContext,
+          clientImportance: item.weightKg && item.weightKg > 18000 ? 'important' : 'standard',
+        }),
+      ]),
+    ),
+    [requests, resourceContext],
+  )
+
+  useEffect(() => {
+    if (!companyId) return
+
+    const openRequests = requests.filter(item => (
+      item.status === 'soumise'
+      || item.status === 'en_etude'
+      || item.status === 'modification_demandee'
+    ))
+
+    if (openRequests.length === 0) return
+
+    void persistJobScores(openRequests
+      .map(item => ({
+        companyId,
+        requestReference: item.reference,
+        requestPayload: item,
+        score: requestScores[item.id],
+        metadata: {
+          sourceSurface: 'DemandesClients',
+          status: item.status,
+        },
+      }))
+      .filter(item => Boolean(item.score)))
+  }, [companyId, requestScores, requests])
 
   async function decideOnboarding(onboardingId: string, decision: 'approve' | 'reject') {
     if (!role || !profil) return
@@ -192,6 +290,29 @@ export default function DemandesClients() {
             {requests.length === 0 && <p className="text-sm text-slate-500">Aucune demande transport client.</p>}
             {requests.map(item => (
               <div key={item.id} className="rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                {requestScores[item.id] && (
+                  <div className="mb-3 grid gap-3 rounded-2xl border px-3 py-3 md:grid-cols-[auto_auto_1fr]" style={{ borderColor: 'color-mix(in srgb, var(--border) 60%, #0f766e)', background: 'linear-gradient(135deg, color-mix(in srgb, var(--surface-soft) 84%, #ecfeff), color-mix(in srgb, var(--surface) 84%, #f8fafc))' }}>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Score demande</p>
+                      <div className={`mt-2 inline-flex min-w-14 items-center justify-center rounded-xl px-3 py-2 text-lg font-semibold ${scoreBadgeClass(requestScores[item.id].color)}`}>
+                        {requestScores[item.id].globalScore}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Statut recommande</p>
+                      <div className={`mt-2 inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold ${recommendationClass(requestScores[item.id].recommendation)}`}>
+                        {recommendationLabel(requestScores[item.id].recommendation)}
+                      </div>
+                      <p className="mt-2 text-xs text-slate-500">Difficulte {requestScores[item.id].difficultyLabel} · impact {requestScores[item.id].impactLabel}</p>
+                    </div>
+                    <div className="grid gap-2 md:grid-cols-3">
+                      <MiniMetric label="Marge estimee" value={`${requestScores[item.id].estimatedMargin} EUR`} />
+                      <MiniMetric label="Distance estimee" value={`${requestScores[item.id].distanceKm} km`} />
+                      <MiniMetric label="Sous-score faisabilite" value={`${requestScores[item.id].subScores.find(score => score.key === 'faisabilite')?.score ?? 0}/100`} />
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="text-sm font-semibold text-slate-950">{item.reference}</p>
@@ -202,8 +323,23 @@ export default function DemandesClients() {
 
                 <p className="mt-1 text-xs text-slate-500">Chargement: {formatDate(item.pickupDatetime)} | Livraison: {formatDate(item.deliveryDatetime)}</p>
                 <p className="mt-1 text-xs text-slate-500">Marchandise: {item.goodsDescription}</p>
+                {requestScores[item.id] && (
+                  <div className="mt-2 grid gap-2 md:grid-cols-3">
+                    {requestScores[item.id].subScores.map(score => (
+                      <div key={score.key} className="rounded-xl border px-3 py-2 text-xs" style={{ borderColor: 'var(--border)', background: 'var(--surface-soft)' }}>
+                        <p className="font-semibold text-slate-700">{score.label}: {score.score}/100</p>
+                        <p className="mt-1 text-slate-500">{score.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {item.exploitationNote && <p className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">Note exploitation: {item.exploitationNote}</p>}
                 {item.createdOtId && <p className="mt-2 text-xs text-green-700">OT cree: {item.createdOtId}</p>}
+                {requestScores[item.id] && (
+                  <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    {requestScores[item.id].explanation.join(' ')}
+                  </div>
+                )}
 
                 <textarea
                   value={notes[item.id] ?? ''}
@@ -236,6 +372,15 @@ function MetricCard({ label, value, detail }: { label: string; value: string; de
       <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{label}</p>
       <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
       <p className="mt-1 text-xs text-slate-500">{detail}</p>
+    </div>
+  )
+}
+
+function MiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/70 bg-white/85 px-3 py-2">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-slate-950">{value}</p>
     </div>
   )
 }

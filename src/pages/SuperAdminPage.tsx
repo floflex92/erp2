@@ -66,7 +66,14 @@ export default function SuperAdminPage() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
   const [impersonation, setImpersonation] = useState<ImpersonationSession | null>(null)
+  const [newTenantName, setNewTenantName] = useState('')
+  const [newTenantSlug, setNewTenantSlug] = useState('')
+  const [newTenantPlan, setNewTenantPlan] = useState<Company['subscription_plan']>('starter')
+  const [newTenantMaxUsers, setNewTenantMaxUsers] = useState(10)
+  const [newTenantMaxScreens, setNewTenantMaxScreens] = useState(3)
 
   // Verifie si l'utilisateur est un platform_admin (verification cote client,
   // la vraie securite est dans la fonction Netlify v11-companies)
@@ -97,6 +104,55 @@ export default function SuperAdminPage() {
       setLoading(false)
     }
   }, [])
+
+  async function handleCreateTenant() {
+    setCreating(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const trimmedName = newTenantName.trim()
+      const trimmedSlug = newTenantSlug.trim().toLowerCase()
+      if (trimmedName.length < 2) {
+        throw new Error('Le nom du tenant est requis (min 2 caracteres).')
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) throw new Error('Session expirée.')
+
+      const response = await fetch('/.netlify/functions/v11-companies', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: trimmedName,
+          slug: trimmedSlug || undefined,
+          subscription_plan: newTenantPlan,
+          max_users: Math.max(1, Math.trunc(newTenantMaxUsers)),
+          max_screens: Math.max(1, Math.trunc(newTenantMaxScreens)),
+        }),
+      })
+
+      const body = await response.json().catch(() => ({})) as { error?: string }
+      if (!response.ok) {
+        throw new Error(body.error ?? 'Creation du tenant impossible.')
+      }
+
+      setNewTenantName('')
+      setNewTenantSlug('')
+      setNewTenantPlan('starter')
+      setNewTenantMaxUsers(10)
+      setNewTenantMaxScreens(3)
+      setNotice('Tenant cree avec succes.')
+      await fetchCompanies()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur inconnue.')
+    } finally {
+      setCreating(false)
+    }
+  }
 
   // Verifie si une session d'impersonation est active pour l'utilisateur courant
   useEffect(() => {
@@ -168,6 +224,12 @@ export default function SuperAdminPage() {
       </div>
 
       {/* Etat de chargement / erreur */}
+      {notice && (
+        <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700 mb-6">
+          {notice}
+        </div>
+      )}
+
       {loading && (
         <div className="text-center py-12 text-slate-500 text-sm">Chargement...</div>
       )}
@@ -178,6 +240,73 @@ export default function SuperAdminPage() {
         </div>
       )}
 
+      <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="text-base font-semibold text-slate-800">Nouveau tenant</h2>
+        <p className="mt-1 text-xs text-slate-500">Creation d'une company + tenant ERP associe.</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <label className="text-xs text-slate-600">
+            Nom
+            <input
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              value={newTenantName}
+              onChange={event => setNewTenantName(event.target.value)}
+              placeholder="Transport Alpes"
+            />
+          </label>
+          <label className="text-xs text-slate-600">
+            Slug (optionnel)
+            <input
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              value={newTenantSlug}
+              onChange={event => setNewTenantSlug(event.target.value)}
+              placeholder="transport_alpes"
+            />
+          </label>
+          <label className="text-xs text-slate-600">
+            Plan
+            <select
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              value={newTenantPlan}
+              onChange={event => setNewTenantPlan(event.target.value as Company['subscription_plan'])}
+            >
+              <option value="starter">Starter</option>
+              <option value="pro">Pro</option>
+              <option value="enterprise">Enterprise</option>
+            </select>
+          </label>
+          <label className="text-xs text-slate-600">
+            Utilisateurs max
+            <input
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              type="number"
+              min={1}
+              value={newTenantMaxUsers}
+              onChange={event => setNewTenantMaxUsers(Math.max(1, Number(event.target.value || 1)))}
+            />
+          </label>
+          <label className="text-xs text-slate-600">
+            Ecrans max
+            <input
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              type="number"
+              min={1}
+              value={newTenantMaxScreens}
+              onChange={event => setNewTenantMaxScreens(Math.max(1, Number(event.target.value || 1)))}
+            />
+          </label>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={() => void handleCreateTenant()}
+            disabled={creating}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {creating ? 'Creation…' : '+ Nouveau tenant'}
+          </button>
+        </div>
+      </div>
+
       {/* Liste des companies (tenants) */}
       {!loading && !error && (
         <>
@@ -185,14 +314,8 @@ export default function SuperAdminPage() {
             <h2 className="text-base font-semibold text-slate-700">
               Tenants ({companies.length})
             </h2>
-            {/* Phase 4 futur : bouton "Nouveau tenant" */}
-            <button
-              type="button"
-              disabled
-              title="Disponible en Phase 4"
-              className="text-xs px-3 py-1.5 rounded-lg bg-blue-100 text-blue-400 cursor-not-allowed"
-            >
-              + Nouveau tenant
+            <button type="button" onClick={() => void fetchCompanies()} className="text-xs px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50">
+              Rafraichir
             </button>
           </div>
 

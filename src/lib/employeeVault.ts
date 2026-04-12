@@ -123,6 +123,26 @@ async function buildSignedUrl(storageBucket: string, storagePath: string) {
   return data?.signedUrl ?? ''
 }
 
+export async function getEmployeeVaultDocumentSignedUrl(documentId: string) {
+  const { data, error } = await (supabase as any)
+    .from('employee_vault_documents')
+    .select('storage_bucket, storage_path')
+    .eq('id', documentId)
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw new Error(error.message)
+  if (!data?.storage_bucket || !data?.storage_path) {
+    throw new Error('Document coffre introuvable ou incomplet.')
+  }
+
+  const signedUrl = await buildSignedUrl(data.storage_bucket, data.storage_path)
+  if (!signedUrl) {
+    throw new Error('Impossible de regenerer un lien de lecture pour ce document.')
+  }
+  return signedUrl
+}
+
 export async function listEmployeeVaultDocumentsForViewer(
   viewerProfileId: string,
   role: Role,
@@ -194,6 +214,8 @@ export async function listEmployeeVaultDocumentsForViewer(
       signatureLabel: consent?.signed_at ? 'Signature coffre salarie' : null,
       tags: [item.document_type, item.employment_status || 'active'],
       archived: false,
+      availableAt: null,
+      paymentScheduledAt: null,
     } satisfies HrDocumentRecord
   })
 }

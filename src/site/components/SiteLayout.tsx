@@ -11,6 +11,7 @@ function ScrollToTop() {
 
 const NAV_ITEMS = [
   { label: 'Fonctionnalités', to: '/fonctionnalites' },
+  { label: 'Versions', to: '/versions' },
   { label: 'Blog', to: '/articles' },
   { label: 'À propos', to: '/a-propos' },
   { label: 'Contact', to: '/contact' },
@@ -21,6 +22,7 @@ const DARK_HERO_PATHS = new Set([
   '/',
   '/fonctionnalites',
   '/toutes-les-fonctionnalites',
+  '/versions',
   '/demonstration',
   '/a-propos',
   '/contact',
@@ -144,6 +146,7 @@ export default function SiteLayout() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: '#636369' }}>Produit</p>
               <div className="mt-3 grid gap-2.5">
                 <Link to="/fonctionnalites" className="site-footer-link">Fonctionnalités</Link>
+                <Link to="/versions" className="site-footer-link">Historique des versions</Link>
                 <Link to="/articles" className="site-footer-link">Blog</Link>
                 <Link to="/demonstration" className="site-footer-link">Démonstration</Link>
                 <Link to="/connexion-erp" className="site-footer-link">Essai gratuit</Link>

@@ -3,6 +3,7 @@ import { ROLE_LABELS } from './auth'
 import { readCompanySettings } from './companySettings'
 import { deliverDemoMailToInbox } from './demoMail'
 import { createPdfDocument, type PdfDocumentOptions } from './pdfDocument'
+import { extractPayrollPeriodLabel, isPayrollReleased } from './payrollWorkflow'
 import { getDigitalSignature, upsertDigitalSignature } from './signatureStore'
 import { staffDisplayName, type StaffMember } from './staffDirectory'
 import { serializeTchatPayload, type TchatAttachment } from './tchatMessage'
@@ -43,6 +44,8 @@ export interface HrDocumentRecord {
   signatureLabel: string | null
   tags: string[]
   archived: boolean
+  availableAt?: string | null
+  paymentScheduledAt?: string | null
 }
 
 type HrDocumentState = {
@@ -53,7 +56,7 @@ const STORAGE_KEY = 'nexora-hr-documents-v1'
 const EVENT_NAME = 'nexora-hr-documents-updated'
 const RGPD_VERSION_TAG = 'legal-rgpd-2026-03-28'
 const CONVENTION_VERSION_TAG = 'legal-convention-idcc16-2026-03-28'
-const JOB_SHEET_VERSION_TAG = 'job-sheet-2026-03-28'
+const JOB_SHEET_VERSION_TAG = 'job-sheet-2026-04-12'
 
 export const HR_CATEGORY_LABELS: Record<HrDocumentCategory, string> = {
   contrat_travail: 'Contrat de travail',
@@ -95,7 +98,11 @@ function readState(): HrDocumentState {
           && typeof item.id === 'string'
           && typeof item.employeeId === 'string'
           && typeof item.category === 'string',
-        ) as HrDocumentRecord[],
+        ).map(item => ({
+          ...item,
+          availableAt: typeof item.availableAt === 'string' ? item.availableAt : null,
+          paymentScheduledAt: typeof item.paymentScheduledAt === 'string' ? item.paymentScheduledAt : null,
+        })) as HrDocumentRecord[],
       }
     }
   } catch {
@@ -168,13 +175,48 @@ function roleContractClauses(role: Role) {
 }
 
 function classificationReference(role: Role) {
-  if (role === 'conducteur' || role === 'mecanicien') {
+  if (role === 'conducteur' || role === 'mecanicien' || role === 'maintenance') {
     return 'Classification de reference a verifier avec le contrat: annexe I ouvriers de la CCN transports routiers.'
   }
-  if (role === 'exploitant' || role === 'commercial' || role === 'comptable' || role === 'rh') {
+  if (
+    role === 'exploitant'
+    || role === 'commercial'
+    || role === 'comptable'
+    || role === 'rh'
+    || role === 'administratif'
+    || role === 'facturation'
+    || role === 'flotte'
+    || role === 'logisticien'
+  ) {
     return 'Classification de reference a verifier avec le contrat: annexe II employes ou annexe III techniciens et agents de maitrise selon le poste exact.'
   }
   return 'Classification de reference a verifier avec le contrat: annexe III techniciens/agents de maitrise ou annexe IV cadres selon les responsabilites effectives.'
+}
+
+function composeRoleSheet(common: string[], payload: {
+  purpose: string
+  missions: string[]
+  competences: string[]
+  pilotage: string[]
+}) {
+  return [
+    ...common,
+    'Positionnement et finalite du poste:',
+    payload.purpose,
+    '',
+    'Missions principales:',
+    ...payload.missions.map(item => `- ${item}`),
+    '',
+    'Competences et exigences:',
+    ...payload.competences.map(item => `- ${item}`),
+    '',
+    'Indicateurs de pilotage et traces attendues:',
+    ...payload.pilotage.map(item => `- ${item}`),
+    '',
+    'Engagement du collaborateur:',
+    'La fiche metier complete le contrat de travail. Elle doit etre lue, comprise puis signee numeriquement.',
+    'Toute evolution de mission ou de responsabilite doit etre formalisee par une nouvelle version de la fiche metier.',
+  ]
 }
 
 function roleSheetLines(employee: StaffMember) {
@@ -189,151 +231,194 @@ function roleSheetLines(employee: StaffMember) {
     '',
   ]
 
-  if (employee.role === 'conducteur') {
-    return [
-      ...common,
-      'Positionnement et finalite du poste:',
-      'Le conducteur execute les transports de marchandises, represente l entreprise chez les clients et garantit le respect des consignes de securite et de la reglementation sociale europeenne.',
-      '',
-      'Missions principales:',
-      '- Assurer la conduite, la securisation du chargement et la relation terrain.',
-      '- Respecter le chronotachygraphe, les consignes securite et les protocoles clients.',
-      '- Verifier les documents de transport, le materiel et remonter incidents, amendes ou anomalies.',
-      '',
-      'Competences et exigences:',
-      '- Maitrise de la conduite poids lourd et des regles de securite applicables.',
-      '- Capacite a alerter exploitation, atelier et RH selon la situation.',
-      '',
-      'Engagement du collaborateur:',
-      'La fiche metier complete le contrat de travail. Elle doit etre lue, comprise puis signee numeriquement.',
-    ]
+  const roleSheets: Partial<Record<Role, { purpose: string; missions: string[]; competences: string[]; pilotage: string[] }>> = {
+    conducteur: {
+      purpose: 'Le conducteur execute les transports de marchandises, represente l entreprise chez les clients et garantit le respect des consignes securite et de la reglementation sociale europeenne.',
+      missions: [
+        'Assurer la conduite, la securisation du chargement et la relation terrain.',
+        'Respecter chronotachygraphe, protocoles clients et consignes de prevention.',
+        'Verifier les documents de transport, signaler incidents, amendes et anomalies.',
+      ],
+      competences: [
+        'Maitrise de la conduite PL et des regles de securite applicables.',
+        'Capacite a remonter rapidement les blocages a l exploitation et a l atelier.',
+        'Rigueur documentaire (lettres de voiture, bons, preuves de livraison).',
+      ],
+      pilotage: [
+        'Respect des horaires et des consignes de livraison.',
+        'Taux de conformite documentaire et absence de reserves non traitees.',
+        'Suivi des alertes securite et infractions conducteur.',
+      ],
+    },
+    conducteur_affreteur: {
+      purpose: 'Le conducteur affreteur realise les transports sous mandat operationnel, en appliquant les memes exigences de qualite, securite et tracabilite que les equipes internes.',
+      missions: [
+        'Executer les ordres confirms et remonter les etapes d avancement.',
+        'Respecter les contraintes contractuelles, horaires et procedures de preuve.',
+        'Alerter immediatement en cas de risque de retard, refus ou incident.',
+      ],
+      competences: [
+        'Autonomie terrain avec discipline de reporting.',
+        'Maitrise des standards qualite client et des contraintes legales transport.',
+        'Communication claire avec affretement et exploitation.',
+      ],
+      pilotage: [
+        'Fiabilite ETA et ponctualite de livraison.',
+        'Taux d incidents anticipe et traite dans les delais.',
+        'Completude des justificatifs transmis.',
+      ],
+    },
+    exploitant: {
+      purpose: 'L exploitant pilote les moyens humains et materiels pour garantir qualite de service, rentabilite et continuite d exploitation.',
+      missions: [
+        'Planifier les missions et affecter les moyens selon priorites et contraintes.',
+        'Coordonner conducteurs, clients, quais et sites de chargement/dechargement.',
+        'Arbitrer les aleas en temps reel et mettre a jour les statuts operationnels.',
+      ],
+      competences: [
+        'Maitrise planning, OT, contraintes RSE et relation client transport.',
+        'Prise de decision rapide avec traçabilite dans l ERP.',
+        'Lecture conjointe performance-cout-risque.',
+      ],
+      pilotage: [
+        'Taux de service et ponctualite des missions.',
+        'Marge operationnelle par ordre ou tournee.',
+        'Nombre d incidents resolus dans le delai cible.',
+      ],
+    },
+    mecanicien: {
+      purpose: 'Le mecanicien garantit la disponibilite, la securite et la conformite technique du parc roulant et tracte.',
+      missions: [
+        'Assurer entretien preventif, controles et interventions correctives.',
+        'Declarer immobilisations, besoins pieces et priorites atelier.',
+        'Tracer les interventions dans l ERP et informer exploitation/flotte.',
+      ],
+      competences: [
+        'Diagnostic, maintenance et prevention des pannes.',
+        'Rigueur documentaire atelier et suivi des conformites.',
+        'Coordination efficace avec exploitation et chauffeurs.',
+      ],
+      pilotage: [
+        'Taux de disponibilite du parc.',
+        'Delai moyen de remise en service.',
+        'Respect des echeances de controle et de maintenance.',
+      ],
+    },
+    commercial: {
+      purpose: 'Le commercial developpe l activite et transforme les besoins clients en opportunites exploitables et rentables.',
+      missions: [
+        'Prospecter, qualifier et developper le portefeuille clients.',
+        'Construire les offres avec transmission complete a l exploitation.',
+        'Maintenir des donnees clients fiables dans l ERP.',
+      ],
+      competences: [
+        'Negociation B2B et comprehension des contraintes transport.',
+        'Capacite a cadrer prix, service et risques contractuels.',
+        'Rigueur de suivi des relances et engagements.',
+      ],
+      pilotage: [
+        'Taux de conversion et chiffre d affaires signe.',
+        'Marge theorique des dossiers transmis.',
+        'Delai de traitement devis et relances.',
+      ],
+    },
+    comptable: {
+      purpose: 'Le comptable securise les flux financiers, la paie, les frais et la qualite des justificatifs.',
+      missions: [
+        'Suivre facturation, reglements, encours et rapprochements.',
+        'Controler coherence paie-frais-variables et pieces associees.',
+        'Produire les traces comptables et les alertes de risque.',
+      ],
+      competences: [
+        'Rigueur comptable, confidentialite et maitrise des echeances.',
+        'Capacite d analyse des ecarts et anomalies.',
+        'Collaboration transverse avec RH, exploitation et direction.',
+      ],
+      pilotage: [
+        'Delai moyen de facturation et taux de recouvrement.',
+        'Nombre d ecarts detectes puis regularises.',
+        'Fiabilite des clotures periodiques.',
+      ],
+    },
+    rh: {
+      purpose: 'Le service RH assure la conformite sociale, la tenue des dossiers et la securisation des parcours collaborateurs.',
+      missions: [
+        'Piloter contrat, onboarding, paie et suivi documentaire obligatoire.',
+        'Assurer la disponibilite des documents dans le coffre numerique.',
+        'Coordonner les acteurs internes sur les flux RH sensibles.',
+      ],
+      competences: [
+        'Maitrise des obligations sociales et de la confidentialite.',
+        'Qualite de formalisation et de tracabilite des decisions RH.',
+        'Capacite a accompagner managers et collaborateurs.',
+      ],
+      pilotage: [
+        'Taux de dossiers collaborateurs complets.',
+        'Delai de production des documents obligatoires.',
+        'Niveau de conformite des signatures et archivages.',
+      ],
+    },
+    dirigeant: {
+      purpose: 'Le dirigeant pilote l organisation, les decisions structurantes et la maitrise des risques de l entreprise.',
+      missions: [
+        'Definir orientations strategiques et arbitrer les priorites de developpement.',
+        'Superviser performance operationnelle, RH, financiere et commerciale.',
+        'Garantir conformite, gouvernance et robustesse des processus cles.',
+      ],
+      competences: [
+        'Vision transverse et capacite d arbitrage rapide.',
+        'Maitrise du pilotage par indicateurs et du management des risques.',
+        'Communication claire des decisions et responsabilites.',
+      ],
+      pilotage: [
+        'Evolution marge, tresorerie et qualite de service.',
+        'Suivi des risques critiques et plans de mitigation.',
+        'Execution des chantiers strategiques valides.',
+      ],
+    },
+    admin: {
+      purpose: 'L administrateur garantit la disponibilite des espaces, la gouvernance des acces et la coherence globale des parametrages metier.',
+      missions: [
+        'Piloter droits, habilitations et configurations critiques.',
+        'Superviser la qualite des donnees de reference et des workflows.',
+        'Coordonner les evolutions impactant plusieurs equipes.',
+      ],
+      competences: [
+        'Vision systeme et comprehension des dependances metier.',
+        'Rigueur sur la securite des acces et la confidentialite.',
+        'Capacite a formaliser des standards d utilisation.',
+      ],
+      pilotage: [
+        'Stabilite des parametres critiques et incidents d acces.',
+        'Conformite des profils utilisateur au moindre privilege.',
+        'Delai de traitement des demandes de changement.',
+      ],
+    },
   }
 
-  if (employee.role === 'exploitant') {
-    return [
-      ...common,
-      'Positionnement et finalite du poste:',
-      'L exploitant pilote les moyens humains et materiels afin de garantir la qualite de service, la rentabilite et la continuite d exploitation.',
-      '',
-      'Missions principales:',
-      '- Planifier les missions, affecter les moyens et suivre les incidents d exploitation.',
-      '- Coordonner conducteurs, clients et sites de chargement/dechargement.',
-      '- Fiabiliser les informations terrain et arbitrer les priorites.',
-      '',
-      'Competences et exigences:',
-      '- Maitrise du planning, des OT, des contraintes legales transport et de la relation client.',
-      '- Capacite a prendre des decisions rapides et tracees dans l ERP.',
-      '',
-      'Engagement du collaborateur:',
-      'La fiche metier complete le contrat de travail. Elle doit etre lue, comprise puis signee numeriquement.',
-    ]
+  const sheet = roleSheets[employee.role]
+  if (sheet) {
+    return composeRoleSheet(common, sheet)
   }
 
-  if (employee.role === 'rh') {
-    return [
-      ...common,
-      'Positionnement et finalite du poste:',
-      'Le service RH assure la conformite sociale, la tenue des dossiers et la securisation des parcours collaborateurs.',
-      '',
-      'Missions principales:',
-      '- Gerer contrats, onboarding, paie, conformite et dossiers collaborateurs.',
-      '- Maintenir a jour les documents obligatoires et le coffre numerique salarie.',
-      '- Coordonner direction et comptabilite sur les variables RH.',
-      '',
-      'Competences et exigences:',
-      '- Rigueur documentaire, confidentialite et maitrise des workflows de signature et d archivage.',
-      '',
-      'Engagement du collaborateur:',
-      'La fiche metier complete le contrat de travail. Elle doit etre lue, comprise puis signee numeriquement.',
-    ]
-  }
-
-  if (employee.role === 'comptable') {
-    return [
-      ...common,
-      'Positionnement et finalite du poste:',
-      'Le comptable securise les flux financiers, la paie, les frais et la qualite des justificatifs.',
-      '',
-      'Missions principales:',
-      '- Suivre facturation, paie, frais, encours et rapprochements financiers.',
-      '- Valider les tickets comptables et les notes de frais.',
-      '- Assurer la coherence entre flux RH, exploitation et comptabilite.',
-      '',
-      'Competences et exigences:',
-      '- Rigueur, confidentialite et maitrise de la chaine facture-paie-frais.',
-      '',
-      'Engagement du collaborateur:',
-      'La fiche metier complete le contrat de travail. Elle doit etre lue, comprise puis signee numeriquement.',
-    ]
-  }
-
-  if (employee.role === 'mecanicien') {
-    return [
-      ...common,
-      'Positionnement et finalite du poste:',
-      'Le mecanicien garantit la disponibilite, la securite et la conformite technique du parc roulant et tracte.',
-      '',
-      'Missions principales:',
-      '- Assurer l entretien, les controles et le suivi atelier des vehicules.',
-      '- Declarer les immobilisations, besoins pieces et alertes securite.',
-      '- Tracer les interventions dans l ERP et informer l exploitation.',
-      '',
-      'Competences et exigences:',
-      '- Maitrise diagnostic, maintenance, prevention des pannes et documentation atelier.',
-      '',
-      'Engagement du collaborateur:',
-      'La fiche metier complete le contrat de travail. Elle doit etre lue, comprise puis signee numeriquement.',
-    ]
-  }
-
-  if (employee.role === 'commercial') {
-    return [
-      ...common,
-      'Positionnement et finalite du poste:',
-      'Le commercial developpe l activite et transforme les besoins clients en opportunites exploitables et rentables.',
-      '',
-      'Missions principales:',
-      '- Developper le portefeuille clients et suivre les opportunites commerciales.',
-      '- Coordonner devis, relances et transmission a l exploitation.',
-      '- Structurer les informations clients dans l ERP.',
-      '',
-      'Competences et exigences:',
-      '- Maitrise relation client, fiabilite des informations contractuelles et suivi commercial.',
-      '',
-      'Engagement du collaborateur:',
-      'La fiche metier complete le contrat de travail. Elle doit etre lue, comprise puis signee numeriquement.',
-    ]
-  }
-
-  if (employee.role === 'dirigeant' || employee.role === 'admin') {
-    return [
-      ...common,
-      'Positionnement et finalite du poste:',
-      'Le dirigeant ou administrateur pilote l organisation, les decisions structurantes et la maitrise des risques.',
-      '',
-      'Missions principales:',
-      '- Piloter l activite globale, les decisions de gestion et la conformite de l entreprise.',
-      '- Superviser RH, paie, exploitation, flotte et communication interne.',
-      '- Valider les orientations strategiques et les politiques internes.',
-      '',
-      'Competences et exigences:',
-      '- Vision transverse, confidentialite et gouvernance des acces ERP.',
-      '',
-      'Engagement du collaborateur:',
-      'La fiche metier complete le contrat de travail. Elle doit etre lue, comprise puis signee numeriquement.',
-    ]
-  }
-
-  return [
-    ...common,
-    'Missions principales:',
-    '- Respecter les procedures internes et les obligations de confidentialite.',
-    '- Utiliser l ERP pour tracer l activite et les documents metier.',
-    '- Consulter les consignes remises dans le coffre numerique.',
-    '',
-    'Engagement du collaborateur:',
-    'La fiche metier complete le contrat de travail. Elle doit etre lue, comprise puis signee numeriquement.',
-  ]
+  return composeRoleSheet(common, {
+    purpose: 'Le collaborateur contribue a la performance de son perimetre en appliquant les procedures et obligations de conformite de l entreprise.',
+    missions: [
+      'Executer les taches confiees selon les standards internes.',
+      'Tracer l activite et les documents dans l ERP.',
+      'Alerter en cas de risque, blocage ou non-conformite.',
+    ],
+    competences: [
+      'Rigueur operationnelle et respect des consignes.',
+      'Utilisation fiable des outils metier et du coffre numerique.',
+      'Communication claire avec les equipes concernees.',
+    ],
+    pilotage: [
+      'Respect des delais et de la qualite attendue.',
+      'Traçabilite des actions et documents produits.',
+      'Reduction des anomalies recurrentes sur le perimetre.',
+    ],
+  })
 }
 
 function pdfOptionsForUser(ownerId: string): PdfDocumentOptions {
@@ -483,7 +568,12 @@ export function listHrDocumentsForViewer(viewerId: string, viewerRole: Role, emp
   if (viewerRole === 'admin' || viewerRole === 'dirigeant' || viewerRole === 'rh') {
     return employeeFilterId ? all.filter(item => item.employeeId === employeeFilterId) : all
   }
-  return all.filter(item => item.employeeId === viewerId)
+  return all.filter(item => item.employeeId === viewerId).filter(item => {
+    if (item.category !== 'fiche_paie') return true
+    const periodLabel = extractPayrollPeriodLabel(item.tags)
+    if (!periodLabel) return true
+    return isPayrollReleased(periodLabel, item.availableAt ?? null)
+  })
 }
 
 export function ensurePolicyDocuments(staff: StaffMember[], actor: Profil) {

@@ -199,11 +199,23 @@ function ModulesSection({ company, onSaved }: { company: TenantCompany; onSaved:
   const [error, setError]     = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
+  useEffect(() => {
+    setSelected(company.enabled_modules.length > 0 ? company.enabled_modules : [...ALL_TENANT_MODULES])
+  }, [company.enabled_modules])
+
   function toggle(mod: TenantModule) {
     if (mod === 'settings') return // toujours actif
     setSelected(curr =>
       curr.includes(mod) ? curr.filter(m => m !== mod) : [...curr, mod]
     )
+  }
+
+  function enableAllModules() {
+    setSelected([...ALL_TENANT_MODULES])
+  }
+
+  function disableAllModules() {
+    setSelected(['settings'])
   }
 
   async function handleSave() {
@@ -222,6 +234,24 @@ function ModulesSection({ company, onSaved }: { company: TenantCompany; onSaved:
       <p className="mb-3 text-sm text-[color:var(--text-muted)]">
         Les utilisateurs ne pourront pas accéder aux pages des modules désactivés.
       </p>
+      <div className="mb-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={enableAllModules}
+          className="rounded-xl border px-3 py-1.5 text-xs font-medium text-[color:var(--text-muted)] hover:border-[color:var(--primary)] hover:text-[color:var(--primary)]"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          Tout activer
+        </button>
+        <button
+          type="button"
+          onClick={disableAllModules}
+          className="rounded-xl border px-3 py-1.5 text-xs font-medium text-[color:var(--text-muted)] hover:border-[color:var(--primary)] hover:text-[color:var(--primary)]"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          Tout désactiver
+        </button>
+      </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {ALL_TENANT_MODULES.map(mod => {
           const active = selected.includes(mod)

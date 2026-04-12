@@ -3,6 +3,7 @@ import type { Profil } from './auth'
 import { ROLE_LABELS } from './auth'
 import { readCompanySettings } from './companySettings'
 import { deliverDemoMailToInbox } from './demoMail'
+import { buildPayrollPeriodSchedule, formatPayrollWorkflowDate } from './payrollWorkflow'
 import { listApprovedExpenseTicketsForPeriod, markApprovedExpenseTicketsPaid, sumApprovedExpenseReimbursements } from './expenseTickets'
 import { getEmployeeRecord, updateEmployeeRecord, type EmployeeRecord } from './employeeRecords'
 import { registerHrDocument } from './hrDocuments'
@@ -105,6 +106,8 @@ export interface PayrollSlip extends PayrollPreview {
   periodLabel: string
   createdAt: string
   documentId: string
+  availableAt?: string | null
+  paymentScheduledAt?: string | null
 }
 
 type PayrollState = {
@@ -577,6 +580,8 @@ export function createPayrollSlip(employee: StaffMember, actor: Profil, input: P
   }
 
   const pdf = createPayrollPdf(employee, actor, record, input, preview)
+  const companySettings = readCompanySettings()
+  const payrollSchedule = buildPayrollPeriodSchedule(input.periodLabel, companySettings)
 
   const document = registerHrDocument({
     employeeId: employee.id,
@@ -596,9 +601,13 @@ export function createPayrollSlip(employee: StaffMember, actor: Profil, input: P
     signedAt: null,
     signatureLabel: null,
     tags: ['paie', input.periodLabel, employee.role],
+    availableAt: payrollSchedule.vaultAvailableAt?.toISOString() ?? null,
+    paymentScheduledAt: payrollSchedule.paymentScheduledAt?.toISOString() ?? null,
   })
 
   if (employee.email) {
+    const availabilityLabel = formatPayrollWorkflowDate(payrollSchedule.vaultAvailableAt)
+    const paymentLabel = formatPayrollWorkflowDate(payrollSchedule.paymentScheduledAt)
     deliverDemoMailToInbox(
       {
         id: employee.id,
@@ -613,7 +622,7 @@ export function createPayrollSlip(employee: StaffMember, actor: Profil, input: P
       actor.email ?? `${actor.role}@nexora.local`,
       pdf.title,
       serializeTchatPayload(
-        `Votre bulletin de paie pour ${input.periodLabel} est disponible dans le coffre numerique.`,
+        `Votre bulletin de paie pour ${input.periodLabel} sera publie dans le coffre numerique a partir du ${availabilityLabel}. Versement salarie planifie le ${paymentLabel}.`,
         [{
           id: `attachment-${document.id}`,
           kind: 'document',
@@ -633,6 +642,8 @@ export function createPayrollSlip(employee: StaffMember, actor: Profil, input: P
     periodLabel: input.periodLabel,
     createdAt: new Date().toISOString(),
     documentId: document.id,
+    availableAt: payrollSchedule.vaultAvailableAt?.toISOString() ?? null,
+    paymentScheduledAt: payrollSchedule.paymentScheduledAt?.toISOString() ?? null,
     ...preview,
   }
 

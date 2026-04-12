@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
-import { type TenantModule, MODULE_TO_PAGES } from './tenantAdmin'
+import { type TenantModule, MODULE_TO_PAGES, normalizeEnabledModules } from './tenantAdmin'
 
 const SESSION_TIMEOUT_MS = 8000
 const PROFILE_TIMEOUT_MS = 8000
@@ -395,9 +395,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .select('enabled_modules')
           .eq('id', companyIdForLoad)
           .maybeSingle()
-        if (Array.isArray(companyData?.enabled_modules) && companyData.enabled_modules.length > 0) {
-          enabledModules = companyData.enabled_modules as TenantModule[]
-        }
+        enabledModules = normalizeEnabledModules(companyData?.enabled_modules)
       }
 
       const metadataRole = normalizeRole(user.app_metadata?.role ?? user.user_metadata?.role ?? null)

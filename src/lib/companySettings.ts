@@ -4,6 +4,9 @@ export interface CompanySettings {
   logoFileName: string | null
   rgpdCharter: string
   internalRules: string
+  payrollValidationDeadlineDay: number
+  payrollVaultReleaseDay: number
+  payrollPaymentDay: number
   updatedAt: string
 }
 
@@ -54,6 +57,9 @@ function defaultSettings(): CompanySettings {
     logoFileName: null,
     rgpdCharter: DEFAULT_RGPD_CHARTER,
     internalRules: DEFAULT_INTERNAL_RULES,
+    payrollValidationDeadlineDay: 28,
+    payrollVaultReleaseDay: 1,
+    payrollPaymentDay: 5,
     updatedAt: new Date().toISOString(),
   }
 }
@@ -79,6 +85,15 @@ export function readCompanySettings() {
       logoFileName: typeof parsed.logoFileName === 'string' ? parsed.logoFileName : null,
       rgpdCharter: typeof parsed.rgpdCharter === 'string' && parsed.rgpdCharter.trim() ? parsed.rgpdCharter : DEFAULT_RGPD_CHARTER,
       internalRules: typeof parsed.internalRules === 'string' && parsed.internalRules.trim() ? parsed.internalRules : DEFAULT_INTERNAL_RULES,
+      payrollValidationDeadlineDay: typeof parsed.payrollValidationDeadlineDay === 'number' && Number.isFinite(parsed.payrollValidationDeadlineDay)
+        ? Math.min(31, Math.max(1, Math.round(parsed.payrollValidationDeadlineDay)))
+        : 28,
+      payrollVaultReleaseDay: typeof parsed.payrollVaultReleaseDay === 'number' && Number.isFinite(parsed.payrollVaultReleaseDay)
+        ? Math.min(31, Math.max(1, Math.round(parsed.payrollVaultReleaseDay)))
+        : 1,
+      payrollPaymentDay: typeof parsed.payrollPaymentDay === 'number' && Number.isFinite(parsed.payrollPaymentDay)
+        ? Math.min(31, Math.max(1, Math.round(parsed.payrollPaymentDay)))
+        : 5,
       updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
     } satisfies CompanySettings
 

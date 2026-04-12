@@ -48,6 +48,7 @@ const HomePage = lazy(() => import('@/site/pages/HomePage'))
 const SolutionPage = lazy(() => import('@/site/pages/SolutionPage'))
 const FeaturesPage = lazy(() => import('@/site/pages/FeaturesPage'))
 const AllFeaturesPage = lazy(() => import('@/site/pages/AllFeaturesPage'))
+const VersionsPage = lazy(() => import('@/site/pages/VersionsPage'))
 const PlanningIntelligentPage = lazy(() => import('@/site/pages/PlanningIntelligentPage'))
 const RoiPage = lazy(() => import('@/site/pages/RoiPage'))
 const SecteurTransportPage = lazy(() => import('@/site/pages/SecteurTransportPage'))
@@ -129,6 +130,7 @@ export default function App() {
                 <Route path="produit" element={<Navigate to="/solution" replace />} />
                 <Route path="fonctionnalites" element={<FeaturesPage />} />
                 <Route path="toutes-les-fonctionnalites" element={<AllFeaturesPage />} />
+                <Route path="versions" element={<VersionsPage />} />
                 <Route path="demo" element={<Navigate to="/demonstration" replace />} />                <Route path="tms-transport" element={<TmsTransportPage />} />
                 <Route path="erp-transport-routier" element={<ErpTransportRoutierPage />} />
                 <Route path="logiciel-gestion-flotte-camion" element={<LogicielGestionFlotteCamionPage />} />

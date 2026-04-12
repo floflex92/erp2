@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { ensureEmployeeJobSheets, ensurePolicyDocuments, HR_CATEGORY_LABELS, listHrDocumentsForViewer, signHrDocument, subscribeHrDocuments, type HrDocumentCategory, type HrDocumentRecord } from '@/lib/hrDocuments'
-import { listEmployeeVaultDocumentsForViewer, listEmployeeVaultExportsForViewer, logEmployeeVaultDocumentAction, requestEmployeeVaultExport, signEmployeeVaultDocument, type EmployeeVaultExportRecord } from '@/lib/employeeVault'
+import { getEmployeeVaultDocumentSignedUrl, listEmployeeVaultDocumentsForViewer, listEmployeeVaultExportsForViewer, logEmployeeVaultDocumentAction, requestEmployeeVaultExport, signEmployeeVaultDocument, type EmployeeVaultExportRecord } from '@/lib/employeeVault'
 import { buildStaffDirectory, findStaffMember, staffDisplayName } from '@/lib/staffDirectory'
 import { listVaultRecords, subscribeVaultUpdates, type VaultRecord } from '@/lib/vault'
 
@@ -69,6 +69,16 @@ function attachmentMatchesSearch(item: VaultRecord, query: string) {
   if (!query) return true
   const haystack = normalizeText([item.name, item.source_label, item.source].join(' '))
   return haystack.includes(query)
+}
+
+function openDownload(url: string, fileName: string) {
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  link.rel = 'noopener'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
 }
 
 export default function Coffre() {
@@ -192,11 +202,32 @@ export default function Coffre() {
     }
   }
 
-  function handlePreview(name: string, url: string, documentId?: string) {
-    if (usingSupabaseVault && documentId) {
-      void logEmployeeVaultDocumentAction(documentId, 'preview')
+  async function handlePreview(name: string, url: string, documentId?: string) {
+    try {
+      if (usingSupabaseVault && documentId) {
+        const freshUrl = await getEmployeeVaultDocumentSignedUrl(documentId)
+        await logEmployeeVaultDocumentAction(documentId, 'preview')
+        setPreview({ name, url: freshUrl })
+        return
+      }
+      setPreview({ name, url })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lecture du document impossible.')
     }
-    setPreview({ name, url })
+  }
+
+  async function handleDownload(document: HrDocumentRecord) {
+    try {
+      if (usingSupabaseVault && document.id) {
+        const freshUrl = await getEmployeeVaultDocumentSignedUrl(document.id)
+        await logEmployeeVaultDocumentAction(document.id, 'download')
+        openDownload(freshUrl, document.fileName)
+        return
+      }
+      openDownload(document.url, document.fileName)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Telechargement du document impossible.')
+    }
   }
 
   async function handleRequestExport() {
@@ -221,20 +252,26 @@ export default function Coffre() {
 
   return (
     <div className="space-y-5 p-4 md:p-6">
-      <div className="nx-panel px-6 py-5" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #111827 55%, #164e63 100%)' }}>
+      <div
+        className="nx-panel relative overflow-hidden px-6 py-6"
+        style={{
+          background:
+            'linear-gradient(140deg, color-mix(in srgb, var(--surface-soft) 85%, var(--primary-soft) 15%), var(--surface))',
+        }}
+      >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-200/70">Archivage securise</p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">Coffre numerique</h2>
-            <p className="mt-1.5 max-w-3xl text-sm text-slate-300">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--primary)]">Archivage securise</p>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-[color:var(--text-heading)]">Coffre numerique</h2>
+            <p className="mt-1.5 max-w-3xl text-sm text-[color:var(--text-secondary)]">
               Vue reorganisee par usage: signature, paie, identite, documents entreprise et pieces jointes sauvegardees.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-sm text-slate-200">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Lecture active</p>
-            <p className="mt-1 font-semibold text-white">{selectedEmployee ? staffDisplayName(selectedEmployee) : 'Tous les collaborateurs'}</p>
-            <p className="mt-1 text-xs text-slate-300">
+          <div className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+            <p className="text-[11px] uppercase tracking-[0.2em] text-[color:var(--text-secondary)]">Lecture active</p>
+            <p className="mt-1 font-semibold text-[color:var(--text-heading)]">{selectedEmployee ? staffDisplayName(selectedEmployee) : 'Tous les collaborateurs'}</p>
+            <p className="mt-1 text-xs text-[color:var(--text-secondary)]">
               {isPrivileged ? 'Filtre dirigeant / RH' : 'Vue personnelle securisee'}
             </p>
           </div>
@@ -253,13 +290,13 @@ export default function Coffre() {
         <div className="border-b px-5 py-4" style={{ borderColor: 'var(--border)' }}>
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <p className="text-sm font-semibold text-white">Navigation du coffre</p>
-              <p className="mt-1 text-xs text-slate-400">Utilise les vues ci-dessous pour lire le dossier par intention, pas par ordre technique.</p>
+              <p className="text-sm font-semibold text-[color:var(--text-heading)]">Navigation du coffre</p>
+              <p className="mt-1 text-xs text-[color:var(--text-secondary)]">Utilise les vues ci-dessous pour lire le dossier par intention, pas par ordre technique.</p>
             </div>
 
             <div className="flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-end">
-              <label className="flex min-w-[260px] items-center gap-3 rounded-2xl border px-4 py-3 text-sm text-slate-200" style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.04)' }}>
-                <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <label className="flex min-w-[260px] items-center gap-3 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                <svg className="h-4 w-4 text-[color:var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <circle cx="11" cy="11" r="7" />
                   <path d="m20 20-3.5-3.5" />
                 </svg>
@@ -267,7 +304,7 @@ export default function Coffre() {
                   value={search}
                   onChange={event => setSearch(event.target.value)}
                   placeholder="Rechercher un document, un nom ou un type"
-                  className="w-full border-0 bg-transparent p-0 text-sm text-white outline-none"
+                  className="w-full border-0 bg-transparent p-0 text-sm text-[color:var(--text)] outline-none"
                 />
               </label>
 
@@ -275,8 +312,8 @@ export default function Coffre() {
                 <select
                   value={selectedEmployeeId}
                   onChange={event => setSelectedEmployeeId(event.target.value)}
-                  className="w-full rounded-xl border px-3 py-2 text-sm text-slate-100 md:w-auto"
-                  style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.04)' }}
+                  className="w-full rounded-xl border px-3 py-2 text-sm text-[color:var(--text)] md:w-auto"
+                  style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
                 >
                   <option value="all">Tous les collaborateurs</option>
                   {staff.map(member => (
@@ -307,8 +344,8 @@ export default function Coffre() {
           <div className="border-b px-5 py-4" style={{ borderColor: 'var(--border)' }}>
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-sm font-semibold text-white">Export dossier coffre</p>
-                <p className="mt-1 text-xs text-slate-400">Demande un paquet ZIP des documents visibles selon vos droits.</p>
+                <p className="text-sm font-semibold text-[color:var(--text-heading)]">Export dossier coffre</p>
+                <p className="mt-1 text-xs text-[color:var(--text-secondary)]">Demande un paquet ZIP des documents visibles selon vos droits.</p>
               </div>
               <button
                 type="button"
@@ -322,12 +359,12 @@ export default function Coffre() {
 
             <div className="mt-3 space-y-2">
               {exportHistory.length === 0 ? (
-                <p className="text-xs text-slate-500">Aucune demande d export pour ce profil.</p>
+                <p className="text-xs text-[color:var(--text-secondary)]">Aucune demande d export pour ce profil.</p>
               ) : (
                 exportHistory.slice(0, 5).map(item => (
-                  <div key={item.id} className="flex flex-col gap-1 rounded-xl border px-3 py-2 text-xs text-slate-300 md:flex-row md:items-center md:justify-between" style={{ borderColor: 'var(--border)' }}>
+                  <div key={item.id} className="flex flex-col gap-1 rounded-xl border px-3 py-2 text-xs text-[color:var(--text)] md:flex-row md:items-center md:justify-between" style={{ borderColor: 'var(--border)', background: 'var(--surface-soft)' }}>
                     <span>Demande {new Date(item.createdAt).toLocaleString('fr-FR')} - scope {item.scope}</span>
-                    <span className="text-slate-400">Statut: {item.status}{item.fileName ? ` - ${item.fileName}` : ''}</span>
+                    <span className="text-[color:var(--text-secondary)]">Statut: {item.status}{item.fileName ? ` - ${item.fileName}` : ''}</span>
                   </div>
                 ))
               )}
@@ -343,6 +380,7 @@ export default function Coffre() {
             empty="Aucun document a signer pour ce profil."
             onSign={handleSign}
             onPreview={handlePreview}
+            onDownload={handleDownload}
             currentProfileId={currentProfil.id}
             highlighted
           />
@@ -357,6 +395,7 @@ export default function Coffre() {
             empty={block.empty}
             onSign={handleSign}
             onPreview={handlePreview}
+            onDownload={handleDownload}
             currentProfileId={currentProfil.id}
           />
         ))}
@@ -370,6 +409,7 @@ export default function Coffre() {
               empty="Aucun document de paie ou contrat dans ce filtre."
               onSign={handleSign}
               onPreview={handlePreview}
+              onDownload={handleDownload}
               currentProfileId={currentProfil.id}
             />
 
@@ -380,6 +420,7 @@ export default function Coffre() {
               empty="Aucun document d identite ou administratif disponible."
               onSign={handleSign}
               onPreview={handlePreview}
+              onDownload={handleDownload}
               currentProfileId={currentProfil.id}
             />
 
@@ -390,6 +431,7 @@ export default function Coffre() {
               empty="Aucun document entreprise dans ce filtre."
               onSign={handleSign}
               onPreview={handlePreview}
+              onDownload={handleDownload}
               currentProfileId={currentProfil.id}
             />
           </>
@@ -408,21 +450,21 @@ export default function Coffre() {
       </div>
 
       {!isPrivileged && currentEmployee && (
-        <div className="rounded-2xl border px-5 py-4 text-sm text-slate-300" style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.03)' }}>
-          Vue personnelle active pour <span className="font-semibold text-white">{staffDisplayName(currentEmployee)}</span>. Les dirigeants et RH disposent d un filtre collaborateur, mais la signature reste reservee au salarie concerne.
+        <div className="rounded-2xl border px-5 py-4 text-sm text-[color:var(--text-secondary)]" style={{ borderColor: 'var(--border)', background: 'var(--surface-soft)' }}>
+          Vue personnelle active pour <span className="font-semibold text-[color:var(--text-heading)]">{staffDisplayName(currentEmployee)}</span>. Les dirigeants et RH disposent d un filtre collaborateur, mais la signature reste reservee au salarie concerne.
         </div>
       )}
 
       {preview && (
         <div className="fixed inset-0 z-[220] flex items-center justify-center bg-slate-950/86 p-4">
-          <div className="flex h-[92vh] w-full max-w-6xl flex-col rounded-3xl border border-white/10 bg-slate-950 shadow-2xl">
-            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
+          <div className="flex h-[92vh] w-full max-w-6xl flex-col rounded-3xl border shadow-2xl" style={{ borderColor: 'var(--border)', background: 'var(--surface-strong)' }}>
+            <div className="flex items-center justify-between gap-3 border-b px-5 py-4" style={{ borderColor: 'var(--border)' }}>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-white">{preview.name}</p>
-                <p className="mt-1 text-xs text-slate-400">Lecture du document depuis le coffre numerique</p>
+                <p className="truncate text-sm font-semibold text-[color:var(--text-heading)]">{preview.name}</p>
+                <p className="mt-1 text-xs text-[color:var(--text-secondary)]">Lecture du document depuis le coffre numerique</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <a href={preview.url} download={preview.name} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-slate-200">
+                <a href={preview.url} download={preview.name} className="rounded-xl border px-3 py-2 text-xs font-medium text-[color:var(--text)]" style={{ borderColor: 'var(--border)' }}>
                   Telecharger
                 </a>
                 <button type="button" onClick={() => setPreview(null)} className="rounded-xl bg-[color:var(--primary)] px-3 py-2 text-xs font-medium text-white">
@@ -455,12 +497,14 @@ function ViewChip({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-        active ? 'bg-blue-600 text-white' : 'bg-white/5 text-slate-300 hover:bg-white/10'
+      className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
+        active
+          ? 'border-[color:var(--primary)] bg-[color:var(--primary-soft)] text-[color:var(--text-heading)]'
+          : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-secondary)] hover:bg-[color:var(--surface-soft)]'
       }`}
     >
       {label}
-      {typeof count === 'number' && <span className={`ml-2 rounded-full px-1.5 py-0.5 text-[10px] ${active ? 'bg-white/18 text-white' : 'bg-white/10 text-slate-300'}`}>{count}</span>}
+      {typeof count === 'number' && <span className={`ml-2 rounded-full px-1.5 py-0.5 text-[10px] ${active ? 'bg-[color:var(--primary)] text-white' : 'bg-[color:var(--surface-soft)] text-[color:var(--text-secondary)]'}`}>{count}</span>}
     </button>
   )
 }
@@ -472,6 +516,7 @@ function DocumentSection({
   empty,
   onSign,
   onPreview,
+  onDownload,
   currentProfileId,
   highlighted = false,
 }: {
@@ -480,32 +525,34 @@ function DocumentSection({
   docs: HrDocumentRecord[]
   empty: string
   onSign: (document: HrDocumentRecord) => void
-  onPreview: (name: string, url: string, documentId?: string) => void
+  onPreview: (name: string, url: string, documentId?: string) => Promise<void>
+  onDownload: (document: HrDocumentRecord) => Promise<void>
   currentProfileId: string
   highlighted?: boolean
 }) {
   return (
-    <section className={`border-b ${highlighted ? 'bg-blue-500/[0.04]' : ''}`} style={{ borderColor: 'var(--border)' }}>
+    <section className={`border-b ${highlighted ? 'bg-[color:var(--primary-soft)]' : ''}`} style={{ borderColor: 'var(--border)' }}>
       <div className="px-5 py-4">
         <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-sm font-semibold text-white">{title}</p>
-            <p className="mt-1 text-xs text-slate-400">{subtitle}</p>
+            <p className="text-sm font-semibold text-[color:var(--text-heading)]">{title}</p>
+            <p className="mt-1 text-xs text-[color:var(--text-secondary)]">{subtitle}</p>
           </div>
-          <p className="text-xs text-slate-500">{docs.length} document(s)</p>
+          <p className="text-xs text-[color:var(--text-secondary)]">{docs.length} document(s)</p>
         </div>
       </div>
 
       {docs.length === 0 ? (
-        <div className="px-5 pb-6 text-sm text-slate-400">{empty}</div>
+        <div className="px-5 pb-6 text-sm text-[color:var(--text-secondary)]">{empty}</div>
       ) : (
-        <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+        <div className="grid gap-3 px-4 pb-4 md:px-5" style={{ borderColor: 'var(--border)' }}>
           {docs.map(document => (
             <EmployeeDocumentRow
               key={document.id}
               document={document}
               canSign={document.employeeId === currentProfileId && document.requiresSignature && !document.signedAt}
-              onPreview={() => onPreview(document.fileName, document.url, document.id)}
+              onPreview={() => void onPreview(document.fileName, document.url, document.id)}
+              onDownload={() => void onDownload(document)}
               onSign={() => onSign(document)}
             />
           ))}
@@ -535,10 +582,10 @@ function AttachmentSection({
       <div className="px-5 py-4">
         <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-sm font-semibold text-white">{title}</p>
-            <p className="mt-1 text-xs text-slate-400">{subtitle}</p>
+            <p className="text-sm font-semibold text-[color:var(--text-heading)]">{title}</p>
+            <p className="mt-1 text-xs text-[color:var(--text-secondary)]">{subtitle}</p>
           </div>
-          <p className="text-xs text-slate-500">{mailAttachments.length + tchatAttachments.length + signatureAttachments.length} piece(s)</p>
+          <p className="text-xs text-[color:var(--text-secondary)]">{mailAttachments.length + tchatAttachments.length + signatureAttachments.length} piece(s)</p>
         </div>
       </div>
 
@@ -563,25 +610,25 @@ function AttachmentGroup({
   return (
     <div className="border-t" style={{ borderColor: 'var(--border)' }}>
       <div className="px-5 py-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{title}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--text-secondary)]">{title}</p>
       </div>
 
       {items.length === 0 ? (
-        <div className="px-5 pb-5 text-sm text-slate-400">{empty}</div>
+        <div className="px-5 pb-5 text-sm text-[color:var(--text-secondary)]">{empty}</div>
       ) : (
-        <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+        <div className="grid gap-3 px-4 pb-4 md:px-5" style={{ borderColor: 'var(--border)' }}>
           {items.map(item => (
-            <div key={item.id} className="flex flex-col gap-3 px-5 py-4 md:flex-row md:items-center md:justify-between">
+            <div key={item.id} className="flex flex-col gap-3 rounded-2xl border px-4 py-4 md:flex-row md:items-center md:justify-between" style={{ borderColor: 'var(--border)', background: 'var(--surface-soft)' }}>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-white">{item.name}</p>
-                <p className="mt-1 text-xs text-slate-400">{item.source_label}</p>
-                <p className="mt-1 text-xs text-slate-500">{formatDateTime(item.created_at)} - {formatSize(item.size)}</p>
+                <p className="truncate text-sm font-semibold text-[color:var(--text-heading)]">{item.name}</p>
+                <p className="mt-1 text-xs text-[color:var(--text-secondary)]">{item.source_label}</p>
+                <p className="mt-1 text-xs text-[color:var(--text-secondary)]">{formatDateTime(item.created_at)} - {formatSize(item.size)}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => onPreview(item.name, item.url)} className="rounded-xl border px-3 py-2 text-xs font-medium text-slate-200" style={{ borderColor: 'var(--border)' }}>
+                <button type="button" onClick={() => onPreview(item.name, item.url)} className="rounded-xl border px-3 py-2 text-xs font-medium text-[color:var(--text)] transition-colors hover:bg-[color:var(--surface)]" style={{ borderColor: 'var(--border)' }}>
                   Lire
                 </button>
-                <a href={item.url} download={item.name} className="rounded-xl bg-[color:var(--primary)] px-3 py-2 text-xs font-medium text-white">
+                <a href={item.url} download={item.name} className="rounded-xl bg-[color:var(--primary)] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[color:var(--primary-hover)]">
                   Telecharger
                 </a>
               </div>
@@ -597,19 +644,21 @@ function EmployeeDocumentRow({
   document,
   canSign,
   onPreview,
+  onDownload,
   onSign,
 }: {
   document: HrDocumentRecord
   canSign: boolean
   onPreview: () => void
+  onDownload: () => void
   onSign: () => void
 }) {
   return (
-    <div className="flex flex-col gap-3 px-5 py-4 md:flex-row md:items-center md:justify-between">
+    <div className="flex flex-col gap-3 rounded-2xl border px-4 py-4 md:flex-row md:items-center md:justify-between" style={{ borderColor: 'var(--border)', background: 'var(--surface-soft)' }}>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-semibold text-white">{document.title}</p>
-          <span className="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-300" style={{ borderColor: 'var(--border)' }}>
+          <p className="truncate text-sm font-semibold text-[color:var(--text-heading)]">{document.title}</p>
+          <span className="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--text-secondary)]" style={{ borderColor: 'var(--border)' }}>
             {HR_CATEGORY_LABELS[document.category]}
           </span>
           {document.requiresSignature && !document.signedAt && (
@@ -623,21 +672,21 @@ function EmployeeDocumentRow({
             </span>
           )}
         </div>
-        <p className="mt-1 text-xs text-slate-400">{document.employeeName} - {document.fileName}</p>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-[color:var(--text-secondary)]">{document.employeeName} - {document.fileName}</p>
+        <p className="mt-1 text-xs text-[color:var(--text-secondary)]">
           Cree le {formatDateTime(document.createdAt)} - {formatSize(document.size)}
           {document.signatureLabel ? ` - ${document.signatureLabel}` : ''}
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={onPreview} className="rounded-xl border px-3 py-2 text-xs font-medium text-slate-200" style={{ borderColor: 'var(--border)' }}>
+        <button type="button" onClick={onPreview} className="rounded-xl border px-3 py-2 text-xs font-medium text-[color:var(--text)] transition-colors hover:bg-[color:var(--surface)]" style={{ borderColor: 'var(--border)' }}>
           Lire
         </button>
-        <a href={document.url} download={document.fileName} className="rounded-xl border px-3 py-2 text-xs font-medium text-slate-200" style={{ borderColor: 'var(--border)' }}>
+        <button type="button" onClick={onDownload} className="rounded-xl border px-3 py-2 text-xs font-medium text-[color:var(--text)] transition-colors hover:bg-[color:var(--surface)]" style={{ borderColor: 'var(--border)' }}>
           Telecharger
-        </a>
+        </button>
         {canSign && (
-          <button type="button" onClick={onSign} className="rounded-xl bg-[color:var(--primary)] px-3 py-2 text-xs font-medium text-white">
+          <button type="button" onClick={onSign} className="rounded-xl bg-[color:var(--primary)] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[color:var(--primary-hover)]">
             Signer numeriquement
           </button>
         )}
@@ -648,10 +697,10 @@ function EmployeeDocumentRow({
 
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <div className="nx-panel px-5 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
-      <p className="mt-1 text-xs text-slate-400">{detail}</p>
+    <div className="nx-panel relative overflow-hidden px-5 py-4" style={{ background: 'var(--surface)' }}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--text-secondary)]">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-[color:var(--text-heading)]">{value}</p>
+      <p className="mt-1 text-xs text-[color:var(--text-secondary)]">{detail}</p>
     </div>
   )
 }
