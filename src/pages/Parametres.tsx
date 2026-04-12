@@ -551,6 +551,7 @@ export default function Parametres() {
                   <li>Disponibilite RH planning v1.12.5 : bandes visuelles absence sur le Gantt, badge ABSENT, alerte et blocage d assignation sur conducteur absent, filtrage selects (v1.12.5)</li>
                   <li>Demande d absence conducteur v1.12.5 : onglet Mes absences dans le portail conducteur, formulaire de demande, soldes CP/RTT, liste et statuts (v1.12.5)</li>
                   <li>Workflow multi-etapes conges v1.12.6 : demande → validation exploitation → validation direction → integration paie → validation finale avec document PDF attestation de conge et circuit complet (v1.12.6)</li>
+                  <li>Coffre-fort numerique salarie v1.12.7 : endpoints Netlify list/sign/process-exit, validation employee scope et script de tests fonctionnels/securite/charge (v1.12.7)</li>
                 </ul>
               </Card>
             )}
