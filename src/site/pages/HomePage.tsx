@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import useSiteMeta from '@/site/hooks/useSiteMeta'
 import { sitePhotos } from '@/site/lib/sitePhotos'
 import { articleIndex } from '@/site/content/articleIndex'
+import conducteursScreenshot from '../../../docs/capture d ecran/mecano01.png'
+import planningScreenshot from '../../../docs/capture d ecran/planning01.png'
 
 
 /* ── Types ──────────────────────────────────────────────────── */
@@ -12,7 +14,41 @@ type FeatureTab = {
   title: string
   description: string
   benefit: string
+  highlights: string[]
   link?: string
+}
+
+type FeatureScreenshot = {
+  src: string
+  alt: string
+  badge: string
+  caption: string
+}
+
+type LightboxImage = {
+  src: string
+  alt: string
+}
+
+const FEATURE_SCREENSHOTS: Partial<Record<FeatureTab['key'], FeatureScreenshot>> = {
+  planning: {
+    src: planningScreenshot,
+    alt: 'Vue planning transport avec affectations et synthèse opérationnelle',
+    badge: 'Capture planning exploitation',
+    caption: 'Planning glisser-déposer, visibilité flotte et charge par mission.',
+  },
+  flotte: {
+    src: conducteursScreenshot,
+    alt: 'Vue flotte et atelier avec suivi des disponibilités et interventions',
+    badge: 'Capture flotte et atelier',
+    caption: 'Disponibilités parc, maintenance et suivi atelier dans un même écran.',
+  },
+  conducteurs: {
+    src: '/site/screenshots/conducteurs.png',
+    alt: 'Vue ERP conducteurs avec documents, conformité et historique',
+    badge: 'Capture espace conducteurs',
+    caption: 'Documents, échéances et suivi conducteur regroupés sur une seule fiche.',
+  },
 }
 
 const FEATURE_TABS: FeatureTab[] = [
@@ -21,6 +57,7 @@ const FEATURE_TABS: FeatureTab[] = [
     title: 'Planning intelligent',
     description: 'Affectez véhicules et conducteurs en glisser-déposer, absorbez les urgences et gardez une vue claire sur la charge.',
     benefit: '-31 % de temps passé sur le planning.',
+    highlights: ['Affectation glisser-déposer des missions', 'Vue charge, flotte et disponibilités au même endroit', 'Réaffectation rapide lors d’un aléa terrain'],
     link: '/planning-intelligent',
   },
   {
@@ -28,6 +65,7 @@ const FEATURE_TABS: FeatureTab[] = [
     title: 'Flotte en temps réel',
     description: 'Disponibilités, maintenance et alertes CT/VGP dans un seul cockpit pour limiter les immobilisations non planifiées.',
     benefit: '98,7 % de disponibilité opérationnelle.',
+    highlights: ['Suivi des immobilisations et visites réglementaires', 'Disponibilité tracteurs, remorques et atelier', 'Alertes critiques sans ressaisie'],
     link: '/logiciel-gestion-flotte-camion',
   },
   {
@@ -35,18 +73,21 @@ const FEATURE_TABS: FeatureTab[] = [
     title: 'Gestion conducteurs',
     description: 'Documents, historique missions et conformité restent reliés au terrain pour agir avant le blocage.',
     benefit: '-42 % de non-conformités documentaires.',
+    highlights: ['Permis, FCO et carte conducteur suivis dans la fiche', 'Historique missions et statut administratif réunis', 'Alertes conformité avant l’affectation au planning'],
   },
   {
     key: 'facturation',
     title: 'Facturation sans friction',
     description: 'Générez vos factures depuis les ordres de transport, relances incluses et exports comptables prêts.',
     benefit: '-60 % de temps sur la facturation.',
+    highlights: ['Factures générées depuis les ordres validés', 'Relances et statuts de règlement suivis', 'Exports comptables prêts sans retraitement'],
   },
   {
     key: 'api',
     title: 'API et automatisation',
     description: 'Connectez Webfleet, tachygraphe et flux fret pour supprimer les tâches répétitives à faible valeur.',
     benefit: '+14 % de marge opérationnelle moyenne.',
+    highlights: ['Flux télématiques et terrain synchronisés', 'Automatisation des statuts et remontées clés', 'Interopérabilité ERP, TMS et outils tiers'],
     link: '/telematique-transport',
   },
 ]
@@ -109,11 +150,76 @@ function VideoLightbox({ open, onClose }: { open: boolean; onClose: () => void }
   )
 }
 
+function ImageLightbox({ image, onClose }: { image: LightboxImage | null; onClose: () => void }) {
+  useEffect(() => {
+    if (!image) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = '' }
+  }, [image, onClose])
+
+  if (!image) return null
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-5"
+      style={{ background: 'rgba(0, 0, 0, 0.88)' }}
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-6 top-6 text-3xl font-light text-white/80 transition-colors hover:text-white"
+        aria-label="Fermer l'image"
+      >
+        ✕
+      </button>
+      <img
+        src={image.src}
+        alt={image.alt}
+        className="max-h-[92vh] max-w-[92vw] object-contain"
+        onClick={e => e.stopPropagation()}
+      />
+    </div>
+  )
+}
+
 /* ── Animated SVG Illustrations per tab ────────────────────── */
 
-function TabIllustration({ tab }: { tab: FeatureTab['key'] }) {
+function TabIllustration({ tab, onOpenScreenshot }: { tab: FeatureTab['key']; onOpenScreenshot: (image: LightboxImage) => void }) {
   const common = 'w-full rounded-2xl'
   const style: React.CSSProperties = { aspectRatio: '16/10', background: '#F5F5F7' }
+
+  const screenshot = FEATURE_SCREENSHOTS[tab]
+
+  if (screenshot) {
+    return (
+      <figure>
+        <div className="mb-3 inline-flex border border-slate-300 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
+          {screenshot.badge}
+        </div>
+        <button
+          type="button"
+          onClick={() => onOpenScreenshot({ src: screenshot.src, alt: screenshot.alt })}
+          className="block w-full cursor-zoom-in text-left"
+          aria-label={`Agrandir ${screenshot.alt}`}
+        >
+          <img
+            src={screenshot.src}
+            alt={screenshot.alt}
+            className="block h-full w-full border border-slate-300 object-cover object-top"
+            style={{ aspectRatio: '16/10' }}
+            loading="lazy"
+            decoding="async"
+          />
+        </button>
+        <figcaption className="mt-3 text-sm leading-6 text-slate-600">
+          {screenshot.caption}
+        </figcaption>
+      </figure>
+    )
+  }
 
   if (tab === 'planning') return (
     <svg viewBox="0 0 640 400" className={common} style={style} aria-hidden="true">
@@ -340,6 +446,7 @@ const sectionPy: React.CSSProperties = { paddingBlock: 'clamp(24px, 3vw, 56px)' 
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<FeatureTab['key']>('planning')
   const [videoOpen, setVideoOpen] = useState(false)
+  const [lightboxImage, setLightboxImage] = useState<LightboxImage | null>(null)
 
   useSiteMeta({
     title: 'ERP transport routier — TMS & flotte | NEXORA Truck',
@@ -452,6 +559,7 @@ export default function HomePage() {
   return (
     <>
       <VideoLightbox open={videoOpen} onClose={() => setVideoOpen(false)} />
+      <ImageLightbox image={lightboxImage} onClose={() => setLightboxImage(null)} />
 
       {/* ── 1. HERO ── */}
       <section
@@ -527,15 +635,22 @@ export default function HomePage() {
                 nexora-truck.fr/app/dashboard
               </span>
             </div>
-            <img
-              src="/site/screenshots/accueil-proof.png"
-              alt="Aperçu du planning NEXORA Truck"
-              className="w-full"
-              loading="eager"
-              width="1400"
-              height="840"
-              style={{ display: 'block', maxHeight: '600px', objectFit: 'contain' }}
-            />
+            <button
+              type="button"
+              onClick={() => setLightboxImage({ src: '/site/screenshots/accueil-proof.png', alt: 'Aperçu du planning NEXORA Truck' })}
+              className="block w-full cursor-zoom-in"
+              aria-label="Agrandir l'aperçu du planning NEXORA Truck"
+            >
+              <img
+                src="/site/screenshots/accueil-proof.png"
+                alt="Aperçu du planning NEXORA Truck"
+                className="w-full"
+                loading="eager"
+                width="1400"
+                height="840"
+                style={{ display: 'block', maxHeight: '600px', objectFit: 'contain' }}
+              />
+            </button>
           </div>
         </div>
         <p className="mt-6 text-center text-sm" style={{ color: '#636369' }}>
@@ -624,6 +739,14 @@ export default function HomePage() {
             <h3 className="text-2xl font-semibold" style={{ color: '#000000' }}>{currentTab.title}</h3>
             <p className="mt-4 text-lg leading-8" style={{ color: '#4b4b51' }}>{currentTab.description}</p>
             <p className="mt-5 text-base font-semibold" style={{ color: '#2563EB' }}>{currentTab.benefit}</p>
+            <ul className="mt-6 space-y-3">
+              {currentTab.highlights.map(item => (
+                <li key={item} className="flex items-start gap-3 text-base leading-7" style={{ color: '#1f2937' }}>
+                  <span className="mt-2.5 h-2.5 w-2.5 shrink-0 rounded-full bg-sky-600" aria-hidden="true" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
             {currentTab.link && (
               <Link
                 to={currentTab.link}
@@ -636,7 +759,7 @@ export default function HomePage() {
             )}
           </div>
           <div>
-            <TabIllustration key={activeTab} tab={activeTab} />
+            <TabIllustration key={activeTab} tab={activeTab} onOpenScreenshot={setLightboxImage} />
           </div>
         </div>
       </section>

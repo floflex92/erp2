@@ -128,7 +128,7 @@ export function normalizeEnabledModules(value: unknown): TenantModule[] | null {
 }
 
 export const TENANT_MODULE_LABELS: Record<TenantModule, string> = {
-  'ops-center': 'Centre Ops',
+  'ops-center': 'Ops Center',
   dashboard: 'Tableau de bord',
   'dashboard-conducteur': 'Mon accueil conducteur',
   planning: 'Planning',

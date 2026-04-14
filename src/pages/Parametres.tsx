@@ -705,7 +705,7 @@ function DevelopmentOverview({
 
       <div className="flex flex-wrap gap-2 rounded-2xl border p-2" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         {([
-          ['developpe', 'Développement'],
+          ['developpe', 'Développé'],
           ['en-cours', 'En cours de développement'],
           ['features', 'Features'],
           ['versions', 'Versions'],

@@ -2,11 +2,29 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
 import { evaluateAffretementCompletionReadiness, getAffretementContractByOtId } from '@/lib/affretementPortal'
+import { buildInvoicePdf } from '@/lib/invoicePdf'
 
 type Facture = Tables<'factures'>
-type ClientLookup = { id: string; nom: string }
-type OTLookup = { id: string; reference: string; client_id: string }
-type Tab = 'factures' | 'tva' | 'tresorerie' | 'previsionnel' | 'rapports' | 'journal' | 'tarifs'
+type FactureFournisseur = Tables<'compta_factures_fournisseurs'>
+type ClientLookup = {
+  id: string
+  nom: string
+  conditions_paiement: number | null
+  mode_paiement_defaut: string | null
+  taux_tva_defaut: number | null
+  type_echeance: string | null
+  jour_echeance: number | null
+}
+type OTLookup = {
+  id: string
+  reference: string
+  client_id: string
+  numero_facturation: string | null
+  prix_ht: number | null
+  facturation_id: string | null
+  statut: string
+}
+type Tab = 'factures' | 'fournisseurs' | 'tva' | 'tresorerie' | 'previsionnel' | 'rapports' | 'journal' | 'tarifs'
 
 const STATUT_COLORS: Record<string, string> = {
   brouillon:  'bg-slate-100 text-slate-600',
@@ -18,13 +36,107 @@ const STATUT_COLORS: Record<string, string> = {
 const STATUT_LABELS: Record<string, string> = {
   brouillon: 'Brouillon', envoyee: 'Envoyée', payee: 'Payée', en_retard: 'En retard', annulee: 'Annulée',
 }
+const FOURN_STATUT_COLORS: Record<string, string> = {
+  recu: 'bg-amber-100 text-amber-700',
+  validee: 'bg-blue-100 text-blue-700',
+  payee: 'bg-green-100 text-green-700',
+  annulee: 'bg-slate-100 text-slate-400',
+}
+const FOURN_STATUT_LABELS: Record<string, string> = {
+  recu: 'Reçue',
+  validee: 'Validée',
+  payee: 'Payée',
+  annulee: 'Annulée',
+}
 const MODE_PAIEMENT_LABELS: Record<string, string> = {
-  virement: 'Virement', cheque: 'Chèque', prelevement: 'Prélèvement', especes: 'Espèces',
+  virement: 'Virement', cheque: 'Chèque', prelevement: 'Prélèvement', especes: 'Espèces', traite: 'Traite', autre: 'Autre',
+}
+const TYPE_ECHEANCE_LABELS: Record<string, string> = {
+  date_facture_plus_delai: 'Date facture + délai',
+  fin_de_mois: 'Fin de mois',
+  fin_de_mois_le_10: 'Fin de mois + 10',
+  jour_fixe: 'Jour fixe',
+  comptant: 'Comptant',
 }
 const MOIS_FR = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
 const TAUX_TVA_OPTIONS = [0, 2.1, 5.5, 8.5, 10, 20]
 
 const inp = 'w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary-soft)]'
+
+function parseIsoDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(year, (month ?? 1) - 1, day ?? 1)
+}
+
+function formatIsoDate(value: Date) {
+  return [value.getFullYear(), String(value.getMonth() + 1).padStart(2, '0'), String(value.getDate()).padStart(2, '0')].join('-')
+}
+
+function addDays(value: Date, days: number) {
+  const next = new Date(value)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+function startOfDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate())
+}
+
+function endOfMonth(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth() + 1, 0)
+}
+
+function getFactureDisplayState(facture: Pick<Facture, 'statut' | 'date_echeance'>, today = new Date()) {
+  if (facture.statut === 'payee' || facture.statut === 'annulee' || facture.statut === 'brouillon') {
+    return { statut: facture.statut, retardJours: 0, isLate: false }
+  }
+
+  if (!facture.date_echeance) {
+    return { statut: facture.statut, retardJours: 0, isLate: facture.statut === 'en_retard' }
+  }
+
+  const todayDate = startOfDay(today)
+  const dueDate = startOfDay(parseIsoDate(facture.date_echeance))
+  const retardJours = Math.floor((todayDate.getTime() - dueDate.getTime()) / 86400000)
+  const isLate = facture.statut === 'en_retard' || retardJours > 0
+
+  return {
+    statut: isLate ? 'en_retard' : facture.statut,
+    retardJours: isLate ? Math.max(retardJours, 0) : 0,
+    isLate,
+  }
+}
+
+function computeDateEcheance(client: ClientLookup | null, dateEmission: string) {
+  if (!client) return null
+  const emissionDate = parseIsoDate(dateEmission)
+  const shiftedDate = addDays(emissionDate, client.conditions_paiement ?? 0)
+
+  switch (client.type_echeance) {
+    case 'comptant':
+      return formatIsoDate(emissionDate)
+    case 'fin_de_mois':
+      return formatIsoDate(endOfMonth(shiftedDate))
+    case 'fin_de_mois_le_10': {
+      const monthEnd = endOfMonth(shiftedDate)
+      return formatIsoDate(new Date(monthEnd.getFullYear(), monthEnd.getMonth() + 1, 10))
+    }
+    case 'jour_fixe': {
+      if (!client.jour_echeance) return formatIsoDate(shiftedDate)
+      const fixedDay = Math.min(Math.max(client.jour_echeance, 1), 31)
+      let candidate = new Date(shiftedDate.getFullYear(), shiftedDate.getMonth(), 1)
+      candidate.setDate(Math.min(fixedDay, endOfMonth(candidate).getDate()))
+      if (candidate < shiftedDate) {
+        candidate = new Date(shiftedDate.getFullYear(), shiftedDate.getMonth() + 1, 1)
+        candidate.setDate(Math.min(fixedDay, endOfMonth(candidate).getDate()))
+      }
+      return formatIsoDate(candidate)
+    }
+    case 'date_facture_plus_delai':
+    default:
+      return formatIsoDate(shiftedDate)
+  }
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -38,6 +150,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'factures',    label: 'Factures' },
+    { key: 'fournisseurs',label: 'Achats fournisseur' },
     { key: 'tva',         label: 'TVA & Taxes' },
     { key: 'tresorerie',  label: 'Trésorerie' },
     { key: 'previsionnel',label: 'Prévisionnel' },
@@ -489,6 +602,7 @@ function TarifsTransportTab({ clients }: { clients: ClientLookup[] }) {
 export default function Facturation() {
   const [tab, setTab] = useState<Tab>('factures')
   const [list, setList] = useState<Facture[]>([])
+  const [supplierInvoices, setSupplierInvoices] = useState<FactureFournisseur[]>([])
   const [clients, setClients] = useState<ClientLookup[]>([])
   const [ots, setOts] = useState<OTLookup[]>([])
   const [loading, setLoading] = useState(true)
@@ -508,10 +622,32 @@ export default function Facturation() {
     mode_paiement: null as string | null,
     notes: null as string | null,
   })
+  const [selectedOtIds, setSelectedOtIds] = useState<string[]>([])
+  const [lastAutoMontantHt, setLastAutoMontantHt] = useState<number | null>(null)
+  const [paymentDefaultsLocked, setPaymentDefaultsLocked] = useState(true)
+  const [dueDateDefaultsLocked, setDueDateDefaultsLocked] = useState(true)
+  const [vatDefaultsLocked, setVatDefaultsLocked] = useState(true)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Facture | null>(null)
+
+  const [showSupplierForm, setShowSupplierForm] = useState(false)
+  const [supplierSaving, setSupplierSaving] = useState(false)
+  const [supplierError, setSupplierError] = useState<string | null>(null)
+  const [supplierForm, setSupplierForm] = useState({
+    fournisseur_nom: '',
+    montant_ht: 0,
+    taux_tva: 20,
+    date_facture: new Date().toISOString().split('T')[0],
+    date_echeance: null as string | null,
+    statut: 'recu',
+    mode_paiement: null as string | null,
+    notes: null as string | null,
+    compte_charge_code: '606100',
+    compte_fournisseur_code: '401000',
+    compte_tva_deductible_code: '445660',
+  })
 
   // Écriture comptable liée à la facture sélectionnée (Epic A3)
   const [comptaInfo, setComptaInfo] = useState<{ statut: string; numero_mouvement: number; date_ecriture: string } | null>(null)
@@ -550,12 +686,14 @@ export default function Facturation() {
 
   async function loadAll() {
     setLoading(true)
-    const [facts, cls, otList] = await Promise.all([
+    const [facts, supplierFacts, cls, otList] = await Promise.all([
       supabase.from('factures').select('*').order('date_emission', { ascending: false }),
-      supabase.from('clients').select('id, nom').order('nom'),
-      supabase.from('ordres_transport').select('id, reference, client_id').order('reference'),
+      supabase.from('compta_factures_fournisseurs').select('*').order('date_facture', { ascending: false }),
+      supabase.from('clients').select('id, nom, conditions_paiement, mode_paiement_defaut, taux_tva_defaut, type_echeance, jour_echeance').order('nom'),
+      supabase.from('ordres_transport').select('id, reference, client_id, numero_facturation, prix_ht, facturation_id, statut').order('reference'),
     ])
     setList(facts.data ?? [])
+    setSupplierInvoices(supplierFacts.data ?? [])
     setClients(cls.data ?? [])
     setOts(otList.data ?? [])
     setLoading(false)
@@ -628,17 +766,34 @@ export default function Facturation() {
 
   const clientMap = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c.nom])), [clients])
   const otMap = useMemo(() => Object.fromEntries(ots.map(o => [o.id, o.reference])), [ots])
+  const factureDisplayStateById = useMemo(
+    () => Object.fromEntries(list.map(f => [f.id, getFactureDisplayState(f)])),
+    [list],
+  )
+  const factureOtMap = useMemo(() => {
+    const map: Record<string, string[]> = {}
+    ots.forEach(ot => {
+      if (!ot.facturation_id) return
+      map[ot.facturation_id] = [...(map[ot.facturation_id] ?? []), ot.reference]
+    })
+    return map
+  }, [ots])
   const fmtEur = (n: number) => n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 })
   const fmtPct = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %'
+  const selectedClient = useMemo(() => clients.find(client => client.id === form.client_id) ?? null, [clients, form.client_id])
 
   // ── Computed aggregates ───────────────────────────────────────────────────
   const activeList = list.filter(f => f.statut !== 'annulee')
+  const activeSupplierInvoices = supplierInvoices.filter(f => f.statut !== 'annulee')
+  const selectedDisplayState = selected ? getFactureDisplayState(selected) : null
 
   const totalCA = useMemo(() => activeList.reduce((s, f) => s + f.montant_ht, 0), [activeList])
   const totalTVACollectee = useMemo(() => activeList.reduce((s, f) => s + (f.montant_tva ?? 0), 0), [activeList])
-  const totalEncaisse = useMemo(() => activeList.filter(f => f.statut === 'payee').reduce((s, f) => s + (f.montant_ttc ?? f.montant_ht), 0), [activeList])
-  const totalEnAttente = useMemo(() => activeList.filter(f => f.statut === 'envoyee').reduce((s, f) => s + (f.montant_ttc ?? f.montant_ht), 0), [activeList])
-  const totalEnRetard = useMemo(() => activeList.filter(f => f.statut === 'en_retard').reduce((s, f) => s + (f.montant_ttc ?? f.montant_ht), 0), [activeList])
+  const totalEncaisse = useMemo(() => activeList.filter(f => factureDisplayStateById[f.id]?.statut === 'payee').reduce((s, f) => s + (f.montant_ttc ?? f.montant_ht), 0), [activeList, factureDisplayStateById])
+  const totalEnAttente = useMemo(() => activeList.filter(f => factureDisplayStateById[f.id]?.statut === 'envoyee').reduce((s, f) => s + (f.montant_ttc ?? f.montant_ht), 0), [activeList, factureDisplayStateById])
+  const totalEnRetard = useMemo(() => activeList.filter(f => factureDisplayStateById[f.id]?.statut === 'en_retard').reduce((s, f) => s + (f.montant_ttc ?? f.montant_ht), 0), [activeList, factureDisplayStateById])
+  const totalAchatsHt = useMemo(() => activeSupplierInvoices.reduce((sum, facture) => sum + facture.montant_ht, 0), [activeSupplierInvoices])
+  const totalAchatsTtc = useMemo(() => activeSupplierInvoices.reduce((sum, facture) => sum + (facture.montant_ttc ?? facture.montant_ht), 0), [activeSupplierInvoices])
 
   const startOfMonth = useMemo(() => {
     const currentDate = new Date()
@@ -709,11 +864,11 @@ export default function Facturation() {
     const in30 = new Date(now)
     in30.setDate(in30.getDate() + 30)
     return list.filter(f =>
-      f.statut === 'envoyee' && f.date_echeance &&
+      factureDisplayStateById[f.id]?.statut === 'envoyee' && f.date_echeance &&
       new Date(f.date_echeance) <= in30 &&
       new Date(f.date_echeance) >= now
     ).sort((a, b) => (a.date_echeance! > b.date_echeance! ? 1 : -1))
-  }, [list])
+  }, [factureDisplayStateById, list])
 
   // TVA by rate breakdown
   const tvaByRate = useMemo(() => {
@@ -754,7 +909,8 @@ export default function Facturation() {
     const matchSearch =
       f.numero.toLowerCase().includes(search.toLowerCase()) ||
       (clientMap[f.client_id] ?? '').toLowerCase().includes(search.toLowerCase())
-    const matchStatut = filterStatut === 'tous' || f.statut === filterStatut
+    const displayStatut = factureDisplayStateById[f.id]?.statut ?? f.statut
+    const matchStatut = filterStatut === 'tous' || displayStatut === filterStatut
     return matchSearch && matchStatut
   })
 
@@ -762,7 +918,94 @@ export default function Facturation() {
     setForm(f => ({ ...f, [k]: v }))
   }
 
-  const clientOts = form.client_id ? ots.filter(o => o.client_id === form.client_id) : ots
+  function applyClientPaymentDefaults(clientId: string, dateEmission: string) {
+    const client = clients.find(item => item.id === clientId) ?? null
+    setForm(current => ({
+      ...current,
+      mode_paiement: client?.mode_paiement_defaut ?? null,
+      taux_tva: client?.taux_tva_defaut ?? current.taux_tva,
+      date_echeance: computeDateEcheance(client, dateEmission),
+    }))
+    setPaymentDefaultsLocked(true)
+    setDueDateDefaultsLocked(true)
+    setVatDefaultsLocked(true)
+  }
+
+  function syncOtSelectionToForm(otIds: string[]) {
+    setForm(current => {
+      const linkedOts = ots.filter(item => otIds.includes(item.id))
+      const autoMontantHt = linkedOts.reduce((sum, item) => sum + (item.prix_ht ?? 0), 0)
+      const shouldAutofillAmount = current.montant_ht <= 0 || current.montant_ht === lastAutoMontantHt
+      return {
+        ...current,
+        ot_id: otIds[0] ?? null,
+        montant_ht: shouldAutofillAmount ? autoMontantHt : current.montant_ht,
+      }
+    })
+    setSelectedOtIds(otIds)
+    setLastAutoMontantHt(otIds.length > 0 ? otIds.reduce((sum, otId) => sum + (ots.find(item => item.id === otId)?.prix_ht ?? 0), 0) : 0)
+  }
+
+  function resetInvoiceForm() {
+    setForm({
+      client_id: '',
+      ot_id: null,
+      montant_ht: 0,
+      taux_tva: 20,
+      date_emission: new Date().toISOString().split('T')[0],
+      date_echeance: null,
+      statut: 'brouillon',
+      mode_paiement: null,
+      notes: null,
+    })
+    setSelectedOtIds([])
+    setLastAutoMontantHt(null)
+    setPaymentDefaultsLocked(true)
+    setDueDateDefaultsLocked(true)
+    setVatDefaultsLocked(true)
+    setFormError(null)
+  }
+
+  function buildFallbackInvoiceNumber(dateEmission: string) {
+    const invoiceYear = parseIsoDate(dateEmission).getFullYear()
+    const prefix = `FA-${invoiceYear}-`
+    const maxForYear = list.reduce((currentMax, facture) => {
+      if (!facture.numero.startsWith(prefix)) return currentMax
+      const suffix = Number.parseInt(facture.numero.slice(prefix.length), 10)
+      return Number.isFinite(suffix) ? Math.max(currentMax, suffix) : currentMax
+    }, 0)
+    return `${prefix}${String(maxForYear + 1).padStart(4, '0')}`
+  }
+
+  function buildFallbackSupplierInvoiceNumber(dateFacture: string) {
+    const invoiceYear = parseIsoDate(dateFacture).getFullYear()
+    const prefix = `FF-${invoiceYear}-`
+    const maxForYear = supplierInvoices.reduce((currentMax, facture) => {
+      if (!facture.numero.startsWith(prefix)) return currentMax
+      const suffix = Number.parseInt(facture.numero.slice(prefix.length), 10)
+      return Number.isFinite(suffix) ? Math.max(currentMax, suffix) : currentMax
+    }, 0)
+    return `${prefix}${String(maxForYear + 1).padStart(4, '0')}`
+  }
+
+  async function openFacturePdf(facture: Pick<Facture, 'numero' | 'pdf_storage_bucket' | 'pdf_storage_path'>) {
+    if (!facture.pdf_storage_bucket || !facture.pdf_storage_path) return
+    const { data, error } = await supabase.storage.from(facture.pdf_storage_bucket).createSignedUrl(facture.pdf_storage_path, 60)
+    if (error) {
+      setActionError(`Impossible d'ouvrir le PDF : ${error.message}`)
+      return
+    }
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  const activeClientInvoiceIds = useMemo(
+    () => new Set(list.filter(f => f.statut !== 'annulee').map(f => f.id)),
+    [list],
+  )
+
+  const clientOts = form.client_id
+    ? ots.filter(o => o.client_id === form.client_id && (!o.facturation_id || !activeClientInvoiceIds.has(o.facturation_id)))
+    : []
 
   async function submit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -771,8 +1014,8 @@ export default function Facturation() {
       setFormError('La date d\'échéance ne peut pas être antérieure à la date d\'émission.')
       return
     }
-    if (form.ot_id) {
-      const contract = getAffretementContractByOtId(form.ot_id)
+    for (const otId of selectedOtIds) {
+      const contract = getAffretementContractByOtId(otId)
       if (contract) {
         const readiness = evaluateAffretementCompletionReadiness(contract)
         if (!readiness.readyForCompletion) {
@@ -782,15 +1025,88 @@ export default function Facturation() {
       }
     }
     setSaving(true)
-    const montant_tva = form.montant_ht * (form.taux_tva / 100)
-    const montant_ttc = form.montant_ht + montant_tva
-    const { error } = await supabase.from('factures').insert({ ...form, montant_tva, montant_ttc })
+    let insertPayload: typeof form & { numero?: string } = { ...form }
+    let { data: insertedFacture, error } = await supabase.from('factures').insert(insertPayload).select('id, numero').single()
+    if (error?.message.includes('factures_numero_key')) {
+      insertPayload = { ...form, numero: buildFallbackInvoiceNumber(form.date_emission) }
+      const retryResult = await supabase.from('factures').insert(insertPayload).select('id, numero').single()
+      insertedFacture = retryResult.data
+      error = retryResult.error
+    }
+    if (!error && insertedFacture && selectedOtIds.length > 0) {
+      const numeroFacturation = insertedFacture.numero
+      const { error: otUpdateError } = await supabase
+        .from('ordres_transport')
+        .update({ facturation_id: insertedFacture.id, numero_facturation: numeroFacturation })
+        .in('id', selectedOtIds)
+      if (otUpdateError) {
+        setSaving(false)
+        setFormError(`Facture créée, mais liaison OT impossible : ${otUpdateError.message}`)
+        return
+      }
+    }
+    if (!error && insertedFacture) {
+      try {
+        const linkedOtRefs = ots.filter(ot => selectedOtIds.includes(ot.id)).map(ot => ot.reference)
+        const amountTva = form.montant_ht * (form.taux_tva / 100)
+        const amountTtc = form.montant_ht + amountTva
+        const pdf = await buildInvoicePdf({
+          invoiceNumber: insertedFacture.numero,
+          clientName: clientMap[form.client_id] ?? 'Client',
+          issueDate: form.date_emission,
+          dueDate: form.date_echeance,
+          paymentMode: form.mode_paiement ? (MODE_PAIEMENT_LABELS[form.mode_paiement] ?? form.mode_paiement) : null,
+          amountHt: form.montant_ht,
+          vatRate: form.taux_tva,
+          amountTva,
+          amountTtc,
+          notes: form.notes,
+          otReferences: linkedOtRefs,
+        })
+
+        const storageBucket = 'factures-documents'
+        const storagePath = `${insertedFacture.numero.slice(3, 7)}/${insertedFacture.numero}.pdf`
+        const { error: uploadError } = await supabase.storage.from(storageBucket).upload(storagePath, pdf.blob, {
+          contentType: 'application/pdf',
+          upsert: true,
+        })
+        if (uploadError) throw uploadError
+
+        const { error: facturePdfError } = await supabase
+          .from('factures')
+          .update({
+            pdf_storage_bucket: storageBucket,
+            pdf_storage_path: storagePath,
+            pdf_generated_at: new Date().toISOString(),
+            pdf_sha256: pdf.checksum,
+          })
+          .eq('id', insertedFacture.id)
+        if (facturePdfError) throw facturePdfError
+
+        const downloadUrl = URL.createObjectURL(pdf.blob)
+        const link = document.createElement('a')
+        link.href = downloadUrl
+        link.download = pdf.fileName
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(downloadUrl)
+      } catch (pdfError) {
+        setSaving(false)
+        setShowForm(false)
+        resetInvoiceForm()
+        loadAll()
+        setActionError(`Facture créée, mais PDF impossible : ${pdfError instanceof Error ? pdfError.message : 'erreur inconnue'}`)
+        return
+      }
+    }
     setSaving(false)
     if (error) {
       setFormError(`Erreur lors de la création : ${error.message}`)
       return
     }
     setShowForm(false)
+    resetInvoiceForm()
     loadAll()
   }
 
@@ -810,6 +1126,7 @@ export default function Facturation() {
     setActionError(null)
     const extra: Record<string, string | null> = {}
     if (statut === 'payee') extra.date_paiement = new Date().toISOString().split('T')[0]
+    if (statut !== 'payee') extra.date_paiement = null
     const { error } = await supabase.from('factures').update({ statut, ...extra }).eq('id', f.id)
     if (error) {
       setActionError(`Impossible de mettre à jour le statut : ${error.message}`)
@@ -820,15 +1137,70 @@ export default function Facturation() {
     loadAll()
   }
 
-  async function del(id: string) {
-    if (!confirm('Supprimer cette facture ?')) return
-    setActionError(null)
-    const { error } = await supabase.from('factures').delete().eq('id', id)
-    if (error) {
-      setActionError(`Impossible de supprimer la facture : ${error.message}`)
+  async function cancelInvoice(facture: Facture) {
+    if (!confirm(`Annuler la facture ${facture.numero} ?`)) return
+    await updateStatut(facture, 'annulee')
+  }
+
+  async function submitSupplierInvoice(e: React.SyntheticEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setSupplierError(null)
+    if (supplierForm.date_echeance && supplierForm.date_echeance < supplierForm.date_facture) {
+      setSupplierError('La date d\'échéance fournisseur ne peut pas être antérieure à la date de facture.')
       return
     }
-    if (selected?.id === id) setSelected(null)
+    setSupplierSaving(true)
+    const montant_tva = supplierForm.montant_ht * (supplierForm.taux_tva / 100)
+    const numero = buildFallbackSupplierInvoiceNumber(supplierForm.date_facture)
+    const { error } = await supabase.from('compta_factures_fournisseurs').insert({
+      numero,
+      fournisseur_nom: supplierForm.fournisseur_nom,
+      date_facture: supplierForm.date_facture,
+      date_echeance: supplierForm.date_echeance,
+      montant_ht: supplierForm.montant_ht,
+      montant_tva,
+      statut: supplierForm.statut,
+      mode_paiement: supplierForm.mode_paiement,
+      notes: supplierForm.notes,
+      compte_charge_code: supplierForm.compte_charge_code,
+      compte_fournisseur_code: supplierForm.compte_fournisseur_code,
+      compte_tva_deductible_code: supplierForm.compte_tva_deductible_code,
+    })
+    setSupplierSaving(false)
+    if (error) {
+      setSupplierError(`Impossible de créer la facture fournisseur : ${error.message}`)
+      return
+    }
+    setShowSupplierForm(false)
+    setSupplierForm({
+      fournisseur_nom: '',
+      montant_ht: 0,
+      taux_tva: 20,
+      date_facture: new Date().toISOString().split('T')[0],
+      date_echeance: null,
+      statut: 'recu',
+      mode_paiement: null,
+      notes: null,
+      compte_charge_code: '606100',
+      compte_fournisseur_code: '401000',
+      compte_tva_deductible_code: '445660',
+    })
+    loadAll()
+  }
+
+  async function updateSupplierInvoiceStatut(facture: FactureFournisseur, statut: string) {
+    setActionError(null)
+    const extra: Record<string, string | null> = {}
+    if (statut === 'payee') extra.date_paiement = new Date().toISOString().split('T')[0]
+    if (statut === 'annulee') extra.date_paiement = null
+    const { error } = await supabase
+      .from('compta_factures_fournisseurs')
+      .update({ statut, ...extra })
+      .eq('id', facture.id)
+    if (error) {
+      setActionError(`Impossible de mettre à jour la facture fournisseur : ${error.message}`)
+      return
+    }
     loadAll()
   }
 
@@ -862,7 +1234,7 @@ export default function Facturation() {
       f.montant_ht.toFixed(2),
       (f.montant_tva ?? 0).toFixed(2),
       (f.montant_ttc ?? f.montant_ht).toFixed(2),
-      STATUT_LABELS[f.statut] ?? f.statut,
+      STATUT_LABELS[factureDisplayStateById[f.id]?.statut ?? f.statut] ?? factureDisplayStateById[f.id]?.statut ?? f.statut,
       f.mode_paiement ? (MODE_PAIEMENT_LABELS[f.mode_paiement] ?? f.mode_paiement) : '',
       f.notes ?? '',
     ])
@@ -931,13 +1303,24 @@ export default function Facturation() {
           <h2 className="text-2xl font-bold text-slate-800">Comptabilité</h2>
           <p className="text-slate-500 text-sm">{list.length} facture{list.length !== 1 ? 's' : ''} · CA {fmtEur(totalCA)}</p>
         </div>
-        {tab === 'factures' && (
+        {(tab === 'factures' || tab === 'fournisseurs') && (
           <div className="flex gap-2">
-            <button onClick={exportCSV} className="border border-slate-300 text-slate-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors">
+            {tab === 'factures' && <button onClick={exportCSV} className="border border-slate-300 text-slate-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors">
               ↓ CSV
-            </button>
-            <button onClick={() => setShowForm(true)} className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors">
-              + Nouvelle facture
+            </button>}
+            <button
+              onClick={() => {
+                if (tab === 'factures') {
+                  resetInvoiceForm()
+                  setShowForm(true)
+                } else {
+                  setSupplierError(null)
+                  setShowSupplierForm(true)
+                }
+              }}
+              className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors"
+            >
+              {tab === 'factures' ? '+ Nouvelle facture' : '+ Facture fournisseur'}
             </button>
           </div>
         )}
@@ -996,25 +1379,40 @@ export default function Facturation() {
                   </thead>
                   <tbody>
                     {filtered.map((f, i) => {
-                      const isLate = f.statut === 'envoyee' && f.date_echeance && new Date(f.date_echeance) < new Date()
+                      const displayState = factureDisplayStateById[f.id] ?? getFactureDisplayState(f)
                       return (
                         <tr key={f.id} onClick={() => setSelected(f)}
                           className={`border-t border-slate-100 cursor-pointer hover:bg-blue-50 transition-colors ${selected?.id === f.id ? 'bg-blue-50' : i % 2 !== 0 ? 'bg-slate-50' : ''}`}>
                           <td className="px-4 py-3 font-mono text-xs font-medium text-slate-700">{f.numero}</td>
                           <td className="px-4 py-3 text-slate-700">{clientMap[f.client_id] ?? '—'}</td>
                           <td className="px-4 py-3 text-slate-600">{new Date(f.date_emission).toLocaleDateString('fr-FR')}</td>
-                          <td className={`px-4 py-3 ${isLate ? 'text-red-600 font-semibold' : 'text-slate-600'}`}>
-                            {f.date_echeance ? new Date(f.date_echeance).toLocaleDateString('fr-FR') : '—'}
+                          <td className={`px-4 py-3 ${displayState.isLate ? 'text-red-600 font-semibold' : 'text-slate-600'}`}>
+                            <div className="flex flex-col">
+                              <span>{f.date_echeance ? new Date(f.date_echeance).toLocaleDateString('fr-FR') : '—'}</span>
+                              {displayState.retardJours > 0 && <span className="text-[11px] font-medium text-red-600">{displayState.retardJours} j de retard</span>}
+                            </div>
                           </td>
                           <td className="px-4 py-3 text-slate-700">{fmtEur(f.montant_ht)}</td>
                           <td className="px-4 py-3 font-medium text-slate-800">{f.montant_ttc != null ? fmtEur(f.montant_ttc) : '—'}</td>
                           <td className="px-4 py-3">
-                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUT_COLORS[f.statut] ?? 'bg-slate-100 text-slate-600'}`}>
-                              {STATUT_LABELS[f.statut] ?? f.statut}
+                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUT_COLORS[displayState.statut] ?? 'bg-slate-100 text-slate-600'}`}>
+                              {STATUT_LABELS[displayState.statut] ?? displayState.statut}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <button onClick={ev => { ev.stopPropagation(); del(f.id) }} className="text-xs text-slate-400 hover:text-red-500 transition-colors">Suppr.</button>
+                            <div className="flex items-center justify-end gap-2">
+                              <select
+                                value={f.statut}
+                                onClick={ev => ev.stopPropagation()}
+                                onChange={ev => { ev.stopPropagation(); void updateStatut(f, ev.target.value) }}
+                                className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600"
+                              >
+                                {Object.entries(STATUT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                              </select>
+                              {f.statut !== 'annulee' && (
+                                <button onClick={ev => { ev.stopPropagation(); void cancelInvoice(f) }} className="text-xs text-slate-400 hover:text-red-500 transition-colors">Annuler</button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       )
@@ -1033,9 +1431,14 @@ export default function Facturation() {
                     <p className="text-xs font-mono text-slate-400 mb-0.5">{selected.numero}</p>
                     <h3 className="text-lg font-bold text-slate-800">{clientMap[selected.client_id] ?? '—'}</h3>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUT_COLORS[selected.statut] ?? 'bg-slate-100 text-slate-600'}`}>
-                        {STATUT_LABELS[selected.statut] ?? selected.statut}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUT_COLORS[selectedDisplayState?.statut ?? selected.statut] ?? 'bg-slate-100 text-slate-600'}`}>
+                        {STATUT_LABELS[selectedDisplayState?.statut ?? selected.statut] ?? selectedDisplayState?.statut ?? selected.statut}
                       </span>
+                      {selectedDisplayState && selectedDisplayState.retardJours > 0 && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-50 text-red-600">
+                          {selectedDisplayState.retardJours} j de retard
+                        </span>
+                      )}
                     </div>
                   </div>
                   <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
@@ -1052,7 +1455,7 @@ export default function Facturation() {
                   </div>
                 </div>
                 <div className="p-5 grid grid-cols-2 gap-4 text-sm">
-                  <Info label="OT lié" value={selected.ot_id ? otMap[selected.ot_id] : null} />
+                  <Info label="OT lié" value={factureOtMap[selected.id]?.join(', ') ?? (selected.ot_id ? otMap[selected.ot_id] : null)} />
                   <Info label="Date d'émission" value={new Date(selected.date_emission).toLocaleDateString('fr-FR')} />
                   <Info label="Date d'échéance" value={selected.date_echeance ? new Date(selected.date_echeance).toLocaleDateString('fr-FR') : null} />
                   <Info label="Date de paiement" value={selected.date_paiement ? new Date(selected.date_paiement).toLocaleDateString('fr-FR') : null} />
@@ -1067,6 +1470,15 @@ export default function Facturation() {
                   {selected.notes && <div className="col-span-2"><span className="text-xs font-medium text-slate-500">Notes</span><p className="text-slate-600 mt-0.5">{selected.notes}</p></div>}
                   {(selected.statut === 'envoyee' || selected.statut === 'payee') && (
                     <div className="col-span-2 border-t pt-4 mt-1">
+                      {selected.pdf_storage_bucket && selected.pdf_storage_path && (
+                        <div className="mb-3 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                          <div>
+                            <p className="text-xs font-medium text-slate-600">PDF facture archivé</p>
+                            <p className="text-xs text-slate-400">Document numéroté généré pour le suivi</p>
+                          </div>
+                          <button onClick={() => void openFacturePdf(selected)} className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition-colors">Ouvrir le PDF</button>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-xs font-medium text-slate-500">Écriture comptable</p>
                         <button
@@ -1625,6 +2037,59 @@ export default function Facturation() {
         </div>
       )}
 
+      {tab === 'fournisseurs' && (
+        <div className="space-y-5">
+          <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+            Le rapprochement bancaire automatique client et fournisseur sera consolidé ici avec la trésorerie. La base existe déjà côté rapprochements bancaires et statuts de paiement.
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <MiniStat label="Factures fournisseur" value={String(supplierInvoices.length)} color="slate" />
+            <MiniStat label="Achats HT" value={fmtEur(totalAchatsHt)} color="amber" />
+            <MiniStat label="Achats TTC" value={fmtEur(totalAchatsTtc)} color="red" />
+            <MiniStat label="A payer" value={fmtEur(supplierInvoices.filter(f => ['recu', 'validee'].includes(f.statut)).reduce((sum, f) => sum + (f.montant_ttc ?? f.montant_ht), 0))} color="blue" />
+          </div>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            {loading ? (
+              <div className="p-8 text-center text-slate-400 text-sm">Chargement...</div>
+            ) : supplierInvoices.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-sm">Aucune facture fournisseur enregistrée.</div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    {['Numéro', 'Fournisseur', 'Date', 'Échéance', 'HT', 'TTC', 'Statut', 'Mode paiement'].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {supplierInvoices.map((f, index) => (
+                    <tr key={f.id} className={`border-t border-slate-100 ${index % 2 !== 0 ? 'bg-slate-50' : ''}`}>
+                      <td className="px-4 py-3 font-mono text-xs font-medium text-slate-700">{f.numero}</td>
+                      <td className="px-4 py-3 text-slate-700">{f.fournisseur_nom}</td>
+                      <td className="px-4 py-3 text-slate-600">{new Date(f.date_facture).toLocaleDateString('fr-FR')}</td>
+                      <td className="px-4 py-3 text-slate-600">{f.date_echeance ? new Date(f.date_echeance).toLocaleDateString('fr-FR') : '—'}</td>
+                      <td className="px-4 py-3 text-slate-700">{fmtEur(f.montant_ht)}</td>
+                      <td className="px-4 py-3 font-medium text-slate-800">{fmtEur(f.montant_ttc ?? f.montant_ht)}</td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={f.statut}
+                          onChange={ev => void updateSupplierInvoiceStatut(f, ev.target.value)}
+                          className={`rounded-md border px-2 py-1 text-xs font-medium ${FOURN_STATUT_COLORS[f.statut] ?? 'bg-slate-100 text-slate-600'}`}
+                        >
+                          {Object.entries(FOURN_STATUT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{f.mode_paiement ? (MODE_PAIEMENT_LABELS[f.mode_paiement] ?? f.mode_paiement) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ══ TAB: TARIFS TRANSPORT ══════════════════════════════════════════════ */}
       {tab === 'tarifs' && <TarifsTransportTab clients={clients} />}
 
@@ -1674,49 +2139,92 @@ export default function Facturation() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b">
               <h3 className="text-base font-semibold">Nouvelle facture</h3>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+              <button onClick={() => { setShowForm(false); resetInvoiceForm() }} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
             <form onSubmit={submit} className="p-5">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <Field label="Client *">
-                    <select className={inp} value={form.client_id} onChange={e => { setF('client_id', e.target.value); setF('ot_id', null); setFormError(null) }} required>
+                    <select className={inp} value={form.client_id} onChange={e => {
+                      const clientId = e.target.value
+                      setF('client_id', clientId)
+                      syncOtSelectionToForm([])
+                      applyClientPaymentDefaults(clientId, form.date_emission)
+                      setFormError(null)
+                    }} required>
                       <option value="">Sélectionner un client</option>
                       {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
                     </select>
                   </Field>
                 </div>
+                {selectedClient && (
+                  <div className="col-span-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    Paiement client par défaut : {selectedClient.mode_paiement_defaut ? (MODE_PAIEMENT_LABELS[selectedClient.mode_paiement_defaut] ?? selectedClient.mode_paiement_defaut) : 'Non renseigné'} · TVA {selectedClient.taux_tva_defaut ?? form.taux_tva}% · {selectedClient.conditions_paiement ?? 0} j · {selectedClient.type_echeance ? (TYPE_ECHEANCE_LABELS[selectedClient.type_echeance] ?? selectedClient.type_echeance) : 'Standard'}{selectedClient.type_echeance === 'jour_fixe' && selectedClient.jour_echeance ? ` (${selectedClient.jour_echeance})` : ''}
+                    <span className="ml-2 text-slate-400">{paymentDefaultsLocked && dueDateDefaultsLocked && vatDefaultsLocked ? 'Auto-appliqué' : 'Modifié sur cette facture'}</span>
+                  </div>
+                )}
                 <div className="col-span-2">
-                  <Field label="OT lié (optionnel)">
-                    <select className={inp} value={form.ot_id ?? ''} onChange={e => { setF('ot_id', e.target.value || null); setFormError(null) }}>
-                      <option value="">— Aucun OT</option>
-                      {clientOts.map(o => {
-                        const contract = getAffretementContractByOtId(o.id)
-                        const readiness = contract ? evaluateAffretementCompletionReadiness(contract) : null
-                        const blocked = Boolean(contract && !readiness?.readyForCompletion)
-                        return (
-                          <option key={o.id} value={o.id} disabled={blocked}>
-                            {contract ? '[AFF] ' : ''}{o.reference}{blocked ? ' (statuts incomplets)' : ''}
-                          </option>
-                        )
-                      })}
-                    </select>
+                  <Field label="OT liés (optionnel)">
+                    <div className={`rounded-lg border ${!form.client_id ? 'bg-slate-50 border-slate-200' : 'border-slate-200'} px-3 py-2`}>
+                      {!form.client_id ? (
+                        <p className="text-sm text-slate-400">Sélectionner d'abord un client</p>
+                      ) : clientOts.length === 0 ? (
+                        <p className="text-sm text-slate-400">Aucun OT disponible pour ce client</p>
+                      ) : (
+                        <div className="max-h-44 space-y-2 overflow-y-auto pr-1">
+                          {clientOts.map(o => {
+                            const contract = getAffretementContractByOtId(o.id)
+                            const readiness = contract ? evaluateAffretementCompletionReadiness(contract) : null
+                            const blocked = Boolean(contract && !readiness?.readyForCompletion)
+                            return (
+                              <label key={o.id} className={`flex items-start gap-3 rounded-lg border px-3 py-2 text-sm ${blocked ? 'border-slate-100 bg-slate-50 text-slate-400' : 'border-slate-200 hover:bg-slate-50 text-slate-700'}`}>
+                                <input
+                                  type="checkbox"
+                                  className="mt-0.5"
+                                  checked={selectedOtIds.includes(o.id)}
+                                  disabled={blocked}
+                                  onChange={e => {
+                                    const nextOtIds = e.target.checked
+                                      ? [...selectedOtIds, o.id]
+                                      : selectedOtIds.filter(id => id !== o.id)
+                                    syncOtSelectionToForm(nextOtIds)
+                                    setFormError(null)
+                                  }}
+                                />
+                                <span className="flex-1">
+                                  <span className="block font-medium">{contract ? '[AFF] ' : ''}{o.reference}</span>
+                                  <span className="block text-xs text-slate-500">
+                                    {o.prix_ht != null ? `${fmtEur(o.prix_ht)} HT` : 'Prix HT non renseigné'}{blocked ? ' · statuts incomplets' : ''}
+                                  </span>
+                                </span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </Field>
                 </div>
                 {formError && <div className="col-span-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm text-red-600">{formError}</div>}
                 <Field label="Montant HT (€) *">
-                  <input className={inp} type="number" step="0.01" value={form.montant_ht || ''} onChange={e => setF('montant_ht', parseFloat(e.target.value) || 0)} required />
+                  <input className={inp} type="number" step="0.01" value={form.montant_ht || ''} onChange={e => { setF('montant_ht', parseFloat(e.target.value) || 0); setLastAutoMontantHt(null) }} required />
                 </Field>
                 <Field label="TVA (%)">
-                  <select className={inp} value={form.taux_tva} onChange={e => setF('taux_tva', parseFloat(e.target.value))}>
+                  <select className={inp} value={form.taux_tva} onChange={e => { setVatDefaultsLocked(false); setF('taux_tva', parseFloat(e.target.value)) }}>
                     {TAUX_TVA_OPTIONS.map(t => <option key={t} value={t}>{t} %</option>)}
                   </select>
                 </Field>
                 <Field label="Date d'émission">
-                  <input className={inp} type="date" value={form.date_emission} onChange={e => setF('date_emission', e.target.value)} />
+                  <input className={inp} type="date" value={form.date_emission} onChange={e => {
+                    const nextDate = e.target.value
+                    setF('date_emission', nextDate)
+                    if (dueDateDefaultsLocked) {
+                      setF('date_echeance', computeDateEcheance(selectedClient, nextDate))
+                    }
+                  }} />
                 </Field>
                 <Field label="Date d'échéance">
-                  <input className={inp} type="date" value={form.date_echeance ?? ''} onChange={e => setF('date_echeance', e.target.value || null)} />
+                  <input className={inp} type="date" value={form.date_echeance ?? ''} onChange={e => { setDueDateDefaultsLocked(false); setF('date_echeance', e.target.value || null) }} />
                 </Field>
                 <Field label="Statut">
                   <select className={inp} value={form.statut} onChange={e => setF('statut', e.target.value)}>
@@ -1724,7 +2232,7 @@ export default function Facturation() {
                   </select>
                 </Field>
                 <Field label="Mode de paiement">
-                  <select className={inp} value={form.mode_paiement ?? ''} onChange={e => setF('mode_paiement', e.target.value || null)}>
+                  <select className={inp} value={form.mode_paiement ?? ''} onChange={e => { setPaymentDefaultsLocked(false); setF('mode_paiement', e.target.value || null) }}>
                     <option value="">—</option>
                     {Object.entries(MODE_PAIEMENT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
@@ -1741,9 +2249,73 @@ export default function Facturation() {
                 )}
               </div>
               <div className="flex justify-end gap-3 mt-5 pt-4 border-t">
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>
+                <button type="button" onClick={() => { setShowForm(false); resetInvoiceForm() }} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>
                 <button type="submit" disabled={saving} className="px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50">
                   {saving ? 'Enregistrement...' : 'Créer la facture'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showSupplierForm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h3 className="text-base font-semibold">Nouvelle facture fournisseur</h3>
+              <button onClick={() => { setShowSupplierForm(false); setSupplierError(null) }} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            <form onSubmit={submitSupplierInvoice} className="p-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <Field label="Fournisseur *">
+                    <input className={inp} value={supplierForm.fournisseur_nom} onChange={e => setSupplierForm(current => ({ ...current, fournisseur_nom: e.target.value }))} required />
+                  </Field>
+                </div>
+                {supplierError && <div className="col-span-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm text-red-600">{supplierError}</div>}
+                <Field label="Montant HT (€) *">
+                  <input className={inp} type="number" step="0.01" value={supplierForm.montant_ht || ''} onChange={e => setSupplierForm(current => ({ ...current, montant_ht: parseFloat(e.target.value) || 0 }))} required />
+                </Field>
+                <Field label="TVA (%)">
+                  <select className={inp} value={supplierForm.taux_tva} onChange={e => setSupplierForm(current => ({ ...current, taux_tva: parseFloat(e.target.value) }))}>
+                    {TAUX_TVA_OPTIONS.map(t => <option key={t} value={t}>{t} %</option>)}
+                  </select>
+                </Field>
+                <Field label="Date de facture">
+                  <input className={inp} type="date" value={supplierForm.date_facture} onChange={e => setSupplierForm(current => ({ ...current, date_facture: e.target.value }))} />
+                </Field>
+                <Field label="Date d'échéance">
+                  <input className={inp} type="date" value={supplierForm.date_echeance ?? ''} onChange={e => setSupplierForm(current => ({ ...current, date_echeance: e.target.value || null }))} />
+                </Field>
+                <Field label="Statut">
+                  <select className={inp} value={supplierForm.statut} onChange={e => setSupplierForm(current => ({ ...current, statut: e.target.value }))}>
+                    {Object.entries(FOURN_STATUT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </Field>
+                <Field label="Mode de paiement">
+                  <select className={inp} value={supplierForm.mode_paiement ?? ''} onChange={e => setSupplierForm(current => ({ ...current, mode_paiement: e.target.value || null }))}>
+                    <option value="">—</option>
+                    {Object.entries(MODE_PAIEMENT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </Field>
+                <div className="col-span-2">
+                  <Field label="Notes">
+                    <textarea className={`${inp} resize-none h-16`} value={supplierForm.notes ?? ''} onChange={e => setSupplierForm(current => ({ ...current, notes: e.target.value || null }))} />
+                  </Field>
+                </div>
+                {supplierForm.montant_ht > 0 && (
+                  <div className="col-span-2 bg-slate-50 rounded-lg p-3 text-sm">
+                    <div className="flex justify-between text-slate-600"><span>HT</span><span>{fmtEur(supplierForm.montant_ht)}</span></div>
+                    <div className="flex justify-between text-slate-600"><span>TVA {supplierForm.taux_tva}%</span><span>{fmtEur(supplierForm.montant_ht * supplierForm.taux_tva / 100)}</span></div>
+                    <div className="flex justify-between font-bold text-slate-800 border-t pt-1.5 mt-1.5"><span>TTC</span><span>{fmtEur(supplierForm.montant_ht * (1 + supplierForm.taux_tva / 100))}</span></div>
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end gap-3 mt-5 pt-4 border-t">
+                <button type="button" onClick={() => { setShowSupplierForm(false); setSupplierError(null) }} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>
+                <button type="submit" disabled={supplierSaving} className="px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50">
+                  {supplierSaving ? 'Enregistrement...' : 'Créer la facture fournisseur'}
                 </button>
               </div>
             </form>

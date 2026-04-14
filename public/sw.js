@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nexora-truck-v1-6-1'
+const CACHE_NAME = 'nexora-truck-v1-6-2'
 const APP_SHELL = ['/', '/index.html', '/site.webmanifest', '/favicon.svg', '/pwa-192.png', '/pwa-512.png']
 
 self.addEventListener('install', event => {
@@ -23,6 +23,22 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url)
   if (url.origin !== self.location.origin) return
 
+  // Vite hashed assets should be served from network first to avoid stale chunk loading.
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          if (response.ok) {
+            const responseClone = response.clone()
+            void caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone))
+          }
+          return response
+        })
+        .catch(() => caches.match(event.request)),
+    )
+    return
+  }
+
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
@@ -36,19 +52,35 @@ self.addEventListener('fetch', event => {
     return
   }
 
-  event.respondWith(
-    caches.match(event.request).then(cachedResponse => {
-      const networkResponse = fetch(event.request)
-        .then(response => {
-          if (response.ok) {
-            const responseClone = response.clone()
-            void caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone))
-          }
-          return response
-        })
-        .catch(() => cachedResponse)
+  if (APP_SHELL.includes(url.pathname)) {
+    event.respondWith(
+      caches.match(event.request).then(cachedResponse => {
+        const networkResponse = fetch(event.request)
+          .then(response => {
+            if (response.ok) {
+              const responseClone = response.clone()
+              void caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone))
+            }
+            return response
+          })
+          .catch(() => cachedResponse)
 
-      return cachedResponse ?? networkResponse
-    }),
+        return cachedResponse ?? networkResponse
+      }),
+    )
+    return
+  }
+
+  // Default: network first for API-like/static requests to reduce stale data risk.
+  event.respondWith(
+    fetch(event.request)
+      .then(response => {
+        if (response.ok) {
+          const responseClone = response.clone()
+          void caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone))
+        }
+        return response
+      })
+      .catch(() => caches.match(event.request))
   )
 })

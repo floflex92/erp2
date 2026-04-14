@@ -132,30 +132,30 @@ const TRANSPORT_STATUS_COLORS: Record<string, string> = {
 }
 
 const STATUT_OPS_LABELS: Record<string, { label: string; cls: string }> = {
-  a_l_heure:       { label: "À l'heure",      cls: 'bg-green-100 text-green-700 border-green-200' },
-  retard_mineur:   { label: 'Retard < 2h',     cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+  a_l_heure:       { label: "À l'heure",      cls: 'bg-slate-100 text-slate-700 border-slate-200' },
+  retard_mineur:   { label: 'Retard < 2h',     cls: 'bg-slate-100 text-slate-700 border-slate-200' },
   retard_majeur:   { label: 'Retard > 2h',     cls: 'bg-red-100 text-red-700 border-red-200' },
   en_attente:      { label: 'En attente',       cls: 'bg-slate-100 text-slate-600 border-slate-200' },
   prise_en_charge: { label: 'Prise en charge', cls: 'bg-blue-100 text-blue-700 border-blue-200' },
-  termine:         { label: 'Terminé',          cls: 'bg-slate-100 text-slate-500 border-slate-200' },
+  termine:         { label: 'Terminé',          cls: 'bg-slate-100 text-slate-700 border-slate-200' },
 }
 
 const STATUT_OPS_CONFIG: Record<string, { label: string; cls: string }> = {
-  retard_mineur: { label: 'Retard mineur', cls: 'bg-amber-100 text-amber-700 border-amber-300' },
+  retard_mineur: { label: 'Retard mineur', cls: 'bg-slate-100 text-slate-700 border-slate-300' },
   retard_majeur: { label: 'Retard majeur', cls: 'bg-red-100 text-red-700 border-red-300' },
 }
 
 const PRIORITE_CONFIG: Record<string, { label: string; dot: string; badge: string }> = {
   critique: { label: 'Critique', dot: 'bg-red-500',   badge: 'bg-red-100 text-red-700 border-red-200' },
-  elevee:   { label: 'Élevée',   dot: 'bg-amber-500', badge: 'bg-amber-100 text-amber-700 border-amber-200' },
-  normale:  { label: 'Normale',  dot: 'bg-blue-400',  badge: 'bg-blue-50 text-blue-700 border-blue-200' },
+  elevee:   { label: 'Élevée',   dot: 'bg-slate-400', badge: 'bg-slate-100 text-slate-700 border-slate-200' },
+  normale:  { label: 'Normale',  dot: 'bg-slate-400',  badge: 'bg-slate-100 text-slate-700 border-slate-200' },
 }
 
 const STATUT_IMP_CONFIG: Record<string, { label: string; cls: string }> = {
   ouvert:   { label: 'Ouvert',   cls: 'bg-red-100 text-red-700' },
-  en_cours: { label: 'En cours', cls: 'bg-amber-100 text-amber-700' },
-  resolu:   { label: 'Résolu',   cls: 'bg-green-100 text-green-700' },
-  clos:     { label: 'Clos',     cls: 'bg-slate-100 text-slate-500' },
+  en_cours: { label: 'En cours', cls: 'bg-blue-100 text-blue-700' },
+  resolu:   { label: 'Résolu',   cls: 'bg-slate-100 text-slate-700' },
+  clos:     { label: 'Clos',     cls: 'bg-slate-100 text-slate-600' },
 }
 
 const TYPES_LABELS: Record<string, string> = {
@@ -235,9 +235,9 @@ function InfoCell({ label, value, alert = false }: { label: string; value: strin
 
 function KpiCard({ label, value, tone }: { label: string; value: number; tone: 'blue' | 'green' | 'amber' | 'red' | 'slate' }) {
   const colors: Record<string, string> = {
-    blue:  'text-blue-700 bg-blue-50 border-blue-100',
-    green: 'text-green-700 bg-green-50 border-green-100',
-    amber: 'text-amber-700 bg-amber-50 border-amber-100',
+    blue:  'text-slate-800 bg-white border-slate-200',
+    green: 'text-slate-800 bg-slate-50 border-slate-200',
+    amber: 'text-slate-800 bg-slate-50 border-slate-200',
     red:   'text-red-700 bg-red-50 border-red-100',
     slate: 'text-slate-700 bg-slate-50 border-slate-200',
   }
@@ -332,12 +332,12 @@ function ImprevuCard({ imp, onUpdate }: { imp: Imprevu; onUpdate: (id: string, p
 function Section({ label, count, color, children }: {
   label: string; count: number; color: 'red' | 'amber' | 'slate'; children: React.ReactNode
 }) {
-  const badgeCls = { red: 'bg-red-100 text-red-700', amber: 'bg-amber-100 text-amber-700', slate: 'bg-slate-100 text-slate-600' }[color]
+  const normalizedBadgeCls = color === 'red' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'
   return (
     <div className="rounded-2xl border bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center gap-2">
         <h2 className="font-semibold text-slate-800">{label}</h2>
-        {count > 0 && <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${badgeCls}`}>{count}</span>}
+        {count > 0 && <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${normalizedBadgeCls}`}>{count}</span>}
       </div>
       {children}
     </div>
@@ -347,7 +347,7 @@ function Section({ label, count, color, children }: {
 function EmptyState({ text }: { text: string }) {
   return (
     <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-xs text-slate-400">
-      <svg className="h-4 w-4 flex-shrink-0 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M20 6 9 17l-5-5" /></svg>
+      <svg className="h-4 w-4 flex-shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M20 6 9 17l-5-5" /></svg>
       {text}
     </div>
   )
@@ -639,15 +639,15 @@ export default function OpsCenter() {
           }`}
         >
           <p className="text-lg font-bold">{nbImprevus}</p>
-          <p className="text-xs opacity-75">Imprévus actifs</p>
+          <p className="text-xs opacity-75">Alertes actives</p>
         </button>
       </div>
 
       {/* Onglets */}
       <div className="flex-shrink-0 flex items-center gap-0 border-b px-4" style={{ borderColor: 'var(--border)' }}>
         {([
-          { key: 'missions' as const, label: 'Missions actives', badge: missions.length > 0 ? missions.length : null, badgeCls: 'bg-blue-100 text-blue-700' },
-          { key: 'imprevu'  as const, label: 'Imprévus',        badge: nbImprevus > 0 ? nbImprevus : null,           badgeCls: 'bg-red-100 text-red-700' },
+          { key: 'missions' as const, label: 'Missions actives', badge: missions.length > 0 ? missions.length : null, badgeCls: 'bg-slate-100 text-slate-700' },
+          { key: 'imprevu'  as const, label: 'Alertes',         badge: nbImprevus > 0 ? nbImprevus : null,           badgeCls: 'bg-red-100 text-red-700' },
         ]).map(tab => (
           <button
             key={tab.key}
@@ -897,7 +897,7 @@ export default function OpsCenter() {
         </div>
       )}
 
-      {/* ── ONGLET IMPRÉVUS ── */}
+      {/* ── ONGLET ALERTES ── */}
       {activeTab === 'imprevu' && (
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">

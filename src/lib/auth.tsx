@@ -69,7 +69,7 @@ export const ROLE_ACCESS: Record<Role, string[]> = {
   admin: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'entretiens-salaries', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'super-admin', 'reglements', 'tresorerie', 'analytique-transport', 'ops-center', 'compte-client-db'],
   super_admin: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'entretiens-salaries', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'super-admin', 'reglements', 'tresorerie', 'analytique-transport', 'ops-center', 'compte-client-db'],
   dirigeant: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'entretiens-salaries', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'reglements', 'tresorerie', 'analytique-transport', 'ops-center', 'compte-client-db'],
-  exploitant: ['dashboard', 'ops-center', 'tasks', 'chauffeurs', 'entretiens-salaries', 'vehicules', 'remorques', 'equipements', 'transports', 'entrepots', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'demandes-clients', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
+  exploitant: ['dashboard', 'ops-center', 'tasks', 'chauffeurs', 'rh', 'entretiens-salaries', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'reglements', 'analytique-transport', 'compte-client-db', 'espace-client', 'espace-affreteur', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'demandes-clients', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   mecanicien: ['tasks', 'vehicules', 'remorques', 'equipements', 'maintenance', 'frais', 'tachygraphe', 'parametres', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   commercial: ['dashboard', 'tasks', 'transports', 'clients', 'facturation', 'frais', 'prospection', 'demandes-clients', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'reglements', 'analytique-transport'],
   comptable: ['dashboard', 'tasks', 'facturation', 'comptabilite', 'paie', 'frais', 'clients', 'amendes', 'demandes-clients', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'reglements', 'tresorerie', 'analytique-transport'],
@@ -87,6 +87,10 @@ export const ROLE_ACCESS: Record<Role, string[]> = {
   investisseur: ['dashboard', 'transports', 'clients', 'facturation', 'communication', 'inter-erp', 'coffre', 'mentions-legales', 'analytique-transport'],
   logisticien: ['dashboard', 'ops-center', 'tasks', 'entrepots', 'transports', 'planning', 'map-live', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
 }
+
+export const ALL_ROLE_ACCESS_PAGES = Array.from(new Set(Object.values(ROLE_ACCESS).flat()))
+
+ROLE_ACCESS.dirigeant = [...ALL_ROLE_ACCESS_PAGES]
 
 export const CHAT_BLOCKED_PAIRS: [Role, Role][] = [
   ['conducteur', 'client'],
@@ -107,7 +111,7 @@ export function canAccess(
 ): boolean {
   if (!role) return false
   if (!(ROLE_ACCESS[role]?.includes(page) ?? false)) return false
-  if (role === 'admin' || role === 'super_admin') return true
+  if (role === 'admin' || role === 'super_admin' || role === 'dirigeant' || role === 'exploitant') return true
   // Verifie que le module auquel appartient la page est actif pour le tenant
   if (enabledModules && enabledModules.length > 0) {
     const moduleForPage = (Object.entries(MODULE_TO_PAGES) as [TenantModule, string[]][]).find(
@@ -176,7 +180,16 @@ function normalizeAllowedPages(value: unknown): string[] | null {
     .filter((item): item is string => typeof item === 'string')
     .map(item => item.trim())
     .filter(Boolean)
-  return items.length > 0 ? Array.from(new Set(items)) : null
+  if (items.length === 0) return null
+
+  const normalized = new Set(items)
+  // Compatibilite ascendante: les tenants historiques pouvaient autoriser les vues
+  // generiques sans inclure les vues dediees conducteur ajoutees plus tard.
+  if (normalized.has('dashboard')) normalized.add('dashboard-conducteur')
+  if (normalized.has('planning')) normalized.add('planning-conducteur')
+  if (normalized.has('frais')) normalized.add('frais-rapide')
+
+  return Array.from(normalized)
 }
 
 function normalizeRoleToken(value: string): string {

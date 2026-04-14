@@ -1,8 +1,11 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { looseSupabase } from '@/lib/supabaseLoose'
 import { ST_PLANIFIE, ST_EN_COURS } from '@/lib/transportCourses'
 import type { Tables, TablesInsert } from '@/lib/database.types'
 import { INTERVIEW_STATUS_LABELS, listInterviewsForEmployee, type InterviewRow } from '@/lib/hrInterviewsModule'
+import type { Service } from '@/domains/services/domain'
+import type { Exploitant } from '@/domains/exploitants/domain'
 
 type Conducteur = Tables<'conducteurs'>
 type Vehicule = Tables<'vehicules'>
@@ -126,6 +129,9 @@ const EMPTY_AFF: TablesInsert<'affectations'> & { conducteur_id: string } = {
   date_debut: null,
   date_fin: null,
   notes: null,
+  exploitant_responsable_id: null,
+  motif_affectation: null,
+  est_exclusive: false,
 }
 
 const EMPTY_EVENT: RhEventForm = {
@@ -178,13 +184,18 @@ export default function Chauffeurs() {
   const [affModal, setAffModal] = useState<string | null>(null) // conducteur_id
   const [affForm, setAffForm] = useState(EMPTY_AFF)
   const [affSaving, setAffSaving] = useState(false)
+  const [affConducteurServiceId, setAffConducteurServiceId] = useState<string | null>(null)
+
+  // Services & Exploitants (chargés au mount)
+  const [services, setServices] = useState<Service[]>([])
+  const [exploitants, setExploitants] = useState<Exploitant[]>([])
 
   async function load() {
     setLoading(true)
     setError(null)
 
     try {
-      const [condRes, vehRes, remRes, affRes, otRes] = await Promise.all([
+      const [condRes, vehRes, remRes, affRes, otRes, svcRes, expRes] = await Promise.all([
         supabase.from('conducteurs').select('*').order('nom').order('prenom'),
         supabase.from('vehicules').select('*').order('immatriculation'),
         supabase.from('remorques').select('*').order('immatriculation'),
@@ -195,6 +206,16 @@ export default function Chauffeurs() {
           .in('statut_transport', [...ST_PLANIFIE, ...ST_EN_COURS])
           .not('conducteur_id', 'is', null)
           .order('date_chargement_prevue', { ascending: true, nullsFirst: false }),
+        looseSupabase
+          .from('services')
+          .select('id,company_id,name,code,color,visual_marker,parent_service_id,is_active,created_at,updated_at,archived_at,description')
+          .eq('is_active', true)
+          .order('name'),
+        looseSupabase
+          .from('exploitants')
+          .select('id,company_id,service_id,profil_id,name,type_exploitant,company_department,is_manager,manager_level,is_active,created_at,updated_at,archived_at')
+          .eq('is_active', true)
+          .order('name'),
       ])
 
       if (condRes.error) throw condRes.error
@@ -224,6 +245,8 @@ export default function Chauffeurs() {
       setRemorques(remRes.data ?? [])
       setAffectations(affRes.data ?? [])
       setActiveOrdersByConducteur(groupedOrders)
+      setServices((svcRes.data as Service[] | null) ?? [])
+      setExploitants((expRes.data as Exploitant[] | null) ?? [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Chargement impossible.')
     } finally {
@@ -485,9 +508,21 @@ export default function Chauffeurs() {
     resetFeedback()
     const existing = currentAff(c.id)
     setAffForm(existing
-      ? { conducteur_id: c.id, vehicule_id: existing.vehicule_id, remorque_id: existing.remorque_id, type_affectation: existing.type_affectation, date_debut: existing.date_debut, date_fin: existing.date_fin, notes: existing.notes }
+      ? {
+          conducteur_id: c.id,
+          vehicule_id: existing.vehicule_id,
+          remorque_id: existing.remorque_id,
+          type_affectation: existing.type_affectation,
+          date_debut: existing.date_debut,
+          date_fin: existing.date_fin,
+          notes: existing.notes,
+          exploitant_responsable_id: existing.exploitant_responsable_id,
+          motif_affectation: existing.motif_affectation,
+          est_exclusive: existing.est_exclusive ?? false,
+        }
       : { ...EMPTY_AFF, conducteur_id: c.id }
     )
+    setAffConducteurServiceId(c.primary_service_id ?? null)
     setAffModal(c.id)
   }
 
@@ -548,6 +583,11 @@ export default function Chauffeurs() {
 
     // Si camion ET remorque vides → juste désaffectation
     if (!affForm.vehicule_id && !affForm.remorque_id) {
+      // Mettre à jour le service du conducteur si modifié
+      const conducteur = list.find(c => c.id === affModal)
+      if (conducteur && affConducteurServiceId !== (conducteur.primary_service_id ?? null)) {
+        await supabase.from('conducteurs').update({ primary_service_id: affConducteurServiceId }).eq('id', affModal)
+      }
       setAffSaving(false)
       setNotice('Affectation retiree.')
       setAffModal(null)
@@ -557,12 +597,22 @@ export default function Chauffeurs() {
 
     const { error: insertError } = await supabase
       .from('affectations')
-      .insert({ ...affForm, conducteur_id: affModal, actif: true })
+      .insert({
+        ...affForm,
+        conducteur_id: affModal,
+        actif: true,
+      })
 
     if (insertError) {
       setAffSaving(false)
       setError(insertError.message)
       return
+    }
+
+    // Mettre à jour le service du conducteur si modifié
+    const conducteur = list.find(c => c.id === affModal)
+    if (conducteur && affConducteurServiceId !== (conducteur.primary_service_id ?? null)) {
+      await supabase.from('conducteurs').update({ primary_service_id: affConducteurServiceId }).eq('id', affModal)
     }
 
     setAffSaving(false)
@@ -797,12 +847,24 @@ export default function Chauffeurs() {
                 const rem = aff?.remorque_id ? remMap[aff.remorque_id] : null
                 const otList = activeOrdersByConducteur[c.id] ?? []
                 const firstOt = otList[0] ?? null
+                const svcConducteur = services.find(s => s.id === c.primary_service_id) ?? null
+                const expCond = aff?.exploitant_responsable_id
+                  ? exploitants.find(ex => ex.id === aff.exploitant_responsable_id)
+                  : null
                 return (
                   <tr key={c.id} className={`border-t border-slate-100 ${i % 2 !== 0 ? 'bg-slate-50' : ''}`}>
                     <td className="px-4 py-3">
                       <div className="font-medium text-slate-800">{c.nom} {c.prenom}</div>
                       <div className="text-xs text-slate-400">Ne le {formatDate(c.date_naissance)}</div>
                       {c.matricule && <div className="text-xs text-slate-400 font-mono mt-0.5">{c.matricule}</div>}
+                      {svcConducteur && (
+                        <span
+                          className="mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-medium text-white"
+                          style={{ backgroundColor: svcConducteur.color ?? '#475569' }}
+                        >
+                          {svcConducteur.code ? svcConducteur.code : svcConducteur.name}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-slate-700">{c.poste ?? 'Poste non renseigne'}</div>
@@ -863,16 +925,24 @@ export default function Chauffeurs() {
                         ? <p className="text-xs text-slate-500 leading-relaxed line-clamp-3 whitespace-pre-line">{c.preferences}</p>
                         : <span className="text-xs text-slate-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 min-w-[160px]">
+                    <td className="px-4 py-3 min-w-[180px]">
                       {aff ? (
-                        <div>
+                        <div className="space-y-1">
                           {veh && <div className="text-slate-700 font-medium">{veh.immatriculation}</div>}
                           {rem && <div className="text-slate-500 text-xs">{rem.immatriculation}</div>}
-                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block ${aff.type_affectation === 'fixe' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                            {aff.type_affectation === 'fixe' ? 'Fixe' : 'Temporaire'}
-                          </span>
+                          <div className="flex flex-wrap gap-1 mt-0.5">
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${aff.type_affectation === 'fixe' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                              {aff.type_affectation === 'fixe' ? 'Fixe' : 'Temp.'}
+                            </span>
+                            {aff.est_exclusive && (
+                              <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-violet-100 text-violet-700">Exclu.</span>
+                            )}
+                          </div>
                           {aff.type_affectation === 'temporaire' && aff.date_fin && (
                             <div className="text-xs text-slate-400">jusqu'au {new Date(aff.date_fin).toLocaleDateString('fr-FR')}</div>
+                          )}
+                          {expCond && (
+                            <div className="text-[11px] text-slate-400">{expCond.name}</div>
                           )}
                         </div>
                       ) : (
@@ -1195,101 +1265,273 @@ export default function Chauffeurs() {
         </div>
       )}
 
-      {/* Modal affectation véhicule/remorque */}
-      {affModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 sm:p-6">
-          <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-xl bg-white shadow-xl sm:max-h-[90vh]">
-            <div className="flex items-center justify-between border-b p-4 sm:p-6">
-              <h3 className="text-lg font-semibold">
-                Affecter un véhicule / remorque
-              </h3>
-              <button onClick={() => setAffModal(null)} className="text-slate-400 hover:text-slate-600">✕</button>
-            </div>
-            <form onSubmit={saveAff} className="space-y-4 p-4 sm:p-6">
-              <Field label="Camion">
-                <select
-                  className={inp}
-                  value={affForm.vehicule_id ?? ''}
-                  onChange={e => setAffForm(f => ({ ...f, vehicule_id: e.target.value || null }))}
-                >
-                  <option value="">— Aucun —</option>
-                  {availableVehicules.map(v => (
-                    <option key={v.id} value={v.id}>{v.immatriculation}{v.marque ? ` — ${v.marque}` : ''}{v.modele ? ` ${v.modele}` : ''}</option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label="Remorque">
-                <select
-                  className={inp}
-                  value={affForm.remorque_id ?? ''}
-                  onChange={e => setAffForm(f => ({ ...f, remorque_id: e.target.value || null }))}
-                >
-                  <option value="">— Aucune —</option>
-                  {availableRemorques.map(r => (
-                    <option key={r.id} value={r.id}>{r.immatriculation}{r.type_remorque ? ` — ${r.type_remorque}` : ''}</option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label="Type d'affectation">
-                <div className="mt-1 flex flex-wrap gap-3">
-                  {(['fixe', 'temporaire'] as const).map(t => (
-                    <label key={t} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="type_aff"
-                        value={t}
-                        checked={affForm.type_affectation === t}
-                        onChange={() => setAffForm(f => ({ ...f, type_affectation: t }))}
-                        className="accent-slate-800"
-                      />
-                      <span className="text-sm capitalize">{t === 'fixe' ? 'Fixe' : 'Temporaire'}</span>
-                    </label>
-                  ))}
+      {/* Modal affectation véhicule / remorque / service / exploitant */}
+      {affModal && (() => {
+        const conducteurModal = list.find(c => c.id === affModal)
+        const selectedVeh = vehicules.find(v => v.id === affForm.vehicule_id)
+        const selectedRem = remorques.find(r => r.id === affForm.remorque_id)
+        const svcActuel = services.find(s => s.id === affConducteurServiceId)
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 sm:p-6">
+            <div className="max-h-[94vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl sm:max-h-[92vh]">
+              {/* En-tête */}
+              <div className="flex items-start justify-between border-b px-6 py-4">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-800">
+                    Affectation — {conducteurModal ? `${conducteurModal.prenom} ${conducteurModal.nom}` : ''}
+                  </h3>
+                  <p className="mt-0.5 text-xs text-slate-400">Véhicule · Remorque · Service · Exploitant</p>
                 </div>
-              </Field>
-
-              {affForm.type_affectation === 'temporaire' && (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Du">
-                    <input className={inp} type="date" value={affForm.date_debut ?? ''} onChange={e => setAffForm(f => ({ ...f, date_debut: e.target.value || null }))} />
-                  </Field>
-                  <Field label="Au">
-                    <input className={inp} type="date" value={affForm.date_fin ?? ''} onChange={e => setAffForm(f => ({ ...f, date_fin: e.target.value || null }))} />
-                  </Field>
-                </div>
-              )}
-
-              <Field label="Notes">
-                <input className={inp} value={affForm.notes ?? ''} onChange={e => setAffForm(f => ({ ...f, notes: e.target.value || null }))} placeholder="Optionnel" />
-              </Field>
-
-              <div className="flex flex-col items-stretch gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
-                {currentAff(affModal) && (
-                  <button
-                    type="button"
-                    className="text-xs text-red-400 hover:text-red-600"
-                    onClick={async () => {
-                      await supabase.from('affectations').update({ actif: false }).eq('conducteur_id', affModal).eq('actif', true)
-                      setAffModal(null)
-                      load()
-                    }}
-                  >
-                    Retirer l'affectation
-                  </button>
-                )}
-                <div className="ml-auto flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-                  <button type="button" onClick={() => setAffModal(null)} className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50 sm:w-auto">Annuler</button>
-                  <button type="submit" disabled={affSaving} className="w-full rounded-lg bg-slate-800 px-4 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-50 sm:w-auto">
-                    {affSaving ? 'Enregistrement...' : 'Enregistrer'}
-                  </button>
-                </div>
+                <button onClick={() => setAffModal(null)} className="text-slate-400 hover:text-slate-600 mt-0.5">✕</button>
               </div>
-            </form>
+
+              <form onSubmit={saveAff} className="divide-y divide-slate-100">
+
+                {/* — Section Véhicule & Remorque — */}
+                <div className="space-y-4 px-6 py-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Ressources matérielles</p>
+
+                  {/* Sélection rapide véhicule */}
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-slate-600">Camion</label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {availableVehicules.slice(0, 8).map(v => (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onClick={() => setAffForm(f => ({ ...f, vehicule_id: f.vehicule_id === v.id ? null : v.id }))}
+                          className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                            affForm.vehicule_id === v.id
+                              ? 'border-slate-800 bg-slate-800 text-white'
+                              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
+                          }`}
+                        >
+                          {v.immatriculation}{v.marque ? ` · ${v.marque}` : ''}
+                        </button>
+                      ))}
+                    </div>
+                    {availableVehicules.length > 8 && (
+                      <select
+                        className={inp}
+                        value={affForm.vehicule_id ?? ''}
+                        onChange={e => setAffForm(f => ({ ...f, vehicule_id: e.target.value || null }))}
+                      >
+                        <option value="">— Tous les camions —</option>
+                        {availableVehicules.map(v => (
+                          <option key={v.id} value={v.id}>{v.immatriculation}{v.marque ? ` — ${v.marque}` : ''}{v.modele ? ` ${v.modele}` : ''}</option>
+                        ))}
+                      </select>
+                    )}
+                    {selectedVeh && (
+                      <div className="mt-2 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                        <span className="font-semibold">{selectedVeh.immatriculation}</span>
+                        {selectedVeh.marque && <span>{selectedVeh.marque} {selectedVeh.modele ?? ''}</span>}
+                        <button type="button" className="ml-auto text-slate-400 hover:text-red-500" onClick={() => setAffForm(f => ({ ...f, vehicule_id: null }))}>✕</button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Sélection rapide remorque */}
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-slate-600">Remorque</label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {availableRemorques.slice(0, 6).map(r => (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onClick={() => setAffForm(f => ({ ...f, remorque_id: f.remorque_id === r.id ? null : r.id }))}
+                          className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                            affForm.remorque_id === r.id
+                              ? 'border-slate-800 bg-slate-800 text-white'
+                              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
+                          }`}
+                        >
+                          {r.immatriculation}{r.type_remorque ? ` · ${r.type_remorque}` : ''}
+                        </button>
+                      ))}
+                    </div>
+                    {availableRemorques.length > 6 && (
+                      <select
+                        className={inp}
+                        value={affForm.remorque_id ?? ''}
+                        onChange={e => setAffForm(f => ({ ...f, remorque_id: e.target.value || null }))}
+                      >
+                        <option value="">— Toutes les remorques —</option>
+                        {availableRemorques.map(r => (
+                          <option key={r.id} value={r.id}>{r.immatriculation}{r.type_remorque ? ` — ${r.type_remorque}` : ''}</option>
+                        ))}
+                      </select>
+                    )}
+                    {selectedRem && (
+                      <div className="mt-2 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                        <span className="font-semibold">{selectedRem.immatriculation}</span>
+                        {selectedRem.type_remorque && <span>{selectedRem.type_remorque}</span>}
+                        <button type="button" className="ml-auto text-slate-400 hover:text-red-500" onClick={() => setAffForm(f => ({ ...f, remorque_id: null }))}>✕</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* — Section Service & Exploitant — */}
+                <div className="space-y-4 px-6 py-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Service & Exploitant</p>
+
+                  {/* Service du conducteur */}
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-slate-600">
+                      Service du conducteur{' '}
+                      <span className="text-slate-400 font-normal">(modifie le rattachement principal)</span>
+                    </label>
+                    {services.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAffConducteurServiceId(null)}
+                          className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                            !affConducteurServiceId
+                              ? 'border-slate-800 bg-slate-800 text-white'
+                              : 'border-slate-200 bg-white text-slate-500 hover:border-slate-400'
+                          }`}
+                        >
+                          Non attribué
+                        </button>
+                        {services.map(s => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => setAffConducteurServiceId(affConducteurServiceId === s.id ? null : s.id)}
+                            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                              affConducteurServiceId === s.id
+                                ? 'border-slate-800 text-white'
+                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
+                            }`}
+                            style={affConducteurServiceId === s.id ? { backgroundColor: s.color ?? '#1e293b', borderColor: s.color ?? '#1e293b' } : {}}
+                          >
+                            {s.code ? `[${s.code}] ` : ''}{s.name}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400">Aucun service configuré — créer des services dans Paramètres.</p>
+                    )}
+                    {svcActuel && (
+                      <p className="mt-1.5 text-xs text-slate-500">Actuel : <span className="font-medium">{svcActuel.name}</span></p>
+                    )}
+                  </div>
+
+                  {/* Exploitant responsable */}
+                  <Field label="Exploitant responsable de cette affectation">
+                    {exploitants.length > 0 ? (
+                      <select
+                        className={inp}
+                        value={affForm.exploitant_responsable_id ?? ''}
+                        onChange={e => setAffForm(f => ({ ...f, exploitant_responsable_id: e.target.value || null }))}
+                      >
+                        <option value="">— Aucun —</option>
+                        {exploitants.map(ex => (
+                          <option key={ex.id} value={ex.id}>{ex.name}{ex.company_department ? ` (${ex.company_department})` : ''}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p className="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-400">
+                        Aucun exploitant configuré — créer des exploitants dans Paramètres.
+                      </p>
+                    )}
+                  </Field>
+                </div>
+
+                {/* — Section Paramètres — */}
+                <div className="space-y-4 px-6 py-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Paramètres</p>
+
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-slate-600">Type d'affectation</label>
+                    <div className="flex gap-3">
+                      {(['fixe', 'temporaire'] as const).map(t => (
+                        <label key={t} className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border py-2 text-sm font-medium transition-all ${
+                          affForm.type_affectation === t
+                            ? 'border-slate-800 bg-slate-800 text-white'
+                            : 'border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50'
+                        }`}>
+                          <input
+                            type="radio"
+                            name="type_aff"
+                            value={t}
+                            checked={affForm.type_affectation === t}
+                            onChange={() => setAffForm(f => ({ ...f, type_affectation: t }))}
+                            className="sr-only"
+                          />
+                          {t === 'fixe' ? 'Fixe' : 'Temporaire'}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {affForm.type_affectation === 'temporaire' && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Du">
+                        <input className={inp} type="date" value={affForm.date_debut ?? ''} onChange={e => setAffForm(f => ({ ...f, date_debut: e.target.value || null }))} />
+                      </Field>
+                      <Field label="Au">
+                        <input className={inp} type="date" value={affForm.date_fin ?? ''} onChange={e => setAffForm(f => ({ ...f, date_fin: e.target.value || null }))} />
+                      </Field>
+                    </div>
+                  )}
+
+                  <label className="flex cursor-pointer items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={affForm.est_exclusive ?? false}
+                      onChange={e => setAffForm(f => ({ ...f, est_exclusive: e.target.checked }))}
+                      className="h-4 w-4 rounded accent-slate-800"
+                    />
+                    <span className="text-sm text-slate-700">
+                      Affectation exclusive
+                      <span className="ml-1 text-xs text-slate-400">(conducteur dédié à ce véhicule)</span>
+                    </span>
+                  </label>
+
+                  <Field label="Motif">
+                    <input
+                      className={inp}
+                      value={affForm.motif_affectation ?? ''}
+                      onChange={e => setAffForm(f => ({ ...f, motif_affectation: e.target.value || null }))}
+                      placeholder="Ex: remplacement, mission longue..."
+                    />
+                  </Field>
+
+                  <Field label="Notes internes">
+                    <input className={inp} value={affForm.notes ?? ''} onChange={e => setAffForm(f => ({ ...f, notes: e.target.value || null }))} placeholder="Optionnel" />
+                  </Field>
+                </div>
+
+                {/* — Pied de formulaire — */}
+                <div className="flex flex-col items-stretch gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  {currentAff(affModal) && (
+                    <button
+                      type="button"
+                      className="text-xs text-red-400 hover:text-red-600"
+                      onClick={async () => {
+                        await supabase.from('affectations').update({ actif: false }).eq('conducteur_id', affModal).eq('actif', true)
+                        setAffModal(null)
+                        load()
+                      }}
+                    >
+                      Retirer l'affectation
+                    </button>
+                  )}
+                  <div className="ml-auto flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+                    <button type="button" onClick={() => setAffModal(null)} className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50 sm:w-auto">Annuler</button>
+                    <button type="submit" disabled={affSaving} className="w-full rounded-lg bg-slate-800 px-4 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-50 sm:w-auto">
+                      {affSaving ? 'Enregistrement...' : 'Enregistrer'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

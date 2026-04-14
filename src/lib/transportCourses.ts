@@ -194,32 +194,33 @@ export const OT_STATUT_LABELS: Record<string, string> = {
 
 /** Classes Tailwind badge pour chaque statut OT (dark mode). */
 export const OT_STATUT_BADGE_CLS: Record<string, string> = {
-  brouillon: 'bg-slate-700 text-slate-400',
-  confirme:  'bg-blue-900/60 text-blue-300',
-  planifie:  'bg-indigo-900/60 text-indigo-300',
-  en_cours:  'bg-emerald-900/60 text-emerald-300',
-  livre:     'bg-teal-900/60 text-teal-300',
-  facture:   'bg-violet-900/60 text-violet-300',
-  annule:    'bg-red-900/60 text-red-400',
+  brouillon: 'bg-slate-700 text-slate-100',
+  confirme:  'bg-blue-800/70 text-blue-100',
+  planifie:  'bg-blue-700/70 text-blue-50',
+  en_cours:  'bg-emerald-700/70 text-emerald-50',
+  livre:     'bg-emerald-800/70 text-emerald-100',
+  facture:   'bg-amber-700/70 text-amber-50',
+  annule:    'bg-red-800/70 text-red-100',
 }
 
 /** Classes Tailwind badge pour chaque statut OT (light mode). */
 export const OT_STATUT_BADGE_LIGHT_CLS: Record<string, string> = {
-  brouillon: 'bg-slate-100 text-slate-600',
-  confirme:  'bg-blue-100 text-blue-700',
-  planifie:  'bg-indigo-100 text-indigo-700',
-  en_cours:  'bg-emerald-100 text-emerald-700',
-  livre:     'bg-teal-100 text-teal-700',
-  facture:   'bg-violet-100 text-violet-700',
-  annule:    'bg-red-100 text-red-600',
+  brouillon: 'bg-slate-200 text-slate-800',
+  confirme:  'bg-blue-100 text-blue-800',
+  planifie:  'bg-blue-200 text-blue-900',
+  en_cours:  'bg-emerald-100 text-emerald-800',
+  livre:     'bg-emerald-200 text-emerald-900',
+  facture:   'bg-amber-100 text-amber-800',
+  annule:    'bg-red-100 text-red-800',
 }
 
 /** Classes Tailwind bloc Gantt pour chaque statut OT. */
 export const OT_STATUT_BLOCK_CLS: Record<string, string> = {
   brouillon: 'bg-slate-600 border-slate-500',
   confirme:  'bg-blue-700 border-blue-600',
-  planifie:  'bg-indigo-600 border-indigo-500',
+  planifie:  'bg-blue-600 border-blue-500',
   en_cours:  'bg-emerald-600 border-emerald-500',
-  livre:     'bg-teal-600 border-teal-500',
-  facture:   'bg-violet-700 border-violet-600',
+  livre:     'bg-emerald-700 border-emerald-600',
+  facture:   'bg-amber-600 border-amber-500',
+  annule:    'bg-red-700 border-red-600',
 }

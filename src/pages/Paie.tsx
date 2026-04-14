@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { computeAbsenceHeuresFromAbsences, fetchAbsencesValideesPeriode, type AbsenceRh } from '@/lib/absencesRh'
 import { linkPayrollBonusesToAccounting, listPayrollBonusLinkStatuses, listValidatedUnpaidBonusesForPayroll, type PayrollBonusLinkStatus } from '@/lib/payrollBonusBridge'
 
-const inp = 'w-full rounded-xl border bg-[color:var(--surface)] px-3 py-2.5 text-sm text-[color:var(--text)] outline-none focus:border-[color:var(--primary)]'
+const inp = 'nx-input w-full'
 type PaieTab = 'saisie' | 'revision'
 
 function formatMoney(value: unknown) {
@@ -491,10 +491,10 @@ export default function Paie() {
 
   return (
     <div className="space-y-6 p-5 md:p-6">
-      <div className="nx-panel px-6 py-5" style={{ background: 'linear-gradient(135deg, #111827 0%, #0f172a 55%, #1d4ed8 100%)' }}>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-blue-200/70">RH x Comptable</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">Paie</h2>
-        <p className="mt-1.5 text-sm text-slate-300">Parametrage metier, variables mensuelles, generation PDF et archivage direct dans le coffre salarie.</p>
+      <div className="nx-panel nx-page-hero px-6 py-4">
+        <p className="nx-label">RH x Comptable</p>
+        <h2 className="nx-page-hero-title mt-2 text-2xl font-semibold tracking-tight">Paie</h2>
+        <p className="mt-1.5 text-sm nx-subtle">Parametrage metier, variables mensuelles, generation PDF et archivage direct dans le coffre salarie.</p>
       </div>
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-start gap-2">
         <span className="text-base leading-none mt-0.5">⚠</span>
@@ -507,18 +507,18 @@ export default function Paie() {
         </div>
       )}
 
-      <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+      <div className="nx-tab-group">
         <button
           type="button"
           onClick={() => setActiveTab('saisie')}
-          className={`rounded-lg px-4 py-2 text-sm font-medium ${activeTab === 'saisie' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+          className={`nx-tab-button ${activeTab === 'saisie' ? 'is-active' : ''}`}
         >
           Saisie paie
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('revision')}
-          className={`rounded-lg px-4 py-2 text-sm font-medium ${activeTab === 'revision' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+          className={`nx-tab-button ${activeTab === 'revision' ? 'is-active' : ''}`}
         >
           Revision et validation
         </button>
@@ -1086,7 +1086,7 @@ export default function Paie() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-slate-700">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
       {children}
     </label>
   )

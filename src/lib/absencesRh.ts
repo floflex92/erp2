@@ -146,6 +146,39 @@ export async function fetchAbsencesValideesPeriode(
   }
 }
 
+/**
+ * Charge les absences validées pour TOUS les employés d'un coup sur une période.
+ * Une seule requête Supabase au lieu d'une par conducteur (élimine le N+1).
+ */
+export async function fetchAllAbsencesValideesPeriode(
+  employeIds: string[],
+  periodeDebut: string,
+  periodeFin: string,
+): Promise<Map<string, AbsenceRh[]>> {
+  const result = new Map<string, AbsenceRh[]>()
+  if (employeIds.length === 0) return result
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
+      .from('absences_rh')
+      .select('*')
+      .in('employe_id', employeIds)
+      .in('statut', STATUTS_ABSENCE_ACTIFS)
+      .lte('date_debut', periodeFin)
+      .gte('date_fin', periodeDebut)
+      .order('date_debut', { ascending: true })
+    if (error || !data) return result
+    for (const row of data as AbsenceRh[]) {
+      const list = result.get(row.employe_id)
+      if (list) list.push(row)
+      else result.set(row.employe_id, [row])
+    }
+    return result
+  } catch {
+    return result
+  }
+}
+
 export async function createAbsenceRh(
   absence: Omit<AbsenceRh, 'id' | 'created_at' | 'updated_at'>,
 ): Promise<AbsenceRh | null> {

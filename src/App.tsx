@@ -187,7 +187,9 @@ export default function App() {
                   <Route path="mentions-legales" element={<RequireRole page="mentions-legales"><MentionsLegales /></RequireRole>} />
                   <Route path="tenant-admin"    element={<RequireRole page="tenant-admin"><TenantAdmin /></RequireRole>} />
                   <Route path="war-room"        element={<Navigate to="/ops-center" replace />} />
+                  <Route path="obs-center"       element={<Navigate to="/ops-center" replace />} />
                   <Route path="ops-center"       element={<RequireRole page="ops-center"><OpsCenter /></RequireRole>} />
+                  <Route path="alertes"          element={<RequireRole page="ops-center"><OpsCenter /></RequireRole>} />
                   <Route path="dashboard-conducteur" element={<RequireRole page="dashboard-conducteur"><DashboardConducteur /></RequireRole>} />
                   <Route path="planning-conducteur" element={<RequireRole page="planning-conducteur"><PlanningConducteur /></RequireRole>} />
                   <Route path="frais-rapide" element={<RequireRole page="frais-rapide"><FraisRapide /></RequireRole>} />

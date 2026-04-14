@@ -69,7 +69,13 @@ type ApiPayload = {
 const inp = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500'
 
 function normalizeAllowedPages(raw: string[] | null | undefined, allPageKeys: string[]) {
-  if (Array.isArray(raw) && raw.length > 0) return raw
+  if (Array.isArray(raw) && raw.length > 0) {
+    const normalized = new Set(raw)
+    if (normalized.has('dashboard')) normalized.add('dashboard-conducteur')
+    if (normalized.has('planning')) normalized.add('planning-conducteur')
+    if (normalized.has('frais')) normalized.add('frais-rapide')
+    return Array.from(normalized)
+  }
   return allPageKeys
 }
 

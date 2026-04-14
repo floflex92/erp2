@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth, ROLE_LABELS } from '@/lib/auth'
+import { useAuth, ROLE_LABELS, type Role } from '@/lib/auth'
 import { ensureEmployeeRecord, generateProfessionalEmail, getEmployeeRecord, listEmployeeRecords, subscribeEmployeeRecords, updateEmployeeRecord, type EmployeeRecord } from '@/lib/employeeRecords'
 import { ensureEmployeeJobSheets, ensurePolicyDocuments, generateEmploymentContract, generateJobSheet, HR_CATEGORY_LABELS, uploadEmployeeDocument } from '@/lib/hrDocuments'
 import { importEmployeeIntakeForm, provisionEmployeeOnboarding } from '@/lib/onboarding'
@@ -8,14 +8,30 @@ import { createPayrollSlip } from '@/lib/payroll'
 import { buildStaffDirectory, findStaffMember, staffDisplayName } from '@/lib/staffDirectory'
 import { createAbsenceRh, deleteAbsenceRh, fetchAbsencesRh, fetchSoldeAbsences, TYPE_ABSENCE_LABELS, STATUT_ABSENCE_LABELS, STATUT_ABSENCE_COLORS, ABSENCE_WORKFLOW_STEPS, upsertSoldeAbsences, updateAbsenceRh, type AbsenceRh, type SoldeAbsences, type TypeAbsence, type StatutAbsence } from '@/lib/absencesRh'
 import { generateCongeDocumentPDF } from '@/lib/congePdf'
+import { supabase } from '@/lib/supabase'
+import type { Tables } from '@/lib/database.types'
 import EntretiensSalaries from '@/pages/EntretiensSalaries'
 
 const RH_UPLOAD_CATEGORIES = ['carte_vitale', 'carte_identite', 'justificatif_domicile', 'scan_complementaire'] as const
-const inp = 'w-full rounded-xl border bg-[color:var(--surface)] px-3 py-2.5 text-sm text-[color:var(--text)] outline-none focus:border-[color:var(--primary)]'
-type RhTab = 'employes' | 'documents' | 'entretiens' | 'absences'
+const inp = 'nx-input w-full'
+type RhTab = 'employes' | 'effectif' | 'documents' | 'entretiens' | 'absences'
+
+type ProfilRow = Tables<'profils'>
+type ConducteurRow = Tables<'conducteurs'>
+type ExploitantRow = Tables<'exploitants'>
+
+type WorkforceMember = {
+  id: string
+  source: 'profil' | 'conducteur' | 'exploitant' | 'annuaire'
+  nomComplet: string
+  metier: string
+  matricule: string | null
+  email: string | null
+  statut: string
+}
 
 export default function Rh() {
-  const { profil, accountProfil } = useAuth()
+  const { profil, accountProfil, companyId } = useAuth()
   const [activeTab, setActiveTab] = useState<RhTab>('employes')
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
   const [employeeRecords, setEmployeeRecords] = useState<EmployeeRecord[]>(() => listEmployeeRecords())
@@ -45,6 +61,11 @@ export default function Rh() {
   const [solde, setSolde] = useState<SoldeAbsences | null>(null)
   const [soldeAnnee, setSoldeAnnee] = useState(new Date().getFullYear())
   const [solveDraft, setSoldeDraft] = useState({ cp_acquis: '0', cp_pris: '0', rtt_acquis: '0', rtt_pris: '0' })
+  const [workforce, setWorkforce] = useState<WorkforceMember[]>([])
+  const [workforceLoading, setWorkforceLoading] = useState(false)
+  const [workforceWarning, setWorkforceWarning] = useState<string | null>(null)
+  const [workforceFilter, setWorkforceFilter] = useState<'tous' | 'conducteurs' | 'exploitants' | 'mecaniciens' | 'autres'>('tous')
+  const [workforceSearch, setWorkforceSearch] = useState('')
 
   const staff = useMemo(() => buildStaffDirectory([profil, accountProfil]), [profil, accountProfil])
   const selectedEmployee = findStaffMember(staff, selectedEmployeeId || profil?.id)
@@ -112,12 +133,124 @@ export default function Rh() {
   }), [])
 
   useEffect(() => {
+    async function loadWorkforce() {
+      setWorkforceWarning(null)
+      setWorkforceLoading(true)
+
+      const annuaireBase: WorkforceMember[] = staff.map(member => ({
+        id: `annuaire:${member.id}`,
+        source: 'annuaire',
+        nomComplet: staffDisplayName(member),
+        metier: ROLE_LABELS[member.role] ?? member.role,
+        matricule: member.matricule ?? null,
+        email: member.email ?? null,
+        statut: 'Annuaire',
+      }))
+
+      if (!companyId) {
+        setWorkforce(annuaireBase)
+        setWorkforceWarning('Company non detectee: affichage de l annuaire RH uniquement.')
+        setWorkforceLoading(false)
+        return
+      }
+
+      const [profilsRes, conducteursRes, exploitantsRes] = await Promise.all([
+        supabase
+          .from('profils')
+          .select('id, nom, prenom, role, matricule, is_active, archived_at, company_id')
+          .eq('company_id', companyId)
+          .is('archived_at', null),
+        supabase
+          .from('conducteurs')
+          .select('id, nom, prenom, email, matricule, statut, company_id')
+          .eq('company_id', companyId),
+        supabase
+          .from('exploitants')
+          .select('id, name, company_id, is_active, profil_id')
+          .eq('company_id', companyId),
+      ])
+
+      const warnings: string[] = []
+      if (profilsRes.error) warnings.push('profils')
+      if (conducteursRes.error) warnings.push('conducteurs')
+      if (exploitantsRes.error) warnings.push('exploitants')
+      if (warnings.length > 0) {
+        setWorkforceWarning(`Sources partielles indisponibles (${warnings.join(', ')}): affichage complete avec fallback annuaire.`)
+      }
+
+      const profils = (((profilsRes.error ? [] : profilsRes.data) as Pick<ProfilRow, 'id' | 'nom' | 'prenom' | 'role' | 'matricule' | 'is_active' | 'archived_at' | 'company_id'>[] | null) ?? [])
+        .filter(item => item.company_id === companyId)
+      const conducteurs = (((conducteursRes.error ? [] : conducteursRes.data) as Pick<ConducteurRow, 'id' | 'nom' | 'prenom' | 'email' | 'matricule' | 'statut' | 'company_id'>[] | null) ?? [])
+        .filter(item => item.company_id === companyId)
+      const exploitants = (((exploitantsRes.error ? [] : exploitantsRes.data) as Pick<ExploitantRow, 'id' | 'name' | 'company_id' | 'is_active' | 'profil_id'>[] | null) ?? [])
+        .filter(item => item.company_id === companyId)
+
+      const profilMembers: WorkforceMember[] = profils.map(item => ({
+        id: `profil:${item.id}`,
+        source: 'profil',
+        nomComplet: `${item.prenom ?? ''} ${item.nom ?? ''}`.trim() || item.id,
+        metier: ROLE_LABELS[(item.role as Role) ?? 'administratif'] ?? item.role,
+        matricule: item.matricule ?? null,
+        email: null,
+        statut: item.is_active ? 'Actif' : 'Inactif',
+      }))
+
+      const conducteurMembers: WorkforceMember[] = conducteurs.map(item => ({
+        id: `conducteur:${item.id}`,
+        source: 'conducteur',
+        nomComplet: `${item.prenom ?? ''} ${item.nom ?? ''}`.trim() || item.id,
+        metier: 'Conducteur',
+        matricule: item.matricule ?? null,
+        email: item.email ?? null,
+        statut: item.statut ?? 'inconnu',
+      }))
+
+      const exploitantMembers: WorkforceMember[] = exploitants.map(item => ({
+        id: `exploitant:${item.id}`,
+        source: 'exploitant',
+        nomComplet: item.name,
+        metier: 'Exploitant',
+        matricule: null,
+        email: null,
+        statut: item.is_active ? 'Actif' : 'Inactif',
+      }))
+
+      const dbMembers = [...profilMembers, ...conducteurMembers, ...exploitantMembers]
+      const knownKeys = new Set(
+        dbMembers.map(item => `${item.nomComplet.toLowerCase()}|${(item.matricule ?? '').toLowerCase()}`),
+      )
+      const annuaireMembers: WorkforceMember[] = annuaireBase
+        .filter(member => !knownKeys.has(`${member.nomComplet.toLowerCase()}|${(member.matricule ?? '').toLowerCase()}`))
+
+      setWorkforce([...dbMembers, ...annuaireMembers])
+      setWorkforceLoading(false)
+    }
+
+    void loadWorkforce()
+  }, [companyId, staff])
+
+  useEffect(() => {
     if (!selectedEmployeeRecord) {
       setEmployeeDraft(null)
       return
     }
     setEmployeeDraft(selectedEmployeeRecord)
   }, [selectedEmployeeRecord])
+
+  const filteredWorkforce = useMemo(() => {
+    const q = workforceSearch.trim().toLowerCase()
+    return workforce.filter(member => {
+      if (workforceFilter === 'conducteurs' && member.source !== 'conducteur') return false
+      if (workforceFilter === 'exploitants' && member.source !== 'exploitant') return false
+      if (workforceFilter === 'mecaniciens' && !member.metier.toLowerCase().includes('mecan')) return false
+      if (workforceFilter === 'autres' && (member.source === 'conducteur' || member.source === 'exploitant' || member.metier.toLowerCase().includes('mecan'))) return false
+      if (!q) return true
+      return [member.nomComplet, member.metier, member.matricule ?? '', member.email ?? '', member.statut]
+        .join(' ')
+        .toLowerCase()
+        .includes(q)
+    })
+  }, [workforce, workforceFilter, workforceSearch])
 
   if (!profil) return null
   const actor = profil
@@ -430,10 +563,10 @@ export default function Rh() {
 
   return (
     <div className="space-y-6 p-5 md:p-6">
-      <div className="rounded-2xl bg-slate-950 p-6 text-white shadow-xl">
-        <p className="text-xs uppercase tracking-[0.3em] text-slate-400">RH</p>
-        <h2 className="mt-2 text-3xl font-bold">Ressources humaines</h2>
-        <p className="mt-3 max-w-3xl text-sm text-slate-300">
+      <div className="nx-panel nx-page-hero rounded-2xl p-5 shadow-xl">
+        <p className="nx-label">RH</p>
+        <h2 className="nx-page-hero-title mt-2 text-2xl font-bold">Ressources humaines</h2>
+        <p className="mt-2 max-w-3xl text-sm nx-subtle">
           Contrats, onboarding, scans identite, imports de fiches d embauche, documents collaborateur et lien direct avec la paie.
         </p>
       </div>
@@ -451,33 +584,40 @@ export default function Rh() {
         </div>
       )}
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-5 inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+      <section className="nx-card rounded-2xl p-5 shadow-sm">
+        <div className="nx-tab-group mb-5">
           <button
             type="button"
             onClick={() => setActiveTab('employes')}
-            className={`rounded-lg px-4 py-2 text-sm font-medium ${activeTab === 'employes' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+            className={`nx-tab-button ${activeTab === 'employes' ? 'is-active' : ''}`}
           >
             Employes
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('documents')}
-            className={`rounded-lg px-4 py-2 text-sm font-medium ${activeTab === 'documents' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+            className={`nx-tab-button ${activeTab === 'documents' ? 'is-active' : ''}`}
           >
             Onboarding et documents
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab('effectif')}
+            className={`nx-tab-button ${activeTab === 'effectif' ? 'is-active' : ''}`}
+          >
+            Effectif global
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('entretiens')}
-            className={`rounded-lg px-4 py-2 text-sm font-medium ${activeTab === 'entretiens' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+            className={`nx-tab-button ${activeTab === 'entretiens' ? 'is-active' : ''}`}
           >
             Entretiens professionnels
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('absences')}
-            className={`rounded-lg px-4 py-2 text-sm font-medium ${activeTab === 'absences' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+            className={`nx-tab-button ${activeTab === 'absences' ? 'is-active' : ''}`}
           >
             Absences
           </button>
@@ -566,6 +706,88 @@ export default function Rh() {
                     Enregistrer les modifications
                   </button>
                 </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'effectif' && (
+          <div className="space-y-4">
+            {workforceWarning && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                {workforceWarning}
+              </div>
+            )}
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field label="Type de collaborateur">
+                  <select className={inp} value={workforceFilter} onChange={event => setWorkforceFilter(event.target.value as typeof workforceFilter)}>
+                    <option value="tous">Tous</option>
+                    <option value="conducteurs">Conducteurs</option>
+                    <option value="exploitants">Exploitants</option>
+                    <option value="mecaniciens">Mecaniciens</option>
+                    <option value="autres">Autres profils</option>
+                  </select>
+                </Field>
+                <Field label="Recherche">
+                  <input
+                    className={inp}
+                    placeholder="Nom, metier, matricule..."
+                    value={workforceSearch}
+                    onChange={event => setWorkforceSearch(event.target.value)}
+                  />
+                </Field>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <Link to="/utilisateurs" className="rounded-lg border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-900">
+                  Gerer profils
+                </Link>
+                <Link to="/chauffeurs" className="rounded-lg border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-900">
+                  Gerer conducteurs
+                </Link>
+                <Link to="/parametres" className="rounded-lg border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-900">
+                  Gerer services/exploitants
+                </Link>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 overflow-hidden">
+              {workforceLoading ? (
+                <p className="px-4 py-6 text-sm text-slate-500">Chargement de l effectif...</p>
+              ) : filteredWorkforce.length === 0 ? (
+                <p className="px-4 py-6 text-sm text-slate-500">Aucun collaborateur trouve pour ce filtre.</p>
+              ) : (
+                <div className="max-h-[540px] overflow-auto">
+                  <table className="w-full min-w-[760px] text-sm">
+                    <thead className="bg-slate-100 text-slate-700">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-semibold">Nom</th>
+                        <th className="px-3 py-2 text-left font-semibold">Metier</th>
+                        <th className="px-3 py-2 text-left font-semibold">Origine</th>
+                        <th className="px-3 py-2 text-left font-semibold">Matricule</th>
+                        <th className="px-3 py-2 text-left font-semibold">Email</th>
+                        <th className="px-3 py-2 text-left font-semibold">Statut</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredWorkforce.map(member => (
+                        <tr key={member.id} className="border-t border-slate-200 bg-white">
+                          <td className="px-3 py-2 font-medium text-slate-900">{member.nomComplet}</td>
+                          <td className="px-3 py-2 text-slate-800">{member.metier}</td>
+                          <td className="px-3 py-2">
+                            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-800">
+                              {member.source === 'annuaire' ? 'annuaire' : member.source}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-slate-700">{member.matricule ?? '—'}</td>
+                          <td className="px-3 py-2 text-slate-700">{member.email ?? '—'}</td>
+                          <td className="px-3 py-2 text-slate-700">{member.statut}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>

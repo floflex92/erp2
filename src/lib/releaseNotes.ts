@@ -12,6 +12,76 @@ export type ReleaseNote = {
 
 const documentedReleaseNotes: ReleaseNote[] = [
   {
+    version: '1.12.11',
+    date: '2026-04-14',
+    title: 'Groupage multi-courses et missions transport',
+    summary: 'Table transport_missions avec groupage figeable/déliable, couche métier missions complète et génération PDF facture côté client.',
+    additions: [
+      'Table transport_missions (groupage, complet, partiel) avec RLS métier et liaison conducteur/véhicule/remorque.',
+      'Couche métier complète pour créer, regrouper, figer et délier des courses dans une mission.',
+      'Génération PDF facture côté client avec SHA-256 d intégrité et références OT.',
+    ],
+    modifications: [
+      'L onglet Développement dans Réglages reflète les livraisons groupage et missions.',
+      'Version portée à 1.12.11 avec synchronisation package, build et affichage site.',
+    ],
+    fixes: [
+      'Résolue : les courses indépendantes du groupage conservent leur autonomie après déliaison.',
+    ],
+  },
+  {
+    version: '1.12.10',
+    date: '2026-04-14',
+    title: 'Audit ERP léger et factures PDF authentifiées',
+    summary: 'Traçabilité métier ciblée, sécurisation du flux PDF facture et amélioration SEO post-build avant déploiement global.',
+    additions: [
+      'Journal d audit ERP léger par société avec acteur, action, date et champs modifiés sur les tables prioritaires.',
+      'Champs de génération PDF facture, bucket privé et stockage sécurisé pour les documents de facturation.',
+      'Soumission IndexNow automatique du sitemap après build pour accélérer la prise en compte des pages publiées.',
+    ],
+    modifications: [
+      'L onglet Développement dans Réglages reflète désormais ces livraisons côté Développé.',
+      'Le chaînage comptable utilise explicitement extensions.digest pour fiabiliser la résolution du schéma SQL.',
+    ],
+    fixes: [
+      'Résolue : incohérence potentielle entre version package, version injectée au build et version affichée sur le site.',
+      'Résolue : résolution de digest côté migrations comptables dans les environnements où le search_path était trop strict.',
+    ],
+  },
+  {
+    version: '1.12.9',
+    date: '2026-04-13',
+    title: 'Navigation et accès rôles — exploitant complet',
+    summary: 'Refonte des accès rôles : navigation entièrement réactivée, exploitant ne peut plus être bloqué par les restrictions modules tenant, dirigeant obtient un accès total.',
+    additions: [
+      'Le rôle exploitant bypasse désormais les filtres tenant et modules — OT/Fret, Map live, Demandes clients, Tâches et tous les outils opérationnels restent visibles.',
+      'Le rôle dirigeant bénéficie d un accès complet à toutes les pages, comparable à super_admin.',
+      'Saisie frais rapide déplacée sous Finance (après Frais) pour une meilleure cohérence métier.',
+    ],
+    modifications: [
+      'La section Administration n est plus masquée pour les rôles admin et super_admin dans la sidebar.',
+      'La page /alertes est maintenant un alias de l Ops Center, doublon de navigation retiré.',
+    ],
+    fixes: [
+      'Resolue : exploitants perdaient l accès à leurs outils sur certains tenants à modules restrictifs.',
+      'Resolue : rôle exploitant ne voyait plus clients, maintenance, portails client et affréteur.',
+    ],
+  },
+  {
+    version: '1.12.8',
+    date: '2026-04-13',
+    title: 'Annuaire partenaire et cadrage développement',
+    summary: 'Ajout du lien annuaire partenaire sur le site et maintien explicite du pilotage Développé / En cours / Features dans Réglages.',
+    additions: [
+      'Section Partenaires du footer enrichie avec un lien vers annuaire-transports.fr.',
+      'Historique de version mis à jour pour la livraison du 13 avril 2026.',
+    ],
+    modifications: [
+      'Le pilotage produit côté Réglages conserve une lecture claire sur les trois statuts: Développé, En cours de développement et Features.',
+    ],
+    fixes: [],
+  },
+  {
     version: '1.12.7',
     date: '2026-04-12',
     title: 'Coffre-fort salarié sécurisé',

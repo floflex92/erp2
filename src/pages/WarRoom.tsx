@@ -83,19 +83,19 @@ const TYPES_LABELS: Record<string, string> = {
 
 const PRIORITE_CONFIG: Record<string, { label: string; dot: string; badge: string }> = {
   critique: { label: 'Critique', dot: 'bg-red-500', badge: 'bg-red-100 text-red-700 border-red-200' },
-  elevee:   { label: 'Élevée',   dot: 'bg-amber-500', badge: 'bg-amber-100 text-amber-700 border-amber-200' },
-  normale:  { label: 'Normale',  dot: 'bg-blue-400', badge: 'bg-blue-50 text-blue-700 border-blue-200' },
+  elevee:   { label: 'Élevée',   dot: 'bg-blue-500', badge: 'bg-blue-100 text-blue-700 border-blue-200' },
+  normale:  { label: 'Normale',  dot: 'bg-slate-400', badge: 'bg-slate-100 text-slate-700 border-slate-200' },
 }
 
 const STATUT_CONFIG: Record<string, { label: string; cls: string }> = {
   ouvert:    { label: 'Ouvert',    cls: 'bg-red-100 text-red-700' },
-  en_cours:  { label: 'En cours',  cls: 'bg-amber-100 text-amber-700' },
-  resolu:    { label: 'Résolu',    cls: 'bg-green-100 text-green-700' },
+  en_cours:  { label: 'En cours',  cls: 'bg-blue-100 text-blue-700' },
+  resolu:    { label: 'Résolu',    cls: 'bg-slate-100 text-slate-700' },
   clos:      { label: 'Clos',      cls: 'bg-slate-100 text-slate-500' },
 }
 
 const STATUT_OPS_CONFIG: Record<string, { label: string; cls: string }> = {
-  retard_mineur: { label: 'Retard mineur', cls: 'bg-amber-100 text-amber-700 border-amber-300' },
+  retard_mineur: { label: 'Retard mineur', cls: 'bg-slate-100 text-slate-700 border-slate-300' },
   retard_majeur: { label: 'Retard majeur', cls: 'bg-red-100 text-red-700 border-red-300' },
 }
 
@@ -434,14 +434,14 @@ export default function WarRoom() {
         />
         <ZoneCounter
           color="amber"
-          icon={<AlertIcon className="h-5 w-5 text-amber-500" />}
+          icon={<AlertIcon className="h-5 w-5 text-slate-500" />}
           label="Vigilance"
           count={nbVigilance}
           sub="retards mineurs + OT non affectés"
         />
         <ZoneCounter
           color="green"
-          icon={<CheckIcon className="h-5 w-5 text-green-600" />}
+          icon={<CheckIcon className="h-5 w-5 text-slate-500" />}
           label="En ordre"
           count={nbOrdre}
           sub="imprévus normaux"
@@ -587,7 +587,7 @@ export default function WarRoom() {
                     className={`rounded-xl border p-3 ${
                       ot.statut_operationnel === 'retard_majeur'
                         ? 'border-red-200 bg-red-50'
-                        : 'border-amber-200 bg-amber-50'
+                        : 'border-slate-200 bg-slate-50'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -629,7 +629,7 @@ export default function WarRoom() {
                       (ot.age_heures ?? 0) > 24
                         ? 'border-red-200 bg-red-50'
                         : (ot.age_heures ?? 0) > 12
-                          ? 'border-amber-200 bg-amber-50'
+                          ? 'border-slate-200 bg-slate-50'
                           : 'border-slate-200 bg-slate-50'
                     }`}
                   >
@@ -711,10 +711,10 @@ export default function WarRoom() {
           })}
 
           {imprevus.length === 0 && (
-            <div className="rounded-2xl border border-green-200 bg-green-50 p-8 text-center">
-              <CheckIcon className="mx-auto mb-2 h-8 w-8 text-green-500" />
-              <p className="font-medium text-green-700">Aucun imprévu en cours</p>
-              <p className="text-sm text-green-600">L'exploitation se déroule normalement</p>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
+              <CheckIcon className="mx-auto mb-2 h-8 w-8 text-slate-500" />
+              <p className="font-medium text-slate-700">Aucun imprévu en cours</p>
+              <p className="text-sm text-slate-600">L'exploitation se déroule normalement</p>
             </div>
           )}
         </div>
@@ -736,13 +736,13 @@ function ZoneCounter({
 }) {
   const cls = {
     red:   'border-red-200   bg-red-50',
-    amber: 'border-amber-200 bg-amber-50',
-    green: 'border-green-200 bg-green-50',
+    amber: 'border-slate-200 bg-slate-50',
+    green: 'border-slate-200 bg-slate-50',
   }[color]
   const countCls = {
     red:   'text-red-700',
-    amber: 'text-amber-700',
-    green: 'text-green-700',
+    amber: 'text-slate-700',
+    green: 'text-slate-700',
   }[color]
 
   return (
@@ -764,7 +764,7 @@ function Section({
 }) {
   const badgeCls = {
     red:   'bg-red-100 text-red-700',
-    amber: 'bg-amber-100 text-amber-700',
+    amber: 'bg-slate-100 text-slate-700',
     slate: 'bg-slate-100 text-slate-600',
   }[color]
 
@@ -784,7 +784,7 @@ function Section({
 function EmptyState({ text }: { text: string }) {
   return (
     <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-xs text-slate-400">
-      <CheckIcon className="h-4 w-4 flex-shrink-0 text-green-400" />
+      <CheckIcon className="h-4 w-4 flex-shrink-0 text-slate-400" />
       {text}
     </div>
   )

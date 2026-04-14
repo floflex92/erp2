@@ -14,17 +14,33 @@ export function ServicesOverviewCard({ companyId }: Props) {
   const { role } = useAuth()
   const canManage = role === 'admin' || role === 'dirigeant' || role === 'super_admin'
   const { services, health, isLoading, isSaving, create } = useServices(companyId)
-  const { exploitants, error: exploitantsError, isLoading: exploitantsLoading } = useExploitants(companyId)
+  const {
+    exploitants,
+    error: exploitantsError,
+    isLoading: exploitantsLoading,
+    isSaving: exploitantsSaving,
+    assignService,
+  } = useExploitants(companyId)
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [description, setDescription] = useState('')
   const [color, setColor] = useState<string>(DEFAULT_SERVICE_COLORS[0])
+  const [assignCandidateByService, setAssignCandidateByService] = useState<Record<string, string>>({})
+  const [detachTargetByExploitant, setDetachTargetByExploitant] = useState<Record<string, string>>({})
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const exploitantsByService = useMemo(() => {
     return exploitants.reduce<Record<string, number>>((acc, exploitant) => {
       acc[exploitant.service_id] = (acc[exploitant.service_id] ?? 0) + 1
+      return acc
+    }, {})
+  }, [exploitants])
+
+  const exploitantsByServiceList = useMemo(() => {
+    return exploitants.reduce<Record<string, typeof exploitants>>((acc, exploitant) => {
+      if (!acc[exploitant.service_id]) acc[exploitant.service_id] = []
+      acc[exploitant.service_id].push(exploitant)
       return acc
     }, {})
   }, [exploitants])
@@ -56,6 +72,51 @@ export function ServicesOverviewCard({ companyId }: Props) {
     setDescription('')
     setColor(DEFAULT_SERVICE_COLORS[0])
     setNotice('Service cree.')
+  }
+
+  async function handleAssignExploitant(serviceId: string) {
+    setNotice(null)
+    setError(null)
+
+    const exploitantId = assignCandidateByService[serviceId]
+    if (!exploitantId) {
+      setError('Selectionnez un exploitant a affecter.')
+      return
+    }
+
+    const result = await assignService({ exploitantId, serviceId })
+    if (!result.ok) {
+      setError(result.error ?? 'Affectation impossible.')
+      return
+    }
+
+    const exploitant = exploitants.find(item => item.id === exploitantId)
+    const service = services.find(item => item.id === serviceId)
+    setAssignCandidateByService(current => ({ ...current, [serviceId]: '' }))
+    setNotice(`${exploitant?.name ?? 'Exploitant'} affecte au service ${service?.name ?? ''}.`)
+  }
+
+  async function handleDetachExploitant(currentServiceId: string, exploitantId: string) {
+    setNotice(null)
+    setError(null)
+
+    const fallbackTarget = services.find(service => service.id !== currentServiceId)?.id
+    const targetServiceId = detachTargetByExploitant[exploitantId] ?? fallbackTarget
+
+    if (!targetServiceId) {
+      setError('Impossible de desaffecter: creez un deuxieme service de destination.')
+      return
+    }
+
+    const result = await assignService({ exploitantId, serviceId: targetServiceId })
+    if (!result.ok) {
+      setError(result.error ?? 'Desaffectation impossible.')
+      return
+    }
+
+    const exploitant = exploitants.find(item => item.id === exploitantId)
+    const targetService = services.find(item => item.id === targetServiceId)
+    setNotice(`${exploitant?.name ?? 'Exploitant'} retire du service courant et affecte a ${targetService?.name ?? ''}.`)
   }
 
   return (
@@ -110,6 +171,81 @@ export function ServicesOverviewCard({ companyId }: Props) {
                   </div>
                 </div>
                 {service.description && <p className="mt-2 text-sm nx-subtle">{service.description}</p>}
+
+                <div className="mt-3 grid gap-2">
+                  {(exploitantsByServiceList[service.id] ?? []).length === 0 ? (
+                    <p className="text-xs nx-subtle">Aucun exploitant affecte a ce service.</p>
+                  ) : (
+                    (exploitantsByServiceList[service.id] ?? []).map(exploitant => {
+                      const otherServices = services.filter(item => item.id !== service.id)
+                      const targetService = detachTargetByExploitant[exploitant.id] ?? otherServices[0]?.id ?? ''
+
+                      return (
+                        <div key={exploitant.id} className="rounded-lg border px-3 py-2" style={{ borderColor: 'var(--border)' }}>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-medium text-[color:var(--text)]">{exploitant.name}</p>
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-800">
+                              {exploitant.type_exploitant}
+                            </span>
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <select
+                              className="rounded-lg border bg-white px-2 py-1.5 text-xs text-slate-900"
+                              style={{ borderColor: 'var(--border)' }}
+                              value={targetService}
+                              disabled={!canManage || !health.ready || exploitantsSaving || otherServices.length === 0}
+                              onChange={event => setDetachTargetByExploitant(current => ({ ...current, [exploitant.id]: event.target.value }))}
+                            >
+                              {otherServices.length === 0 ? (
+                                <option value="">Aucun service cible</option>
+                              ) : (
+                                otherServices.map(item => (
+                                  <option key={item.id} value={item.id}>{item.name}</option>
+                                ))
+                              )}
+                            </select>
+                            <button
+                              type="button"
+                              disabled={!canManage || !health.ready || exploitantsSaving || otherServices.length === 0}
+                              onClick={() => void handleDetachExploitant(service.id, exploitant.id)}
+                              className="rounded-lg border border-red-300 bg-red-100 px-2.5 py-1.5 text-xs font-semibold text-red-900 disabled:opacity-50"
+                            >
+                              Desaffecter
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+
+                  <div className="rounded-lg border border-dashed px-3 py-2" style={{ borderColor: 'var(--border)' }}>
+                    <p className="text-xs font-semibold text-slate-800">Affecter un exploitant a ce service</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <select
+                        className="rounded-lg border bg-white px-2 py-1.5 text-xs text-slate-900"
+                        style={{ borderColor: 'var(--border)' }}
+                        value={assignCandidateByService[service.id] ?? ''}
+                        disabled={!canManage || !health.ready || exploitantsSaving}
+                        onChange={event => setAssignCandidateByService(current => ({ ...current, [service.id]: event.target.value }))}
+                      >
+                        <option value="">Selectionner un exploitant</option>
+                        {exploitants
+                          .filter(item => item.service_id !== service.id)
+                          .map(item => (
+                            <option key={item.id} value={item.id}>{item.name}</option>
+                          ))}
+                      </select>
+                      <button
+                        type="button"
+                        disabled={!canManage || !health.ready || exploitantsSaving || !(assignCandidateByService[service.id] ?? '')}
+                        onClick={() => void handleAssignExploitant(service.id)}
+                        className="rounded-lg border border-blue-300 bg-blue-100 px-2.5 py-1.5 text-xs font-semibold text-blue-900 disabled:opacity-50"
+                      >
+                        Affecter
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             ))
           )}

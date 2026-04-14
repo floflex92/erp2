@@ -1,7 +1,7 @@
 {
   "name": "nexora-truck",
   "private": true,
-  "version": "1.12.7",
+  "version": "1.12.11",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +10,8 @@
     "typecheck": "tsc -b --pretty false",
     "lint:src": "eslint src",
     "build": "node scripts/generate-sitemap.mjs && tsc -b && vite build",
+    "postbuild": "npm run indexnow:submit",
+    "indexnow:submit": "node scripts/submit-indexnow.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "npm run lint:src",

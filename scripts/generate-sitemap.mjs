@@ -50,7 +50,6 @@ const pages = [
   { loc: '/a-propos',                                                          lastmod: today,      changefreq: 'monthly', priority: '0.75' },
   { loc: '/demonstration',                                                     lastmod: today,      changefreq: 'weekly',  priority: '0.92' },
   { loc: '/contact',                                                           lastmod: today,      changefreq: 'weekly',  priority: '0.8'  },
-  { loc: '/connexion-erp',                                                     lastmod: today,      changefreq: 'monthly', priority: '0.6'  },
   { loc: '/politique-confidentialite',                                         lastmod: LEGAL_DATE, changefreq: 'monthly', priority: '0.42' },
   { loc: '/conditions-generales-utilisation',                                  lastmod: LEGAL_DATE, changefreq: 'monthly', priority: '0.4'  },
   { loc: '/mentions-legales-public',                                           lastmod: LEGAL_DATE, changefreq: 'yearly',  priority: '0.3'  },

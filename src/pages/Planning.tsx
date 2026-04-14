@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+﻿import { useState, useEffect, useRef, useCallback, useMemo, useTransition } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ST_BROUILLON, ST_CONFIRME, ST_PLANIFIE, ST_EN_COURS, ST_TERMINE } from '@/lib/transportCourses'
 import { looseSupabase } from '@/lib/supabaseLoose'
@@ -14,10 +14,11 @@ import {
 } from '@/lib/affretementPortal'
 import { validatePlanningDropAudit, type CEAlert } from '@/lib/ce561Validation'
 import { createLogisticSite, updateLogisticSite, type LogisticSite } from '@/lib/transportCourses'
+import { addCourseToMission, createMissionFromCourses, removeCourseFromMission } from '@/lib/transportMissions'
 import { listCourseTemplates, saveCourseTemplate, deleteCourseTemplate, type CourseTemplate } from '@/lib/courseTemplates'
 import { fetchCustomRows, fetchCustomBlocks, deleteCustomRow as dbDeleteCustomRow, deleteCustomBlock as dbDeleteCustomBlock, type RemoteCustomRow, type RemoteCustomBlock } from '@/lib/planningCustomBlocks'
 import { generatePlanningWeekPDF } from '@/lib/planningPdf'
-import { fetchAbsencesValideesPeriode, TYPE_ABSENCE_LABELS, type AbsenceRh } from '@/lib/absencesRh'
+import { fetchAllAbsencesValideesPeriode, TYPE_ABSENCE_LABELS, type AbsenceRh } from '@/lib/absencesRh'
 import { useAuth } from '@/lib/auth'
 import { usePlanningCompliance } from '@/hooks/useCompliancePlanning'
 import type {
@@ -56,11 +57,20 @@ import {
   uid,
 } from './planning/planningUtils'
 
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'nexora_sidebar_collapsed_v2'
+const SIDEBAR_COLLAPSED_EVENT = 'nexora:sidebar-collapsed-change'
+
 export default function Planning() {
   const { role } = useAuth()
   const planningComplianceService = usePlanningCompliance()
   // Guard contre les race conditions : on ne rechargera pas pendant une écriture active.
   const isMutatingRef = useRef(false)
+  // ── Performance : état de chargement et transition non-bloquante ──
+  const [isLoadingOTs, setIsLoadingOTs] = useState(true)
+  const [, startTransition] = useTransition()
+  // Cache des données référentielles (conducteurs, véhicules, etc.) — rechargées max 1×/60s
+  const refDataCacheRef = useRef<{ ts: number; conducteurs: Conducteur[]; vehicules: Vehicule[]; remorques: Remorque[]; clients: ClientRef[]; sites: LogisticSite[]; affectations: Affectation[] } | null>(null)
+  const REF_DATA_TTL = 60_000 // 60 secondes
   const [weekStart,   setWeekStart]   = useState(() => getMonday(new Date()))
   const [selectedDay, setSelectedDay] = useState(() => toISO(new Date()))
   const [monthStart,  setMonthStart]  = useState(() => getMonthStart(new Date()))
@@ -147,6 +157,32 @@ export default function Planning() {
 
   // Mini-carte itinéraire (tooltip hover)
   const [hoveredBlock,   setHoveredBlock]   = useState<{ ot: OT; x: number; y: number } | null>(null)
+  const hoveredMissionId = !drag && hoveredBlock?.ot.mission_id ? hoveredBlock.ot.mission_id : null
+
+  function openHoverPreview(ot: OT, clientX: number, clientY: number) {
+    if (drag) return
+    setHoveredBlock({ ot, x: clientX, y: clientY })
+  }
+
+  function clearHoverPreview() {
+    if (drag) return
+    setHoveredBlock(null)
+  }
+
+  function getMissionHoverClasses(groupId?: string | null, frozen = false): string {
+    if (!hoveredMissionId) return ''
+    if (!groupId || groupId !== hoveredMissionId) return 'opacity-40 saturate-50'
+    return frozen
+      ? 'z-20 ring-2 ring-indigo-300/85 shadow-[0_0_0_1px_rgba(165,180,252,0.4),0_0_24px_rgba(99,102,241,0.18)]'
+      : 'z-20 ring-2 ring-amber-300/85 shadow-[0_0_0_1px_rgba(251,191,36,0.4),0_0_24px_rgba(251,191,36,0.18)]'
+  }
+
+  function getMissionListRowClasses(groupId?: string | null, frozen = false, clickable = false): string {
+    const interactive = clickable ? 'cursor-pointer' : ''
+    if (!hoveredMissionId) return `border-t border-slate-800/70 hover:bg-slate-800/40 ${interactive}`
+    if (!groupId || groupId !== hoveredMissionId) return `border-t border-slate-800/70 opacity-45 ${interactive}`
+    return `border-t border-slate-800/70 ${interactive} ${frozen ? 'bg-indigo-500/12 ring-1 ring-inset ring-indigo-400/35' : 'bg-amber-300/10 ring-1 ring-inset ring-amber-300/35'}`
+  }
 
   // Modale de confirmation (remplace window.confirm)
   const [confirmModal, setConfirmModal] = useState<{ message: string; resolve: (v: boolean) => void } | null>(null)
@@ -192,6 +228,17 @@ export default function Planning() {
   const [bottomDockHeight, setBottomDockHeight] = useState<number>(() => loadNumberSetting(BOTTOM_DOCK_HEIGHT_KEY, 260))
   const [bottomDockCollapsed, setBottomDockCollapsed] = useState<boolean>(() => loadBooleanSetting(BOTTOM_DOCK_COLLAPSED_KEY, false))
   const [isResizingBottomDock, setIsResizingBottomDock] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const [isDesktopViewport, setIsDesktopViewport] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true
+    return window.matchMedia('(min-width: 1024px)').matches
+  })
   const [groupageTargetId, setGroupageTargetId] = useState('')
 
   // Retour en charge IA
@@ -307,6 +354,35 @@ export default function Planning() {
   useEffect(() => {
     saveBooleanSetting(BOTTOM_DOCK_COLLAPSED_KEY, bottomDockCollapsed)
   }, [bottomDockCollapsed])
+
+  useEffect(() => {
+    function syncSidebarState() {
+      try {
+        setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1')
+      } catch {
+        setSidebarCollapsed(false)
+      }
+    }
+
+    syncSidebarState()
+    window.addEventListener('storage', syncSidebarState)
+    window.addEventListener(SIDEBAR_COLLAPSED_EVENT, syncSidebarState)
+
+    return () => {
+      window.removeEventListener('storage', syncSidebarState)
+      window.removeEventListener(SIDEBAR_COLLAPSED_EVENT, syncSidebarState)
+    }
+  }, [])
+
+  useEffect(() => {
+    function syncViewport() {
+      setIsDesktopViewport(window.matchMedia('(min-width: 1024px)').matches)
+    }
+
+    syncViewport()
+    window.addEventListener('resize', syncViewport)
+    return () => window.removeEventListener('resize', syncViewport)
+  }, [])
 
   useEffect(() => {
     try {
@@ -630,13 +706,14 @@ export default function Planning() {
   const loadAll = useCallback(async () => {
     // Guard : ne pas recharger si une mutation est en cours (évite race condition).
     if (isMutatingRef.current) return
+    setIsLoadingOTs(true)
     // ── Sélect OT canonique (schema stable depuis les migrations du 2026-03-30) ──
-    const OT_SELECT = 'id, reference, statut, statut_transport, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, donneur_ordre_id, chargement_site_id, livraison_site_id, groupage_id, groupage_fige, est_affretee, clients!ordres_transport_client_id_fkey(nom)'
+    const OT_SELECT = 'id, reference, statut, statut_transport, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, donneur_ordre_id, chargement_site_id, livraison_site_id, mission_id, groupage_fige, est_affretee, clients!ordres_transport_client_id_fkey(nom)'
     const SITE_SELECT = 'id, nom, adresse, entreprise_id, usage_type, horaires_ouverture, jours_ouverture, notes_livraison, latitude, longitude, created_at, updated_at'
 
     // Fenêtre glissante adaptée selon le mode :
     //   • 'mois'    : 1er du mois → dernier jour du mois (± 2j buffer)
-    //   • 'semaine' : -7j / +21j centré sur weekStart
+    //   • 'semaine' : J-7 / J+15 centré sur weekStart (optimisé pour la perf)
     //   • 'jour'    : identique semaine (la fenêtre journée est incluse)
     // Les brouillons sans date (pool) sont toujours inclus via .is.null.
     let winFrom: Date, winTo: Date
@@ -645,113 +722,128 @@ export default function Planning() {
       const lastDay = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0)
       winTo = addDays(lastDay, 2)
     } else {
-      winFrom = new Date(weekStart)
-      winFrom.setDate(winFrom.getDate() - 7)
-      winTo = new Date(weekStart)
-      winTo.setDate(winTo.getDate() + 21)
+      winFrom = addDays(weekStart, -7)
+      winTo = addDays(weekStart, 15)
     }
-    const winFromISO = winFrom.toISOString().slice(0, 10)
-    const winToISO   = winTo.toISOString().slice(0, 10)
+    const winFromISO = toISO(winFrom)
+    const winToISO   = toISO(winTo)
     // Filtre : (chargement dans fenêtre ET livraison dans fenêtre) OU pas de date (pool)
     const otDateFilter = `and(date_chargement_prevue.gte.${winFromISO},date_chargement_prevue.lte.${winToISO}),date_chargement_prevue.is.null`
 
-    // ── Toutes les requêtes en parallèle — 1 seul round-trip réseau ─────────
-    const [otR, siteR, cR, vR, rR, clientR, aR] = await Promise.all([
-      supabase
-        .from('ordres_transport')
-        .select(OT_SELECT)
-        .or(otDateFilter)
-        .order('date_chargement_prevue', { ascending: true, nullsFirst: false }),
-      looseSupabase
-        .from('sites_logistiques')
-        .select(SITE_SELECT)
-        .order('nom'),
-      supabase.from('conducteurs').select('id, nom, prenom, statut').eq('statut', 'actif').order('nom'),
-      supabase.from('vehicules').select('id, immatriculation, marque, modele, statut').neq('statut', 'hors_service').order('immatriculation'),
-      supabase.from('remorques').select('id, immatriculation, type_remorque, statut').neq('statut', 'hors_service').order('immatriculation'),
-      supabase.from('clients').select('id, nom, actif').eq('actif', true).order('nom'),
-      supabase.from('affectations').select('id, conducteur_id, vehicule_id, remorque_id, actif').eq('actif', true),
-    ])
+    // ── Données référentielles : cache TTL 60s pour éviter les re-fetch inutiles ─
+    const now = Date.now()
+    const refCacheValid = refDataCacheRef.current && (now - refDataCacheRef.current.ts) < REF_DATA_TTL
+
+    // ── Requêtes en parallèle — OTs toujours frais, ref data conditionnelle ──
+    const otPromise = supabase
+      .from('ordres_transport')
+      .select(OT_SELECT)
+      .or(otDateFilter)
+      .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
+
+    let otR: Awaited<typeof otPromise>
+    if (refCacheValid) {
+      // OTs seulement — ref data depuis le cache
+      otR = await otPromise
+    } else {
+      const [otResult, siteR, cR, vR, rR, clientR, aR] = await Promise.all([
+        otPromise,
+        looseSupabase.from('sites_logistiques').select(SITE_SELECT).order('nom'),
+        supabase.from('conducteurs').select('id, nom, prenom, statut').eq('statut', 'actif').order('nom'),
+        supabase.from('vehicules').select('id, immatriculation, marque, modele, statut').neq('statut', 'hors_service').order('immatriculation'),
+        supabase.from('remorques').select('id, immatriculation, type_remorque, statut').neq('statut', 'hors_service').order('immatriculation'),
+        supabase.from('clients').select('id, nom, actif').eq('actif', true).order('nom'),
+        supabase.from('affectations').select('id, conducteur_id, vehicule_id, remorque_id, actif').eq('actif', true),
+      ])
+      otR = otResult
+
+      // Mise à jour des données référentielles
+      const newConducteurs = cR.error ? [] : (cR.data ?? [])
+      const newVehicules = vR.error ? [] : (vR.data ?? [])
+      const newRemorques = rR.error ? [] : (rR.data ?? [])
+      const newClients = clientR.error ? [] : (clientR.data ?? [])
+      const newSites = siteR.error ? [] : sortLogisticSites(((siteR.data ?? []) as SiteLoadRow[]).map(mapSiteLoadRow))
+      const newAffectations = aR.error ? [] : (aR.data ?? [])
+
+      setConducteurs(newConducteurs as Conducteur[])
+      setVehicules(newVehicules as Vehicule[])
+      setRemorques(newRemorques as Remorque[])
+      setClients(newClients as ClientRef[])
+      setLogisticSites(newSites)
+      setAffectations(newAffectations as Affectation[])
+
+      refDataCacheRef.current = {
+        ts: now,
+        conducteurs: newConducteurs as Conducteur[],
+        vehicules: newVehicules as Vehicule[],
+        remorques: newRemorques as Remorque[],
+        clients: newClients as ClientRef[],
+        sites: newSites,
+        affectations: newAffectations as Affectation[],
+      }
+    }
 
     // ── OT : fallback minimal si la colonne est_affretee est manquante ───────
     let finalOtR = otR as { data: unknown[] | null; error: { message?: string } | null }
     if (otR.error) {
       const fallback = await supabase
         .from('ordres_transport')
-        .select('id, reference, statut, statut_transport, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, chargement_site_id, livraison_site_id, groupage_id, groupage_fige, clients!ordres_transport_client_id_fkey(nom)')
+        .select('id, reference, statut, statut_transport, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, chargement_site_id, livraison_site_id, mission_id, groupage_fige, clients!ordres_transport_client_id_fkey(nom)')
         .or(otDateFilter)
         .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
       if (!fallback.error) finalOtR = fallback as typeof finalOtR
     }
 
-    // ── Traitement OTs ───────────────────────────────────────────────────────
-    if (finalOtR.error) {
-      setPool([])
-      setGanttOTs([])
-      setCancelledOTs([])
-      setSelected(null)
-    } else if (finalOtR.data) {
-      type OtLoadRow = Omit<OT, 'client_nom'> & {
-        clients: { nom: string } | { nom: string }[] | null
-        distance_km?: number | null
-        donneur_ordre_id?: string | null
-        chargement_site_id?: string | null
-        livraison_site_id?: string | null
-        groupage_id?: string | null
-        groupage_fige?: boolean | null
+    // ── Traitement OTs (dans une transition pour ne pas bloquer le rendu) ────
+    const processOTs = () => {
+      if (finalOtR.error) {
+        setPool([])
+        setGanttOTs([])
+        setCancelledOTs([])
+        setSelected(null)
+      } else if (finalOtR.data) {
+        type OtLoadRow = Omit<OT, 'client_nom'> & {
+          clients: { nom: string } | { nom: string }[] | null
+          distance_km?: number | null
+          donneur_ordre_id?: string | null
+          chargement_site_id?: string | null
+          livraison_site_id?: string | null
+          mission_id?: string | null
+          groupage_fige?: boolean | null
+        }
+        const ots: OT[] = (finalOtR.data as OtLoadRow[]).map(r => ({
+          id: r.id, reference: r.reference, client_nom: (Array.isArray(r.clients) ? r.clients[0] : r.clients)?.nom ?? '-',
+          date_chargement_prevue: r.date_chargement_prevue, date_livraison_prevue: r.date_livraison_prevue,
+          type_transport: r.type_transport, nature_marchandise: r.nature_marchandise,
+          statut: r.statut, statut_transport: (r as OtLoadRow & { statut_transport?: string | null }).statut_transport ?? null, conducteur_id: r.conducteur_id, vehicule_id: r.vehicule_id,
+          remorque_id: r.remorque_id, prix_ht: r.prix_ht, statut_operationnel: r.statut_operationnel,
+          distance_km: r.distance_km ?? null, donneur_ordre_id: r.donneur_ordre_id ?? null,
+          chargement_site_id: r.chargement_site_id ?? null, livraison_site_id: r.livraison_site_id ?? null,
+          mission_id: r.mission_id ?? null, groupage_fige: Boolean(r.groupage_fige),
+          est_affretee: Boolean(r.est_affretee),
+        }))
+        const scopedPlanning = ots.filter(o => planningScope === 'affretement' ? o.est_affretee : !o.est_affretee)
+        const cancelled = scopedPlanning.filter(o => o.statut === 'annule')
+        const principalPlanning = scopedPlanning.filter(o => o.statut !== 'annule')
+        const isDraftStatut = (ot: OT) => ST_BROUILLON.includes((ot.statut_transport ?? '') as never) || ST_CONFIRME.includes((ot.statut_transport ?? '') as never)
+        const hasAssignedResource = (ot: OT) => Boolean(ot.conducteur_id || ot.vehicule_id || ot.remorque_id)
+        setCancelledOTs(cancelled)
+        setPool(principalPlanning.filter(o => isDraftStatut(o) && !hasAssignedResource(o)))
+        setGanttOTs(principalPlanning.filter(o => !isDraftStatut(o) || hasAssignedResource(o)))
+        setSelected(current => current ? (scopedPlanning.find(ot => ot.id === current.id) ?? null) : current)
       }
-      const ots: OT[] = (finalOtR.data as OtLoadRow[]).map(r => ({
-        id: r.id, reference: r.reference, client_nom: (Array.isArray(r.clients) ? r.clients[0] : r.clients)?.nom ?? '-',
-        date_chargement_prevue: r.date_chargement_prevue, date_livraison_prevue: r.date_livraison_prevue,
-        type_transport: r.type_transport, nature_marchandise: r.nature_marchandise,
-        statut: r.statut, statut_transport: (r as OtLoadRow & { statut_transport?: string | null }).statut_transport ?? null, conducteur_id: r.conducteur_id, vehicule_id: r.vehicule_id,
-        remorque_id: r.remorque_id, prix_ht: r.prix_ht, statut_operationnel: r.statut_operationnel,
-        distance_km: r.distance_km ?? null, donneur_ordre_id: r.donneur_ordre_id ?? null,
-        chargement_site_id: r.chargement_site_id ?? null, livraison_site_id: r.livraison_site_id ?? null,
-        groupage_id: r.groupage_id ?? null, groupage_fige: Boolean(r.groupage_fige),
-        est_affretee: Boolean(r.est_affretee),
-      }))
-      const scopedPlanning = ots.filter(o => planningScope === 'affretement' ? o.est_affretee : !o.est_affretee)
-      const cancelled = scopedPlanning.filter(o => o.statut === 'annule')
-      const principalPlanning = scopedPlanning.filter(o => o.statut !== 'annule')
-      const isDraftStatut = (ot: OT) => ST_BROUILLON.includes((ot.statut_transport ?? '') as never) || ST_CONFIRME.includes((ot.statut_transport ?? '') as never)
-      const hasAssignedResource = (ot: OT) => Boolean(ot.conducteur_id || ot.vehicule_id || ot.remorque_id)
-      setCancelledOTs(cancelled)
-      setPool(principalPlanning.filter(o => isDraftStatut(o) && !hasAssignedResource(o)))
-      setGanttOTs(principalPlanning.filter(o => !isDraftStatut(o) || hasAssignedResource(o)))
-      setSelected(current => current ? (scopedPlanning.find(ot => ot.id === current.id) ?? null) : current)
+      setIsLoadingOTs(false)
     }
+    startTransition(processOTs)
 
-    // ── Ressources ───────────────────────────────────────────────────────────
-    if (cR.error) setConducteurs([])
-    else if (cR.data) setConducteurs(cR.data)
-
-    if (vR.error) setVehicules([])
-    else if (vR.data) setVehicules(vR.data)
-
-    if (rR.error) setRemorques([])
-    else if (rR.data) setRemorques(rR.data)
-
-    if (clientR.error) setClients([])
-    else if (clientR.data) setClients(clientR.data)
-
-    if (siteR.error) setLogisticSites([])
-    else if (siteR.data) setLogisticSites(sortLogisticSites((siteR.data as SiteLoadRow[] ?? []).map(mapSiteLoadRow)))
-
-    if (aR.error) setAffectations([])
-    else if (aR.data) setAffectations(aR.data)
-
-    // ── Absences RH conducteurs sur la fenêtre visible ───────────────────────
-    if (!cR.error && cR.data && cR.data.length > 0) {
-      const absMap = new Map<string, AbsenceRh[]>()
-      const results = await Promise.all(
-        (cR.data as Conducteur[]).map(c =>
-          fetchAbsencesValideesPeriode(c.id, winFromISO, winToISO).then(abs => ({ id: c.id, abs }))
-        )
+    // ── Absences RH conducteurs — 1 seule requête batch au lieu de N ─────────
+    const activeConducteurs = refDataCacheRef.current?.conducteurs ?? []
+    if (activeConducteurs.length > 0) {
+      const absMap = await fetchAllAbsencesValideesPeriode(
+        activeConducteurs.map(c => c.id),
+        winFromISO,
+        winToISO,
       )
-      for (const { id, abs } of results) {
-        if (abs.length > 0) absMap.set(id, abs)
-      }
       setConducteurAbsences(absMap)
     } else {
       setConducteurAbsences(new Map())
@@ -845,21 +937,26 @@ export default function Planning() {
   // Chargement radar km à vide (synthèse par véhicule, 30 jours)
   // NOTE: v_radar_km_vide_synthese est une vue Supabase non typée (looseSupabase).
   // Si la structure de la vue change, mettre à jour le type KmVideRow ci-dessous.
+  const kmVideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
-    type KmVideRow = { vehicule_id: string; taux_charge_pct: number | null; total_km_vide_estime: number | null }
-    async function fetchKmVide() {
-      const { data, error } = await looseSupabase
-        .from('v_radar_km_vide_synthese')
-        .select('vehicule_id, taux_charge_pct, total_km_vide_estime')
-      if (error || !data) return
-      const map = new Map<string, Pick<KmVideRow, 'taux_charge_pct' | 'total_km_vide_estime'>>()
-      for (const row of (data as KmVideRow[])) {
-        map.set(row.vehicule_id, { taux_charge_pct: row.taux_charge_pct, total_km_vide_estime: row.total_km_vide_estime })
+    if (kmVideTimerRef.current) clearTimeout(kmVideTimerRef.current)
+    kmVideTimerRef.current = setTimeout(() => {
+      type KmVideRow = { vehicule_id: string; taux_charge_pct: number | null; total_km_vide_estime: number | null }
+      async function fetchKmVide() {
+        const { data, error } = await looseSupabase
+          .from('v_radar_km_vide_synthese')
+          .select('vehicule_id, taux_charge_pct, total_km_vide_estime')
+        if (error || !data) return
+        const map = new Map<string, Pick<KmVideRow, 'taux_charge_pct' | 'total_km_vide_estime'>>()
+        for (const row of (data as KmVideRow[])) {
+          map.set(row.vehicule_id, { taux_charge_pct: row.taux_charge_pct, total_km_vide_estime: row.total_km_vide_estime })
+        }
+        setKmVideSynthese(map)
       }
-      setKmVideSynthese(map)
-    }
-    void fetchKmVide()
-  }, [ganttOTs]) // rafraîchit quand les OT changent
+      void fetchKmVide()
+    }, 3000) // debounce 3s — données synthétiques, pas urgentes
+    return () => { if (kmVideTimerRef.current) clearTimeout(kmVideTimerRef.current) }
+  }, [ganttOTs]) // rafraîchit quand les OT changent (debounced)
 
   const realtimeReloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -1394,57 +1491,95 @@ export default function Planning() {
     if (!ensureWriteAllowed('Deplacement de course')) return
     if (!ensureGroupageEditable(ot, 'Deplacement')) return
     setSavingOtId(ot.id)
-    const targetConducteurId = tab === 'conducteurs' ? resourceId : (ot.conducteur_id ?? null)
-    const auditSummary = await buildComplianceAuditSummary({
-      otId: ot.id,
-      conducteurId: targetConducteurId,
-      startISO: newStartISO,
-      endISO: newEndISO,
+    const members = getGroupageMembersForOt(ot)
+    const baseStartMs = new Date(ot.date_chargement_prevue ?? newStartISO).getTime()
+    const nextStartMs = new Date(newStartISO).getTime()
+    const deltaMs = nextStartMs - baseStartMs
+    const moveTargets = members.map(member => {
+      const memberStartIso = member.date_chargement_prevue ?? newStartISO
+      const memberEndIso = member.date_livraison_prevue ?? member.date_chargement_prevue ?? newEndISO
+      const memberStartMs = new Date(memberStartIso).getTime()
+      const memberEndMs = Math.max(memberStartMs, new Date(memberEndIso).getTime())
+      const shiftedStartIso = new Date(memberStartMs + deltaMs).toISOString()
+      const shiftedEndIso = new Date(memberEndMs + deltaMs).toISOString()
+      const payload: Record<string, string | null> = {
+        date_chargement_prevue: shiftedStartIso,
+        date_livraison_prevue: shiftedEndIso,
+      }
+      if (tab === 'conducteurs') payload.conducteur_id = resourceId
+      else if (tab === 'camions') payload.vehicule_id = resourceId
+      else payload.remorque_id = resourceId
+      return {
+        member,
+        shiftedStartIso,
+        shiftedEndIso,
+        payload,
+      }
     })
-    if (blockOnCompliance && auditSummary?.hasBlocking) {
-      pushPlanningNotice(`Deplacement bloque. ${auditSummary.message}`, 'error')
-      setSavingOtId(null)
-      return
+
+    let lastAuditSummary: { message: string; hasBlocking: boolean } | null = null
+    for (const target of moveTargets) {
+      const targetConducteurId = tab === 'conducteurs' ? resourceId : (target.member.conducteur_id ?? null)
+      const auditSummary = await buildComplianceAuditSummary({
+        otId: target.member.id,
+        conducteurId: targetConducteurId,
+        startISO: target.shiftedStartIso,
+        endISO: target.shiftedEndIso,
+      })
+      lastAuditSummary = auditSummary
+      if (blockOnCompliance && auditSummary?.hasBlocking) {
+        pushPlanningNotice(`Deplacement bloque sur ${target.member.reference}. ${auditSummary.message}`, 'error')
+        setSavingOtId(null)
+        return
+      }
     }
 
-    const updates: Record<string,string|null> = { date_chargement_prevue:newStartISO, date_livraison_prevue:newEndISO }
-    if (tab === 'conducteurs') updates.conducteur_id = resourceId
-    else if (tab === 'camions') updates.vehicule_id  = resourceId
-    else updates.remorque_id = resourceId
-    setGanttOTs(prev => prev.map(o => o.id !== ot.id ? o : {
-      ...o, date_chargement_prevue:newStartISO, date_livraison_prevue:newEndISO,
-      ...(tab==='conducteurs' ? {conducteur_id:resourceId} : {}),
-      ...(tab==='camions'     ? {vehicule_id:resourceId}   : {}),
-      ...(tab==='remorques'   ? {remorque_id:resourceId}   : {}),
+    setGanttOTs(prev => prev.map(item => {
+      const target = moveTargets.find(candidate => candidate.member.id === item.id)
+      if (!target) return item
+      return {
+        ...item,
+        date_chargement_prevue: target.shiftedStartIso,
+        date_livraison_prevue: target.shiftedEndIso,
+        ...(tab === 'conducteurs' ? { conducteur_id: resourceId } : {}),
+        ...(tab === 'camions' ? { vehicule_id: resourceId } : {}),
+        ...(tab === 'remorques' ? { remorque_id: resourceId } : {}),
+      }
     }))
-    const firstTry = await supabase
-      .from('ordres_transport')
-      .update(updates)
-      .eq('id', ot.id)
 
-    if (firstTry.error) {
-      const fallbackUpdates: Record<string, string | null> = {
-        ...updates,
-        date_chargement_prevue: newStartISO.slice(0, 10),
-        date_livraison_prevue: newEndISO.slice(0, 10),
+    let failureMessage: string | null = null
+    for (const target of moveTargets) {
+      const firstTry = await supabase
+        .from('ordres_transport')
+        .update(target.payload)
+        .eq('id', target.member.id)
+
+      if (!firstTry.error) continue
+
+      const fallbackPayload: Record<string, string | null> = {
+        ...target.payload,
+        date_chargement_prevue: target.shiftedStartIso.slice(0, 10),
+        date_livraison_prevue: target.shiftedEndIso.slice(0, 10),
       }
       const fallbackTry = await supabase
         .from('ordres_transport')
-        .update(fallbackUpdates)
-        .eq('id', ot.id)
+        .update(fallbackPayload)
+        .eq('id', target.member.id)
+
       if (fallbackTry.error) {
-        const message = getUpdateFailureReason(fallbackTry)
-        pushPlanningNotice(`Deplacement impossible: ${message}`, 'error')
-      } else if (notifySuccess) {
-        pushPlanningNotice(
-          auditSummary ? `Deplacement enregistre. ${auditSummary.message}` : 'Deplacement enregistre.',
-          auditSummary?.hasBlocking ? 'error' : 'success',
-        )
+        failureMessage = getUpdateFailureReason(fallbackTry)
+        break
       }
+    }
+
+    if (failureMessage) {
+      pushPlanningNotice(`Deplacement impossible: ${failureMessage}`, 'error')
     } else if (notifySuccess) {
       pushPlanningNotice(
-        auditSummary ? `Deplacement enregistre. ${auditSummary.message}` : 'Deplacement enregistre.',
-        auditSummary?.hasBlocking ? 'error' : 'success',
+        lastAuditSummary
+          ? `${moveTargets.length > 1 ? 'Mission deplacee.' : 'Deplacement enregistre.'} ${lastAuditSummary.message}`
+          : moveTargets.length > 1 ? 'Mission deplacee.' : 'Deplacement enregistre.',
+        lastAuditSummary?.hasBlocking ? 'error' : 'success',
       )
     }
     setSavingOtId(null)
@@ -1461,20 +1596,6 @@ export default function Planning() {
       }) ?? null
   }
 
-  async function normalizeSingletonGroupage(groupId: string) {
-    const membersRes = await supabase
-      .from('ordres_transport')
-      .select('id')
-      .eq('groupage_id', groupId)
-
-    if ((membersRes.data?.length ?? 0) <= 1) {
-      await supabase
-        .from('ordres_transport')
-        .update({ groupage_id: null, groupage_fige: false })
-        .eq('groupage_id', groupId)
-    }
-  }
-
   async function linkCoursesToGroupage(source: OT, target: OT) {
     if (!ensureWriteAllowed('Liaison de groupage')) return false
     if (source.groupage_fige || target.groupage_fige) {
@@ -1482,23 +1603,35 @@ export default function Planning() {
       return false
     }
 
-    const previousSourceGroupId = source.groupage_id
-    const previousTargetGroupId = target.groupage_id
-    const nextGroupId = source.groupage_id ?? target.groupage_id ?? crypto.randomUUID()
+    try {
+      if (source.mission_id && target.mission_id && source.mission_id === target.mission_id) {
+        return source.mission_id
+      }
 
-    const result = await supabase
-      .from('ordres_transport')
-      .update({ groupage_id: nextGroupId, groupage_fige: false, type_transport: 'groupage' })
-      .in('id', [source.id, target.id])
+      if (source.mission_id && target.mission_id && source.mission_id !== target.mission_id) {
+        const mergedMission = await createMissionFromCourses([
+          ...getGroupageMemberIds(source),
+          ...getGroupageMemberIds(target),
+        ])
+        return mergedMission.id
+      }
 
-    if (result.error) {
-      pushPlanningNotice(`Groupage impossible: ${result.error.message}`, 'error')
+      if (source.mission_id) {
+        const mission = await addCourseToMission(target.id, source.mission_id)
+        return mission.id
+      }
+
+      if (target.mission_id) {
+        const mission = await addCourseToMission(source.id, target.mission_id)
+        return mission.id
+      }
+
+      const mission = await createMissionFromCourses([source.id, target.id])
+      return mission.id
+    } catch (error) {
+      pushPlanningNotice(`Groupage impossible: ${error instanceof Error ? error.message : 'erreur inconnue'}`, 'error')
       return false
     }
-
-    if (previousSourceGroupId && previousSourceGroupId !== nextGroupId) await normalizeSingletonGroupage(previousSourceGroupId)
-    if (previousTargetGroupId && previousTargetGroupId !== nextGroupId) await normalizeSingletonGroupage(previousTargetGroupId)
-    return nextGroupId
   }
 
   async function applyConflictGroupage(conflict: RowConflict, freezeGroupage: boolean) {
@@ -1522,7 +1655,7 @@ export default function Planning() {
         return
       }
 
-      let nextGroupId = alreadyGrouped ? conflict.first.groupage_id : null
+      let nextGroupId = alreadyGrouped ? conflict.first.mission_id : null
       if (!nextGroupId) {
         const linkedGroupId = await linkCoursesToGroupage(conflict.first, conflict.second)
         if (!linkedGroupId) return
@@ -1533,7 +1666,7 @@ export default function Planning() {
         const freezeResult = await supabase
           .from('ordres_transport')
           .update({ groupage_fige: true })
-          .eq('groupage_id', nextGroupId)
+          .eq('mission_id', nextGroupId)
 
         if (freezeResult.error) {
           pushPlanningNotice(`Verrouillage impossible: ${freezeResult.error.message}`, 'error')
@@ -1554,36 +1687,31 @@ export default function Planning() {
 
   async function unlinkCourseFromGroupage(ot: OT) {
     if (!ensureWriteAllowed('Deliaison de groupage')) return
-    if (!ot.groupage_id) return
+    if (!ot.mission_id) return
     if (ot.groupage_fige) {
       pushPlanningNotice('Ce lot est fige. Defigez-le avant de delier une course.', 'error')
       return
     }
 
-    const previousGroupId = ot.groupage_id
-    const result = await supabase
-      .from('ordres_transport')
-      .update({ groupage_id: null, groupage_fige: false })
-      .eq('id', ot.id)
-
-    if (result.error) {
-      pushPlanningNotice(`Deliaison impossible: ${result.error.message}`, 'error')
+    try {
+      await removeCourseFromMission(ot.id)
+    } catch (error) {
+      pushPlanningNotice(`Deliaison impossible: ${error instanceof Error ? error.message : 'erreur inconnue'}`, 'error')
       return
     }
 
-    await normalizeSingletonGroupage(previousGroupId)
     await loadAll()
     pushPlanningNotice('Course deliee du groupage.')
   }
 
   async function toggleGroupageFreeze(ot: OT, nextFrozen: boolean) {
-    if (!ot.groupage_id) return
+    if (!ot.mission_id) return
     if (!ensureWriteAllowed(nextFrozen ? 'Figeage de groupage' : 'Defigeage de groupage')) return
 
     const result = await supabase
       .from('ordres_transport')
       .update({ groupage_fige: nextFrozen })
-      .eq('groupage_id', ot.groupage_id)
+      .eq('mission_id', ot.mission_id)
 
     if (result.error) {
       pushPlanningNotice(`Mise a jour du lot impossible: ${result.error.message}`, 'error')
@@ -2455,12 +2583,12 @@ export default function Planning() {
 
   const bottomDockGroupages = useMemo(() => {
     const allPlanning = [...pool, ...ganttOTs]
-      .filter(ot => ot.groupage_id)
+      .filter(ot => ot.mission_id)
       .filter(ot => !centerFilter || ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter)
     const byGroup = new Map<string, OT[]>()
     for (const ot of allPlanning) {
-      if (!ot.groupage_id) continue
-      byGroup.set(ot.groupage_id, [...(byGroup.get(ot.groupage_id) ?? []), ot])
+      if (!ot.mission_id) continue
+      byGroup.set(ot.mission_id, [...(byGroup.get(ot.mission_id) ?? []), ot])
     }
     return Array.from(byGroup.entries())
       .map(([groupId, members]) => ({
@@ -2474,8 +2602,8 @@ export default function Planning() {
   const groupageMembersByGroupId = useMemo(() => {
     const next = new Map<string, OT[]>()
     for (const ot of [...pool, ...ganttOTs, ...cancelledOTs]) {
-      if (!ot.groupage_id) continue
-      next.set(ot.groupage_id, [...(next.get(ot.groupage_id) ?? []), ot])
+      if (!ot.mission_id) continue
+      next.set(ot.mission_id, [...(next.get(ot.mission_id) ?? []), ot])
     }
     for (const [groupId, members] of next.entries()) {
       next.set(groupId, [...members].sort((left, right) => left.reference.localeCompare(right.reference, 'fr-FR')))
@@ -2484,16 +2612,16 @@ export default function Planning() {
   }, [cancelledOTs, ganttOTs, pool])
 
   const selectedGroupMembers = useMemo(() => {
-    if (!selected?.groupage_id) return []
+    if (!selected?.mission_id) return []
     return [...pool, ...ganttOTs, ...cancelledOTs]
-      .filter(ot => ot.groupage_id === selected.groupage_id)
+      .filter(ot => ot.mission_id === selected.mission_id)
       .sort((left, right) => left.reference.localeCompare(right.reference, 'fr-FR'))
-  }, [cancelledOTs, ganttOTs, pool, selected?.groupage_id])
+  }, [cancelledOTs, ganttOTs, pool, selected?.mission_id])
 
   const assignGroupMembers = useMemo(() => {
     if (!assignModal?.ot) return []
-    if (!assignModal.ot.groupage_id) return [assignModal.ot]
-    return groupageMembersByGroupId.get(assignModal.ot.groupage_id) ?? [assignModal.ot]
+    if (!assignModal.ot.mission_id) return [assignModal.ot]
+    return groupageMembersByGroupId.get(assignModal.ot.mission_id) ?? [assignModal.ot]
   }, [assignModal, groupageMembersByGroupId])
 
   const planningGroupageCandidates = useMemo(() => {
@@ -2545,8 +2673,11 @@ export default function Planning() {
 
   // Pool filtre
   const visiblePool = useMemo(() => {
-    let list = pool.filter(ot => !customOTIds.has(ot.id))
-    if (centerFilter) list = list.filter(ot => ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter)
+    let list = ganttOTs
+      .filter(ot => !resolveRowId(ot))
+      .filter(ot => !customOTIds.has(ot.id))
+      .filter(ot => !centerFilter || ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter)
+      .filter(ot => viewMode === 'semaine' ? blockPos(ot, weekStart) !== null : isoToDate(ot.date_chargement_prevue) === selectedDay)
     if (poolSearch) {
       const q = poolSearch.toLowerCase()
       list = list.filter(o => o.reference.toLowerCase().includes(q) || o.client_nom.toLowerCase().includes(q))
@@ -2554,7 +2685,7 @@ export default function Planning() {
     if (filterType) list = list.filter(o => o.type_transport === filterType)
     if (filterClient) list = list.filter(o => o.client_nom === filterClient)
     return list
-  }, [pool, customOTIds, centerFilter, poolSearch, filterType, filterClient])
+  }, [ganttOTs, customOTIds, centerFilter, viewMode, weekStart, selectedDay, poolSearch, filterType, filterClient])
 
   function getAffretementRowId(ot: OT): string | null {
     const context = affretementContextByOtId[ot.id]
@@ -2588,29 +2719,102 @@ export default function Planning() {
   }
 
   function getGroupageMembersForOt(ot: OT): OT[] {
-    if (!ot.groupage_id) return [ot]
-    return groupageMembersByGroupId.get(ot.groupage_id) ?? [ot]
+    if (!ot.mission_id) return [ot]
+    return groupageMembersByGroupId.get(ot.mission_id) ?? [ot]
   }
 
   function getGroupageMemberIds(ot: OT): string[] {
     return getGroupageMembersForOt(ot).map(member => member.id)
   }
 
-  function getGroupageBubbleLabel(ot: OT): string | null {
-    if (!ot.groupage_id) return null
-    const members = getGroupageMembersForOt(ot)
-    return members.length > 1 ? `LOT ${members.length}` : 'LOT'
+  type MissionSummary = {
+    missionId: string
+    missionType: 'complet' | 'groupage' | 'partiel'
+    courseCount: number
+    label: string
+    badge: string
+    subtitle: string
+    timeRange: string
+    statusLabel: string
+    clientLabel: string
+    referencesLabel: string
+    coursePreview: string[]
+    frozen: boolean
+    members: OT[]
   }
 
+  function getMissionSummaryFromMembers(members: OT[]): MissionSummary {
+    const sortedMembers = [...members].sort((left, right) => otInterval(left).start - otInterval(right).start)
+    const firstMember = sortedMembers[0]
+    const earliest = firstMember?.date_chargement_prevue ?? null
+    const latestMember = sortedMembers[sortedMembers.length - 1]
+    const latest = latestMember?.date_livraison_prevue ?? latestMember?.date_chargement_prevue ?? null
+    const uniqueClients = Array.from(new Set(sortedMembers.map(member => member.client_nom).filter(Boolean)))
+    const missionType = sortedMembers.length > 1
+      ? 'groupage'
+      : firstMember?.type_transport === 'partiel'
+        ? 'partiel'
+        : 'complet'
+    const completedCount = sortedMembers.filter(member => member.statut_transport === 'termine' || member.statut === 'facture').length
+    const activeCount = sortedMembers.filter(member => ST_EN_COURS.includes((member.statut_transport ?? '') as never)).length
+    const plannedCount = sortedMembers.filter(member => ST_PLANIFIE.includes((member.statut_transport ?? '') as never)).length
+    const statusLabel = completedCount === sortedMembers.length
+      ? 'Terminee'
+      : activeCount > 0
+        ? 'En cours'
+        : plannedCount > 0
+          ? 'Planifiee'
+          : 'A confirmer'
+    const clientLabel = uniqueClients.length <= 1
+      ? (uniqueClients[0] ?? firstMember?.client_nom ?? 'Client non renseigne')
+      : `${uniqueClients.length} clients`
+    const subtitle = missionType === 'groupage'
+      ? `${sortedMembers.length} courses · ${clientLabel}`
+      : clientLabel
+    const timeRange = [isoToTime(earliest), isoToTime(latest)].filter(Boolean).join(' - ') || 'Horaire non renseigne'
+    const coursePreview = sortedMembers.map(member => {
+      const memberRange = [isoToTime(member.date_chargement_prevue), isoToTime(member.date_livraison_prevue)].filter(Boolean).join('-')
+      const head = [member.reference, member.client_nom].filter(Boolean).join(' · ')
+      return memberRange ? `${head} · ${memberRange}` : head
+    })
+
+    return {
+      missionId: firstMember?.mission_id ?? firstMember?.id ?? crypto.randomUUID(),
+      missionType,
+      courseCount: sortedMembers.length,
+      label: missionType === 'groupage' ? 'Mission groupage' : missionType === 'partiel' ? 'Mission partielle' : 'Course simple',
+      badge: missionType === 'groupage' ? `MISSION ${sortedMembers.length}` : missionType.toUpperCase(),
+      subtitle,
+      timeRange,
+      statusLabel,
+      clientLabel,
+      referencesLabel: sortedMembers.map(member => member.reference).join(' · '),
+      coursePreview,
+      frozen: sortedMembers.some(member => member.groupage_fige),
+      members: sortedMembers,
+    }
+  }
+
+  function getMissionSummary(ot: OT): MissionSummary {
+    return getMissionSummaryFromMembers(getGroupageMembersForOt(ot))
+  }
+
+  function getGroupageBubbleLabel(ot: OT): string | null {
+    const summary = getMissionSummary(ot)
+    return summary.missionType === 'groupage' ? summary.badge : null
+  }
+
+  const hoveredMissionSummary = hoveredBlock && hoveredMissionId ? getMissionSummary(hoveredBlock.ot) : null
+
   function sharesSameGroupage(first: OT, second: OT): boolean {
-    return Boolean(first.groupage_id && first.groupage_id === second.groupage_id)
+    return Boolean(first.mission_id && first.mission_id === second.mission_id)
   }
 
   function buildFrozenGroupageOverlays(ots: OT[]): Array<{ groupId: string; leftPct: number; widthPct: number; label: string; references: string }> {
     const byGroup = new Map<string, OT[]>()
     for (const ot of ots) {
-      if (!ot.groupage_id || !ot.groupage_fige) continue
-      byGroup.set(ot.groupage_id, [...(byGroup.get(ot.groupage_id) ?? []), ot])
+      if (!ot.mission_id || !ot.groupage_fige) continue
+      byGroup.set(ot.mission_id, [...(byGroup.get(ot.mission_id) ?? []), ot])
     }
 
     const overlays: Array<{ groupId: string; leftPct: number; widthPct: number; label: string; references: string }> = []
@@ -2640,13 +2844,42 @@ export default function Planning() {
     return overlays
   }
 
+  function buildHoveredMissionOverlays(ots: OT[]): Array<{ groupId: string; leftPct: number; widthPct: number; frozen: boolean; label: string }> {
+    if (!hoveredMissionId) return []
+    const members = ots.filter(ot => ot.mission_id === hoveredMissionId)
+    if (members.length === 0) return []
+
+    const visibleMembers = members
+      .map(member => ({
+        member,
+        metrics: viewMode === 'semaine'
+          ? getWeekBlockMetrics(member, weekStart)
+          : getDayBlockMetrics(member.date_chargement_prevue, member.date_livraison_prevue, selectedDay),
+      }))
+      .filter((item): item is { member: OT; metrics: BlockMetrics } => Boolean(item.metrics))
+
+    if (visibleMembers.length === 0) return []
+
+    const summary = getMissionSummaryFromMembers(visibleMembers.map(item => item.member))
+    const leftPct = Math.min(...visibleMembers.map(item => item.metrics.leftPct))
+    const rightPct = Math.max(...visibleMembers.map(item => item.metrics.leftPct + item.metrics.widthPct))
+
+    return [{
+      groupId: hoveredMissionId,
+      leftPct,
+      widthPct: rightPct - leftPct,
+      frozen: summary.frozen,
+      label: `${summary.label} · ${summary.courseCount} course${summary.courseCount > 1 ? 's' : ''}`,
+    }]
+  }
+
   function buildGroupedBlockLayout(ots: OT[]): Record<string, { top: number; height: number; compact: boolean }> {
     const layout: Record<string, { top: number; height: number; compact: boolean }> = {}
     const byGroup = new Map<string, OT[]>()
 
     for (const ot of ots) {
-      if (!ot.groupage_id) continue
-      byGroup.set(ot.groupage_id, [...(byGroup.get(ot.groupage_id) ?? []), ot])
+      if (!ot.mission_id) continue
+      byGroup.set(ot.mission_id, [...(byGroup.get(ot.mission_id) ?? []), ot])
     }
 
     for (const members of byGroup.values()) {
@@ -2680,11 +2913,12 @@ export default function Planning() {
     widthPct: number
     members: OT[]
     frozen: boolean
+    summary: MissionSummary
   }> {
     const byGroup = new Map<string, OT[]>()
     for (const ot of ots) {
-      if (!ot.groupage_id) continue
-      byGroup.set(ot.groupage_id, [...(byGroup.get(ot.groupage_id) ?? []), ot])
+      if (!ot.mission_id) continue
+      byGroup.set(ot.mission_id, [...(byGroup.get(ot.mission_id) ?? []), ot])
     }
 
     const cards: Array<{
@@ -2693,6 +2927,7 @@ export default function Planning() {
       widthPct: number
       members: OT[]
       frozen: boolean
+      summary: MissionSummary
     }> = []
 
     for (const [groupId, members] of byGroup.entries()) {
@@ -2721,6 +2956,7 @@ export default function Planning() {
         widthPct: rightPct - leftPct,
         members: sortedMembers,
         frozen: sortedMembers.some(member => member.groupage_fige),
+        summary: getMissionSummaryFromMembers(sortedMembers),
       })
     }
 
@@ -3090,6 +3326,15 @@ export default function Planning() {
           {planningNotice.message}
         </div>
       )}
+      {/* Barre de chargement subtile en haut du planning */}
+      {isLoadingOTs && ganttOTs.length > 0 && (
+        <div className="absolute top-0 left-0 right-0 z-[90] h-0.5 overflow-hidden">
+          <div className="h-full w-1/3 bg-blue-500/80 rounded-full animate-[shimmer_1s_ease-in-out_infinite]"
+            style={{ animation: 'shimmer 1s ease-in-out infinite', transformOrigin: 'left' }}
+          />
+          <style>{`@keyframes shimmer { 0% { transform: translateX(-100%) } 100% { transform: translateX(400%) } }`}</style>
+        </div>
+      )}
       {lastComplianceAudit && (
         <div className={`absolute right-4 top-24 z-[79] w-[26rem] max-h-[45vh] overflow-y-auto rounded-xl border border-amber-500/30 bg-slate-900/95 px-3 py-3 shadow-2xl ${drag ? 'pointer-events-none' : ''}`}>
           <div className="flex items-center justify-between gap-2">
@@ -3137,6 +3382,7 @@ export default function Planning() {
                 <span className="text-2xl font-bold text-white">{visiblePool.length}</span>
                 <span className="text-xs text-slate-500">OT{visiblePool.length !== 1 ? 's' : ''} a placer</span>
               </div>
+              <p className="mt-0.5 text-[10px] text-slate-500">OT sans ressource sur la vue active (conducteurs, camions ou remorques).</p>
             </div>
             {kpi.retard > 0 && (
               <div className="flex flex-col items-center bg-red-900/30 border border-red-700/40 rounded-lg px-2 py-1">
@@ -3172,7 +3418,7 @@ export default function Planning() {
           {visiblePool.length === 0 ? (
             <div className="py-10 text-center">
               <p className="text-2xl mb-2">?</p>
-              <p className="text-xs text-slate-600">Tout est planifie</p>
+              <p className="text-xs text-slate-600">Aucune OT non affectee sur la vue active</p>
             </div>
           ) : (() => {
             const nowDate = toISO(new Date())
@@ -3274,22 +3520,22 @@ export default function Planning() {
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
 
         {/* â”€â”€ Top bar â”€â”€ */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700 bg-slate-900 flex-shrink-0 gap-3">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="flex flex-wrap items-start justify-between px-5 py-3 border-b border-slate-700 bg-slate-900 flex-shrink-0 gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <h1 className="text-base font-bold text-white flex-shrink-0">Planning</h1>
 
             <div className="flex rounded-lg border border-slate-700 overflow-hidden flex-shrink-0">
               <button
                 type="button"
                 onClick={() => setPlanningScope('principal')}
-                className={`px-3 py-1 text-xs font-medium transition-colors ${planningScope === 'principal' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                className={`px-3 py-1 text-xs font-semibold transition-colors ${planningScope === 'principal' ? 'bg-blue-200 text-blue-900' : 'text-slate-600 hover:text-slate-900'}`}
               >
                 Principal
               </button>
               <button
                 type="button"
                 onClick={() => setPlanningScope('affretement')}
-                className={`px-3 py-1 text-xs font-medium transition-colors ${planningScope === 'affretement' ? 'bg-blue-600/30 text-blue-100' : 'text-slate-400 hover:text-white'}`}
+                className={`px-3 py-1 text-xs font-semibold transition-colors ${planningScope === 'affretement' ? 'bg-blue-200 text-blue-900' : 'text-slate-600 hover:text-slate-900'}`}
               >
                 Affreteur dedie
               </button>
@@ -3302,7 +3548,7 @@ export default function Planning() {
                   if (v === 'mois') setMonthStart(getMonthStart(weekStart))
                   setViewMode(v)
                 }}
-                  className={`px-3 py-1 text-xs font-medium transition-colors ${viewMode===v ? 'bg-indigo-500/25 text-indigo-100' : 'text-slate-400 hover:text-white'}`}>
+                  className={`px-3 py-1 text-xs font-semibold transition-colors ${viewMode===v ? 'bg-blue-200 text-blue-900' : 'text-slate-600 hover:text-slate-900'}`}>
                   {v === 'semaine' ? '7 jours' : v === 'jour' ? 'Journee' : 'Mois'}
                 </button>
               ))}
@@ -3323,7 +3569,7 @@ export default function Planning() {
             </div>
           </div>
 
-          <div className="flex items-center gap-1 flex-shrink-0 relative">
+          <div className="relative flex w-full flex-wrap items-center gap-1 xl:w-auto xl:justify-end">
             {/* Lock / reorder rows */}
             <button
               onClick={() => setIsRowEditMode(v => !v)}
@@ -3359,8 +3605,8 @@ export default function Planning() {
               title="Activer ou desactiver le blocage des affectations sur alertes CE 561"
               className={`flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-xs font-medium border transition-all ${
                 blockOnCompliance
-                  ? 'bg-rose-500/20 border-rose-500/40 text-rose-200'
-                  : 'border-emerald-700/40 text-emerald-300 hover:border-emerald-500/50'
+                  ? 'bg-red-100 border-red-400 text-red-900'
+                  : 'bg-emerald-100 border-emerald-400 text-emerald-900 hover:bg-emerald-200'
               }`}
             >
               CE561 {blockOnCompliance ? 'bloquant' : 'audit'}
@@ -3373,7 +3619,7 @@ export default function Planning() {
               className={`flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-xs font-medium border transition-all ${
                 scanningWeek
                   ? 'border-slate-700 text-slate-500 cursor-wait'
-                  : 'border-amber-600/40 text-amber-300 hover:border-amber-500/60'
+                  : 'bg-amber-100 border-amber-400 text-amber-900 hover:bg-amber-200'
               }`}
             >
               {scanningWeek ? 'Scan...' : 'Scanner la semaine'}
@@ -3459,20 +3705,20 @@ export default function Planning() {
         <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-slate-800/60 bg-slate-950/60 flex-shrink-0 overflow-x-hidden">
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/40 flex-shrink-0">
             <span className="text-[10px] text-slate-500 whitespace-nowrap">A placer</span>
-            <span className="text-sm font-bold text-white">{pool.length}</span>
+            <span className="text-sm font-bold text-white">{unresourced.length}</span>
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/40 flex-shrink-0">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0"/>
+            <span className="w-1.5 h-1.5 rounded-full bg-slate-400 flex-shrink-0"/>
             <span className="text-[10px] text-slate-500 whitespace-nowrap">Conducteurs</span>
             <span className="text-sm font-bold text-white">{conducteurs.length}</span>
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/40 flex-shrink-0">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0"/>
+            <span className="w-1.5 h-1.5 rounded-full bg-slate-400 flex-shrink-0"/>
             <span className="text-[10px] text-slate-500 whitespace-nowrap">Vehicules</span>
             <span className="text-sm font-bold text-white">{vehicules.length}</span>
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/40 flex-shrink-0">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0"/>
+            <span className="w-1.5 h-1.5 rounded-full bg-slate-400 flex-shrink-0"/>
             <span className="text-[10px] text-slate-500 whitespace-nowrap">Remorques</span>
             <span className="text-sm font-bold text-white">{remorques.length}</span>
           </div>
@@ -3480,33 +3726,33 @@ export default function Planning() {
             <button
               type="button"
               onClick={() => setShowOnlyAlert(v => !v)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border flex-shrink-0 animate-pulse transition-colors ${showOnlyAlert ? 'bg-red-700/40 border-red-500/60' : 'bg-red-950/40 border-red-700/40'}`}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border flex-shrink-0 animate-pulse transition-colors ${showOnlyAlert ? 'bg-red-200 border-red-400' : 'bg-red-100 border-red-300'}`}
             >
-              <span className="text-[10px] font-bold text-red-400 whitespace-nowrap">? {kpi.retard} retard{kpi.retard > 1 ? 's' : ''}</span>
+              <span className="text-[10px] font-bold text-red-800 whitespace-nowrap">{kpi.retard} retard{kpi.retard > 1 ? 's' : ''}</span>
             </button>
           )}
           {kpi.conflits > 0 && (
             <button
               type="button"
               onClick={() => setShowOnlyConflicts(v => !v)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border flex-shrink-0 transition-colors ${showOnlyConflicts ? 'bg-rose-700/40 border-rose-500/60' : 'bg-rose-950/40 border-rose-700/40'}`}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border flex-shrink-0 transition-colors ${showOnlyConflicts ? 'bg-red-200 border-red-400' : 'bg-red-100 border-red-300'}`}
             >
-              <span className="text-[10px] font-bold text-rose-300 whitespace-nowrap">Conflits {kpi.conflits}</span>
+              <span className="text-[10px] font-bold text-red-800 whitespace-nowrap">Conflits {kpi.conflits}</span>
             </button>
           )}
           {kpi.aFacturer > 0 && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-violet-950/40 border border-violet-700/40 flex-shrink-0">
-              <span className="text-[10px] font-bold text-violet-400 whitespace-nowrap">EUR {kpi.aFacturer} a facturer</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/40 flex-shrink-0">
+              <span className="text-[10px] font-bold text-slate-200 whitespace-nowrap">EUR {kpi.aFacturer} a facturer</span>
             </div>
           )}
           {kpi.nbAff > 0 && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-950/40 border border-blue-700/40 flex-shrink-0">
-              <span className="text-[10px] font-bold text-blue-300 whitespace-nowrap">Affrete: {kpi.nbAff}</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/40 flex-shrink-0">
+              <span className="text-[10px] font-bold text-slate-200 whitespace-nowrap">Affrete: {kpi.nbAff}</span>
             </div>
           )}
-          <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-950/30 border border-emerald-800/30 flex-shrink-0">
+          <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/40 flex-shrink-0">
             <span className="text-[10px] text-slate-500 whitespace-nowrap">CA planifie</span>
-            <span className="text-sm font-bold text-emerald-400">{kpi.caPlanning > 0 ? `${(kpi.caPlanning/1000).toFixed(0)}k EUR` : '-'}</span>
+            <span className="text-sm font-bold text-slate-100">{kpi.caPlanning > 0 ? `${(kpi.caPlanning/1000).toFixed(0)}k EUR` : '-'}</span>
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/40 flex-shrink-0">
             <span className="text-[10px] text-slate-500 whitespace-nowrap">Scope</span>
@@ -3572,7 +3818,7 @@ export default function Planning() {
                   tab===t.key ? 'border-indigo-400 text-white' : 'border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-600'
                 }`}>
                 {t.label}
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${tab===t.key ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-500'}`}>{t.count}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${tab===t.key ? 'bg-blue-200 text-blue-900' : 'bg-slate-200 text-slate-800'}`}>{t.count}</span>
               </button>
             ))}
           </div>
@@ -3680,6 +3926,18 @@ export default function Planning() {
         {/* ── scrollable view area ───────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto min-h-0">
 
+        {/* ── Skeleton de chargement initial ─────────────────────────────── */}
+        {isLoadingOTs && ganttOTs.length === 0 && (
+          <div className="animate-pulse px-4 py-6 space-y-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="w-40 h-8 rounded-lg bg-slate-800/70 flex-shrink-0" />
+                <div className="flex-1 h-8 rounded-lg bg-slate-800/50" style={{ width: `${40 + Math.random() * 45}%` }} />
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* â”€â”€ WEEK VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {viewMode === 'semaine' && (
           <div className="overflow-visible" onDragOver={e => e.preventDefault()}>
@@ -3714,6 +3972,7 @@ export default function Planning() {
               const groupageCards = row.isCustom ? [] : buildGroupageCards(ots)
               const groupedOtIds = new Set(groupageCards.flatMap(card => card.members.map(member => member.id)))
               const frozenGroupageOverlays = row.isCustom ? [] : buildFrozenGroupageOverlays(ots)
+              const hoveredMissionOverlays = row.isCustom ? [] : buildHoveredMissionOverlays(ots)
               const groupedBlockLayout = row.isCustom ? {} : buildGroupedBlockLayout(ots)
               const isDropTarget = hoverRow?.rowId === row.id && !isRowEditMode
               const gPos = ghostPos(row.id)
@@ -3739,11 +3998,22 @@ export default function Planning() {
                         {drag?.ot?.reference ?? '-'}
                       </div>
                     )}
+                    {hoveredMissionOverlays.map(overlay => (
+                      <div
+                        key={`hovered-week-${overlay.groupId}`}
+                        style={{ position:'absolute', top:'0px', bottom:'0px', left:`calc(${overlay.leftPct}% + 1px)`, width:`calc(${overlay.widthPct}% - 2px)` }}
+                        className={`pointer-events-none rounded-[24px] border transition-all ${overlay.frozen ? 'border-indigo-300/55 bg-indigo-400/8 shadow-[0_0_0_1px_rgba(165,180,252,0.24),0_0_30px_rgba(99,102,241,0.12)]' : 'border-amber-300/55 bg-amber-300/10 shadow-[0_0_0_1px_rgba(251,191,36,0.24),0_0_30px_rgba(251,191,36,0.12)]'}`}
+                      >
+                        <span className={`absolute left-3 -top-2 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] ${overlay.frozen ? 'border border-indigo-400/45 bg-slate-950/95 text-indigo-200' : 'border border-amber-300/55 bg-slate-950/95 text-amber-200'}`}>
+                          {overlay.label}
+                        </span>
+                      </div>
+                    ))}
                     {frozenGroupageOverlays.map(overlay => (
                       <div
                         key={`frozen-week-${overlay.groupId}`}
                         style={{ position:'absolute', top:'2px', height:'60px', left:`calc(${overlay.leftPct}% + 1px)`, width:`calc(${overlay.widthPct}% - 2px)` }}
-                        className="pointer-events-none rounded-[20px] border border-indigo-400/45 bg-indigo-500/10 shadow-inner ring-1 ring-indigo-300/10"
+                        className={`pointer-events-none rounded-[20px] border border-indigo-400/45 bg-indigo-500/10 shadow-inner ring-1 ring-indigo-300/10 transition-all ${getMissionHoverClasses(overlay.groupId, true)}`}
                         title={overlay.references}
                       >
                         <span className="absolute left-3 -top-2 rounded-full border border-indigo-400/40 bg-slate-950/95 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-indigo-200">
@@ -3755,11 +4025,13 @@ export default function Planning() {
                       <div
                         key={`group-card-week-${card.groupId}`}
                         style={{ position:'absolute', top:'6px', height:'52px', left:`calc(${card.leftPct}% + 2px)`, width:`calc(${card.widthPct}% - 4px)` }}
-                        className={`rounded-xl border overflow-hidden shadow-lg ${card.frozen ? 'border-indigo-400/60 bg-slate-900/96' : 'border-emerald-400/45 bg-slate-950/92'}`}
+                        onMouseEnter={e => openHoverPreview(card.members[0], e.clientX, e.clientY)}
+                        onMouseLeave={clearHoverPreview}
+                        className={`rounded-xl border overflow-hidden shadow-lg transition-all ${card.frozen ? 'border-indigo-300/70 bg-slate-950/96' : 'border-amber-300/70 bg-amber-50/95'} ${getMissionHoverClasses(card.groupId, card.frozen)}`}
                       >
-                        <div className={`flex items-center justify-between px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] ${card.frozen ? 'bg-indigo-500/20 text-indigo-100' : 'bg-emerald-500/15 text-emerald-100'}`}>
-                          <span>Lot {card.members.length}</span>
-                          <span>{card.frozen ? 'Verrouille' : 'Deliable'}</span>
+                        <div className={`flex items-center justify-between gap-2 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] ${card.frozen ? 'bg-indigo-500/20 text-indigo-100' : 'bg-amber-100 text-amber-950'}`}>
+                          <span className="truncate">{card.summary.label}</span>
+                          <span className="flex-shrink-0">{card.frozen ? 'Verrouillee' : 'Deliable'}</span>
                         </div>
                         <div className="grid h-[calc(100%-22px)] divide-x divide-white/8" style={{ gridTemplateColumns: `repeat(${card.members.length}, minmax(0, 1fr))` }}>
                           {card.members.map(member => {
@@ -3776,10 +4048,10 @@ export default function Planning() {
                                   {isAffretedOt(member.id) && <span className="rounded px-1 text-[8px] font-bold bg-blue-500/30 text-blue-200 flex-shrink-0">AFF</span>}
                                   {isLate && <span className="rounded px-1 text-[8px] font-bold bg-red-500/30 text-red-200 flex-shrink-0">!</span>}
                                   <StatutOpsDot statut={member.statut_operationnel} size="xs"/>
-                                  <span className="truncate font-mono text-[10px] font-bold text-white">{member.reference}</span>
+                                  <span className={`truncate font-mono text-[10px] font-bold ${card.frozen ? 'text-white' : 'text-slate-950'}`}>{member.reference}</span>
                                 </div>
-                                <span className="truncate text-[10px] font-semibold text-white/80">{member.client_nom}</span>
-                                <span className="truncate text-[9px] font-mono text-white/45">{isoToTime(member.date_chargement_prevue)}-{isoToTime(member.date_livraison_prevue)}</span>
+                                <span className={`truncate text-[10px] font-semibold ${card.frozen ? 'text-white/80' : 'text-slate-700'}`}>{member.client_nom}</span>
+                                <span className={`truncate text-[9px] font-mono ${card.frozen ? 'text-white/45' : 'text-slate-500'}`}>{isoToTime(member.date_chargement_prevue)}-{isoToTime(member.date_livraison_prevue)}</span>
                               </button>
                             )
                           })}
@@ -3802,19 +4074,20 @@ export default function Planning() {
                           draggable={canMove(ot) && !isRowEditMode && !drag}
                           onDragStart={canMove(ot)&&!isRowEditMode&&!drag ? e => onDragStartBlock(ot, e) : undefined}
                           onDragEnd={onDragEnd}
-                          onMouseEnter={!drag ? e => setHoveredBlock({ ot, x: e.clientX, y: e.clientY }) : undefined}
-                          onMouseLeave={!drag ? () => setHoveredBlock(null) : undefined}
+                          onMouseEnter={!drag ? e => openHoverPreview(ot, e.clientX, e.clientY) : undefined}
+                          onMouseLeave={!drag ? clearHoverPreview : undefined}
                           className={`${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col px-2 py-1 gap-0 transition-all overflow-hidden shadow-md group/block
                             ${canMove(ot)&&!isRowEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
                             ${isDragging?'opacity-30':isSaving?'opacity-70 animate-pulse':'hover:brightness-110'}
                             ${isLate ? 'ring-1 ring-red-400/60' : ''}
-                            ${drag && !isDragging ? 'pointer-events-none' : ''}`}
+                            ${drag && !isDragging ? 'pointer-events-none' : ''}
+                            ${getMissionHoverClasses(ot.mission_id, ot.groupage_fige)}`}
                             onClick={() => !isRowEditMode && openSelected(ot)}
                           onContextMenu={e => { e.preventDefault(); setContextMenu({ x:e.clientX, y:e.clientY, ot }) }}>
                           {/* Ligne 1 : badges + reference + bouton desaffecter */}
                           <div className="flex items-center gap-1 min-w-0">
                             {isAffretedOt(ot.id) && <span className="rounded px-1 text-[8px] font-bold bg-blue-500/30 text-blue-200 flex-shrink-0">AFF</span>}
-                            {groupageBubbleLabel && <span className="rounded px-1 text-[8px] font-bold bg-amber-500/30 text-amber-100 flex-shrink-0">{groupageBubbleLabel}</span>}
+                            {groupageBubbleLabel && <span className="rounded-full border border-amber-300/60 bg-amber-50 px-1.5 text-[8px] font-bold text-amber-950 flex-shrink-0">{groupageBubbleLabel}</span>}
                             {isLate && <span className="rounded px-1 text-[8px] font-bold bg-red-500/30 text-red-200 flex-shrink-0">?</span>}
                             {ot.statut === 'facture' && <span className="rounded px-1 text-[8px] font-bold bg-violet-500/30 text-violet-200 flex-shrink-0">EUR</span>}
                             <StatutOpsDot statut={ot.statut_operationnel} size="xs"/>
@@ -3860,11 +4133,14 @@ export default function Planning() {
                           <div key={block.id} style={{...p2,...cStyle}}
                             draggable={!isRowEditMode && !drag}
                             onDragStart={!isRowEditMode&&!drag ? e => onDragStartCustomBlock(block, e) : undefined} onDragEnd={onDragEnd}
+                            onMouseEnter={!drag ? e => openHoverPreview(linkedOT, e.clientX, e.clientY) : undefined}
+                            onMouseLeave={!drag ? clearHoverPreview : undefined}
                             className={`${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col px-2 py-1 gap-0 transition-all overflow-hidden shadow-md group/cblock
                               ${!isRowEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
                               ${drag?.customBlockId===block.id ? 'opacity-30' : 'hover:brightness-110'}
                               ${isLate ? 'ring-1 ring-red-400/60' : ''}
-                              ${drag && drag.customBlockId !== block.id ? 'pointer-events-none' : ''}`}
+                              ${drag && drag.customBlockId !== block.id ? 'pointer-events-none' : ''}
+                              ${getMissionHoverClasses(linkedOT.mission_id, linkedOT.groupage_fige)}`}
                               onClick={() => !isRowEditMode && openSelected(linkedOT)}
                             onContextMenu={e => { e.preventDefault(); setContextMenu({ x:e.clientX, y:e.clientY, ot:linkedOT }) }}>
                             <div className="flex items-center gap-1 min-w-0">
@@ -3892,7 +4168,7 @@ export default function Planning() {
                         <div key={block.id} style={p2} draggable={!isRowEditMode && !drag}
                           onDragStart={!isRowEditMode&&!drag ? e => onDragStartCustomBlock(block, e) : undefined} onDragEnd={onDragEnd}
                           onClick={() => !isRowEditMode && openPlanningBlockEditor(block)}
-                          className={`${block.color} border rounded-md text-white text-[11px] font-medium flex items-center px-2 gap-1.5 cursor-grab active:cursor-grabbing group/cblock overflow-hidden shadow-sm ${drag?.customBlockId===block.id?'opacity-30':''} ${drag && drag.customBlockId !== block.id ? 'pointer-events-none' : ''}`}>
+                          className={`${block.color} border rounded-md text-white text-[11px] font-medium flex items-center px-2 gap-1.5 cursor-grab active:cursor-grabbing group/cblock overflow-hidden shadow-sm ${drag?.customBlockId===block.id?'opacity-30':''} ${drag && drag.customBlockId !== block.id ? 'pointer-events-none' : ''} ${hoveredMissionId ? 'opacity-40 saturate-50' : ''}`}>
                           <span className="truncate flex-1">{block.label}</span>
                           {!isRowEditMode && <button className="opacity-0 group-hover/cblock:opacity-100 transition-opacity flex-shrink-0 w-4 h-4 flex items-center justify-center rounded hover:bg-white/20 text-xs"
                             title="Modifier"
@@ -4031,6 +4307,7 @@ export default function Planning() {
                 const groupageCards = row.isCustom ? [] : buildGroupageCards(ots)
                 const groupedOtIds = new Set(groupageCards.flatMap(card => card.members.map(member => member.id)))
                 const frozenGroupageOverlays = row.isCustom ? [] : buildFrozenGroupageOverlays(ots)
+                const hoveredMissionOverlays = row.isCustom ? [] : buildHoveredMissionOverlays(ots)
                 const groupedBlockLayout = row.isCustom ? {} : buildGroupedBlockLayout(ots)
                 const isDropTarget = hoverRow?.rowId===row.id && !isRowEditMode
                 const gPos = ghostPos(row.id)
@@ -4075,11 +4352,22 @@ export default function Planning() {
                           {drag?.ot?.reference ?? '-'}
                         </div>
                       )}
+                      {hoveredMissionOverlays.map(overlay => (
+                        <div
+                          key={`hovered-day-${overlay.groupId}`}
+                          style={{ position:'absolute', top:'0px', bottom:'0px', left:`${overlay.leftPct}%`, width:`${overlay.widthPct}%` }}
+                          className={`pointer-events-none rounded-[24px] border transition-all ${overlay.frozen ? 'border-indigo-300/55 bg-indigo-400/8 shadow-[0_0_0_1px_rgba(165,180,252,0.24),0_0_30px_rgba(99,102,241,0.12)]' : 'border-amber-300/55 bg-amber-300/10 shadow-[0_0_0_1px_rgba(251,191,36,0.24),0_0_30px_rgba(251,191,36,0.12)]'}`}
+                        >
+                          <span className={`absolute left-3 -top-2 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] ${overlay.frozen ? 'border border-indigo-400/45 bg-slate-950/95 text-indigo-200' : 'border border-amber-300/55 bg-slate-950/95 text-amber-200'}`}>
+                            {overlay.label}
+                          </span>
+                        </div>
+                      ))}
                       {frozenGroupageOverlays.map(overlay => (
                         <div
                           key={`frozen-day-${overlay.groupId}`}
                           style={{ position:'absolute', top:'2px', height:'58px', left:`${overlay.leftPct}%`, width:`${overlay.widthPct}%` }}
-                          className="pointer-events-none rounded-[20px] border border-indigo-400/45 bg-indigo-500/10 shadow-inner ring-1 ring-indigo-300/10"
+                          className={`pointer-events-none rounded-[20px] border border-indigo-400/45 bg-indigo-500/10 shadow-inner ring-1 ring-indigo-300/10 transition-all ${getMissionHoverClasses(overlay.groupId, true)}`}
                           title={overlay.references}
                         >
                           <span className="absolute left-3 -top-2 rounded-full border border-indigo-400/40 bg-slate-950/95 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-indigo-200">
@@ -4091,11 +4379,13 @@ export default function Planning() {
                         <div
                           key={`group-card-day-${card.groupId}`}
                           style={{ position:'absolute', top:'4px', height:'52px', left:`${card.leftPct}%`, width:`${card.widthPct}%` }}
-                          className={`rounded-xl border overflow-hidden shadow-lg ${card.frozen ? 'border-indigo-400/60 bg-slate-900/96' : 'border-emerald-400/45 bg-slate-950/92'}`}
+                          onMouseEnter={e => openHoverPreview(card.members[0], e.clientX, e.clientY)}
+                          onMouseLeave={clearHoverPreview}
+                          className={`rounded-xl border overflow-hidden shadow-lg transition-all ${card.frozen ? 'border-indigo-300/70 bg-slate-950/96' : 'border-amber-300/70 bg-amber-50/95'} ${getMissionHoverClasses(card.groupId, card.frozen)}`}
                         >
-                          <div className={`flex items-center justify-between px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] ${card.frozen ? 'bg-indigo-500/20 text-indigo-100' : 'bg-emerald-500/15 text-emerald-100'}`}>
-                            <span>Lot {card.members.length}</span>
-                            <span>{card.frozen ? 'Verrouille' : 'Deliable'}</span>
+                            <div className={`flex items-center justify-between gap-2 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] ${card.frozen ? 'bg-indigo-500/20 text-indigo-100' : 'bg-amber-100 text-amber-950'}`}>
+                              <span className="truncate">{card.summary.label}</span>
+                              <span className="flex-shrink-0">{card.frozen ? 'Verrouillee' : 'Deliable'}</span>
                           </div>
                           <div className="grid h-[calc(100%-22px)] divide-x divide-white/8" style={{ gridTemplateColumns: `repeat(${card.members.length}, minmax(0, 1fr))` }}>
                             {card.members.map(member => {
@@ -4112,10 +4402,10 @@ export default function Planning() {
                                     {isAffretedOt(member.id) && <span className="rounded px-1 text-[8px] font-bold bg-blue-500/30 text-blue-200 flex-shrink-0">AFF</span>}
                                     {isLate && <span className="rounded px-1 text-[8px] font-bold bg-red-500/30 text-red-200 flex-shrink-0">!</span>}
                                     <StatutOpsDot statut={member.statut_operationnel} size="xs"/>
-                                    <span className="truncate font-mono text-[10px] font-bold text-white">{member.reference}</span>
+                                    <span className={`truncate font-mono text-[10px] font-bold ${card.frozen ? 'text-white' : 'text-slate-950'}`}>{member.reference}</span>
                                   </div>
-                                  <span className="truncate text-[10px] font-semibold text-white/80">{member.client_nom}</span>
-                                  <span className="truncate text-[9px] font-mono text-white/45">{isoToTime(member.date_chargement_prevue)}-{isoToTime(member.date_livraison_prevue)}</span>
+                                  <span className={`truncate text-[10px] font-semibold ${card.frozen ? 'text-white/80' : 'text-slate-700'}`}>{member.client_nom}</span>
+                                  <span className={`truncate text-[9px] font-mono ${card.frozen ? 'text-white/45' : 'text-slate-500'}`}>{isoToTime(member.date_chargement_prevue)}-{isoToTime(member.date_livraison_prevue)}</span>
                                   {!isRowEditMode && (
                                     <span className="mt-1 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                                       <button type="button" className="rounded px-1 py-0.5 text-[8px] font-bold bg-slate-950/70 hover:bg-slate-950"
@@ -4144,16 +4434,19 @@ export default function Planning() {
                             draggable={canMove(ot)&&!isRowEditMode&&!drag}
                             onDragStart={canMove(ot)&&!isRowEditMode&&!drag ? e => onDragStartBlock(ot, e) : undefined}
                             onDragEnd={onDragEnd}
+                            onMouseEnter={!drag ? e => openHoverPreview(ot, e.clientX, e.clientY) : undefined}
+                            onMouseLeave={!drag ? clearHoverPreview : undefined}
                             className={`${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col justify-center px-2 group/block overflow-hidden shadow-md
                               ${canMove(ot)&&!isRowEditMode?'cursor-grab active:cursor-grabbing':'cursor-pointer'}
                               ${isDragging?'opacity-30':'hover:brightness-110'}
                               ${isLate?'ring-1 ring-red-400/60':''}
-                              ${drag && !isDragging ? 'pointer-events-none' : ''}`}
+                              ${drag && !isDragging ? 'pointer-events-none' : ''}
+                              ${getMissionHoverClasses(ot.mission_id, ot.groupage_fige)}`}
                             onClick={() => !isRowEditMode && openSelected(ot)}
                             onContextMenu={e => { e.preventDefault(); setContextMenu({ x:e.clientX, y:e.clientY, ot }) }}>
                             <div className="flex items-center gap-1 min-w-0">
                               {isAffretedOt(ot.id) && <span className="rounded px-1 text-[8px] font-bold bg-blue-500/30 text-blue-200 flex-shrink-0">AFF</span>}
-                              {groupageBubbleLabel && <span className="rounded px-1 text-[8px] font-bold bg-amber-500/30 text-amber-100 flex-shrink-0">{groupageBubbleLabel}</span>}
+                              {groupageBubbleLabel && <span className="rounded-full border border-amber-300/60 bg-amber-50 px-1.5 text-[8px] font-bold text-amber-950 flex-shrink-0">{groupageBubbleLabel}</span>}
                               {isLate && <span className="text-[8px] flex-shrink-0">?</span>}
                               {ot.statut === 'facture' && <span className="text-[8px] flex-shrink-0 text-violet-300">EUR</span>}
                               <StatutOpsDot statut={ot.statut_operationnel} size="xs"/>
@@ -4188,16 +4481,19 @@ export default function Planning() {
                             <div key={block.id} style={{...pos,...cStyle}}
                               draggable={!isRowEditMode&&!drag}
                               onDragStart={!isRowEditMode&&!drag ? e => onDragStartCustomBlock(block, e) : undefined} onDragEnd={onDragEnd}
+                              onMouseEnter={!drag ? e => openHoverPreview(linkedOT, e.clientX, e.clientY) : undefined}
+                              onMouseLeave={!drag ? clearHoverPreview : undefined}
                               className={`${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col justify-center px-2 group/cblock overflow-hidden shadow-md
                                 ${!isRowEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
                                 ${drag?.customBlockId===block.id ? 'opacity-30' : 'hover:brightness-110'}
                                 ${isLate ? 'ring-1 ring-red-400/60' : ''}
-                                ${drag && drag.customBlockId !== block.id ? 'pointer-events-none' : ''}`}
+                                ${drag && drag.customBlockId !== block.id ? 'pointer-events-none' : ''}
+                                ${getMissionHoverClasses(linkedOT.mission_id, linkedOT.groupage_fige)}`}
                               onClick={() => !isRowEditMode && openSelected(linkedOT)}
                               onContextMenu={e => { e.preventDefault(); setContextMenu({ x:e.clientX, y:e.clientY, ot:linkedOT }) }}>
                               <div className="flex items-center gap-1 min-w-0">
                                 {isAffretedOt(linkedOT.id) && <span className="rounded px-1 text-[8px] font-bold bg-blue-500/30 text-blue-200 flex-shrink-0">AFF</span>}
-                                {groupageBubbleLabel && <span className="rounded px-1 text-[8px] font-bold bg-amber-500/30 text-amber-100 flex-shrink-0">{groupageBubbleLabel}</span>}
+                                {groupageBubbleLabel && <span className="rounded-full border border-amber-300/60 bg-amber-50 px-1.5 text-[8px] font-bold text-amber-950 flex-shrink-0">{groupageBubbleLabel}</span>}
                                 {isLate && <span className="text-[8px] flex-shrink-0">!</span>}
                                 {linkedOT.statut === 'facture' && <span className="text-[8px] flex-shrink-0 text-violet-300">EUR</span>}
                                 <StatutOpsDot statut={linkedOT.statut_operationnel} size="xs"/>
@@ -4218,7 +4514,7 @@ export default function Planning() {
                           <div key={block.id} style={pos} draggable={!isRowEditMode&&!drag}
                             onDragStart={!isRowEditMode&&!drag ? e => onDragStartCustomBlock(block, e) : undefined} onDragEnd={onDragEnd}
                             onClick={() => !isRowEditMode && openPlanningBlockEditor(block)}
-                            className={`${block.color} border rounded-md text-white text-[11px] font-medium flex flex-col justify-center px-2 cursor-grab active:cursor-grabbing group/cblock overflow-hidden shadow-sm ${drag && drag.customBlockId !== block.id ? 'pointer-events-none' : ''}`}>
+                            className={`${block.color} border rounded-md text-white text-[11px] font-medium flex flex-col justify-center px-2 cursor-grab active:cursor-grabbing group/cblock overflow-hidden shadow-sm ${drag && drag.customBlockId !== block.id ? 'pointer-events-none' : ''} ${hoveredMissionId ? 'opacity-40 saturate-50' : ''}`}>
                             <span className="truncate leading-tight">{block.label}</span>
                               <span className="text-white/60 text-[9px]">{block.dateStart.slice(11,16)}-{block.dateEnd.slice(11,16)}</span>
                             {!isRowEditMode && <button className="absolute right-5 top-1 opacity-0 group-hover/cblock:opacity-100 w-4 h-4 flex items-center justify-center rounded hover:bg-white/20 text-xs"
@@ -4368,7 +4664,12 @@ export default function Planning() {
 
         </div>{/* end scrollable view area */}
 
-        <div className="flex-shrink-0 z-[30]">
+        <div
+          className="fixed bottom-0 z-[120]"
+          style={isDesktopViewport
+            ? { left: sidebarCollapsed ? 0 : 236, right: 0 }
+            : { left: 0, right: 0 }}
+        >
           {bottomDockCollapsed ? (
             <div className="border border-slate-800 bg-slate-950/95 px-4 py-2 rounded-t-xl">
               <div className="flex items-center justify-between gap-3">
@@ -4398,12 +4699,13 @@ export default function Planning() {
                 </div>
               </div>
 
-              <div className="border-t border-slate-800 bg-slate-950/95 flex-shrink-0 overflow-hidden" style={{ height: `${bottomDockHeight}px` }}>
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-800/80 overflow-x-auto scrollbar-none flex-shrink-0">
+                <div className="border-t border-slate-800 bg-slate-950/95 flex-shrink-0 overflow-hidden" style={{ height: `${bottomDockHeight}px` }}>
+              <div className="flex h-full min-h-0 flex-col">
+              <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-slate-800/80 overflow-x-auto overflow-y-hidden flex-shrink-0">
             {([
               { key: 'missions' as BottomDockTab, label: 'Missions', count: bottomDockMissions.length },
-              { key: 'urgences' as BottomDockTab, label: 'Urgences', count: bottomDockUrgences.length },
-              { key: 'non_affectees' as BottomDockTab, label: 'Non affectees', count: unresourced.length },
+              { key: 'urgences' as BottomDockTab, label: 'Alertes', count: bottomDockUrgences.length },
+              { key: 'non_affectees' as BottomDockTab, label: 'Non affectees (vue)', count: unresourced.length },
               { key: 'conflits' as BottomDockTab, label: 'Conflits', count: bottomDockConflicts.reduce((sum, item) => sum + item.pairs.length, 0) },
               { key: 'affretement' as BottomDockTab, label: 'Affretement', count: activeAffretementContracts.length },
               { key: 'groupages' as BottomDockTab, label: 'Groupages', count: bottomDockGroupages.length },
@@ -4422,24 +4724,26 @@ export default function Planning() {
                 }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border whitespace-nowrap ${
                   bottomDockTab === item.key
-                    ? 'bg-indigo-600/25 border-indigo-500/50 text-indigo-200'
-                    : 'border-slate-700 text-slate-400 hover:text-slate-200'
+                    ? 'bg-blue-200 border-blue-500 text-blue-950 font-bold'
+                    : 'border-slate-700 text-slate-300 hover:text-white'
                 }`}
               >
                 {item.label}
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${bottomDockTab === item.key ? 'bg-indigo-500/50 text-white' : 'bg-slate-800 text-slate-400'}`}>
-                  {item.count}
-                </span>
+                {item.count > 0 && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${bottomDockTab === item.key ? 'bg-blue-200 text-blue-900' : 'bg-slate-200 text-slate-800'}`}>
+                    {item.count}
+                  </span>
+                )}
               </button>
             ))}
 
-            <div className="ml-auto flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => setBottomDockTab('urgences')}
-                className="px-2.5 py-1 rounded-full text-[10px] font-semibold border border-rose-500/40 bg-rose-500/15 text-rose-200 hover:bg-rose-500/25 transition-colors whitespace-nowrap"
+                className="px-2.5 py-1 rounded-full text-[10px] font-bold border border-rose-700 bg-rose-600 text-white hover:bg-rose-500 transition-colors whitespace-nowrap"
               >
-                Focus urgences
+                Focus alertes
               </button>
               <button
                 type="button"
@@ -4463,7 +4767,7 @@ export default function Planning() {
                   setSimulationMode(next)
                   saveBooleanSetting(SIMULATION_MODE_KEY, next)
                 }}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${simulationMode ? 'bg-emerald-500/25 border-emerald-500/40 text-emerald-200' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${simulationMode ? 'bg-blue-600/25 border-blue-500/50 text-blue-100' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
               >
                 Mode simulation {simulationMode ? 'ON' : 'OFF'}
               </button>
@@ -4474,7 +4778,7 @@ export default function Planning() {
                   setAutoHabillage(next)
                   saveBooleanSetting(AUTO_HABILLAGE_KEY, next)
                 }}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${autoHabillage ? 'bg-sky-500/20 border-sky-600/40 text-sky-200' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${autoHabillage ? 'bg-blue-600/25 border-blue-500/50 text-blue-100' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
               >
                 Habillage auto {autoHabillage ? 'active' : 'off'}
               </button>
@@ -4485,14 +4789,14 @@ export default function Planning() {
                   setAutoPauseReglementaire(next)
                   saveBooleanSetting(AUTO_PAUSE_KEY, next)
                 }}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${autoPauseReglementaire ? 'bg-amber-500/20 border-amber-600/40 text-amber-200' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${autoPauseReglementaire ? 'bg-blue-600/25 border-blue-500/50 text-blue-100' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
               >
                 Pause 45 min {autoPauseReglementaire ? 'activee' : 'off'}
               </button>
               <button
                 type="button"
                 onClick={() => setPlanningHeaderCollapsed(current => !current)}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${planningHeaderCollapsed ? 'bg-indigo-600/25 border-indigo-500/50 text-indigo-200' : 'border-slate-700 text-slate-300 hover:text-white'}`}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${planningHeaderCollapsed ? 'bg-blue-600/25 border-blue-500/50 text-blue-100' : 'border-slate-700 text-slate-300 hover:text-white'}`}
               >
                 {planningHeaderCollapsed ? 'Afficher bandeau haut' : 'Retracter bandeau haut'}
               </button>
@@ -4506,15 +4810,15 @@ export default function Planning() {
             </div>
           </div>
 
-          <div className="grid h-[calc(100%-52px)] grid-cols-1 gap-3 overflow-auto px-4 py-3 xl:grid-cols-[1.5fr_1fr]">
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-auto px-4 py-3 xl:grid-cols-[1.5fr_1fr]">
             <div className="rounded-xl border border-slate-800 bg-slate-900/70 overflow-hidden">
               {bottomDockTab === 'missions' && (
                 <div className="overflow-auto">
                   <table className="w-full text-xs">
                     <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
                       <tr>
-                        <th className="text-left px-3 py-2">Reference</th>
-                        <th className="text-left px-3 py-2">Client</th>
+                        <th className="text-left px-3 py-2">Mission / course</th>
+                        <th className="text-left px-3 py-2">Synthese</th>
                         <th className="text-left px-3 py-2">Ressource</th>
                         <th className="text-left px-3 py-2">Fenetre</th>
                         <th className="text-left px-3 py-2">Statut</th>
@@ -4524,15 +4828,38 @@ export default function Planning() {
                       {bottomDockMissions.length === 0 && (
                         <tr><td className="px-3 py-3 text-slate-500" colSpan={5}>Aucune mission planifiee.</td></tr>
                       )}
-                      {bottomDockMissions.map(ot => (
-                        <tr key={ot.id} className="border-t border-slate-800/70 hover:bg-slate-800/40 cursor-pointer" onClick={() => openSelected(ot)}>
-                          <td className="px-3 py-2 font-mono text-slate-300">{ot.reference}</td>
-                          <td className="px-3 py-2 text-slate-200">{ot.client_nom}</td>
+                      {bottomDockMissions.map(ot => {
+                        const summary = getMissionSummary(ot)
+                        return (
+                        <tr
+                          key={ot.id}
+                          className={getMissionListRowClasses(ot.mission_id, ot.groupage_fige, true)}
+                          onMouseEnter={e => openHoverPreview(ot, e.clientX, e.clientY)}
+                          onMouseLeave={clearHoverPreview}
+                          onClick={() => openSelected(ot)}>
+                          <td className="px-3 py-2 text-slate-200">
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="font-mono text-slate-300 truncate">{ot.reference}</span>
+                                {summary.missionType === 'groupage' && (
+                                  <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${ot.groupage_fige ? 'bg-indigo-500/20 text-indigo-200' : 'bg-amber-100 text-amber-950'}`}>{summary.badge}</span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-slate-500">{summary.missionType === 'groupage' ? `Mission ${summary.missionId.slice(0, 8)}` : 'Course simple'}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-slate-200">
+                            <div className="flex flex-col gap-0.5">
+                              <span>{summary.missionType === 'groupage' ? summary.subtitle : ot.client_nom}</span>
+                              <span className="text-[10px] text-slate-500 truncate">{summary.missionType === 'groupage' ? summary.referencesLabel : summary.timeRange}</span>
+                            </div>
+                          </td>
                           <td className="px-3 py-2 text-slate-400">{resolveRowId(ot) ? (orderedRows.find(row => row.id === resolveRowId(ot))?.primary ?? '-') : '-'}</td>
                           <td className="px-3 py-2 text-slate-400">{isoToDate(ot.date_chargement_prevue)} {isoToTime(ot.date_chargement_prevue)} - {isoToDate(ot.date_livraison_prevue)} {isoToTime(ot.date_livraison_prevue)}</td>
                           <td className="px-3 py-2"><span className={`text-[10px] px-1.5 py-0.5 rounded-full ${BADGE_CLS[ot.statut] ?? 'bg-slate-700 text-slate-300'}`}>{STATUT_LABEL[ot.statut] ?? ot.statut}</span></td>
                         </tr>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -4606,6 +4933,9 @@ export default function Planning() {
 
               {bottomDockTab === 'non_affectees' && (
                 <div className="overflow-auto">
+                  <div className="px-3 py-2 text-[10px] text-slate-400 border-b border-slate-800/70">
+                    Liste calculee selon l'onglet actif (conducteurs, camions ou remorques).
+                  </div>
                   <table className="w-full text-xs">
                     <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
                       <tr>
@@ -4619,14 +4949,31 @@ export default function Planning() {
                       {unresourced.length === 0 && (
                         <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucune mission non affectee.</td></tr>
                       )}
-                      {unresourced.map(ot => (
-                        <tr key={ot.id} className="border-t border-slate-800/70 hover:bg-slate-800/40">
-                          <td className="px-3 py-2 font-mono text-slate-300">{ot.reference}</td>
-                          <td className="px-3 py-2 text-slate-200">{ot.client_nom}</td>
+                      {unresourced.map(ot => {
+                        const summary = getMissionSummary(ot)
+                        return (
+                        <tr
+                          key={ot.id}
+                          className={getMissionListRowClasses(ot.mission_id, ot.groupage_fige)}
+                          onMouseEnter={e => openHoverPreview(ot, e.clientX, e.clientY)}
+                          onMouseLeave={clearHoverPreview}>
+                          <td className="px-3 py-2 text-slate-200">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="font-mono text-slate-300 truncate">{ot.reference}</span>
+                              {summary.missionType === 'groupage' && <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${ot.groupage_fige ? 'bg-indigo-500/20 text-indigo-200' : 'bg-amber-100 text-amber-950'}`}>Groupage</span>}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-slate-200">
+                            <div className="flex flex-col gap-0.5">
+                              <span>{summary.missionType === 'groupage' ? summary.subtitle : ot.client_nom}</span>
+                              {summary.missionType === 'groupage' && <span className="text-[10px] text-slate-500 truncate">{summary.referencesLabel}</span>}
+                            </div>
+                          </td>
                           <td className="px-3 py-2 text-slate-400">{isoToDate(ot.date_chargement_prevue)} {isoToTime(ot.date_chargement_prevue)}</td>
                           <td className="px-3 py-2"><button type="button" onClick={() => openAssign(ot)} className="text-indigo-300 hover:text-indigo-200">Affecter</button></td>
                         </tr>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -4701,30 +5048,48 @@ export default function Planning() {
                   <table className="w-full text-xs">
                     <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
                       <tr>
-                        <th className="text-left px-3 py-2">Lot</th>
-                        <th className="text-left px-3 py-2">Courses</th>
+                        <th className="text-left px-3 py-2">Mission</th>
+                        <th className="text-left px-3 py-2">Synthese</th>
                         <th className="text-left px-3 py-2">Etat</th>
                         <th className="text-left px-3 py-2">Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {bottomDockGroupages.length === 0 && (
-                        <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucun groupage actif.</td></tr>
+                        <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucune mission groupage active.</td></tr>
                       )}
-                      {bottomDockGroupages.map(group => (
-                        <tr key={group.groupId} className="border-t border-slate-800/70 hover:bg-slate-800/40">
-                          <td className="px-3 py-2 font-mono text-slate-300">{group.groupId.slice(0, 8)}</td>
-                          <td className="px-3 py-2 text-slate-200">{group.members.map(item => item.reference).join(', ')}</td>
+                      {bottomDockGroupages.map(group => {
+                        const summary = getMissionSummaryFromMembers(group.members)
+                        return (
+                        <tr
+                          key={group.groupId}
+                          className={getMissionListRowClasses(group.groupId, group.frozen, true)}
+                          onMouseEnter={e => openHoverPreview(group.members[0], e.clientX, e.clientY)}
+                          onMouseLeave={clearHoverPreview}
+                          onClick={() => openSelected(group.members[0])}>
                           <td className="px-3 py-2">
-                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${group.frozen ? 'bg-indigo-500/25 text-indigo-200' : 'bg-emerald-500/20 text-emerald-200'}`}>
-                              {group.frozen ? 'Fige' : 'Deliable'}
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-semibold text-slate-100 flex items-center gap-2">{summary.label}<span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${group.frozen ? 'bg-indigo-500/25 text-indigo-200' : 'bg-amber-100 text-amber-950'}`}>{summary.badge}</span></span>
+                              <span className="font-mono text-[10px] text-slate-500">{group.groupId.slice(0, 8)}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-slate-200">
+                            <div className="flex flex-col gap-0.5">
+                              <span>{summary.subtitle}</span>
+                              <span className="text-[10px] text-slate-500">{summary.timeRange} · {summary.referencesLabel}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${group.frozen ? 'bg-indigo-500/25 text-indigo-200' : 'bg-amber-100 text-amber-950'}`}>
+                              {group.frozen ? 'Mission figee' : 'Mission modifiable'}
                             </span>
                           </td>
                           <td className="px-3 py-2">
                             <button type="button" onClick={() => openSelected(group.members[0])} className="text-indigo-300 hover:text-indigo-200">Ouvrir</button>
                           </td>
                         </tr>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -4745,14 +5110,31 @@ export default function Planning() {
                       {bottomDockNonProgrammees.length === 0 && (
                         <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucune course non programmee.</td></tr>
                       )}
-                      {bottomDockNonProgrammees.map(ot => (
-                        <tr key={ot.id} className="border-t border-slate-800/70 hover:bg-slate-800/40">
-                          <td className="px-3 py-2 font-mono text-slate-300">{ot.reference}</td>
-                          <td className="px-3 py-2 text-slate-200">{ot.client_nom}</td>
+                      {bottomDockNonProgrammees.map(ot => {
+                        const summary = getMissionSummary(ot)
+                        return (
+                        <tr
+                          key={ot.id}
+                          className={getMissionListRowClasses(ot.mission_id, ot.groupage_fige)}
+                          onMouseEnter={e => openHoverPreview(ot, e.clientX, e.clientY)}
+                          onMouseLeave={clearHoverPreview}>
+                          <td className="px-3 py-2 text-slate-200">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="font-mono text-slate-300 truncate">{ot.reference}</span>
+                              {summary.missionType === 'groupage' && <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${ot.groupage_fige ? 'bg-indigo-500/20 text-indigo-200' : 'bg-amber-100 text-amber-950'}`}>Groupage</span>}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-slate-200">
+                            <div className="flex flex-col gap-0.5">
+                              <span>{summary.missionType === 'groupage' ? summary.subtitle : ot.client_nom}</span>
+                              {summary.missionType === 'groupage' && <span className="text-[10px] text-slate-500 truncate">{summary.referencesLabel}</span>}
+                            </div>
+                          </td>
                           <td className="px-3 py-2"><span className={`text-[10px] px-1.5 py-0.5 rounded-full ${BADGE_CLS[ot.statut] ?? 'bg-slate-700 text-slate-300'}`}>{STATUT_LABEL[ot.statut] ?? ot.statut}</span></td>
                           <td className="px-3 py-2"><button type="button" onClick={() => openAssign(ot)} className="text-indigo-300 hover:text-indigo-200">Programmer</button></td>
                         </tr>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -4773,14 +5155,31 @@ export default function Planning() {
                       {bottomDockAnnulees.length === 0 && (
                         <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucune course annulee.</td></tr>
                       )}
-                      {bottomDockAnnulees.map(ot => (
-                        <tr key={ot.id} className="border-t border-slate-800/70 hover:bg-slate-800/40">
-                          <td className="px-3 py-2 font-mono text-slate-300">{ot.reference}</td>
-                          <td className="px-3 py-2 text-slate-200">{ot.client_nom}</td>
+                      {bottomDockAnnulees.map(ot => {
+                        const summary = getMissionSummary(ot)
+                        return (
+                        <tr
+                          key={ot.id}
+                          className={getMissionListRowClasses(ot.mission_id, ot.groupage_fige)}
+                          onMouseEnter={e => openHoverPreview(ot, e.clientX, e.clientY)}
+                          onMouseLeave={clearHoverPreview}>
+                          <td className="px-3 py-2 text-slate-200">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="font-mono text-slate-300 truncate">{ot.reference}</span>
+                              {summary.missionType === 'groupage' && <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${ot.groupage_fige ? 'bg-indigo-500/20 text-indigo-200' : 'bg-amber-100 text-amber-950'}`}>Groupage</span>}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-slate-200">
+                            <div className="flex flex-col gap-0.5">
+                              <span>{summary.missionType === 'groupage' ? summary.subtitle : ot.client_nom}</span>
+                              {summary.missionType === 'groupage' && <span className="text-[10px] text-slate-500 truncate">{summary.referencesLabel}</span>}
+                            </div>
+                          </td>
                           <td className="px-3 py-2 text-slate-400">{isoToDate(ot.date_chargement_prevue)} {isoToTime(ot.date_chargement_prevue)}</td>
                           <td className="px-3 py-2"><button type="button" onClick={() => openSelected(ot)} className="text-indigo-300 hover:text-indigo-200">Consulter</button></td>
                         </tr>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -5174,6 +5573,7 @@ export default function Planning() {
             </div>
           </div>
           </div>
+          </div>
             </>
           )}
         </div>
@@ -5207,13 +5607,13 @@ export default function Planning() {
                       onClick={() => setAssignModal(m => m ? { ...m, applyToGroupage: true } : m)}
                       className={`rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${assignModal.applyToGroupage ? 'bg-indigo-400 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
                     >
-                      Modifier tout le lot
+                      Modifier la mission
                     </button>
                   </div>
                   <p className="text-[11px] text-indigo-100/90">
                     {assignModal.applyToGroupage
-                      ? `Cette programmation s'appliquera aux ${assignGroupMembers.length} courses du lot ${getGroupageBubbleLabel(assignModal.ot)}.`
-                      : `Seule la course ${assignModal.ot.reference} sera modifiee. Le reste du lot restera inchange.`}
+                      ? `Cette programmation s'appliquera aux ${assignGroupMembers.length} courses de la mission ${getGroupageBubbleLabel(assignModal.ot)}.`
+                      : `Seule la course ${assignModal.ot.reference} sera modifiee. Le reste de la mission restera inchange.`}
                   </p>
                 </div>
               )}
@@ -5556,7 +5956,7 @@ export default function Planning() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   {isAffretedOt(selected.id) && <span className="rounded px-1.5 py-0.5 text-[9px] font-bold bg-blue-500/20 text-blue-300">AFF</span>}
-                  {selected.groupage_id && <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${selected.groupage_fige ? 'bg-indigo-500/20 text-indigo-300' : 'bg-amber-500/20 text-amber-300'}`}>{selected.groupage_fige ? 'GRP FIGE' : 'GRP'}</span>}
+                  {selected.mission_id && <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${selected.groupage_fige ? 'bg-indigo-500/20 text-indigo-300' : 'bg-amber-100 text-amber-950'}`}>{selected.groupage_fige ? 'MISSION FIGEE' : getGroupageBubbleLabel(selected)}</span>}
                   <input
                     value={editDraft.reference}
                     onChange={e => setEditDraft(d => d && { ...d, reference: e.target.value })}
@@ -5840,14 +6240,38 @@ export default function Planning() {
               </div>
 
               <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Groupage</p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Mission / groupage</p>
                 <div className="space-y-2.5 rounded-xl border border-slate-800 bg-slate-900/55 p-3">
+                  {(() => {
+                    const missionSummary = getMissionSummary(selected)
+                    return missionSummary.missionType === 'groupage' ? (
+                      <div className="rounded-xl border border-amber-300/20 bg-amber-400/5 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-200">Groupage actif</p>
+                            <p className="mt-1 text-sm font-semibold text-white">{missionSummary.subtitle}</p>
+                          </div>
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-950">{missionSummary.badge}</span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-slate-300">
+                          <span className="rounded-full bg-slate-900/70 px-2 py-1">{missionSummary.timeRange}</span>
+                          <span className="rounded-full bg-slate-900/70 px-2 py-1">{missionSummary.statusLabel}</span>
+                          <span className="rounded-full bg-slate-900/70 px-2 py-1">ID {missionSummary.missionId.slice(0, 8)}</span>
+                        </div>
+                        <div className="mt-2 space-y-1">
+                          {missionSummary.coursePreview.slice(0, 4).map((line, index) => (
+                            <p key={`${missionSummary.missionId}-selected-${index}`} className="truncate text-[10px] text-slate-300">{line}</p>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null
+                  })()}
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`text-[10px] px-2 py-1 rounded-full font-semibold ${selected.groupage_id ? (selected.groupage_fige ? 'bg-indigo-500/20 text-indigo-300' : 'bg-emerald-500/20 text-emerald-300') : 'bg-slate-800 text-slate-400'}`}>
-                      {selected.groupage_id ? (selected.groupage_fige ? 'Lot fige' : 'Lot deliable') : 'Hors groupage'}
+                    <span className={`text-[10px] px-2 py-1 rounded-full font-semibold ${selected.mission_id ? (selected.groupage_fige ? 'bg-indigo-500/20 text-indigo-300' : 'bg-emerald-500/20 text-emerald-300') : 'bg-slate-800 text-slate-400'}`}>
+                      {selected.mission_id ? (selected.groupage_fige ? 'Mission figee' : 'Mission deliable') : 'Course hors mission'}
                     </span>
-                    {selected.groupage_id && (
-                      <span className="text-[10px] text-slate-500">{selectedGroupMembers.length} course{selectedGroupMembers.length > 1 ? 's' : ''} dans le lot</span>
+                    {selected.mission_id && (
+                      <span className="text-[10px] text-slate-500">{selectedGroupMembers.length} course{selectedGroupMembers.length > 1 ? 's' : ''} dans la mission</span>
                     )}
                   </div>
 
@@ -5858,7 +6282,7 @@ export default function Planning() {
                       disabled={selected.groupage_fige}
                       className="flex-1 min-w-[220px] bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-white text-xs outline-none focus:border-indigo-500 transition-colors disabled:opacity-50"
                     >
-                      <option value="">Selectionner une course a lier</option>
+                      <option value="">Selectionner une course a ajouter a la mission</option>
                       {planningGroupageCandidates.map(item => (
                         <option key={item.id} value={item.id}>{item.reference} - {item.client_nom}</option>
                       ))}
@@ -5874,16 +6298,16 @@ export default function Planning() {
                     <button
                       type="button"
                       onClick={() => { void toggleSelectedGroupageFreeze(!selected.groupage_fige) }}
-                      disabled={!selected.groupage_id}
+                      disabled={!selected.mission_id}
                       className="px-3 py-2 text-xs rounded-lg border border-slate-700 text-slate-200 hover:bg-slate-800 disabled:opacity-50 transition-colors"
                     >
-                      {selected.groupage_fige ? 'Defiger le lot' : 'Figer le lot'}
+                      {selected.groupage_fige ? 'Defiger la mission' : 'Figer la mission'}
                     </button>
                   </div>
 
                   {selectedGroupMembers.length > 0 && (
                     <div className="rounded-lg border border-slate-800/80 bg-slate-950/60 px-2.5 py-2">
-                      <p className="text-[10px] font-semibold text-slate-300 mb-1.5">Courses du lot</p>
+                      <p className="text-[10px] font-semibold text-slate-300 mb-1.5">Courses de la mission</p>
                       <div className="flex flex-wrap gap-1.5">
                         {selectedGroupMembers.map(item => (
                           <button
@@ -5910,22 +6334,22 @@ export default function Planning() {
                   Retirer
                 </button>
               )}
-              {selected.groupage_id && !selected.groupage_fige && (
+              {selected.mission_id && !selected.groupage_fige && (
                 <button onClick={() => { void unlinkCourseFromGroupage(selected) }}
                   className="py-2 px-3 text-xs text-amber-300 hover:text-amber-200 hover:bg-amber-900/20 rounded-lg border border-amber-900/30 transition-colors">
-                  Delier du groupage
+                  Sortir de la mission
                 </button>
               )}
-              {selected.groupage_id && (
+              {selected.mission_id && (
                 <button onClick={() => { void toggleSelectedGroupageFreeze(!selected.groupage_fige) }}
                   className="py-2 px-3 text-xs text-indigo-300 hover:text-indigo-200 hover:bg-indigo-900/20 rounded-lg border border-indigo-900/30 transition-colors">
-                  {selected.groupage_fige ? 'Defiger le lot' : 'Figer le lot'}
+                  {selected.groupage_fige ? 'Defiger la mission' : 'Figer la mission'}
                 </button>
               )}
               {selectedGroupMembers.length > 1 && !selected.groupage_fige && (
                 <button onClick={() => openAssign(selected, undefined, undefined, undefined, true)}
                   className="py-2 px-3 text-xs text-emerald-300 hover:text-emerald-200 hover:bg-emerald-900/20 rounded-lg border border-emerald-900/30 transition-colors">
-                  Modifier tout le lot
+                  Modifier la mission
                 </button>
               )}
               <div className="flex-1" />
@@ -6030,21 +6454,35 @@ export default function Planning() {
         >
           {/* En-tete */}
           <div className="px-3 py-2.5 border-b border-slate-800 bg-slate-800/40">
+            {(() => {
+              const missionSummary = getMissionSummary(contextMenu.ot)
+              return (
+                <>
             <div className="flex items-center gap-1.5 mb-1">
               {isAffretedOt(contextMenu.ot.id) && <span className="rounded px-1.5 py-0.5 text-[9px] font-bold bg-blue-600/30 text-blue-300">AFF</span>}
-              {contextMenu.ot.groupage_id && <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${contextMenu.ot.groupage_fige ? 'bg-indigo-600/30 text-indigo-300' : 'bg-amber-500/20 text-amber-300'}`}>{contextMenu.ot.groupage_fige ? 'GRP FIGE' : 'GRP'}</span>}
+              {contextMenu.ot.mission_id && <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${contextMenu.ot.groupage_fige ? 'bg-indigo-600/30 text-indigo-300' : 'bg-amber-100 text-amber-950'}`}>{contextMenu.ot.groupage_fige ? 'MISSION FIGEE' : getGroupageBubbleLabel(contextMenu.ot)}</span>}
               <span className="text-xs font-mono text-slate-400">{contextMenu.ot.reference}</span>
               <span className={`ml-auto text-[9px] px-2 py-0.5 rounded-full font-medium ${BADGE_CLS[contextMenu.ot.statut] ?? 'bg-slate-700 text-slate-400'}`}>
                 {STATUT_LABEL[contextMenu.ot.statut] ?? contextMenu.ot.statut}
               </span>
             </div>
             <p className="text-sm font-bold text-white truncate">{contextMenu.ot.client_nom}</p>
+            {missionSummary.missionType === 'groupage' && (
+              <div className="mt-1.5 rounded-lg border border-amber-300/20 bg-amber-400/5 px-2 py-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-200">Groupage</p>
+                <p className="text-[11px] font-semibold text-slate-100">{missionSummary.courseCount} courses · {missionSummary.timeRange}</p>
+                <p className="truncate text-[10px] text-slate-400">{missionSummary.referencesLabel}</p>
+              </div>
+            )}
             {getAffretementCompany(contextMenu.ot.id) && (
               <p className="text-[11px] text-blue-300/80 truncate mt-0.5">{getAffretementCompany(contextMenu.ot.id)}</p>
             )}
             {contextMenu.ot.prix_ht != null && (
               <p className="text-[10px] text-emerald-400/80 mt-0.5">{contextMenu.ot.prix_ht.toFixed(0)} EUR HT</p>
             )}
+                </>
+              )
+            })()}
           </div>
 
           {/* Actions principales */}
@@ -6055,7 +6493,7 @@ export default function Planning() {
               <svg className="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
               </svg>
-              Details / Statut operationnel
+              {contextMenu.ot.mission_id ? 'Details mission / statut' : 'Details / statut operationnel'}
             </button>
 
             <button
@@ -6082,7 +6520,7 @@ export default function Planning() {
               </button>
             )}
 
-            {contextMenu.ot.groupage_id && !contextMenu.ot.groupage_fige && (
+            {contextMenu.ot.mission_id && !contextMenu.ot.groupage_fige && (
               <button
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-amber-300 hover:bg-amber-900/20 hover:text-amber-200 transition-colors text-left"
                 onClick={() => {
@@ -6097,7 +6535,7 @@ export default function Planning() {
               </button>
             )}
 
-            {contextMenu.ot.groupage_id && (
+            {contextMenu.ot.mission_id && (
               <button
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-indigo-300 hover:bg-indigo-900/20 hover:text-indigo-200 transition-colors text-left"
                 onClick={() => {
@@ -6170,16 +6608,44 @@ export default function Planning() {
       {/* ── Tooltip mini-itinéraire ────────────────────────────────────────── */}
       {hoveredBlock && !drag && (() => {
         const { ot, x, y } = hoveredBlock
+        const missionSummary = getMissionSummary(ot)
         const chargSite = ot.chargement_site_id ? logisticSites.find(s => s.id === ot.chargement_site_id) : null
         const livrSite  = ot.livraison_site_id  ? logisticSites.find(s => s.id === ot.livraison_site_id)  : null
-        if (!chargSite && !livrSite) return null
         const tooltipX = Math.min(x + 12, window.innerWidth - 280)
-        const tooltipY = Math.min(y + 8, window.innerHeight - 140)
+        const tooltipY = Math.min(y + 8, window.innerHeight - (missionSummary.missionType === 'groupage' ? 320 : 220))
         return (
           <div
-            className="fixed z-[90] pointer-events-none rounded-xl border border-slate-600 bg-slate-950/95 shadow-2xl px-3 py-2.5 w-64"
+            className={`fixed z-[90] pointer-events-none rounded-xl border bg-slate-950/95 shadow-2xl px-3 py-2.5 w-72 ${missionSummary.missionType === 'groupage' ? 'border-amber-300/60 ring-1 ring-amber-300/25' : 'border-slate-600'}`}
             style={{ left: tooltipX, top: tooltipY }}
           >
+            <div className="mb-2 border-b border-slate-800 pb-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className={`text-[10px] font-bold uppercase tracking-wider ${missionSummary.missionType === 'groupage' ? 'text-amber-200' : 'text-slate-400'}`}>
+                  {missionSummary.missionType === 'groupage' ? 'Groupage' : missionSummary.label}
+                </p>
+                <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${missionSummary.missionType === 'groupage' ? 'bg-amber-100 text-amber-950' : 'bg-slate-800 text-slate-200'}`}>
+                  {missionSummary.badge}
+                </span>
+              </div>
+              <p className="mt-1 text-xs font-semibold text-white">{missionSummary.subtitle}</p>
+              <p className="text-[10px] text-slate-400">{missionSummary.timeRange} · {missionSummary.statusLabel}</p>
+              {hoveredMissionSummary && (
+                <p className="mt-1 text-[10px] text-slate-500">Mission {hoveredMissionSummary.missionId.slice(0, 8)} · {missionSummary.courseCount} course{missionSummary.courseCount > 1 ? 's' : ''}</p>
+              )}
+            </div>
+            {missionSummary.missionType === 'groupage' && (
+              <div className="mb-2 rounded-lg border border-amber-300/20 bg-amber-400/5 px-2 py-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-200">Sous-courses liees</p>
+                <div className="mt-1 flex flex-col gap-1">
+                  {missionSummary.coursePreview.slice(0, 4).map((line, index) => (
+                    <p key={`${missionSummary.missionId}-${index}`} className="truncate text-[10px] text-slate-200">{line}</p>
+                  ))}
+                  {missionSummary.coursePreview.length > 4 && (
+                    <p className="text-[10px] text-slate-500">+ {missionSummary.coursePreview.length - 4} autre{missionSummary.coursePreview.length - 4 > 1 ? 's' : ''} course{missionSummary.coursePreview.length - 4 > 1 ? 's' : ''}</p>
+                  )}
+                </div>
+              </div>
+            )}
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Itineraire</p>
             <div className="flex flex-col gap-1">
               {chargSite && (
@@ -6201,10 +6667,14 @@ export default function Planning() {
                   </div>
                 </div>
               )}
+              {!chargSite && !livrSite && (
+                <p className="text-[10px] text-slate-500">Itineraire non renseigne.</p>
+              )}
             </div>
-            {ot.distance_km != null && (
-              <p className="text-[10px] text-slate-400 mt-1.5 border-t border-slate-800 pt-1.5">{Math.round(ot.distance_km)} km</p>
-            )}
+            <div className="mt-1.5 border-t border-slate-800 pt-1.5 text-[10px] text-slate-400">
+              {missionSummary.missionType === 'groupage' && <p>{missionSummary.referencesLabel}</p>}
+              {ot.distance_km != null && <p>{Math.round(ot.distance_km)} km</p>}
+            </div>
           </div>
         )
       })()}

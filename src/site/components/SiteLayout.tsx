@@ -141,7 +141,7 @@ export default function SiteLayout() {
             </Link>
           </div>
 
-          <div className="grid gap-8 text-sm sm:grid-cols-2 sm:gap-10 lg:grid-cols-4 lg:gap-12" style={{ color: '#4b4b51' }}>
+          <div className="grid gap-8 text-sm sm:grid-cols-2 sm:gap-10 lg:grid-cols-5 lg:gap-12" style={{ color: '#4b4b51' }}>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: '#636369' }}>Produit</p>
               <div className="mt-3 grid gap-2.5">
@@ -190,6 +190,19 @@ export default function SiteLayout() {
                 >
                   Préférences cookies
                 </button>
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: '#636369' }}>Partenaires</p>
+              <div className="mt-3 grid gap-2.5">
+                <a
+                  href="https://annuaire-transports.fr"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="site-footer-link"
+                >
+                  Annuaire Transports
+                </a>
               </div>
             </div>
           </div>

@@ -273,6 +273,13 @@ export type Database = {
             foreignKeyName: "adresses_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "vue_marge_client"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "adresses_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "vue_scoring_clients"
             referencedColumns: ["client_id"]
           },
@@ -1478,6 +1485,13 @@ export type Database = {
             foreignKeyName: "compta_ecriture_lignes_axe_client_id_fkey"
             columns: ["axe_client_id"]
             isOneToOne: false
+            referencedRelation: "vue_marge_client"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "compta_ecriture_lignes_axe_client_id_fkey"
+            columns: ["axe_client_id"]
+            isOneToOne: false
             referencedRelation: "vue_scoring_clients"
             referencedColumns: ["client_id"]
           },
@@ -1570,6 +1584,13 @@ export type Database = {
             columns: ["tiers_client_id"]
             isOneToOne: false
             referencedRelation: "vue_analytique_missions"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "compta_ecriture_lignes_tiers_client_id_fkey"
+            columns: ["tiers_client_id"]
+            isOneToOne: false
+            referencedRelation: "vue_marge_client"
             referencedColumns: ["client_id"]
           },
           {
@@ -2449,6 +2470,121 @@ export type Database = {
           },
         ]
       }
+      constraint_logs: {
+        Row: {
+          company_id: number
+          constraint_code: string
+          constraint_type: string
+          created_at: string
+          detail_json: Json
+          engine_name: string
+          id: string
+          impact_minutes: number | null
+          impact_score: number | null
+          logged_at: string
+          ot_id: string | null
+          request_reference: string | null
+          severity: string
+          source: string
+        }
+        Insert: {
+          company_id: number
+          constraint_code: string
+          constraint_type: string
+          created_at?: string
+          detail_json?: Json
+          engine_name?: string
+          id?: string
+          impact_minutes?: number | null
+          impact_score?: number | null
+          logged_at?: string
+          ot_id?: string | null
+          request_reference?: string | null
+          severity?: string
+          source?: string
+        }
+        Update: {
+          company_id?: number
+          constraint_code?: string
+          constraint_type?: string
+          created_at?: string
+          detail_json?: Json
+          engine_name?: string
+          id?: string
+          impact_minutes?: number | null
+          impact_score?: number | null
+          logged_at?: string
+          ot_id?: string | null
+          request_reference?: string | null
+          severity?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "constraint_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "constraint_logs_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "ordres_transport"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "constraint_logs_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_cout_salarial_ot"
+            referencedColumns: ["ot_id"]
+          },
+          {
+            foreignKeyName: "constraint_logs_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_radar_km_vide"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "constraint_logs_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_radar_km_vide"
+            referencedColumns: ["ot_suivant_id"]
+          },
+          {
+            foreignKeyName: "constraint_logs_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_war_room_ot_non_affectes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "constraint_logs_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_war_room_ot_retard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "constraint_logs_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "vue_analytique_missions"
+            referencedColumns: ["ot_id"]
+          },
+          {
+            foreignKeyName: "constraint_logs_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "vue_marge_ot"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           client_id: string
@@ -2499,6 +2635,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "vue_analytique_missions"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "contacts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "vue_marge_client"
             referencedColumns: ["client_id"]
           },
           {
@@ -2630,6 +2773,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "vue_analytique_missions"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "course_templates_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "vue_marge_client"
             referencedColumns: ["client_id"]
           },
           {
@@ -3067,6 +3217,13 @@ export type Database = {
             foreignKeyName: "devis_transport_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "vue_marge_client"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "devis_transport_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "vue_scoring_clients"
             referencedColumns: ["client_id"]
           },
@@ -3075,6 +3232,74 @@ export type Database = {
             columns: ["prospect_id"]
             isOneToOne: false
             referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_visibility_policies: {
+        Row: {
+          allow_download: boolean
+          allow_export: boolean
+          available_days_after_departure: number | null
+          company_id: number
+          created_at: string
+          document_type: string
+          id: string
+          is_active: boolean
+          is_sensitive: boolean
+          label: string
+          policy_key: string
+          require_acknowledgement: boolean
+          require_signature: boolean
+          retention_days: number | null
+          updated_at: string
+          visible_after_departure: boolean
+          visible_during_contract: boolean
+        }
+        Insert: {
+          allow_download?: boolean
+          allow_export?: boolean
+          available_days_after_departure?: number | null
+          company_id?: number
+          created_at?: string
+          document_type: string
+          id?: string
+          is_active?: boolean
+          is_sensitive?: boolean
+          label: string
+          policy_key: string
+          require_acknowledgement?: boolean
+          require_signature?: boolean
+          retention_days?: number | null
+          updated_at?: string
+          visible_after_departure?: boolean
+          visible_during_contract?: boolean
+        }
+        Update: {
+          allow_download?: boolean
+          allow_export?: boolean
+          available_days_after_departure?: number | null
+          company_id?: number
+          created_at?: string
+          document_type?: string
+          id?: string
+          is_active?: boolean
+          is_sensitive?: boolean
+          label?: string
+          policy_key?: string
+          require_acknowledgement?: boolean
+          require_signature?: boolean
+          retention_days?: number | null
+          updated_at?: string
+          visible_after_departure?: boolean
+          visible_during_contract?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_visibility_policies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -3261,6 +3486,715 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      employee_directory: {
+        Row: {
+          company_id: number
+          conducteur_id: string | null
+          created_at: string
+          departure_at: string | null
+          departure_reason: string | null
+          employment_status: string
+          first_name: string | null
+          hire_date: string | null
+          id: string
+          last_name: string | null
+          matricule: string | null
+          personal_email: string | null
+          professional_email: string | null
+          profil_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id?: number
+          conducteur_id?: string | null
+          created_at?: string
+          departure_at?: string | null
+          departure_reason?: string | null
+          employment_status?: string
+          first_name?: string | null
+          hire_date?: string | null
+          id?: string
+          last_name?: string | null
+          matricule?: string | null
+          personal_email?: string | null
+          professional_email?: string | null
+          profil_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: number
+          conducteur_id?: string | null
+          created_at?: string
+          departure_at?: string | null
+          departure_reason?: string | null
+          employment_status?: string
+          first_name?: string | null
+          hire_date?: string | null
+          id?: string
+          last_name?: string | null
+          matricule?: string | null
+          personal_email?: string | null
+          professional_email?: string | null
+          profil_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_directory_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_directory_conducteur_id_fkey"
+            columns: ["conducteur_id"]
+            isOneToOne: true
+            referencedRelation: "conducteurs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_directory_conducteur_id_fkey"
+            columns: ["conducteur_id"]
+            isOneToOne: true
+            referencedRelation: "vue_conducteur_alertes"
+            referencedColumns: ["conducteur_id"]
+          },
+          {
+            foreignKeyName: "employee_directory_conducteur_id_fkey"
+            columns: ["conducteur_id"]
+            isOneToOne: true
+            referencedRelation: "vue_conducteur_alertes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_directory_profil_id_fkey"
+            columns: ["profil_id"]
+            isOneToOne: true
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_document_consents: {
+        Row: {
+          company_id: number
+          consent_type: string
+          created_at: string
+          document_id: string
+          document_version_id: string
+          employee_id: string
+          id: string
+          ip_hash: string | null
+          metadata: Json
+          signed_at: string | null
+          signed_label: string | null
+          status: string
+          updated_at: string
+          vault_account_id: string
+        }
+        Insert: {
+          company_id?: number
+          consent_type: string
+          created_at?: string
+          document_id: string
+          document_version_id: string
+          employee_id: string
+          id?: string
+          ip_hash?: string | null
+          metadata?: Json
+          signed_at?: string | null
+          signed_label?: string | null
+          status?: string
+          updated_at?: string
+          vault_account_id: string
+        }
+        Update: {
+          company_id?: number
+          consent_type?: string
+          created_at?: string
+          document_id?: string
+          document_version_id?: string
+          employee_id?: string
+          id?: string
+          ip_hash?: string | null
+          metadata?: Json
+          signed_at?: string | null
+          signed_label?: string | null
+          status?: string
+          updated_at?: string
+          vault_account_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_document_consents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_document_consents_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "employee_vault_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_document_consents_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_vault_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_document_consents_document_version_id_fkey"
+            columns: ["document_version_id"]
+            isOneToOne: false
+            referencedRelation: "employee_vault_document_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_document_consents_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_document_consents_vault_account_id_fkey"
+            columns: ["vault_account_id"]
+            isOneToOne: false
+            referencedRelation: "employee_vault_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_document_exports: {
+        Row: {
+          company_id: number
+          created_at: string
+          employee_id: string
+          expires_at: string | null
+          file_name: string | null
+          filters: Json
+          id: string
+          mime_type: string | null
+          requested_by_internal_profile_id: string | null
+          requested_by_vault_account_id: string | null
+          scope: string
+          status: string
+          storage_bucket: string | null
+          storage_path: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id?: number
+          created_at?: string
+          employee_id: string
+          expires_at?: string | null
+          file_name?: string | null
+          filters?: Json
+          id?: string
+          mime_type?: string | null
+          requested_by_internal_profile_id?: string | null
+          requested_by_vault_account_id?: string | null
+          scope?: string
+          status?: string
+          storage_bucket?: string | null
+          storage_path?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: number
+          created_at?: string
+          employee_id?: string
+          expires_at?: string | null
+          file_name?: string | null
+          filters?: Json
+          id?: string
+          mime_type?: string | null
+          requested_by_internal_profile_id?: string | null
+          requested_by_vault_account_id?: string | null
+          scope?: string
+          status?: string
+          storage_bucket?: string | null
+          storage_path?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_document_exports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_document_exports_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_document_exports_requested_by_internal_profile_id_fkey"
+            columns: ["requested_by_internal_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_document_exports_requested_by_vault_account_id_fkey"
+            columns: ["requested_by_vault_account_id"]
+            isOneToOne: false
+            referencedRelation: "employee_vault_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_vault_access_logs: {
+        Row: {
+          action: string
+          channel: string
+          company_id: number
+          created_at: string
+          document_id: string | null
+          document_version_id: string | null
+          employee_id: string | null
+          id: number
+          internal_profile_id: string | null
+          ip_hash: string | null
+          metadata: Json
+          user_agent: string | null
+          vault_account_id: string | null
+        }
+        Insert: {
+          action: string
+          channel?: string
+          company_id?: number
+          created_at?: string
+          document_id?: string | null
+          document_version_id?: string | null
+          employee_id?: string | null
+          id?: number
+          internal_profile_id?: string | null
+          ip_hash?: string | null
+          metadata?: Json
+          user_agent?: string | null
+          vault_account_id?: string | null
+        }
+        Update: {
+          action?: string
+          channel?: string
+          company_id?: number
+          created_at?: string
+          document_id?: string | null
+          document_version_id?: string | null
+          employee_id?: string | null
+          id?: number
+          internal_profile_id?: string | null
+          ip_hash?: string | null
+          metadata?: Json
+          user_agent?: string | null
+          vault_account_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_vault_access_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_access_logs_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "employee_vault_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_access_logs_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_vault_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_access_logs_document_version_id_fkey"
+            columns: ["document_version_id"]
+            isOneToOne: false
+            referencedRelation: "employee_vault_document_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_access_logs_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_access_logs_internal_profile_id_fkey"
+            columns: ["internal_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_access_logs_vault_account_id_fkey"
+            columns: ["vault_account_id"]
+            isOneToOne: false
+            referencedRelation: "employee_vault_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_vault_accounts: {
+        Row: {
+          access_expires_at: string | null
+          auth_user_id: string | null
+          company_id: number
+          created_at: string
+          employee_id: string
+          id: string
+          internal_account_id: string | null
+          keep_access_after_departure: boolean
+          last_login_at: string | null
+          must_reset_password: boolean
+          personal_email: string
+          professional_email_snapshot: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          access_expires_at?: string | null
+          auth_user_id?: string | null
+          company_id?: number
+          created_at?: string
+          employee_id: string
+          id?: string
+          internal_account_id?: string | null
+          keep_access_after_departure?: boolean
+          last_login_at?: string | null
+          must_reset_password?: boolean
+          personal_email: string
+          professional_email_snapshot?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          access_expires_at?: string | null
+          auth_user_id?: string | null
+          company_id?: number
+          created_at?: string
+          employee_id?: string
+          id?: string
+          internal_account_id?: string | null
+          keep_access_after_departure?: boolean
+          last_login_at?: string | null
+          must_reset_password?: boolean
+          personal_email?: string
+          professional_email_snapshot?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_vault_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_accounts_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: true
+            referencedRelation: "employee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_accounts_internal_account_id_fkey"
+            columns: ["internal_account_id"]
+            isOneToOne: false
+            referencedRelation: "internal_user_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_vault_document_versions: {
+        Row: {
+          change_reason: string | null
+          created_at: string
+          document_id: string
+          file_name: string
+          hash_sha256: string | null
+          id: string
+          mime_type: string
+          size_bytes: number | null
+          storage_bucket: string
+          storage_path: string
+          uploaded_by_internal_profile_id: string | null
+          uploaded_by_vault_account_id: string | null
+          version_no: number
+        }
+        Insert: {
+          change_reason?: string | null
+          created_at?: string
+          document_id: string
+          file_name: string
+          hash_sha256?: string | null
+          id?: string
+          mime_type: string
+          size_bytes?: number | null
+          storage_bucket?: string
+          storage_path: string
+          uploaded_by_internal_profile_id?: string | null
+          uploaded_by_vault_account_id?: string | null
+          version_no: number
+        }
+        Update: {
+          change_reason?: string | null
+          created_at?: string
+          document_id?: string
+          file_name?: string
+          hash_sha256?: string | null
+          id?: string
+          mime_type?: string
+          size_bytes?: number | null
+          storage_bucket?: string
+          storage_path?: string
+          uploaded_by_internal_profile_id?: string | null
+          uploaded_by_vault_account_id?: string | null
+          version_no?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_vault_document_versi_uploaded_by_internal_profile_fkey"
+            columns: ["uploaded_by_internal_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_document_versi_uploaded_by_vault_account_id_fkey"
+            columns: ["uploaded_by_vault_account_id"]
+            isOneToOne: false
+            referencedRelation: "employee_vault_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_document_versions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "employee_vault_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_document_versions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_vault_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_vault_documents: {
+        Row: {
+          archived_at: string | null
+          company_id: number
+          created_at: string
+          created_by_internal_profile_id: string | null
+          created_by_vault_account_id: string | null
+          current_version_no: number
+          document_type: string
+          employee_id: string
+          expires_at: string | null
+          file_name: string
+          id: string
+          issued_at: string | null
+          legacy_conducteur_document_id: string | null
+          mime_type: string
+          origin_source: string
+          policy_id: string
+          published_at: string
+          storage_bucket: string
+          storage_path: string
+          title: string
+          updated_at: string
+          visibility_override_after_departure: boolean | null
+        }
+        Insert: {
+          archived_at?: string | null
+          company_id?: number
+          created_at?: string
+          created_by_internal_profile_id?: string | null
+          created_by_vault_account_id?: string | null
+          current_version_no?: number
+          document_type: string
+          employee_id: string
+          expires_at?: string | null
+          file_name: string
+          id?: string
+          issued_at?: string | null
+          legacy_conducteur_document_id?: string | null
+          mime_type?: string
+          origin_source?: string
+          policy_id: string
+          published_at?: string
+          storage_bucket?: string
+          storage_path: string
+          title: string
+          updated_at?: string
+          visibility_override_after_departure?: boolean | null
+        }
+        Update: {
+          archived_at?: string | null
+          company_id?: number
+          created_at?: string
+          created_by_internal_profile_id?: string | null
+          created_by_vault_account_id?: string | null
+          current_version_no?: number
+          document_type?: string
+          employee_id?: string
+          expires_at?: string | null
+          file_name?: string
+          id?: string
+          issued_at?: string | null
+          legacy_conducteur_document_id?: string | null
+          mime_type?: string
+          origin_source?: string
+          policy_id?: string
+          published_at?: string
+          storage_bucket?: string
+          storage_path?: string
+          title?: string
+          updated_at?: string
+          visibility_override_after_departure?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_vault_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_documents_created_by_internal_profile_id_fkey"
+            columns: ["created_by_internal_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_documents_created_by_vault_account_id_fkey"
+            columns: ["created_by_vault_account_id"]
+            isOneToOne: false
+            referencedRelation: "employee_vault_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_documents_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_documents_legacy_conducteur_document_id_fkey"
+            columns: ["legacy_conducteur_document_id"]
+            isOneToOne: true
+            referencedRelation: "conducteur_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_documents_policy_id_fkey"
+            columns: ["policy_id"]
+            isOneToOne: false
+            referencedRelation: "document_visibility_policies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_vault_exit_workflows: {
+        Row: {
+          checklist: Json
+          company_id: number
+          created_at: string
+          disable_internal_account: boolean
+          employee_id: string
+          executed_at: string | null
+          executed_by_profile_id: string | null
+          id: string
+          keep_vault_access: boolean
+          notes: string | null
+          planned_exit_at: string | null
+          status: string
+          updated_at: string
+          vault_access_expires_at: string | null
+          vault_personal_email: string | null
+        }
+        Insert: {
+          checklist?: Json
+          company_id?: number
+          created_at?: string
+          disable_internal_account?: boolean
+          employee_id: string
+          executed_at?: string | null
+          executed_by_profile_id?: string | null
+          id?: string
+          keep_vault_access?: boolean
+          notes?: string | null
+          planned_exit_at?: string | null
+          status?: string
+          updated_at?: string
+          vault_access_expires_at?: string | null
+          vault_personal_email?: string | null
+        }
+        Update: {
+          checklist?: Json
+          company_id?: number
+          created_at?: string
+          disable_internal_account?: boolean
+          employee_id?: string
+          executed_at?: string | null
+          executed_by_profile_id?: string | null
+          id?: string
+          keep_vault_access?: boolean
+          notes?: string | null
+          planned_exit_at?: string | null
+          status?: string
+          updated_at?: string
+          vault_access_expires_at?: string | null
+          vault_personal_email?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_vault_exit_workflows_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_exit_workflows_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: true
+            referencedRelation: "employee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_exit_workflows_executed_by_profile_id_fkey"
+            columns: ["executed_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       entretiens: {
         Row: {
@@ -3451,6 +4385,275 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      eta_history: {
+        Row: {
+          company_id: number
+          created_at: string
+          delta_minutes: number
+          drift_reason: string | null
+          eta_prediction_id: string
+          id: string
+          next_predicted_eta: string | null
+          ot_id: string | null
+          previous_predicted_eta: string | null
+          recorded_at: string
+          snapshot_json: Json
+        }
+        Insert: {
+          company_id: number
+          created_at?: string
+          delta_minutes?: number
+          drift_reason?: string | null
+          eta_prediction_id: string
+          id?: string
+          next_predicted_eta?: string | null
+          ot_id?: string | null
+          previous_predicted_eta?: string | null
+          recorded_at?: string
+          snapshot_json?: Json
+        }
+        Update: {
+          company_id?: number
+          created_at?: string
+          delta_minutes?: number
+          drift_reason?: string | null
+          eta_prediction_id?: string
+          id?: string
+          next_predicted_eta?: string | null
+          ot_id?: string | null
+          previous_predicted_eta?: string | null
+          recorded_at?: string
+          snapshot_json?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eta_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_history_eta_prediction_id_fkey"
+            columns: ["eta_prediction_id"]
+            isOneToOne: false
+            referencedRelation: "eta_predictions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_history_eta_prediction_id_fkey"
+            columns: ["eta_prediction_id"]
+            isOneToOne: false
+            referencedRelation: "vue_latest_eta_predictions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_history_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "ordres_transport"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_history_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_cout_salarial_ot"
+            referencedColumns: ["ot_id"]
+          },
+          {
+            foreignKeyName: "eta_history_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_radar_km_vide"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_history_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_radar_km_vide"
+            referencedColumns: ["ot_suivant_id"]
+          },
+          {
+            foreignKeyName: "eta_history_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_war_room_ot_non_affectes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_history_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_war_room_ot_retard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_history_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "vue_analytique_missions"
+            referencedColumns: ["ot_id"]
+          },
+          {
+            foreignKeyName: "eta_history_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "vue_marge_ot"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      eta_predictions: {
+        Row: {
+          affectation_id: string | null
+          baseline_duration_minutes: number
+          company_id: number
+          computed_at: string
+          confidence_pct: number
+          created_at: string
+          distance_km: number | null
+          expires_at: string | null
+          explanation_json: Json
+          id: string
+          metadata_json: Json
+          missing_data_json: Json
+          optimistic_eta: string | null
+          ot_id: string | null
+          pessimistic_eta: string | null
+          predicted_duration_minutes: number
+          predicted_eta: string | null
+          prediction_scope: string
+          risk_level: string
+          source_event: string
+          status_label: string
+          trace_json: Json
+          updated_at: string
+        }
+        Insert: {
+          affectation_id?: string | null
+          baseline_duration_minutes?: number
+          company_id: number
+          computed_at?: string
+          confidence_pct?: number
+          created_at?: string
+          distance_km?: number | null
+          expires_at?: string | null
+          explanation_json?: Json
+          id?: string
+          metadata_json?: Json
+          missing_data_json?: Json
+          optimistic_eta?: string | null
+          ot_id?: string | null
+          pessimistic_eta?: string | null
+          predicted_duration_minutes?: number
+          predicted_eta?: string | null
+          prediction_scope?: string
+          risk_level?: string
+          source_event?: string
+          status_label?: string
+          trace_json?: Json
+          updated_at?: string
+        }
+        Update: {
+          affectation_id?: string | null
+          baseline_duration_minutes?: number
+          company_id?: number
+          computed_at?: string
+          confidence_pct?: number
+          created_at?: string
+          distance_km?: number | null
+          expires_at?: string | null
+          explanation_json?: Json
+          id?: string
+          metadata_json?: Json
+          missing_data_json?: Json
+          optimistic_eta?: string | null
+          ot_id?: string | null
+          pessimistic_eta?: string | null
+          predicted_duration_minutes?: number
+          predicted_eta?: string | null
+          prediction_scope?: string
+          risk_level?: string
+          source_event?: string
+          status_label?: string
+          trace_json?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eta_predictions_affectation_id_fkey"
+            columns: ["affectation_id"]
+            isOneToOne: false
+            referencedRelation: "affectations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_predictions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_predictions_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "ordres_transport"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_predictions_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_cout_salarial_ot"
+            referencedColumns: ["ot_id"]
+          },
+          {
+            foreignKeyName: "eta_predictions_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_radar_km_vide"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_predictions_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_radar_km_vide"
+            referencedColumns: ["ot_suivant_id"]
+          },
+          {
+            foreignKeyName: "eta_predictions_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_war_room_ot_non_affectes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_predictions_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_war_room_ot_retard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_predictions_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "vue_analytique_missions"
+            referencedColumns: ["ot_id"]
+          },
+          {
+            foreignKeyName: "eta_predictions_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "vue_marge_ot"
             referencedColumns: ["id"]
           },
         ]
@@ -3687,6 +4890,10 @@ export type Database = {
           notes: string | null
           numero: string
           ot_id: string | null
+          pdf_generated_at: string | null
+          pdf_sha256: string | null
+          pdf_storage_bucket: string | null
+          pdf_storage_path: string | null
           statut: string
           taux_tva: number
           updated_at: string
@@ -3706,6 +4913,10 @@ export type Database = {
           notes?: string | null
           numero?: string
           ot_id?: string | null
+          pdf_generated_at?: string | null
+          pdf_sha256?: string | null
+          pdf_storage_bucket?: string | null
+          pdf_storage_path?: string | null
           statut?: string
           taux_tva?: number
           updated_at?: string
@@ -3725,6 +4936,10 @@ export type Database = {
           notes?: string | null
           numero?: string
           ot_id?: string | null
+          pdf_generated_at?: string | null
+          pdf_sha256?: string | null
+          pdf_storage_bucket?: string | null
+          pdf_storage_path?: string | null
           statut?: string
           taux_tva?: number
           updated_at?: string
@@ -3742,6 +4957,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "vue_analytique_missions"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "factures_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "vue_marge_client"
             referencedColumns: ["client_id"]
           },
           {
@@ -4468,6 +5690,1568 @@ export type Database = {
           },
         ]
       }
+      indisponibilite_planning: {
+        Row: {
+          created_at: string
+          createur_id: string | null
+          date_debut: string
+          date_fin: string
+          id: string
+          motif: string | null
+          ressource_id: string
+          type_indisponibilite: string
+          type_ressource: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          createur_id?: string | null
+          date_debut: string
+          date_fin: string
+          id?: string
+          motif?: string | null
+          ressource_id: string
+          type_indisponibilite: string
+          type_ressource: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          createur_id?: string | null
+          date_debut?: string
+          date_fin?: string
+          id?: string
+          motif?: string | null
+          ressource_id?: string
+          type_indisponibilite?: string
+          type_ressource?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "indisponibilite_planning_createur_id_fkey"
+            columns: ["createur_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      infraction_tachy: {
+        Row: {
+          actions_correctrices: string | null
+          code_infraction: string
+          conducteur_id: string
+          created_at: string
+          date_detection: string
+          date_infraction: string
+          date_resolution: string | null
+          etat: string
+          id: string
+          libelle_infraction: string
+          ot_id: string
+          seuil_reglementaire: number
+          severite: string
+          type_infraction: string
+          unite: string
+          updated_at: string
+          valeur_mesuree: number
+          validateur_id: string | null
+        }
+        Insert: {
+          actions_correctrices?: string | null
+          code_infraction: string
+          conducteur_id: string
+          created_at?: string
+          date_detection?: string
+          date_infraction: string
+          date_resolution?: string | null
+          etat?: string
+          id?: string
+          libelle_infraction: string
+          ot_id: string
+          seuil_reglementaire: number
+          severite?: string
+          type_infraction: string
+          unite?: string
+          updated_at?: string
+          valeur_mesuree: number
+          validateur_id?: string | null
+        }
+        Update: {
+          actions_correctrices?: string | null
+          code_infraction?: string
+          conducteur_id?: string
+          created_at?: string
+          date_detection?: string
+          date_infraction?: string
+          date_resolution?: string | null
+          etat?: string
+          id?: string
+          libelle_infraction?: string
+          ot_id?: string
+          seuil_reglementaire?: number
+          severite?: string
+          type_infraction?: string
+          unite?: string
+          updated_at?: string
+          valeur_mesuree?: number
+          validateur_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "infraction_tachy_conducteur_id_fkey"
+            columns: ["conducteur_id"]
+            isOneToOne: false
+            referencedRelation: "conducteurs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_conducteur_id_fkey"
+            columns: ["conducteur_id"]
+            isOneToOne: false
+            referencedRelation: "vue_conducteur_alertes"
+            referencedColumns: ["conducteur_id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_conducteur_id_fkey"
+            columns: ["conducteur_id"]
+            isOneToOne: false
+            referencedRelation: "vue_conducteur_alertes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "ordres_transport"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_cout_salarial_ot"
+            referencedColumns: ["ot_id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_radar_km_vide"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_radar_km_vide"
+            referencedColumns: ["ot_suivant_id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_war_room_ot_non_affectes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_war_room_ot_retard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "vue_analytique_missions"
+            referencedColumns: ["ot_id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "vue_marge_ot"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_validateur_id_fkey"
+            columns: ["validateur_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_user_accounts: {
+        Row: {
+          auth_user_id: string | null
+          created_at: string
+          deactivated_at: string | null
+          employee_id: string
+          id: string
+          is_active: boolean
+          profil_id: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          auth_user_id?: string | null
+          created_at?: string
+          deactivated_at?: string | null
+          employee_id: string
+          id?: string
+          is_active?: boolean
+          profil_id: string
+          role: string
+          updated_at?: string
+        }
+        Update: {
+          auth_user_id?: string | null
+          created_at?: string
+          deactivated_at?: string | null
+          employee_id?: string
+          id?: string
+          is_active?: boolean
+          profil_id?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_user_accounts_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_user_accounts_profil_id_fkey"
+            columns: ["profil_id"]
+            isOneToOne: true
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_actions: {
+        Row: {
+          archived_at: string | null
+          closed_at: string | null
+          closed_by: string | null
+          company_id: number
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          employee_profile_id: string
+          follow_up_comment: string | null
+          id: string
+          interview_id: string
+          priority: string
+          responsible_profile_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          company_id?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          employee_profile_id: string
+          follow_up_comment?: string | null
+          id?: string
+          interview_id: string
+          priority?: string
+          responsible_profile_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          company_id?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          employee_profile_id?: string
+          follow_up_comment?: string | null
+          id?: string
+          interview_id?: string
+          priority?: string
+          responsible_profile_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_actions_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_actions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_actions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_actions_employee_profile_id_fkey"
+            columns: ["employee_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_actions_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "interviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_actions_responsible_profile_id_fkey"
+            columns: ["responsible_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_alerts: {
+        Row: {
+          alert_type: string
+          company_id: number
+          created_at: string
+          due_at: string | null
+          employee_profile_id: string | null
+          id: string
+          interview_id: string | null
+          payload: Json
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+        }
+        Insert: {
+          alert_type: string
+          company_id?: number
+          created_at?: string
+          due_at?: string | null
+          employee_profile_id?: string | null
+          id?: string
+          interview_id?: string | null
+          payload?: Json
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+        }
+        Update: {
+          alert_type?: string
+          company_id?: number
+          created_at?: string
+          due_at?: string | null
+          employee_profile_id?: string | null
+          id?: string
+          interview_id?: string | null
+          payload?: Json
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_alerts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_alerts_employee_profile_id_fkey"
+            columns: ["employee_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_alerts_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "interviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_alerts_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_audit_logs: {
+        Row: {
+          action: string
+          actor_profile_id: string | null
+          company_id: number
+          detail: Json
+          employee_profile_id: string | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+          interview_id: string | null
+          occurred_at: string
+        }
+        Insert: {
+          action: string
+          actor_profile_id?: string | null
+          company_id?: number
+          detail?: Json
+          employee_profile_id?: string | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          interview_id?: string | null
+          occurred_at?: string
+        }
+        Update: {
+          action?: string
+          actor_profile_id?: string | null
+          company_id?: number
+          detail?: Json
+          employee_profile_id?: string | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          interview_id?: string | null
+          occurred_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_audit_logs_actor_profile_id_fkey"
+            columns: ["actor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_audit_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_audit_logs_employee_profile_id_fkey"
+            columns: ["employee_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_audit_logs_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "interviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_document_signatures: {
+        Row: {
+          company_id: number
+          created_at: string
+          document_id: string
+          id: string
+          signatory_name: string
+          signatory_profile_id: string | null
+          signatory_role: string | null
+          signature_metadata: Json
+          signature_type: string
+          signed_at: string
+          version_id: string | null
+        }
+        Insert: {
+          company_id?: number
+          created_at?: string
+          document_id: string
+          id?: string
+          signatory_name: string
+          signatory_profile_id?: string | null
+          signatory_role?: string | null
+          signature_metadata?: Json
+          signature_type: string
+          signed_at?: string
+          version_id?: string | null
+        }
+        Update: {
+          company_id?: number
+          created_at?: string
+          document_id?: string
+          id?: string
+          signatory_name?: string
+          signatory_profile_id?: string | null
+          signatory_role?: string | null
+          signature_metadata?: Json
+          signature_type?: string
+          signed_at?: string
+          version_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_document_signatures_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_document_signatures_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "interview_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_document_signatures_signatory_profile_id_fkey"
+            columns: ["signatory_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_document_signatures_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "interview_document_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_document_templates: {
+        Row: {
+          archived_at: string | null
+          body_template: string
+          company_id: number
+          created_at: string
+          created_by: string | null
+          document_type: string
+          id: string
+          interview_type_id: string | null
+          is_active: boolean
+          name: string
+          template_format: string
+          updated_at: string
+          variables_schema: Json
+          version: number
+        }
+        Insert: {
+          archived_at?: string | null
+          body_template: string
+          company_id?: number
+          created_at?: string
+          created_by?: string | null
+          document_type: string
+          id?: string
+          interview_type_id?: string | null
+          is_active?: boolean
+          name: string
+          template_format?: string
+          updated_at?: string
+          variables_schema?: Json
+          version?: number
+        }
+        Update: {
+          archived_at?: string | null
+          body_template?: string
+          company_id?: number
+          created_at?: string
+          created_by?: string | null
+          document_type?: string
+          id?: string
+          interview_type_id?: string | null
+          is_active?: boolean
+          name?: string
+          template_format?: string
+          updated_at?: string
+          variables_schema?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_document_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_document_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_document_templates_interview_type_id_fkey"
+            columns: ["interview_type_id"]
+            isOneToOne: false
+            referencedRelation: "interview_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_document_versions: {
+        Row: {
+          checksum: string | null
+          company_id: number
+          document_id: string
+          file_bucket: string | null
+          file_name: string | null
+          file_path: string | null
+          file_size_bytes: number | null
+          id: string
+          is_signed_scan: boolean
+          mime_type: string | null
+          notes: string | null
+          uploaded_at: string
+          uploaded_by: string | null
+          version: number
+        }
+        Insert: {
+          checksum?: string | null
+          company_id?: number
+          document_id: string
+          file_bucket?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          file_size_bytes?: number | null
+          id?: string
+          is_signed_scan?: boolean
+          mime_type?: string | null
+          notes?: string | null
+          uploaded_at?: string
+          uploaded_by?: string | null
+          version: number
+        }
+        Update: {
+          checksum?: string | null
+          company_id?: number
+          document_id?: string
+          file_bucket?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          file_size_bytes?: number | null
+          id?: string
+          is_signed_scan?: boolean
+          mime_type?: string | null
+          notes?: string | null
+          uploaded_at?: string
+          uploaded_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_document_versions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_document_versions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "interview_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_document_versions_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_documents: {
+        Row: {
+          archived_at: string | null
+          company_id: number
+          created_at: string
+          current_version: number
+          document_type: string
+          employee_profile_id: string
+          format: string
+          generated_at: string | null
+          generated_by: string | null
+          id: string
+          interview_id: string
+          metadata: Json
+          name: string
+          sent_at: string | null
+          sent_by: string | null
+          signature_type: string | null
+          signed: boolean
+          signed_at: string | null
+          signed_file_bucket: string | null
+          signed_file_path: string | null
+          source_file_bucket: string | null
+          source_file_path: string | null
+          status: string
+          template_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          company_id?: number
+          created_at?: string
+          current_version?: number
+          document_type: string
+          employee_profile_id: string
+          format?: string
+          generated_at?: string | null
+          generated_by?: string | null
+          id?: string
+          interview_id: string
+          metadata?: Json
+          name: string
+          sent_at?: string | null
+          sent_by?: string | null
+          signature_type?: string | null
+          signed?: boolean
+          signed_at?: string | null
+          signed_file_bucket?: string | null
+          signed_file_path?: string | null
+          source_file_bucket?: string | null
+          source_file_path?: string | null
+          status?: string
+          template_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          company_id?: number
+          created_at?: string
+          current_version?: number
+          document_type?: string
+          employee_profile_id?: string
+          format?: string
+          generated_at?: string | null
+          generated_by?: string | null
+          id?: string
+          interview_id?: string
+          metadata?: Json
+          name?: string
+          sent_at?: string | null
+          sent_by?: string | null
+          signature_type?: string | null
+          signed?: boolean
+          signed_at?: string | null
+          signed_file_bucket?: string | null
+          signed_file_path?: string | null
+          source_file_bucket?: string | null
+          source_file_path?: string | null
+          status?: string
+          template_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_documents_employee_profile_id_fkey"
+            columns: ["employee_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_documents_generated_by_fkey"
+            columns: ["generated_by"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_documents_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "interviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_documents_sent_by_fkey"
+            columns: ["sent_by"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_documents_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "interview_document_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_notes: {
+        Row: {
+          archived_at: string | null
+          company_id: number
+          content: string
+          created_at: string
+          created_by: string | null
+          id: string
+          interview_id: string
+          note_type: string
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          archived_at?: string | null
+          company_id?: number
+          content: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          interview_id: string
+          note_type?: string
+          updated_at?: string
+          visibility?: string
+        }
+        Update: {
+          archived_at?: string | null
+          company_id?: number
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          interview_id?: string
+          note_type?: string
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_notes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_notes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_notes_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "interviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_objectives: {
+        Row: {
+          achieved_value_snapshot: number | null
+          bonus_impact_snapshot: Json
+          company_id: number
+          created_at: string
+          created_by: string | null
+          employee_comment: string | null
+          freeze_on_closure: boolean
+          frozen_at: string | null
+          id: string
+          interview_id: string
+          level_snapshot: string | null
+          manager_comment: string | null
+          objective_id: string
+          objective_label_snapshot: string
+          objective_type_snapshot: string | null
+          period_snapshot: string | null
+          target_value_snapshot: number | null
+          threshold_exceeded_snapshot: number | null
+          threshold_hit_snapshot: number | null
+          threshold_min_snapshot: number | null
+          unit_snapshot: string | null
+          updated_at: string
+        }
+        Insert: {
+          achieved_value_snapshot?: number | null
+          bonus_impact_snapshot?: Json
+          company_id?: number
+          created_at?: string
+          created_by?: string | null
+          employee_comment?: string | null
+          freeze_on_closure?: boolean
+          frozen_at?: string | null
+          id?: string
+          interview_id: string
+          level_snapshot?: string | null
+          manager_comment?: string | null
+          objective_id: string
+          objective_label_snapshot: string
+          objective_type_snapshot?: string | null
+          period_snapshot?: string | null
+          target_value_snapshot?: number | null
+          threshold_exceeded_snapshot?: number | null
+          threshold_hit_snapshot?: number | null
+          threshold_min_snapshot?: number | null
+          unit_snapshot?: string | null
+          updated_at?: string
+        }
+        Update: {
+          achieved_value_snapshot?: number | null
+          bonus_impact_snapshot?: Json
+          company_id?: number
+          created_at?: string
+          created_by?: string | null
+          employee_comment?: string | null
+          freeze_on_closure?: boolean
+          frozen_at?: string | null
+          id?: string
+          interview_id?: string
+          level_snapshot?: string | null
+          manager_comment?: string | null
+          objective_id?: string
+          objective_label_snapshot?: string
+          objective_type_snapshot?: string | null
+          period_snapshot?: string | null
+          target_value_snapshot?: number | null
+          threshold_exceeded_snapshot?: number | null
+          threshold_hit_snapshot?: number | null
+          threshold_min_snapshot?: number | null
+          unit_snapshot?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_objectives_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_objectives_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_objectives_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "interviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_objectives_objective_id_fkey"
+            columns: ["objective_id"]
+            isOneToOne: false
+            referencedRelation: "objectives"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_participants: {
+        Row: {
+          company_id: number
+          created_at: string
+          id: string
+          interview_id: string
+          notes: string | null
+          participant_role: string
+          present: boolean | null
+          profile_id: string
+          required: boolean
+          signature_date: string | null
+          signature_required: boolean
+          updated_at: string
+        }
+        Insert: {
+          company_id?: number
+          created_at?: string
+          id?: string
+          interview_id: string
+          notes?: string | null
+          participant_role: string
+          present?: boolean | null
+          profile_id: string
+          required?: boolean
+          signature_date?: string | null
+          signature_required?: boolean
+          updated_at?: string
+        }
+        Update: {
+          company_id?: number
+          created_at?: string
+          id?: string
+          interview_id?: string
+          notes?: string | null
+          participant_role?: string
+          present?: boolean | null
+          profile_id?: string
+          required?: boolean
+          signature_date?: string | null
+          signature_required?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_participants_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_participants_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "interviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_participants_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_reports: {
+        Row: {
+          archived_at: string | null
+          company_id: number
+          created_at: string
+          created_by: string | null
+          decisions: string | null
+          id: string
+          interview_id: string
+          signed_at: string | null
+          status: string
+          structured_content: Json
+          summary: string | null
+          updated_at: string
+          validated_at: string | null
+          validated_by: string | null
+          validation_requested_at: string | null
+          version: number
+        }
+        Insert: {
+          archived_at?: string | null
+          company_id?: number
+          created_at?: string
+          created_by?: string | null
+          decisions?: string | null
+          id?: string
+          interview_id: string
+          signed_at?: string | null
+          status?: string
+          structured_content?: Json
+          summary?: string | null
+          updated_at?: string
+          validated_at?: string | null
+          validated_by?: string | null
+          validation_requested_at?: string | null
+          version?: number
+        }
+        Update: {
+          archived_at?: string | null
+          company_id?: number
+          created_at?: string
+          created_by?: string | null
+          decisions?: string | null
+          id?: string
+          interview_id?: string
+          signed_at?: string | null
+          status?: string
+          structured_content?: Json
+          summary?: string | null
+          updated_at?: string
+          validated_at?: string | null
+          validated_by?: string | null
+          validation_requested_at?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_reports_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_reports_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "interviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_reports_validated_by_fkey"
+            columns: ["validated_by"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_status_history: {
+        Row: {
+          change_reason: string | null
+          changed_at: string
+          changed_by: string | null
+          company_id: number
+          id: string
+          interview_id: string
+          new_status: string
+          previous_status: string | null
+        }
+        Insert: {
+          change_reason?: string | null
+          changed_at?: string
+          changed_by?: string | null
+          company_id?: number
+          id?: string
+          interview_id: string
+          new_status: string
+          previous_status?: string | null
+        }
+        Update: {
+          change_reason?: string | null
+          changed_at?: string
+          changed_by?: string | null
+          company_id?: number
+          id?: string
+          interview_id?: string
+          new_status?: string
+          previous_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_status_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_status_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_status_history_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "interviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_types: {
+        Row: {
+          access_roles: string[]
+          archived_at: string | null
+          business_rules: Json
+          category: string
+          code: string
+          color_token: string | null
+          company_id: number
+          created_at: string
+          created_by: string | null
+          default_document_template_id: string | null
+          default_outline: Json
+          description: string | null
+          frequency_months: number | null
+          id: string
+          is_active: boolean
+          is_mandatory: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          access_roles?: string[]
+          archived_at?: string | null
+          business_rules?: Json
+          category: string
+          code: string
+          color_token?: string | null
+          company_id?: number
+          created_at?: string
+          created_by?: string | null
+          default_document_template_id?: string | null
+          default_outline?: Json
+          description?: string | null
+          frequency_months?: number | null
+          id?: string
+          is_active?: boolean
+          is_mandatory?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          access_roles?: string[]
+          archived_at?: string | null
+          business_rules?: Json
+          category?: string
+          code?: string
+          color_token?: string | null
+          company_id?: number
+          created_at?: string
+          created_by?: string | null
+          default_document_template_id?: string | null
+          default_outline?: Json
+          description?: string | null
+          frequency_months?: number | null
+          id?: string
+          is_active?: boolean
+          is_mandatory?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_types_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_types_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_types_default_document_template_id_fkey"
+            columns: ["default_document_template_id"]
+            isOneToOne: false
+            referencedRelation: "interview_document_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interviews: {
+        Row: {
+          action_required: boolean
+          actual_end_at: string | null
+          actual_start_at: string | null
+          archived_at: string | null
+          company_id: number
+          confidentiality_level: string
+          context: string | null
+          created_at: string
+          creator_profile_id: string | null
+          decisions: string | null
+          deleted_at: string | null
+          employee_profile_id: string
+          hr_profile_id: string | null
+          id: string
+          interview_type_id: string
+          manager_profile_id: string | null
+          mandatory_due_date: string | null
+          objective_follow_up_required: boolean
+          planned_at: string | null
+          preparatory_notes: string | null
+          priority: string
+          reason: string | null
+          report_status: string
+          service_id: string | null
+          site_id: string | null
+          status: string
+          summary: string | null
+          team_label: string | null
+          updated_at: string
+        }
+        Insert: {
+          action_required?: boolean
+          actual_end_at?: string | null
+          actual_start_at?: string | null
+          archived_at?: string | null
+          company_id?: number
+          confidentiality_level?: string
+          context?: string | null
+          created_at?: string
+          creator_profile_id?: string | null
+          decisions?: string | null
+          deleted_at?: string | null
+          employee_profile_id: string
+          hr_profile_id?: string | null
+          id?: string
+          interview_type_id: string
+          manager_profile_id?: string | null
+          mandatory_due_date?: string | null
+          objective_follow_up_required?: boolean
+          planned_at?: string | null
+          preparatory_notes?: string | null
+          priority?: string
+          reason?: string | null
+          report_status?: string
+          service_id?: string | null
+          site_id?: string | null
+          status?: string
+          summary?: string | null
+          team_label?: string | null
+          updated_at?: string
+        }
+        Update: {
+          action_required?: boolean
+          actual_end_at?: string | null
+          actual_start_at?: string | null
+          archived_at?: string | null
+          company_id?: number
+          confidentiality_level?: string
+          context?: string | null
+          created_at?: string
+          creator_profile_id?: string | null
+          decisions?: string | null
+          deleted_at?: string | null
+          employee_profile_id?: string
+          hr_profile_id?: string | null
+          id?: string
+          interview_type_id?: string
+          manager_profile_id?: string | null
+          mandatory_due_date?: string | null
+          objective_follow_up_required?: boolean
+          planned_at?: string | null
+          preparatory_notes?: string | null
+          priority?: string
+          reason?: string | null
+          report_status?: string
+          service_id?: string | null
+          site_id?: string | null
+          status?: string
+          summary?: string | null
+          team_label?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interviews_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interviews_creator_profile_id_fkey"
+            columns: ["creator_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interviews_employee_profile_id_fkey"
+            columns: ["employee_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interviews_hr_profile_id_fkey"
+            columns: ["hr_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interviews_interview_type_id_fkey"
+            columns: ["interview_type_id"]
+            isOneToOne: false
+            referencedRelation: "interview_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interviews_manager_profile_id_fkey"
+            columns: ["manager_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profils"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_scores: {
+        Row: {
+          color: string
+          company_id: number
+          computed_at: string
+          created_at: string
+          difficulty_label: string
+          distance_km: number | null
+          estimated_cost: number
+          estimated_margin: number
+          estimated_revenue: number
+          explanation_json: Json
+          global_score: number
+          id: string
+          impact_label: string
+          metadata_json: Json
+          ot_id: string | null
+          recommendation: string
+          request_payload: Json
+          request_reference: string | null
+          updated_at: string
+          weights_json: Json
+        }
+        Insert: {
+          color?: string
+          company_id: number
+          computed_at?: string
+          created_at?: string
+          difficulty_label?: string
+          distance_km?: number | null
+          estimated_cost?: number
+          estimated_margin?: number
+          estimated_revenue?: number
+          explanation_json?: Json
+          global_score?: number
+          id?: string
+          impact_label?: string
+          metadata_json?: Json
+          ot_id?: string | null
+          recommendation?: string
+          request_payload?: Json
+          request_reference?: string | null
+          updated_at?: string
+          weights_json?: Json
+        }
+        Update: {
+          color?: string
+          company_id?: number
+          computed_at?: string
+          created_at?: string
+          difficulty_label?: string
+          distance_km?: number | null
+          estimated_cost?: number
+          estimated_margin?: number
+          estimated_revenue?: number
+          explanation_json?: Json
+          global_score?: number
+          id?: string
+          impact_label?: string
+          metadata_json?: Json
+          ot_id?: string | null
+          recommendation?: string
+          request_payload?: Json
+          request_reference?: string | null
+          updated_at?: string
+          weights_json?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_scores_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_scores_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "ordres_transport"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_scores_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_cout_salarial_ot"
+            referencedColumns: ["ot_id"]
+          },
+          {
+            foreignKeyName: "job_scores_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_radar_km_vide"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_scores_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_radar_km_vide"
+            referencedColumns: ["ot_suivant_id"]
+          },
+          {
+            foreignKeyName: "job_scores_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_war_room_ot_non_affectes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_scores_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_war_room_ot_retard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_scores_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "vue_analytique_missions"
+            referencedColumns: ["ot_id"]
+          },
+          {
+            foreignKeyName: "job_scores_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "vue_marge_ot"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kpi_alerts: {
         Row: {
           actual_value: number | null
@@ -4664,6 +7448,60 @@ export type Database = {
             columns: ["kpi_id"]
             isOneToOne: false
             referencedRelation: "kpi_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      matrice_temps: {
+        Row: {
+          created_at: string
+          distance_km: number
+          duree_minutes: number
+          id: string
+          notes: string | null
+          site_destination_id: string
+          site_origine_id: string
+          source_calcul: string
+          updated_at: string
+          validee: boolean
+        }
+        Insert: {
+          created_at?: string
+          distance_km: number
+          duree_minutes: number
+          id?: string
+          notes?: string | null
+          site_destination_id: string
+          site_origine_id: string
+          source_calcul?: string
+          updated_at?: string
+          validee?: boolean
+        }
+        Update: {
+          created_at?: string
+          distance_km?: number
+          duree_minutes?: number
+          id?: string
+          notes?: string | null
+          site_destination_id?: string
+          site_origine_id?: string
+          source_calcul?: string
+          updated_at?: string
+          validee?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matrice_temps_site_destination_id_fkey"
+            columns: ["site_destination_id"]
+            isOneToOne: false
+            referencedRelation: "sites_logistiques"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matrice_temps_site_origine_id_fkey"
+            columns: ["site_origine_id"]
+            isOneToOne: false
+            referencedRelation: "sites_logistiques"
             referencedColumns: ["id"]
           },
         ]
@@ -4918,11 +7756,13 @@ export type Database = {
           instructions: string | null
           livraison_site_id: string | null
           metrage_ml: number | null
+          mission_id: string | null
           nature_marchandise: string | null
           nombre_colis: number | null
           notes_internes: string | null
           numero_bl: string | null
           numero_cmr: string | null
+          numero_facturation: string | null
           poids_kg: number | null
           prix_ht: number | null
           reference: string
@@ -4963,11 +7803,13 @@ export type Database = {
           instructions?: string | null
           livraison_site_id?: string | null
           metrage_ml?: number | null
+          mission_id?: string | null
           nature_marchandise?: string | null
           nombre_colis?: number | null
           notes_internes?: string | null
           numero_bl?: string | null
           numero_cmr?: string | null
+          numero_facturation?: string | null
           poids_kg?: number | null
           prix_ht?: number | null
           reference?: string
@@ -5008,11 +7850,13 @@ export type Database = {
           instructions?: string | null
           livraison_site_id?: string | null
           metrage_ml?: number | null
+          mission_id?: string | null
           nature_marchandise?: string | null
           nombre_colis?: number | null
           notes_internes?: string | null
           numero_bl?: string | null
           numero_cmr?: string | null
+          numero_facturation?: string | null
           poids_kg?: number | null
           prix_ht?: number | null
           reference?: string
@@ -5072,6 +7916,13 @@ export type Database = {
             foreignKeyName: "ordres_transport_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "vue_marge_client"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "ordres_transport_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "vue_scoring_clients"
             referencedColumns: ["client_id"]
           },
@@ -5121,6 +7972,13 @@ export type Database = {
             foreignKeyName: "ordres_transport_donneur_ordre_id_fkey"
             columns: ["donneur_ordre_id"]
             isOneToOne: false
+            referencedRelation: "vue_marge_client"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "ordres_transport_donneur_ordre_id_fkey"
+            columns: ["donneur_ordre_id"]
+            isOneToOne: false
             referencedRelation: "vue_scoring_clients"
             referencedColumns: ["client_id"]
           },
@@ -5136,6 +7994,13 @@ export type Database = {
             columns: ["livraison_site_id"]
             isOneToOne: false
             referencedRelation: "sites_logistiques"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordres_transport_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "transport_missions"
             referencedColumns: ["id"]
           },
           {
@@ -6594,6 +9459,54 @@ export type Database = {
           },
         ]
       }
+      scoring_details: {
+        Row: {
+          axis: string
+          axis_score: number
+          axis_weight: number
+          created_at: string
+          detail_json: Json
+          detail_text: string | null
+          id: string
+          job_score_id: string
+        }
+        Insert: {
+          axis: string
+          axis_score?: number
+          axis_weight?: number
+          created_at?: string
+          detail_json?: Json
+          detail_text?: string | null
+          id?: string
+          job_score_id: string
+        }
+        Update: {
+          axis?: string
+          axis_score?: number
+          axis_weight?: number
+          created_at?: string
+          detail_json?: Json
+          detail_text?: string | null
+          id?: string
+          job_score_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scoring_details_job_score_id_fkey"
+            columns: ["job_score_id"]
+            isOneToOne: false
+            referencedRelation: "job_scores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scoring_details_job_score_id_fkey"
+            columns: ["job_score_id"]
+            isOneToOne: false
+            referencedRelation: "vue_latest_job_scores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       services: {
         Row: {
           archived_at: string | null
@@ -6747,6 +9660,13 @@ export type Database = {
             columns: ["entreprise_id"]
             isOneToOne: false
             referencedRelation: "vue_analytique_missions"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "sites_logistiques_entreprise_id_fkey"
+            columns: ["entreprise_id"]
+            isOneToOne: false
+            referencedRelation: "vue_marge_client"
             referencedColumns: ["client_id"]
           },
           {
@@ -7328,6 +10248,58 @@ export type Database = {
           },
         ]
       }
+      transport_missions: {
+        Row: {
+          conducteur_id: string | null
+          created_at: string
+          id: string
+          remorque_id: string | null
+          type: string
+          updated_at: string
+          vehicule_id: string | null
+        }
+        Insert: {
+          conducteur_id?: string | null
+          created_at?: string
+          id?: string
+          remorque_id?: string | null
+          type?: string
+          updated_at?: string
+          vehicule_id?: string | null
+        }
+        Update: {
+          conducteur_id?: string | null
+          created_at?: string
+          id?: string
+          remorque_id?: string | null
+          type?: string
+          updated_at?: string
+          vehicule_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transport_missions_conducteur_id_fkey"
+            columns: ["conducteur_id"]
+            isOneToOne: false
+            referencedRelation: "conducteurs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transport_missions_remorque_id_fkey"
+            columns: ["remorque_id"]
+            isOneToOne: false
+            referencedRelation: "remorques"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transport_missions_vehicule_id_fkey"
+            columns: ["vehicule_id"]
+            isOneToOne: false
+            referencedRelation: "vehicules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transport_relais: {
         Row: {
           conducteur_depose_id: string | null
@@ -7641,6 +10613,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "vue_analytique_missions"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "transport_tarifs_clients_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "vue_marge_client"
             referencedColumns: ["client_id"]
           },
           {
@@ -8114,6 +11093,51 @@ export type Database = {
           },
         ]
       }
+      v_employee_vault_documents: {
+        Row: {
+          allow_download: boolean | null
+          allow_export: boolean | null
+          available_days_after_departure: number | null
+          company_id: number | null
+          current_version_no: number | null
+          departure_at: string | null
+          document_type: string | null
+          employee_id: string | null
+          employment_status: string | null
+          expires_at: string | null
+          file_name: string | null
+          first_name: string | null
+          id: string | null
+          last_name: string | null
+          mime_type: string | null
+          origin_source: string | null
+          policy_label: string | null
+          published_at: string | null
+          require_acknowledgement: boolean | null
+          require_signature: boolean | null
+          storage_bucket: string | null
+          storage_path: string | null
+          title: string | null
+          visible_after_departure: boolean | null
+          visible_during_contract: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_vault_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_vault_documents_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_directory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_radar_km_vide: {
         Row: {
           client_nom: string | null
@@ -8401,6 +11425,114 @@ export type Database = {
           },
         ]
       }
+      vue_compta_axes_analytique: {
+        Row: {
+          axe_camion_id: string | null
+          axe_chauffeur_id: string | null
+          axe_client_id: string | null
+          axe_mission_id: string | null
+          axe_tournee_id: string | null
+          date_ecriture: string | null
+          exercice: number | null
+          journal_id: string | null
+          solde: number | null
+          total_credit: number | null
+          total_debit: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compta_ecriture_lignes_axe_client_id_fkey"
+            columns: ["axe_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compta_ecriture_lignes_axe_client_id_fkey"
+            columns: ["axe_client_id"]
+            isOneToOne: false
+            referencedRelation: "vue_analytique_missions"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "compta_ecriture_lignes_axe_client_id_fkey"
+            columns: ["axe_client_id"]
+            isOneToOne: false
+            referencedRelation: "vue_marge_client"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "compta_ecriture_lignes_axe_client_id_fkey"
+            columns: ["axe_client_id"]
+            isOneToOne: false
+            referencedRelation: "vue_scoring_clients"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "compta_ecriture_lignes_axe_mission_id_fkey"
+            columns: ["axe_mission_id"]
+            isOneToOne: false
+            referencedRelation: "ordres_transport"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compta_ecriture_lignes_axe_mission_id_fkey"
+            columns: ["axe_mission_id"]
+            isOneToOne: false
+            referencedRelation: "v_cout_salarial_ot"
+            referencedColumns: ["ot_id"]
+          },
+          {
+            foreignKeyName: "compta_ecriture_lignes_axe_mission_id_fkey"
+            columns: ["axe_mission_id"]
+            isOneToOne: false
+            referencedRelation: "v_radar_km_vide"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compta_ecriture_lignes_axe_mission_id_fkey"
+            columns: ["axe_mission_id"]
+            isOneToOne: false
+            referencedRelation: "v_radar_km_vide"
+            referencedColumns: ["ot_suivant_id"]
+          },
+          {
+            foreignKeyName: "compta_ecriture_lignes_axe_mission_id_fkey"
+            columns: ["axe_mission_id"]
+            isOneToOne: false
+            referencedRelation: "v_war_room_ot_non_affectes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compta_ecriture_lignes_axe_mission_id_fkey"
+            columns: ["axe_mission_id"]
+            isOneToOne: false
+            referencedRelation: "v_war_room_ot_retard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compta_ecriture_lignes_axe_mission_id_fkey"
+            columns: ["axe_mission_id"]
+            isOneToOne: false
+            referencedRelation: "vue_analytique_missions"
+            referencedColumns: ["ot_id"]
+          },
+          {
+            foreignKeyName: "compta_ecriture_lignes_axe_mission_id_fkey"
+            columns: ["axe_mission_id"]
+            isOneToOne: false
+            referencedRelation: "vue_marge_ot"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compta_ecritures_journal_id_fkey"
+            columns: ["journal_id"]
+            isOneToOne: false
+            referencedRelation: "compta_journaux"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vue_compta_balance: {
         Row: {
           compte_code: string | null
@@ -8582,6 +11714,352 @@ export type Database = {
         }
         Relationships: []
       }
+      vue_indisponibilite_active: {
+        Row: {
+          date_debut: string | null
+          date_fin: string | null
+          id: string | null
+          motif: string | null
+          ressource_id: string | null
+          type_indisponibilite: string | null
+          type_ressource: string | null
+        }
+        Insert: {
+          date_debut?: string | null
+          date_fin?: string | null
+          id?: string | null
+          motif?: string | null
+          ressource_id?: string | null
+          type_indisponibilite?: string | null
+          type_ressource?: string | null
+        }
+        Update: {
+          date_debut?: string | null
+          date_fin?: string | null
+          id?: string | null
+          motif?: string | null
+          ressource_id?: string | null
+          type_indisponibilite?: string | null
+          type_ressource?: string | null
+        }
+        Relationships: []
+      }
+      vue_infraction_alerte_active: {
+        Row: {
+          code_infraction: string | null
+          conducteur_id: string | null
+          date_detection: string | null
+          date_infraction: string | null
+          etat: string | null
+          id: string | null
+          libelle_infraction: string | null
+          ot_id: string | null
+          seuil_reglementaire: number | null
+          severite: string | null
+          type_infraction: string | null
+          valeur_mesuree: number | null
+        }
+        Insert: {
+          code_infraction?: string | null
+          conducteur_id?: string | null
+          date_detection?: string | null
+          date_infraction?: string | null
+          etat?: string | null
+          id?: string | null
+          libelle_infraction?: string | null
+          ot_id?: string | null
+          seuil_reglementaire?: number | null
+          severite?: string | null
+          type_infraction?: string | null
+          valeur_mesuree?: number | null
+        }
+        Update: {
+          code_infraction?: string | null
+          conducteur_id?: string | null
+          date_detection?: string | null
+          date_infraction?: string | null
+          etat?: string | null
+          id?: string | null
+          libelle_infraction?: string | null
+          ot_id?: string | null
+          seuil_reglementaire?: number | null
+          severite?: string | null
+          type_infraction?: string | null
+          valeur_mesuree?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "infraction_tachy_conducteur_id_fkey"
+            columns: ["conducteur_id"]
+            isOneToOne: false
+            referencedRelation: "conducteurs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_conducteur_id_fkey"
+            columns: ["conducteur_id"]
+            isOneToOne: false
+            referencedRelation: "vue_conducteur_alertes"
+            referencedColumns: ["conducteur_id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_conducteur_id_fkey"
+            columns: ["conducteur_id"]
+            isOneToOne: false
+            referencedRelation: "vue_conducteur_alertes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "ordres_transport"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_cout_salarial_ot"
+            referencedColumns: ["ot_id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_radar_km_vide"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_radar_km_vide"
+            referencedColumns: ["ot_suivant_id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_war_room_ot_non_affectes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_war_room_ot_retard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "vue_analytique_missions"
+            referencedColumns: ["ot_id"]
+          },
+          {
+            foreignKeyName: "infraction_tachy_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "vue_marge_ot"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vue_latest_eta_predictions: {
+        Row: {
+          affectation_id: string | null
+          baseline_duration_minutes: number | null
+          company_id: number | null
+          computed_at: string | null
+          confidence_pct: number | null
+          distance_km: number | null
+          expires_at: string | null
+          explanation_json: Json | null
+          id: string | null
+          metadata_json: Json | null
+          missing_data_json: Json | null
+          optimistic_eta: string | null
+          ot_id: string | null
+          pessimistic_eta: string | null
+          predicted_duration_minutes: number | null
+          predicted_eta: string | null
+          prediction_scope: string | null
+          risk_level: string | null
+          source_event: string | null
+          status_label: string | null
+          trace_json: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eta_predictions_affectation_id_fkey"
+            columns: ["affectation_id"]
+            isOneToOne: false
+            referencedRelation: "affectations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_predictions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_predictions_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "ordres_transport"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_predictions_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_cout_salarial_ot"
+            referencedColumns: ["ot_id"]
+          },
+          {
+            foreignKeyName: "eta_predictions_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_radar_km_vide"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_predictions_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_radar_km_vide"
+            referencedColumns: ["ot_suivant_id"]
+          },
+          {
+            foreignKeyName: "eta_predictions_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_war_room_ot_non_affectes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_predictions_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_war_room_ot_retard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eta_predictions_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "vue_analytique_missions"
+            referencedColumns: ["ot_id"]
+          },
+          {
+            foreignKeyName: "eta_predictions_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "vue_marge_ot"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vue_latest_job_scores: {
+        Row: {
+          color: string | null
+          company_id: number | null
+          computed_at: string | null
+          difficulty_label: string | null
+          distance_km: number | null
+          estimated_cost: number | null
+          estimated_margin: number | null
+          estimated_revenue: number | null
+          explanation_json: Json | null
+          global_score: number | null
+          id: string | null
+          impact_label: string | null
+          ot_id: string | null
+          recommendation: string | null
+          request_reference: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_scores_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_scores_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "ordres_transport"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_scores_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_cout_salarial_ot"
+            referencedColumns: ["ot_id"]
+          },
+          {
+            foreignKeyName: "job_scores_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_radar_km_vide"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_scores_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_radar_km_vide"
+            referencedColumns: ["ot_suivant_id"]
+          },
+          {
+            foreignKeyName: "job_scores_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_war_room_ot_non_affectes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_scores_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "v_war_room_ot_retard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_scores_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "vue_analytique_missions"
+            referencedColumns: ["ot_id"]
+          },
+          {
+            foreignKeyName: "job_scores_ot_id_fkey"
+            columns: ["ot_id"]
+            isOneToOne: false
+            referencedRelation: "vue_marge_ot"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vue_marge_client: {
+        Row: {
+          ca_ht: number | null
+          client_id: string | null
+          client_nom: string | null
+          cout_total: number | null
+          marge_nette: number | null
+          marge_pct: number | null
+          nb_missions: number | null
+        }
+        Relationships: []
+      }
       vue_marge_ot: {
         Row: {
           chiffre_affaires: number | null
@@ -8597,6 +12075,51 @@ export type Database = {
           total_couts: number | null
         }
         Relationships: []
+      }
+      vue_matrice_temps_validee: {
+        Row: {
+          created_at: string | null
+          distance_km: number | null
+          duree_minutes: number | null
+          id: string | null
+          notes: string | null
+          site_destination_id: string | null
+          site_origine_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          distance_km?: number | null
+          duree_minutes?: number | null
+          id?: string | null
+          notes?: string | null
+          site_destination_id?: string | null
+          site_origine_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          distance_km?: number | null
+          duree_minutes?: number | null
+          id?: string | null
+          notes?: string | null
+          site_destination_id?: string | null
+          site_origine_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matrice_temps_site_destination_id_fkey"
+            columns: ["site_destination_id"]
+            isOneToOne: false
+            referencedRelation: "sites_logistiques"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matrice_temps_site_origine_id_fkey"
+            columns: ["site_origine_id"]
+            isOneToOne: false
+            referencedRelation: "sites_logistiques"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vue_ruptures_stock: {
         Row: {
@@ -8656,9 +12179,21 @@ export type Database = {
     Functions: {
       add_updated_at_trigger: { Args: { tbl: string }; Returns: undefined }
       admin_can_manage_accounts: { Args: never; Returns: boolean }
+      can_current_vault_user_download_document: {
+        Args: { p_document_id: string }
+        Returns: boolean
+      }
+      can_current_vault_user_read_document: {
+        Args: { p_document_id: string }
+        Returns: boolean
+      }
       cleanup_expired_impersonation_sessions: {
         Args: never
         Returns: undefined
+      }
+      compta_auto_rapprochements_v1: {
+        Args: { p_tolerance?: number; p_window_days?: number }
+        Returns: number
       }
       compta_export_fec_v1: {
         Args: { p_exercice: number }
@@ -8680,6 +12215,20 @@ export type Database = {
           piece_ref: string
         }[]
       }
+      compta_export_tva_declarative_v1: {
+        Args: { p_annee: number; p_periode_type?: string }
+        Returns: {
+          annee: number
+          date_debut: string
+          date_fin: string
+          periode_index: number
+          periode_type: string
+          statut: string
+          tva_collectee: number
+          tva_deductible: number
+          tva_nette: number
+        }[]
+      }
       compta_generer_ecriture_facture: {
         Args: { p_facture_id: string }
         Returns: string
@@ -8687,6 +12236,10 @@ export type Database = {
       compta_generer_ecriture_facture_fournisseur: {
         Args: { p_facture_id: string }
         Returns: string
+      }
+      compta_import_mouvements_bancaires_json: {
+        Args: { p_compte_bancaire?: string; p_items: Json }
+        Returns: number
       }
       compta_is_balancee: { Args: { p_ecriture_id: string }; Returns: boolean }
       compta_log_event: {
@@ -8722,7 +12275,12 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      current_internal_profile_id: { Args: never; Returns: string }
+      current_internal_role: { Args: never; Returns: string }
       current_profil_id: { Args: never; Returns: string }
+      current_profile_id: { Args: never; Returns: string }
+      current_vault_account_id: { Args: never; Returns: string }
+      current_vault_employee_id: { Args: never; Returns: string }
       fn_controle_conformite_paie: {
         Args: {
           p_annee?: number
@@ -8742,8 +12300,21 @@ export type Database = {
       has_permission: { Args: { p_permission_name: string }; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
       is_tenant_admin: { Args: never; Returns: boolean }
+      is_vault_admin: { Args: never; Returns: boolean }
       my_company_id: { Args: never; Returns: number }
       my_login_enabled: { Args: never; Returns: boolean }
+      process_employee_exit: {
+        Args: {
+          p_departure_at: string
+          p_departure_reason?: string
+          p_disable_internal_account?: boolean
+          p_employee_id: string
+          p_keep_vault_access?: boolean
+          p_vault_access_expires_at?: string
+          p_vault_personal_email?: string
+        }
+        Returns: Json
+      }
       upsert_my_profile: { Args: never; Returns: Json }
     }
     Enums: {

@@ -27,12 +27,14 @@ import {
   listOtLignes,
   syncOtLignes,
 } from '@/lib/transportCourses'
+import { addCourseToMission, createMissionFromCourses, removeCourseFromMission } from '@/lib/transportMissions'
 
 type OT = Tables<'ordres_transport'>
 type EtapeMission = Tables<'etapes_mission'>
 type ClientLookup = { id: string; nom: string }
 type ConducteurLookup = { id: string; nom: string; prenom: string }
 type VehiculeLookup = { id: string; immatriculation: string; marque: string | null }
+type RemorqueLookup = { id: string; immatriculation: string }
 type AffreteurLookup = { id: string; company_name: string }
 type LogisticSite = Tables<'sites_logistiques'>
 type SiteUsageType = 'chargement' | 'livraison' | 'mixte'
@@ -98,7 +100,7 @@ const EMPTY_OT: TablesInsert<'ordres_transport'> = {
   instructions: null, notes_internes: null,
 }
 
-const inp = 'w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary-soft)]'
+const inp = 'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-[15px] text-slate-900 outline-none transition focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary-soft)]'
 
 const EMPTY_SITE_DRAFT: SiteDraft = {
   entreprise_id: '',
@@ -152,6 +154,44 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
+function SectionCard({
+  title,
+  description,
+  children,
+  tone = 'default',
+}: {
+  title: string
+  description?: string
+  children: React.ReactNode
+  tone?: 'default' | 'highlight'
+}) {
+  return (
+    <section className={`rounded-[28px] border p-6 shadow-sm ${tone === 'highlight' ? 'border-blue-200 bg-gradient-to-br from-blue-50 via-white to-cyan-50' : 'border-slate-200 bg-white'}`}>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h4 className="text-base font-semibold text-slate-900">{title}</h4>
+          {description && <p className="mt-1 text-sm text-slate-600">{description}</p>}
+        </div>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function SummaryPill({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'neutral' | 'strong' | 'success' }) {
+  const toneClass = tone === 'strong'
+    ? 'border-slate-900 bg-slate-900 text-white'
+    : tone === 'success'
+      ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+      : 'border-slate-200 bg-white text-slate-700'
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${toneClass}`}>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">{label}</div>
+      <div className="mt-1 text-sm font-semibold">{value}</div>
+    </div>
+  )
+}
+
 export default function Transports() {
   const { role, profil, user } = useAuth()
   const isAffreteurSession = role === 'affreteur'
@@ -167,6 +207,7 @@ export default function Transports() {
   const [clients, setClients] = useState<ClientLookup[]>([])
   const [conducteurs, setConducteurs] = useState<ConducteurLookup[]>([])
   const [vehicules, setVehicules] = useState<VehiculeLookup[]>([])
+  const [remorques, setRemorques] = useState<RemorqueLookup[]>([])
   const [affreteurs, setAffreteurs] = useState<AffreteurLookup[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -198,11 +239,12 @@ export default function Transports() {
 
   async function loadAll() {
     setLoading(true)
-    const [ots, cls, conds, vehs] = await Promise.all([
+    const [ots, cls, conds, vehs, rems] = await Promise.all([
       supabase.from('ordres_transport').select('*').order('created_at', { ascending: false }),
       supabase.from('clients').select('id, nom').order('nom'),
       supabase.from('conducteurs').select('id, nom, prenom').order('nom'),
       supabase.from('vehicules').select('id, immatriculation, marque').order('immatriculation'),
+      supabase.from('remorques').select('id, immatriculation').order('immatriculation'),
     ])
     const nextList = ots.data ?? []
     setList(nextList)
@@ -210,6 +252,7 @@ export default function Transports() {
     setClients(cls.data ?? [])
     setConducteurs(conds.data ?? [])
     setVehicules(vehs.data ?? [])
+    setRemorques(rems.data ?? [])
     const affList = listAffreteurOnboardings()
       .filter(item => item.status === 'validee')
       .map(item => ({ id: item.id, company_name: item.companyName }))
@@ -294,11 +337,11 @@ export default function Transports() {
   }, [scopedList, search, clientMap, filterStatut, listView])
 
   const selectedGroupMembers = useMemo(() => {
-    if (!selected?.groupage_id) return []
+    if (!selected?.mission_id) return []
     return scopedList
-      .filter(ot => ot.groupage_id === selected.groupage_id)
+      .filter(ot => ot.mission_id === selected.mission_id)
       .sort((left, right) => left.reference.localeCompare(right.reference, 'fr-FR'))
-  }, [scopedList, selected?.groupage_id])
+  }, [scopedList, selected?.mission_id])
 
   const groupageCandidates = useMemo(() => {
     if (!selected) return []
@@ -332,6 +375,7 @@ export default function Transports() {
 
 
   function openEditForm(ot: OT) {
+    setSelected(ot)
     setEditingOtId(ot.id)
     setForm({
       client_id: ot.client_id,
@@ -611,20 +655,6 @@ export default function Transports() {
     void loadAll()
   }
 
-  async function normalizeSingletonGroupage(groupId: string) {
-    const membersRes = await supabase
-      .from('ordres_transport')
-      .select('id')
-      .eq('groupage_id', groupId)
-
-    if ((membersRes.data?.length ?? 0) <= 1) {
-      await supabase
-        .from('ordres_transport')
-        .update({ groupage_id: null, groupage_fige: false })
-        .eq('groupage_id', groupId)
-    }
-  }
-
   async function linkSelectedToGroupage() {
     if (!selected || !groupageTargetId) return
     if (!canChangeOtStatus) return
@@ -639,27 +669,26 @@ export default function Transports() {
       return
     }
 
-    const previousSelectedGroupId = selected.groupage_id
-    const previousTargetGroupId = target.groupage_id
-    const nextGroupId = selected.groupage_id ?? target.groupage_id ?? crypto.randomUUID()
+    try {
+      if (selected.mission_id && target.mission_id && selected.mission_id === target.mission_id) {
+        setStatusGuardNotice('Ces courses sont deja dans la meme mission.')
+        return
+      }
 
-    const patch = {
-      groupage_id: nextGroupId,
-      groupage_fige: false,
-      type_transport: 'groupage',
-    }
-
-    const { error: patchError } = await supabase.from('ordres_transport').update(patch).in('id', [selected.id, target.id])
-    if (patchError) {
-      setStatusGuardNotice(`Groupage impossible : ${patchError.message}`)
+      if (selected.mission_id && target.mission_id && selected.mission_id !== target.mission_id) {
+        const selectedMissionMembers = scopedList.filter(ot => ot.mission_id === selected.mission_id).map(ot => ot.id)
+        const targetMissionMembers = scopedList.filter(ot => ot.mission_id === target.mission_id).map(ot => ot.id)
+        await createMissionFromCourses([...selectedMissionMembers, ...targetMissionMembers])
+      } else if (selected.mission_id) {
+        await addCourseToMission(target.id, selected.mission_id)
+      } else if (target.mission_id) {
+        await addCourseToMission(selected.id, target.mission_id)
+      } else {
+        await createMissionFromCourses([selected.id, target.id])
+      }
+    } catch (error) {
+      setStatusGuardNotice(`Groupage impossible : ${error instanceof Error ? error.message : 'erreur inconnue'}`)
       return
-    }
-
-    if (previousSelectedGroupId && previousSelectedGroupId !== nextGroupId) {
-      await normalizeSingletonGroupage(previousSelectedGroupId)
-    }
-    if (previousTargetGroupId && previousTargetGroupId !== nextGroupId) {
-      await normalizeSingletonGroupage(previousTargetGroupId)
     }
 
     setStatusGuardNotice('Course liee au groupage avec succes.')
@@ -668,13 +697,13 @@ export default function Transports() {
   }
 
   async function toggleSelectedGroupageFreeze(nextFrozen: boolean) {
-    if (!selected?.groupage_id) return
+    if (!selected?.mission_id) return
     if (!canChangeOtStatus) return
 
     const { error: freezeError } = await supabase
       .from('ordres_transport')
       .update({ groupage_fige: nextFrozen })
-      .eq('groupage_id', selected.groupage_id)
+      .eq('mission_id', selected.mission_id)
     if (freezeError) {
       setStatusGuardNotice(`Fige/degele impossible : ${freezeError.message}`)
       return
@@ -685,25 +714,20 @@ export default function Transports() {
   }
 
   async function unlinkSelectedFromGroupage() {
-    if (!selected?.groupage_id) return
+    if (!selected?.mission_id) return
     if (!canChangeOtStatus) return
     if (selected.groupage_fige) {
       setStatusGuardNotice('Ce groupage est fige. Defigez-le avant de delier une course.')
       return
     }
 
-    const previousGroupId = selected.groupage_id
-
-    const { error: unlinkError } = await supabase
-      .from('ordres_transport')
-      .update({ groupage_id: null, groupage_fige: false })
-      .eq('id', selected.id)
-    if (unlinkError) {
-      setStatusGuardNotice(`Delier impossible : ${unlinkError.message}`)
+    try {
+      await removeCourseFromMission(selected.id)
+    } catch (error) {
+      setStatusGuardNotice(`Delier impossible : ${error instanceof Error ? error.message : 'erreur inconnue'}`)
       return
     }
 
-    await normalizeSingletonGroupage(previousGroupId)
     setStatusGuardNotice('Course deliee du groupage.')
     await loadAll()
   }
@@ -748,16 +772,16 @@ export default function Transports() {
           canEdit={canManageSites}
         />
       ) : (
-        <div className="flex gap-6 h-full">
+        <div className="flex h-full flex-col gap-6 xl:flex-row">
       {/* Left: list */}
-      <div className={`flex-1 min-w-0 ${selected ? 'hidden lg:block lg:max-w-[55%]' : ''}`}>
-        <div className="flex items-center justify-between mb-6">
+      <div className={`min-w-0 flex-1 ${selected ? 'hidden xl:block xl:max-w-[56%]' : ''}`}>
+        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-2xl font-bold text-slate-800">Ordres de Transport</h2>
             <p className="text-slate-500 text-sm">{scopedList.length} OT{scopedList.length !== 1 ? 's' : ''}</p>
             {isAffreteurSession && <p className="text-xs text-slate-500 mt-1">Vue affreteur: exploitation des courses affretees uniquement.</p>}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setListView('principal')}
@@ -783,13 +807,13 @@ export default function Transports() {
         </div>
 
         {/* Filters */}
-        <div className="flex gap-3 mb-4 flex-wrap">
+        <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:flex-wrap">
           <input
             type="text"
             placeholder="Référence ou client..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-lg text-sm w-56 outline-none focus:ring-2 focus:ring-slate-300"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-300 sm:w-72"
           />
           <div className="flex gap-1 flex-wrap">
             {['tous', ...Object.keys(STATUT_LABELS)].map(s => (
@@ -806,7 +830,7 @@ export default function Transports() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           {loading ? (
             <div className="p-8 text-center text-slate-400 text-sm">Chargement...</div>
           ) : filtered.length === 0 ? (
@@ -814,291 +838,302 @@ export default function Transports() {
               {search || filterStatut !== 'tous' ? 'Aucun résultat' : 'Aucun ordre de transport enregistré'}
             </div>
           ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  {['Référence OT', 'Réf. transport', 'Donneur ordre', 'Type', 'Livraison prévue', 'Affrété', 'Groupage', 'Statut transport', ''].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((ot, i) => (
-                  <tr
-                    key={ot.id}
-                    onClick={() => openOT(ot)}
-                    className={`border-t border-slate-100 cursor-pointer hover:bg-blue-50 transition-colors ${
-                      selected?.id === ot.id ? 'bg-blue-50' : i % 2 !== 0 ? 'bg-slate-50' : ''
-                    }`}
-                  >
-                    <td className="px-4 py-3 font-medium text-slate-800 font-mono text-xs">
-                      <span className="flex items-center gap-1.5">
-                        <StatutOpsDot statut={ot.statut_operationnel} size="sm" />
-                        {ot.reference}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">{clientMap[ot.client_id] ?? '—'}</td>
-                    <td className="px-4 py-3 text-slate-600 font-mono text-xs">{ot.reference_transport ?? 'Générée à l insertion'}</td>
-                    <td className="px-4 py-3 text-slate-600">{ot.donneur_ordre_id ? (clientMap[ot.donneur_ordre_id] ?? '—') : '—'}</td>
-                    <td className="px-4 py-3 text-slate-600">{TYPE_TRANSPORT_LABELS[ot.type_transport] ?? ot.type_transport}</td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {ot.date_livraison_prevue ? new Date(ot.date_livraison_prevue).toLocaleDateString('fr-FR') : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${ot.est_affretee ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
-                        {ot.est_affretee ? `Oui (${affreteurMap[ot.affreteur_id ?? ''] ?? 'A renseigner'})` : 'Non'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {ot.groupage_id ? (
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${ot.groupage_fige ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                          {ot.groupage_fige ? 'Fige' : 'Deliable'}
-                        </span>
-                      ) : (
-                        <span className="text-xs px-2 py-1 rounded-full font-medium bg-slate-100 text-slate-500">Aucun</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${TRANSPORT_STATUS_COLORS[ot.statut_transport as TransportStatus] ?? 'bg-slate-100 text-slate-600'}`}>
-                        {TRANSPORT_STATUS_LABELS[ot.statut_transport as TransportStatus] ?? ot.statut_transport}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {canEditOt && (
-                          <button
-                            onClick={ev => { ev.stopPropagation(); openEditForm(ot) }}
-                            className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
-                          >
-                            Modifier
-                          </button>
-                        )}
-                        {canDeleteOt && (
-                          <button
-                            onClick={ev => { ev.stopPropagation(); del(ot.id) }}
-                            className="text-xs text-slate-400 hover:text-red-500 transition-colors"
-                          >
-                            Suppr.
-                          </button>
-                        )}
-                      </div>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="min-w-[920px] w-full text-sm">
+                <thead className="border-b border-slate-200 bg-slate-50">
+                  <tr>
+                    {['Référence OT', 'Réf. transport', 'Donneur ordre', 'Type', 'Livraison prévue', 'Affrété', 'Groupage', 'Statut transport', ''].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-slate-500">{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {filtered.map((ot, i) => (
+                    <tr
+                      key={ot.id}
+                      onClick={() => openOT(ot)}
+                      className={`cursor-pointer border-t border-slate-100 transition-colors hover:bg-blue-50 ${
+                        selected?.id === ot.id ? 'bg-blue-50' : i % 2 !== 0 ? 'bg-slate-50' : ''
+                      }`}
+                    >
+                      <td className="px-4 py-3 font-mono text-xs font-medium text-slate-800">
+                        <span className="flex items-center gap-1.5">
+                          <StatutOpsDot statut={ot.statut_operationnel} size="sm" />
+                          {ot.reference}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-700">{clientMap[ot.client_id] ?? '—'}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-600">{ot.reference_transport ?? 'Générée à l insertion'}</td>
+                      <td className="px-4 py-3 text-slate-600">{ot.donneur_ordre_id ? (clientMap[ot.donneur_ordre_id] ?? '—') : '—'}</td>
+                      <td className="px-4 py-3 text-slate-600">{TYPE_TRANSPORT_LABELS[ot.type_transport] ?? ot.type_transport}</td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {ot.date_livraison_prevue ? new Date(ot.date_livraison_prevue).toLocaleDateString('fr-FR') : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-2 py-1 text-xs font-medium ${ot.est_affretee ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                          {ot.est_affretee ? `Oui (${affreteurMap[ot.affreteur_id ?? ''] ?? 'A renseigner'})` : 'Non'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {ot.mission_id ? (
+                          <span className={`rounded-full px-2 py-1 text-xs font-medium ${ot.groupage_fige ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {ot.groupage_fige ? 'Fige' : 'Deliable'}
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500">Aucun</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-2 py-1 text-xs font-medium ${TRANSPORT_STATUS_COLORS[ot.statut_transport as TransportStatus] ?? 'bg-slate-100 text-slate-600'}`}>
+                          {TRANSPORT_STATUS_LABELS[ot.statut_transport as TransportStatus] ?? ot.statut_transport}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {canEditOt && (
+                            <button
+                              onClick={ev => { ev.stopPropagation(); openEditForm(ot) }}
+                              className="text-xs text-slate-500 transition-colors hover:text-slate-700"
+                            >
+                              Modifier
+                            </button>
+                          )}
+                          {canDeleteOt && (
+                            <button
+                              onClick={ev => { ev.stopPropagation(); del(ot.id) }}
+                              className="text-xs text-slate-400 transition-colors hover:text-red-500"
+                            >
+                              Suppr.
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
 
       {/* Right: detail panel */}
       {selected && (
-        <div className="w-full lg:w-[45%] shrink-0">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex items-start justify-between p-5 border-b">
-              <div>
-                <p className="text-xs font-mono text-slate-400 mb-0.5">{selected.reference}</p>
-                <h3 className="text-lg font-bold text-slate-800">{clientMap[selected.client_id] ?? '—'}</h3>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${OT_STATUT_BADGE_LIGHT_CLS[selected.statut] ?? 'bg-slate-100 text-slate-600'}`}>
-                    {STATUT_LABELS[selected.statut] ?? selected.statut}
-                  </span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TRANSPORT_STATUS_COLORS[selected.statut_transport as TransportStatus] ?? 'bg-slate-100 text-slate-600'}`}>
-                    {TRANSPORT_STATUS_LABELS[selected.statut_transport as TransportStatus] ?? selected.statut_transport}
-                  </span>
-                  <span className="text-xs text-slate-500">{TYPE_TRANSPORT_LABELS[selected.type_transport] ?? selected.type_transport}</span>
+        <div className="w-full shrink-0 xl:w-[44%]">
+          <div className="xl:sticky xl:top-4">
+            <div className="space-y-5 rounded-[28px] border border-slate-200 bg-[#f6f8fc] p-4 shadow-sm sm:p-5">
+              <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Vue detail mission</p>
+                      <h3 className="mt-2 text-2xl font-semibold text-slate-950">{clientMap[selected.client_id] ?? '—'}</h3>
+                      <p className="mt-1 font-mono text-xs text-slate-500">{selected.reference}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`rounded-full px-3 py-1 text-xs font-medium ${OT_STATUT_BADGE_LIGHT_CLS[selected.statut] ?? 'bg-slate-100 text-slate-600'}`}>
+                        {STATUT_LABELS[selected.statut] ?? selected.statut}
+                      </span>
+                      <span className={`rounded-full px-3 py-1 text-xs font-medium ${TRANSPORT_STATUS_COLORS[selected.statut_transport as TransportStatus] ?? 'bg-slate-100 text-slate-600'}`}>
+                        {TRANSPORT_STATUS_LABELS[selected.statut_transport as TransportStatus] ?? selected.statut_transport}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">{TYPE_TRANSPORT_LABELS[selected.type_transport] ?? selected.type_transport}</span>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                      <SummaryPill label="Livraison prevue" value={selected.date_livraison_prevue ? new Date(selected.date_livraison_prevue).toLocaleDateString('fr-FR') : 'A planifier'} tone="strong" />
+                      <SummaryPill label="Mission" value={selected.mission_id ? `${selectedGroupMembers.length} course${selectedGroupMembers.length > 1 ? 's' : ''}` : 'Independante'} tone={selected.mission_id ? 'success' : 'neutral'} />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {canEditOt && (
+                      <button
+                        type="button"
+                        onClick={() => openEditForm(selected)}
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                      >
+                        Modifier l OT
+                      </button>
+                    )}
+                    <button onClick={() => setSelected(null)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800">
+                      Fermer
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {canEditOt && (
-                  <button
-                    type="button"
-                    onClick={() => openEditForm(selected)}
-                    className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
+              </section>
+
+              <SectionCard title="Affretement" description="Statut de delegation et selection de l affreteur sans quitter la fiche." >
+                <div className="space-y-3">
+                  <select
+                    className={inp}
+                    value={selected.affreteur_id ?? ''}
+                    onChange={event => { void toggleAffretement(selected, event.target.value || null) }}
                   >
-                    Modifier l OT
-                  </button>
-                )}
-                <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
-              </div>
-            </div>
+                    <option value="">Non affretee</option>
+                    {affreteurs.map(item => <option key={item.id} value={item.id}>{item.company_name}</option>)}
+                  </select>
+                  <p className="text-sm text-slate-600">
+                    {selected.est_affretee ? 'Course retiree du planning principal et suivie dans la vue affretement.' : 'Course visible dans le planning principal.'}
+                  </p>
+                </div>
+              </SectionCard>
 
-            <div className="px-5 py-3 border-b bg-slate-50">
-              <p className="text-xs font-medium text-slate-500 mb-2">Affretement</p>
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  className={`${inp} max-w-xs`}
-                  value={selected.affreteur_id ?? ''}
-                  onChange={event => { void toggleAffretement(selected, event.target.value || null) }}
-                >
-                  <option value="">Non affretee</option>
-                  {affreteurs.map(item => <option key={item.id} value={item.id}>{item.company_name}</option>)}
-                </select>
-                <span className="text-xs text-slate-500">
-                  {selected.est_affretee ? 'Course retiree du planning principal et suivie dans la vue affretement.' : 'Course visible dans le planning principal.'}
-                </span>
-              </div>
-            </div>
-
-            <div className="px-5 py-3 border-b bg-slate-50/50">
-              <p className="text-xs font-medium text-slate-500 mb-2">Groupage</p>
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${selected.groupage_id ? (selected.groupage_fige ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700') : 'bg-slate-100 text-slate-600'}`}>
-                    {selected.groupage_id ? (selected.groupage_fige ? 'Lot fige' : 'Lot deliable') : 'Hors groupage'}
-                  </span>
-                  {selected.groupage_id && (
-                    <span className="text-xs text-slate-500">{selectedGroupMembers.length} course{selectedGroupMembers.length !== 1 ? 's' : ''} dans le lot</span>
+              <SectionCard title="Mission / groupage" description="Le rattachement mission reste visible avec les actions disponibles selon l existant." tone="highlight">
+                <div className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <SummaryPill label="Statut mission" value={selected.mission_id ? (selected.groupage_fige ? 'Mission figee' : 'Mission deliable') : 'Hors mission'} tone={selected.mission_id ? 'success' : 'neutral'} />
+                    <SummaryPill label="Courses liees" value={selected.mission_id ? `${selectedGroupMembers.length}` : '0'} />
+                  </div>
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                    <select
+                      className={inp}
+                      value={groupageTargetId}
+                      onChange={event => setGroupageTargetId(event.target.value)}
+                      disabled={!canChangeOtStatus || selected.groupage_fige}
+                    >
+                      <option value="">Selectionner une course a lier</option>
+                      {groupageCandidates.map(item => (
+                        <option key={item.id} value={item.id}>
+                          {item.reference} - {clientMap[item.client_id] ?? 'Client inconnu'}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => { void linkSelectedToGroupage() }}
+                      disabled={!groupageTargetId || !canChangeOtStatus || selected.groupage_fige}
+                      className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Lier
+                    </button>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => { void unlinkSelectedFromGroupage() }}
+                      disabled={!selected.mission_id || !canChangeOtStatus}
+                      className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Delier cette course
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { void toggleSelectedGroupageFreeze(!selected.groupage_fige) }}
+                      disabled={!selected.mission_id || !canChangeOtStatus}
+                      className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      {selected.groupage_fige ? 'Defiger la mission' : 'Figer la mission'}
+                    </button>
+                  </div>
+                  {selectedGroupMembers.length > 0 && (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <p className="text-sm font-semibold text-slate-900">Courses de la mission</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedGroupMembers.map(item => (
+                          <span key={item.id} className={`rounded-full px-3 py-1 text-sm font-medium ${item.id === selected.id ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                            {item.reference}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
+              </SectionCard>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    className={`${inp} max-w-xs`}
-                    value={groupageTargetId}
-                    onChange={event => setGroupageTargetId(event.target.value)}
-                    disabled={!canChangeOtStatus || selected.groupage_fige}
-                  >
-                    <option value="">Selectionner une course a lier</option>
-                    {groupageCandidates.map(item => (
-                      <option key={item.id} value={item.id}>
-                        {item.reference} - {clientMap[item.client_id] ?? 'Client inconnu'}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => { void linkSelectedToGroupage() }}
-                    disabled={!groupageTargetId || !canChangeOtStatus || selected.groupage_fige}
-                    className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-white disabled:opacity-50"
-                  >
-                    Lier
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { void unlinkSelectedFromGroupage() }}
-                    disabled={!selected.groupage_id || !canChangeOtStatus}
-                    className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-white disabled:opacity-50"
-                  >
-                    Delier cette course
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { void toggleSelectedGroupageFreeze(!selected.groupage_fige) }}
-                    disabled={!selected.groupage_id || !canChangeOtStatus}
-                    className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-white disabled:opacity-50"
-                  >
-                    {selected.groupage_fige ? 'Defiger le lot' : 'Figer le lot'}
-                  </button>
-                </div>
+              <SectionCard title="Pilotage statuts" description="Statuts transport, administratif et opérationnel visibles dans une seule zone de décision.">
+                <div className="space-y-5">
+                  <div>
+                    <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Statut transport</p>
+                    <div className="flex flex-wrap gap-2">
+                      {TRANSPORT_STATUS_FLOW.map(statusKey => (
+                        <button
+                          key={statusKey}
+                          type="button"
+                          onClick={() => { void updateTransportStatus(selected.id, statusKey) }}
+                          disabled={selected.statut_transport === statusKey}
+                          className={`rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
+                            selected.statut_transport === statusKey
+                              ? 'bg-slate-200 text-slate-500 cursor-default'
+                              : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          {TRANSPORT_STATUS_LABELS[statusKey]}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Historique statut transport</p>
+                      {loadingTransportHistory ? (
+                        <p className="mt-2 text-sm text-slate-400">Chargement historique...</p>
+                      ) : transportStatusHistory.length === 0 ? (
+                        <p className="mt-2 text-sm text-slate-400">Aucun historique disponible.</p>
+                      ) : (
+                        <div className="mt-3 space-y-2">
+                          {transportStatusHistory.slice(0, 5).map(entry => (
+                            <p key={entry.id} className="text-sm text-slate-600">
+                              {new Date(entry.changed_at).toLocaleString('fr-FR')} - {TRANSPORT_STATUS_LABELS[entry.statut_nouveau as TransportStatus] ?? entry.statut_nouveau}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
-                {selectedGroupMembers.length > 0 && (
-                  <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-600">
-                    <p className="font-medium text-slate-700 mb-1">Courses du lot</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedGroupMembers.map(item => (
-                        <span key={item.id} className={`rounded-full px-2 py-0.5 ${item.id === selected.id ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-700'}`}>
-                          {item.reference}
-                        </span>
+                  <div>
+                    <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Statut OT</p>
+                    {canChangeOtStatus ? (
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(STATUT_LABELS).map(([k, v]) => (
+                          <button
+                            key={k}
+                            onClick={() => updateStatut(selected, k)}
+                            disabled={selected.statut === k}
+                            className={`rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
+                              selected.statut === k
+                                ? 'bg-slate-200 text-slate-500 cursor-default'
+                                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500">Statut OT gere par la societe mere. Utilisez l espace affreteur pour le suivi operationnel.</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Statut operationnel</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(Object.entries(STATUT_OPS) as [StatutOps, typeof STATUT_OPS[StatutOps]][]).map(([k, cfg]) => (
+                        <button
+                          key={k}
+                          onClick={async () => {
+                            const newVal = selected.statut_operationnel === k ? null : k
+                            await supabase.from('ordres_transport').update({ statut_operationnel: newVal }).eq('id', selected.id)
+                            setSelected(s => s ? { ...s, statut_operationnel: newVal } : s)
+                            setList(l => l.map(o => o.id === selected.id ? { ...o, statut_operationnel: newVal } : o))
+                          }}
+                          className={`flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium transition-all ${
+                            selected.statut_operationnel === k
+                              ? `${cfg.dot} text-white border-transparent`
+                              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className={`h-2 w-2 flex-shrink-0 rounded-full ${cfg.dot}`} />
+                          {cfg.label}
+                        </button>
                       ))}
                     </div>
                   </div>
-                )}
-              </div>
-            </div>
-
-            <div className="px-5 py-3 border-b bg-slate-50/50">
-              <p className="text-xs font-medium text-slate-500 mb-2">Statut transport</p>
-              <div className="flex gap-1.5 flex-wrap">
-                {TRANSPORT_STATUS_FLOW.map(statusKey => (
-                  <button
-                    key={statusKey}
-                    type="button"
-                    onClick={() => { void updateTransportStatus(selected.id, statusKey) }}
-                    disabled={selected.statut_transport === statusKey}
-                    className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors ${
-                      selected.statut_transport === statusKey
-                        ? 'bg-slate-200 text-slate-500 cursor-default'
-                        : 'border border-slate-200 text-slate-600 hover:bg-white hover:shadow-sm'
-                    }`}
-                  >
-                    {TRANSPORT_STATUS_LABELS[statusKey]}
-                  </button>
-                ))}
-              </div>
-              <div className="mt-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Historique statut transport</p>
-                {loadingTransportHistory ? (
-                  <p className="text-xs text-slate-400 mt-1">Chargement historique...</p>
-                ) : transportStatusHistory.length === 0 ? (
-                  <p className="text-xs text-slate-400 mt-1">Aucun historique disponible.</p>
-                ) : (
-                  <div className="mt-2 space-y-1.5">
-                    {transportStatusHistory.slice(0, 5).map(entry => (
-                      <p key={entry.id} className="text-xs text-slate-600">
-                        {new Date(entry.changed_at).toLocaleString('fr-FR')} - {TRANSPORT_STATUS_LABELS[entry.statut_nouveau as TransportStatus] ?? entry.statut_nouveau}
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Statut actions */}
-            <div className="px-5 py-3 border-b bg-slate-50">
-              <p className="text-xs font-medium text-slate-500 mb-2">Changer le statut</p>
-              {canChangeOtStatus ? (
-                <div className="flex gap-1.5 flex-wrap">
-                  {Object.entries(STATUT_LABELS).map(([k, v]) => (
-                    <button
-                      key={k}
-                      onClick={() => updateStatut(selected, k)}
-                      disabled={selected.statut === k}
-                      className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors ${
-                        selected.statut === k
-                          ? 'bg-slate-200 text-slate-500 cursor-default'
-                          : 'border border-slate-200 text-slate-600 hover:bg-white hover:shadow-sm'
-                      }`}
-                    >
-                      {v}
-                    </button>
-                  ))}
                 </div>
-              ) : (
-                <p className="text-xs text-slate-500">Statut OT gere par la societe mere. Utilisez l espace affreteur pour le suivi operationnel.</p>
-              )}
-            </div>
+              </SectionCard>
 
-            {/* Statut opérationnel */}
-            <div className="px-5 py-3 border-b bg-slate-50/50">
-              <p className="text-xs font-medium text-slate-500 mb-2">Statut opérationnel</p>
-              <div className="flex gap-1.5 flex-wrap">
-                {(Object.entries(STATUT_OPS) as [StatutOps, typeof STATUT_OPS[StatutOps]][]).map(([k, cfg]) => (
-                  <button
-                    key={k}
-                    onClick={async () => {
-                      const newVal = selected.statut_operationnel === k ? null : k
-                      await supabase.from('ordres_transport').update({ statut_operationnel: newVal }).eq('id', selected.id)
-                      setSelected(s => s ? { ...s, statut_operationnel: newVal } : s)
-                      setList(l => l.map(o => o.id === selected.id ? { ...o, statut_operationnel: newVal } : o))
-                    }}
-                    className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium transition-all border ${
-                      selected.statut_operationnel === k
-                        ? `${cfg.dot} text-white border-transparent`
-                        : 'border-slate-200 text-slate-600 hover:bg-white hover:shadow-sm'
-                    }`}
-                  >
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
-                    {cfg.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Details */}
-            <div className="p-5 grid grid-cols-2 gap-3 text-sm border-b">
+              <SectionCard title="Lecture opérationnelle" description="Ressources, adresses, chiffrage et informations terrain hiérarchisés pour une lecture immédiate.">
+                <div className="grid gap-3 sm:grid-cols-2">
               <Info label="Conducteur" value={selected.conducteur_id ? conducteurMap[selected.conducteur_id] : null} />
               <Info label="Véhicule" value={selected.vehicule_id ? vehiculeMap[selected.vehicule_id] : null} />
+              <Info label="Remorque" value={selected.remorque_id ? remorques.find(item => item.id === selected.remorque_id)?.immatriculation : null} />
               <Info label="Référence transport" value={selected.reference_transport} />
               <Info label="Référence externe" value={selected.reference_externe} />
               <Info label="Source course" value={selected.source_course} />
@@ -1114,11 +1149,11 @@ export default function Transports() {
               <Info label="Volume" value={selected.volume_m3 ? `${selected.volume_m3} m³` : null} />
               <Info label="Nombre de colis" value={selected.nombre_colis?.toString() ?? null} />
               {selectedLots.length > 0 && (
-                <div className="col-span-2 mt-1">
-                  <span className="text-xs font-medium text-slate-500 block mb-1">Lignes de chargement</span>
-                  <div className="rounded-lg border divide-y text-xs">
+                <div className="sm:col-span-2 mt-1">
+                  <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Lignes de chargement</span>
+                  <div className="divide-y rounded-2xl border border-slate-200 bg-white text-xs">
                     {selectedLots.map(lot => (
-                      <div key={lot.id} className="flex gap-3 px-3 py-1.5 items-center">
+                      <div key={lot.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                         <span className="flex-1 font-medium text-slate-700">{lot.libelle}</span>
                         {lot.poids_kg != null && <span className="text-slate-500">{lot.poids_kg} kg</span>}
                         {lot.metrage_ml != null && <span className="text-slate-500">{lot.metrage_ml} ml</span>}
@@ -1137,26 +1172,25 @@ export default function Transports() {
               <Info label="N° CMR" value={selected.numero_cmr} />
               <Info label="N° BL" value={selected.numero_bl} />
               {selected.instructions && (
-                <div className="col-span-2">
-                  <span className="text-xs font-medium text-slate-500">Instructions</span>
-                  <p className="text-slate-600 mt-0.5 text-sm">{selected.instructions}</p>
+                <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-white p-4">
+                  <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Instructions</span>
+                  <p className="mt-2 text-sm text-slate-600">{selected.instructions}</p>
                 </div>
               )}
               {selected.notes_internes && (
-                <div className="col-span-2">
-                  <span className="text-xs font-medium text-slate-500">Notes internes</span>
-                  <p className="text-slate-600 mt-0.5 text-sm">{selected.notes_internes}</p>
+                <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-white p-4">
+                  <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Notes internes</span>
+                  <p className="mt-2 text-sm text-slate-600">{selected.notes_internes}</p>
                 </div>
               )}
-            </div>
+                </div>
+              </SectionCard>
 
-            {/* Etapes */}
-            <div className="p-5">
-              <h4 className="text-sm font-semibold text-slate-700 mb-3">Étapes de mission</h4>
+              <SectionCard title="Étapes de mission" description="Chronologie visuelle des chargements et livraisons pour suivre l exécution sans fouiller la fiche.">
               {loadingEtapes ? (
-                <p className="text-xs text-slate-400">Chargement...</p>
+                <p className="text-sm text-slate-400">Chargement...</p>
               ) : etapes.length === 0 ? (
-                <p className="text-xs text-slate-400">Aucune étape enregistrée</p>
+                <p className="text-sm text-slate-400">Aucune étape enregistrée</p>
               ) : (
                 <div className="relative">
                   <div className="absolute left-3.5 top-0 bottom-0 w-0.5 bg-slate-200" />
@@ -1168,7 +1202,7 @@ export default function Transports() {
                           et.type_etape === 'livraison' ? 'bg-green-500 border-green-300' :
                           'bg-slate-300 border-slate-200'
                         }`} />
-                        <div className="flex-1 bg-slate-50 rounded-lg p-3">
+                        <div className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                           <div className="flex items-start justify-between gap-2">
                             <div>
                               <span className={`text-xs font-medium ${
@@ -1202,6 +1236,7 @@ export default function Transports() {
                   </div>
                 </div>
               )}
+              </SectionCard>
             </div>
           </div>
         </div>
@@ -1209,318 +1244,486 @@ export default function Transports() {
 
       {/* Modal: new OT */}
       {showForm && canCreateOt && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b">
-              <h3 className="text-lg font-semibold">{editingOtId ? 'Modifier l ordre de transport' : 'Nouvel Ordre de Transport'}</h3>
-              <button onClick={closeTransportForm} className="text-slate-400 hover:text-slate-600">✕</button>
-            </div>
-            <form onSubmit={submit} className="p-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <p className="text-sm font-semibold text-slate-700 mb-3">Informations essentielles</p>
-                  <div className="grid grid-cols-2 gap-4">
-                  <Field label="Client *">
-                    <select className={inp} value={form.client_id} onChange={e => { setF('client_id', e.target.value); if (!form.donneur_ordre_id) setF('donneur_ordre_id', e.target.value) }} required>
-                      <option value="">Sélectionner un client</option>
-                      {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
-                    </select>
-                  </Field>
-                    <Field label="Donneur d ordre *">
-                      <select className={inp} value={form.donneur_ordre_id ?? ''} onChange={e => setF('donneur_ordre_id', e.target.value)} required>
-                        <option value="">Sélectionner une entreprise</option>
-                        {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
-                      </select>
-                    </Field>
-                    <Field label="Source course">
-                      <select className={inp} value={form.source_course ?? 'manuel'} onChange={e => setF('source_course', e.target.value)}>
-                        {TRANSPORT_SOURCES.map(item => <option key={item} value={item}>{item}</option>)}
-                      </select>
-                    </Field>
-                    <Field label="Type de transport">
-                      <select className={inp} value={form.type_transport ?? 'complet'} onChange={e => setF('type_transport', e.target.value)}>
-                        {Object.entries(TYPE_TRANSPORT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                      </select>
-                    </Field>
-                    <Field label="Statut transport">
-                      <select className={inp} value={form.statut_transport ?? 'en_attente_validation'} onChange={e => setF('statut_transport', e.target.value)}>
-                        {TRANSPORT_STATUS_FLOW.map(item => <option key={item} value={item}>{TRANSPORT_STATUS_LABELS[item]}</option>)}
-                      </select>
-                    </Field>
-                    <Field label="Statut initial">
-                      <select className={inp} value={form.statut ?? 'brouillon'} onChange={e => setF('statut', e.target.value)}>
-                        {Object.entries(STATUT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                      </select>
-                    </Field>
-                    <Field label="Référence externe">
-                      <input className={inp} value={form.reference_externe ?? ''} onChange={e => setF('reference_externe', e.target.value || null)} />
-                    </Field>
-                  </div>
-                </div>
-
-                <div className="col-span-2 border-t pt-4 mt-1">
-                  <p className="text-sm font-semibold text-slate-700 mb-3">Lieux logistiques</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Field label="Site de chargement">
-                        <select className={inp} value={form.chargement_site_id ?? ''} onChange={e => setF('chargement_site_id', e.target.value || null)}>
-                          <option value="">Sélectionner un site</option>
-                          {sites.filter(site => siteSupportsKind(site, 'chargement')).map(site => <option key={site.id} value={site.id}>{site.nom} - {site.adresse}</option>)}
-                        </select>
-                      </Field>
-                      <details className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <summary className="cursor-pointer text-xs font-semibold text-slate-700">+ Ajouter un nouveau lieu de chargement</summary>
-                        <div className="mt-3 space-y-2">
-                        <Field label="Entreprise rattachee *">
-                          <select className={inp} value={siteDrafts.chargement.entreprise_id} onChange={e => setSiteDraft('chargement', 'entreprise_id', e.target.value)}>
-                            <option value="">Selectionner une entreprise</option>
-                            {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
-                          </select>
-                        </Field>
-                        <Field label="Nom du lieu">
-                          <input className={inp} value={siteDrafts.chargement.nom} onChange={e => setSiteDraft('chargement', 'nom', e.target.value)} placeholder="Ex: Quai 2 - Entrepot Nord" />
-                        </Field>
-                        <Field label="Adresse manuelle *">
-                          <input className={inp} value={siteDrafts.chargement.adresse} onChange={e => setSiteDraft('chargement', 'adresse', e.target.value)} placeholder="Saisissez une adresse ou detectez-la sur carte" />
-                        </Field>
-                        <Field label="Usage du lieu">
-                          <select className={inp} value={siteDrafts.chargement.usage_type} onChange={e => setSiteDraft('chargement', 'usage_type', e.target.value as SiteUsageType)}>
-                            {Object.entries(SITE_USAGE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                          </select>
-                        </Field>
-                        {(siteDrafts.chargement.usage_type === 'livraison' || siteDrafts.chargement.usage_type === 'mixte') && (
-                          <>
-                            <Field label="Jours d ouverture">
-                              <input className={inp} value={siteDrafts.chargement.jours_ouverture} onChange={e => setSiteDraft('chargement', 'jours_ouverture', e.target.value)} placeholder="Ex: Lun-Ven" />
-                            </Field>
-                            <Field label="Horaires d ouverture">
-                              <input className={inp} value={siteDrafts.chargement.horaires_ouverture} onChange={e => setSiteDraft('chargement', 'horaires_ouverture', e.target.value)} placeholder="Ex: 08:00-12:00 / 14:00-18:00" />
-                            </Field>
-                            <Field label="Specificites du lieu">
-                              <textarea className={`${inp} resize-none h-20`} value={siteDrafts.chargement.notes_livraison} onChange={e => setSiteDraft('chargement', 'notes_livraison', e.target.value)} placeholder="Quai, badge, acces PL, consignes..." />
-                            </Field>
-                          </>
-                        )}
-                        <button type="button" className="text-xs text-blue-700 hover:text-blue-800" onClick={() => setSiteDraft('chargement', 'showMap', !siteDrafts.chargement.showMap)}>
-                          {siteDrafts.chargement.showMap ? 'Masquer la carte' : 'Poser un point sur la carte'}
-                        </button>
-                        {siteDrafts.chargement.showMap && (
-                          <SiteMapPicker
-                            onPick={({ latitude, longitude, adresse }) => {
-                              setSiteDraft('chargement', 'latitude', latitude)
-                              setSiteDraft('chargement', 'longitude', longitude)
-                              setSiteDraft('chargement', 'adresse', adresse)
-                            }}
-                          />
-                        )}
-                        <button type="button" className="text-xs font-medium text-blue-700 hover:text-blue-800" onClick={() => { void createOrSelectSite('chargement') }}>
-                          Enregistrer puis selectionner ce lieu
-                        </button>
-                        </div>
-                      </details>
-                    </div>
-                    <div>
-                      <Field label="Site de livraison">
-                        <select className={inp} value={form.livraison_site_id ?? ''} onChange={e => setF('livraison_site_id', e.target.value || null)}>
-                          <option value="">Sélectionner un site</option>
-                          {sites.filter(site => siteSupportsKind(site, 'livraison')).map(site => <option key={site.id} value={site.id}>{site.nom} - {site.adresse}</option>)}
-                        </select>
-                      </Field>
-                      <details className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <summary className="cursor-pointer text-xs font-semibold text-slate-700">+ Ajouter un nouveau lieu de livraison</summary>
-                        <div className="mt-3 space-y-2">
-                        <Field label="Entreprise rattachee *">
-                          <select className={inp} value={siteDrafts.livraison.entreprise_id} onChange={e => setSiteDraft('livraison', 'entreprise_id', e.target.value)}>
-                            <option value="">Selectionner une entreprise</option>
-                            {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
-                          </select>
-                        </Field>
-                        <Field label="Nom du lieu">
-                          <input className={inp} value={siteDrafts.livraison.nom} onChange={e => setSiteDraft('livraison', 'nom', e.target.value)} placeholder="Ex: Magasin central" />
-                        </Field>
-                        <Field label="Adresse manuelle *">
-                          <input className={inp} value={siteDrafts.livraison.adresse} onChange={e => setSiteDraft('livraison', 'adresse', e.target.value)} placeholder="Saisissez une adresse ou detectez-la sur carte" />
-                        </Field>
-                        <Field label="Usage du lieu">
-                          <select className={inp} value={siteDrafts.livraison.usage_type} onChange={e => setSiteDraft('livraison', 'usage_type', e.target.value as SiteUsageType)}>
-                            {Object.entries(SITE_USAGE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                          </select>
-                        </Field>
-                        {(siteDrafts.livraison.usage_type === 'livraison' || siteDrafts.livraison.usage_type === 'mixte') && (
-                          <>
-                            <Field label="Jours d ouverture">
-                              <input className={inp} value={siteDrafts.livraison.jours_ouverture} onChange={e => setSiteDraft('livraison', 'jours_ouverture', e.target.value)} placeholder="Ex: Lun-Sam" />
-                            </Field>
-                            <Field label="Horaires d ouverture">
-                              <input className={inp} value={siteDrafts.livraison.horaires_ouverture} onChange={e => setSiteDraft('livraison', 'horaires_ouverture', e.target.value)} placeholder="Ex: 07:00-17:30" />
-                            </Field>
-                            <Field label="Specificites du lieu">
-                              <textarea className={`${inp} resize-none h-20`} value={siteDrafts.livraison.notes_livraison} onChange={e => setSiteDraft('livraison', 'notes_livraison', e.target.value)} placeholder="Quai dechargement, RDV, securite, acces..." />
-                            </Field>
-                          </>
-                        )}
-                        <button type="button" className="text-xs text-blue-700 hover:text-blue-800" onClick={() => setSiteDraft('livraison', 'showMap', !siteDrafts.livraison.showMap)}>
-                          {siteDrafts.livraison.showMap ? 'Masquer la carte' : 'Poser un point sur la carte'}
-                        </button>
-                        {siteDrafts.livraison.showMap && (
-                          <SiteMapPicker
-                            onPick={({ latitude, longitude, adresse }) => {
-                              setSiteDraft('livraison', 'latitude', latitude)
-                              setSiteDraft('livraison', 'longitude', longitude)
-                              setSiteDraft('livraison', 'adresse', adresse)
-                            }}
-                          />
-                        )}
-                        <button type="button" className="text-xs font-medium text-blue-700 hover:text-blue-800" onClick={() => { void createOrSelectSite('livraison') }}>
-                          Enregistrer puis selectionner ce lieu
-                        </button>
-                        </div>
-                      </details>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="col-span-2 border-t pt-4 mt-1">
-                  <p className="text-sm font-semibold text-slate-700 mb-3">Planification</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="Date de chargement"><input className={inp} type="datetime-local" value={form.date_chargement_prevue ?? ''} onChange={e => setF('date_chargement_prevue', e.target.value || null)} /></Field>
-                    <Field label="Date de livraison"><input className={inp} type="datetime-local" value={form.date_livraison_prevue ?? ''} onChange={e => setF('date_livraison_prevue', e.target.value || null)} /></Field>
-                  </div>
-                </div>
-
-                <div className="col-span-2 border-t pt-4">
-                  <p className="text-sm font-semibold text-slate-700 mb-3">Ressources</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="Conducteur">
-                      <select className={inp} value={form.conducteur_id ?? ''} onChange={e => setF('conducteur_id', e.target.value || null)}>
-                        <option value="">— Non affecté</option>
-                        {conducteurs.map(c => <option key={c.id} value={c.id}>{c.prenom} {c.nom}</option>)}
-                      </select>
-                    </Field>
-                    <Field label="Véhicule">
-                      <select className={inp} value={form.vehicule_id ?? ''} onChange={e => setF('vehicule_id', e.target.value || null)}>
-                        <option value="">— Non affecté</option>
-                        {vehicules.map(v => <option key={v.id} value={v.id}>{v.immatriculation}{v.marque ? ` · ${v.marque}` : ''}</option>)}
-                      </select>
-                    </Field>
-                  </div>
-                </div>
-
-                <div className="col-span-2 border-t pt-4">
-                  <p className="text-sm font-semibold text-slate-700 mb-3">Marchandise</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2">
-                      <Field label="Nature de la marchandise"><input className={inp} value={form.nature_marchandise ?? ''} onChange={e => setF('nature_marchandise', e.target.value || null)} /></Field>
-                    </div>
-                    <Field label="Poids (kg)"><input className={inp} type="number" value={form.poids_kg ?? ''} onChange={e => setF('poids_kg', parseFloat(e.target.value) || null)} /></Field>
-                    <Field label="Métrage (ml)"><input className={inp} type="number" step="0.01" value={form.metrage_ml ?? ''} onChange={e => setF('metrage_ml', parseFloat(e.target.value) || null)} /></Field>
-                    <Field label="Volume (m³)"><input className={inp} type="number" value={form.volume_m3 ?? ''} onChange={e => setF('volume_m3', parseFloat(e.target.value) || null)} /></Field>
-                    <Field label="Nombre de colis"><input className={inp} type="number" value={form.nombre_colis ?? ''} onChange={e => setF('nombre_colis', parseInt(e.target.value) || null)} /></Field>
-                    <div className="space-y-2">
-                      <Field label="Distance (km)">
-                        <input className={inp} type="number" value={form.distance_km ?? ''} onChange={e => setF('distance_km', parseFloat(e.target.value) || null)} />
-                      </Field>
-                      <button
-                        type="button"
-                        disabled={calculatingDistance || !form.chargement_site_id || !form.livraison_site_id}
-                        onClick={() => { void computeDistanceFromSelectedSites() }}
-                        className="text-xs rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {calculatingDistance ? 'Calcul en cours...' : 'Calculer itineraire poids lourd'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Lignes de chargement — groupage / partiel */}
-                {['groupage', 'partiel'].includes(form.type_transport ?? '') && (
-                  <div className="col-span-2 border-t pt-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-sm font-semibold text-slate-700">Lignes de chargement</p>
-                      <button
-                        type="button"
-                        onClick={() => setLotLines(l => [...l, { libelle: '', poids_kg: null, metrage_ml: null, nombre_colis: null, notes: null }])}
-                        className="text-xs rounded border border-indigo-300 bg-indigo-50 px-2 py-1 text-indigo-700 hover:bg-indigo-100"
-                      >
-                        + Ajouter une ligne
-                      </button>
-                    </div>
-                    {lotLines.length === 0 && (
-                      <p className="text-xs text-slate-400 italic">Aucune ligne — les champs ci-dessus s&apos;appliquent à l&apos;ensemble.</p>
-                    )}
-                    {lotLines.map((lot, idx) => (
-                      <div key={idx} className="grid grid-cols-12 gap-2 mb-2 items-end">
-                        <div className="col-span-4">
-                          {idx === 0 && <p className="text-xs text-slate-500 mb-1">Libellé *</p>}
-                          <input className={inp} placeholder="Ex: Palettes bois" value={lot.libelle} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, libelle: e.target.value } : x))} />
-                        </div>
-                        <div className="col-span-2">
-                          {idx === 0 && <p className="text-xs text-slate-500 mb-1">Poids (kg)</p>}
-                          <input className={inp} type="number" placeholder="0" value={lot.poids_kg ?? ''} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, poids_kg: parseFloat(e.target.value) || null } : x))} />
-                        </div>
-                        <div className="col-span-2">
-                          {idx === 0 && <p className="text-xs text-slate-500 mb-1">Métrage (ml)</p>}
-                          <input className={inp} type="number" step="0.01" placeholder="0" value={lot.metrage_ml ?? ''} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, metrage_ml: parseFloat(e.target.value) || null } : x))} />
-                        </div>
-                        <div className="col-span-2">
-                          {idx === 0 && <p className="text-xs text-slate-500 mb-1">Colis</p>}
-                          <input className={inp} type="number" placeholder="0" value={lot.nombre_colis ?? ''} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, nombre_colis: parseInt(e.target.value) || null } : x))} />
-                        </div>
-                        <div className="col-span-2">
-                          {idx === 0 && <p className="text-xs text-slate-500 mb-1">Notes</p>}
-                          <input className={inp} placeholder="…" value={lot.notes ?? ''} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, notes: e.target.value || null } : x))} />
-                        </div>
-                        <div className="col-span-0 flex items-center">
-                          <button type="button" onClick={() => setLotLines(l => l.filter((_, i) => i !== idx))} className="ml-1 text-red-400 hover:text-red-600 text-base leading-none" title="Supprimer">✕</button>
-                        </div>
+        <div className="fixed inset-0 z-50 overflow-hidden bg-slate-950/45 backdrop-blur-[2px]">
+          <div className="flex h-full w-full justify-end">
+            <div className="h-full w-full max-w-[min(96vw,1380px)] border-l border-slate-200 bg-[#f6f8fc] shadow-2xl">
+              <form onSubmit={submit} className="flex h-full flex-col overflow-hidden">
+                <div className="border-b border-slate-200 bg-white/95 px-6 py-5 backdrop-blur sm:px-8">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Gestion course / mission</p>
+                        <h3 className="mt-2 text-2xl font-semibold text-slate-950">{editingOtId ? 'Modifier l ordre de transport' : 'Nouvel ordre de transport'}</h3>
+                        <p className="mt-2 max-w-3xl text-sm text-slate-600">
+                          Vue de travail exploitant avec sections séparées, repères mission visibles et saisie confortable sans tasser l information.
+                        </p>
                       </div>
-                    ))}
-                    {lotLines.length > 0 && (() => {
-                      const totalPoids = lotLines.reduce((s, l) => s + (l.poids_kg ?? 0), 0)
-                      const totalMl = lotLines.reduce((s, l) => s + (l.metrage_ml ?? 0), 0)
-                      const totalColis = lotLines.reduce((s, l) => s + (l.nombre_colis ?? 0), 0)
-                      return (
-                        <div className="flex gap-4 mt-2 pt-2 border-t text-xs text-slate-500">
-                          {totalPoids > 0 && <span>Total poids : <strong className="text-slate-700">{totalPoids} kg</strong></span>}
-                          {totalMl > 0 && <span>Total métrage : <strong className="text-slate-700">{totalMl} ml</strong></span>}
-                          {totalColis > 0 && <span>Total colis : <strong className="text-slate-700">{totalColis}</strong></span>}
+                      <div className="grid gap-3 md:grid-cols-4">
+                        <SummaryPill label="Client" value={clientMap[form.client_id] ?? 'A selectionner'} tone="strong" />
+                        <SummaryPill label="Donneur d ordre" value={clientMap[form.donneur_ordre_id ?? ''] ?? 'A renseigner'} />
+                        <SummaryPill label="Statut transport" value={TRANSPORT_STATUS_LABELS[form.statut_transport as TransportStatus] ?? 'En attente validation'} tone="success" />
+                        <SummaryPill label="Mission" value={selected?.mission_id ? `${selectedGroupMembers.length} course${selectedGroupMembers.length > 1 ? 's' : ''} liee${selectedGroupMembers.length > 1 ? 's' : ''}` : 'Course independante'} />
+                      </div>
+                    </div>
+                    <button type="button" onClick={closeTransportForm} className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
+                      Fermer
+                    </button>
+                  </div>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6 lg:px-8">
+                  <div className="mx-auto grid max-w-[1320px] gap-6 pb-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
+                    <div className="space-y-6">
+                      <SectionCard
+                        title="Informations principales"
+                        description="Référence métier, client, statut et nature de la course toujours visibles dès l ouverture."
+                        tone="highlight"
+                      >
+                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                          <Field label="Client *">
+                            <select className={inp} value={form.client_id} onChange={e => { setF('client_id', e.target.value); if (!form.donneur_ordre_id) setF('donneur_ordre_id', e.target.value) }} required>
+                              <option value="">Sélectionner un client</option>
+                              {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="Donneur d ordre *">
+                            <select className={inp} value={form.donneur_ordre_id ?? ''} onChange={e => setF('donneur_ordre_id', e.target.value)} required>
+                              <option value="">Sélectionner une entreprise</option>
+                              {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="Référence externe">
+                            <input className={inp} value={form.reference_externe ?? ''} onChange={e => setF('reference_externe', e.target.value || null)} placeholder="Référence client ou exploitation" />
+                          </Field>
+                          <Field label="Source course">
+                            <select className={inp} value={form.source_course ?? 'manuel'} onChange={e => setF('source_course', e.target.value)}>
+                              {TRANSPORT_SOURCES.map(item => <option key={item} value={item}>{item}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="Type de transport">
+                            <select className={inp} value={form.type_transport ?? 'complet'} onChange={e => setF('type_transport', e.target.value)}>
+                              {Object.entries(TYPE_TRANSPORT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="Statut OT">
+                            <select className={inp} value={form.statut ?? 'brouillon'} onChange={e => setF('statut', e.target.value)}>
+                              {Object.entries(STATUT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                            </select>
+                          </Field>
+                          <div className="md:col-span-2 xl:col-span-3">
+                            <Field label="Statut transport">
+                              <select className={inp} value={form.statut_transport ?? 'en_attente_validation'} onChange={e => setF('statut_transport', e.target.value)}>
+                                {TRANSPORT_STATUS_FLOW.map(item => <option key={item} value={item}>{TRANSPORT_STATUS_LABELS[item]}</option>)}
+                              </select>
+                            </Field>
+                          </div>
                         </div>
-                      )
-                    })()}
+                      </SectionCard>
+
+                      <SectionCard
+                        title="Planification"
+                        description="Lecture rapide des jalons de mission avec une grille stable en deux colonnes."
+                      >
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <Field label="Date et heure de chargement">
+                            <input className={inp} type="datetime-local" value={form.date_chargement_prevue ?? ''} onChange={e => setF('date_chargement_prevue', e.target.value || null)} />
+                          </Field>
+                          <Field label="Date et heure de livraison">
+                            <input className={inp} type="datetime-local" value={form.date_livraison_prevue ?? ''} onChange={e => setF('date_livraison_prevue', e.target.value || null)} />
+                          </Field>
+                        </div>
+                      </SectionCard>
+
+                      <SectionCard
+                        title="Ressources"
+                        description="Affectation conducteur, tracteur et remorque dans un bloc séparé et immédiatement exploitable."
+                      >
+                        <div className="grid gap-4 md:grid-cols-3">
+                          <Field label="Conducteur">
+                            <select className={inp} value={form.conducteur_id ?? ''} onChange={e => setF('conducteur_id', e.target.value || null)}>
+                              <option value="">— Non affecté</option>
+                              {conducteurs.map(c => <option key={c.id} value={c.id}>{c.prenom} {c.nom}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="Camion">
+                            <select className={inp} value={form.vehicule_id ?? ''} onChange={e => setF('vehicule_id', e.target.value || null)}>
+                              <option value="">— Non affecté</option>
+                              {vehicules.map(v => <option key={v.id} value={v.id}>{v.immatriculation}{v.marque ? ` · ${v.marque}` : ''}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="Remorque">
+                            <select className={inp} value={form.remorque_id ?? ''} onChange={e => setF('remorque_id', e.target.value || null)}>
+                              <option value="">— Non affectée</option>
+                              {remorques.map(r => <option key={r.id} value={r.id}>{r.immatriculation}</option>)}
+                            </select>
+                          </Field>
+                        </div>
+                      </SectionCard>
+
+                      <SectionCard
+                        title="Détails course"
+                        description="Marchandise, capacité, distance et tarification regroupées pour éviter les allers-retours visuels."
+                      >
+                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                          <div className="md:col-span-2 xl:col-span-3">
+                            <Field label="Nature de la marchandise">
+                              <input className={inp} value={form.nature_marchandise ?? ''} onChange={e => setF('nature_marchandise', e.target.value || null)} placeholder="Palette, lot alimentaire, materiel sensible..." />
+                            </Field>
+                          </div>
+                          <Field label="Poids (kg)"><input className={inp} type="number" value={form.poids_kg ?? ''} onChange={e => setF('poids_kg', parseFloat(e.target.value) || null)} /></Field>
+                          <Field label="Métrage (ml)"><input className={inp} type="number" step="0.01" value={form.metrage_ml ?? ''} onChange={e => setF('metrage_ml', parseFloat(e.target.value) || null)} /></Field>
+                          <Field label="Volume (m³)"><input className={inp} type="number" value={form.volume_m3 ?? ''} onChange={e => setF('volume_m3', parseFloat(e.target.value) || null)} /></Field>
+                          <Field label="Nombre de colis"><input className={inp} type="number" value={form.nombre_colis ?? ''} onChange={e => setF('nombre_colis', parseInt(e.target.value) || null)} /></Field>
+                          <div className="space-y-2">
+                            <Field label="Distance (km)">
+                              <input className={inp} type="number" value={form.distance_km ?? ''} onChange={e => setF('distance_km', parseFloat(e.target.value) || null)} />
+                            </Field>
+                            <button
+                              type="button"
+                              disabled={calculatingDistance || !form.chargement_site_id || !form.livraison_site_id}
+                              onClick={() => { void computeDistanceFromSelectedSites() }}
+                              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {calculatingDistance ? 'Calcul en cours...' : 'Calculer itineraire poids lourd'}
+                            </button>
+                          </div>
+                          <Field label="Prix HT (€)"><input className={inp} type="number" step="0.01" value={form.prix_ht ?? ''} onChange={e => setF('prix_ht', parseFloat(e.target.value) || null)} /></Field>
+                          <Field label="TVA (%)"><input className={inp} type="number" value={form.taux_tva ?? 20} onChange={e => setF('taux_tva', parseFloat(e.target.value) || null)} /></Field>
+                          <Field label="N° CMR"><input className={inp} value={form.numero_cmr ?? ''} onChange={e => setF('numero_cmr', e.target.value || null)} /></Field>
+                          <Field label="N° BL"><input className={inp} value={form.numero_bl ?? ''} onChange={e => setF('numero_bl', e.target.value || null)} /></Field>
+                        </div>
+                      </SectionCard>
+
+                      {['groupage', 'partiel'].includes(form.type_transport ?? '') && (
+                        <SectionCard
+                          title="Lignes de chargement"
+                          description="Détail des lots pour les opérations partielles et groupées, avec totaux lisibles en bas de bloc."
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm text-slate-600">Décomposez la course en unités opérationnelles quand le groupage ou le partiel l exige.</p>
+                            <button
+                              type="button"
+                              onClick={() => setLotLines(l => [...l, { libelle: '', poids_kg: null, metrage_ml: null, nombre_colis: null, notes: null }])}
+                              className="rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-100"
+                            >
+                              Ajouter une ligne
+                            </button>
+                          </div>
+                          {lotLines.length === 0 ? (
+                            <p className="mt-4 text-sm italic text-slate-500">Aucune ligne. Les valeurs de la section détails s appliquent à l ensemble de la course.</p>
+                          ) : (
+                            <div className="mt-5 space-y-4">
+                              {lotLines.map((lot, idx) => (
+                                <div key={idx} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_repeat(3,minmax(120px,1fr))_minmax(0,2fr)_auto] xl:items-end">
+                                    <Field label="Libellé *">
+                                      <input className={inp} placeholder="Ex: Palettes bois" value={lot.libelle} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, libelle: e.target.value } : x))} />
+                                    </Field>
+                                    <Field label="Poids (kg)">
+                                      <input className={inp} type="number" placeholder="0" value={lot.poids_kg ?? ''} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, poids_kg: parseFloat(e.target.value) || null } : x))} />
+                                    </Field>
+                                    <Field label="Métrage (ml)">
+                                      <input className={inp} type="number" step="0.01" placeholder="0" value={lot.metrage_ml ?? ''} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, metrage_ml: parseFloat(e.target.value) || null } : x))} />
+                                    </Field>
+                                    <Field label="Colis">
+                                      <input className={inp} type="number" placeholder="0" value={lot.nombre_colis ?? ''} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, nombre_colis: parseInt(e.target.value) || null } : x))} />
+                                    </Field>
+                                    <Field label="Notes">
+                                      <input className={inp} placeholder="Consigne, lot, etiquette..." value={lot.notes ?? ''} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, notes: e.target.value || null } : x))} />
+                                    </Field>
+                                    <div className="flex items-center xl:justify-end">
+                                      <button type="button" onClick={() => setLotLines(l => l.filter((_, i) => i !== idx))} className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50" title="Supprimer">
+                                        Retirer
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                              {(() => {
+                                const totalPoids = lotLines.reduce((s, l) => s + (l.poids_kg ?? 0), 0)
+                                const totalMl = lotLines.reduce((s, l) => s + (l.metrage_ml ?? 0), 0)
+                                const totalColis = lotLines.reduce((s, l) => s + (l.nombre_colis ?? 0), 0)
+                                return (
+                                  <div className="flex flex-wrap gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                                    {totalPoids > 0 && <span>Total poids : <strong className="text-slate-900">{totalPoids} kg</strong></span>}
+                                    {totalMl > 0 && <span>Total métrage : <strong className="text-slate-900">{totalMl} ml</strong></span>}
+                                    {totalColis > 0 && <span>Total colis : <strong className="text-slate-900">{totalColis}</strong></span>}
+                                  </div>
+                                )
+                              })()}
+                            </div>
+                          )}
+                        </SectionCard>
+                      )}
+
+                      <SectionCard
+                        title="Consignes internes"
+                        description="Informations de conduite et remarques exploitation séparées pour éviter les blocs compacts en bas de formulaire."
+                      >
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          <Field label="Instructions chauffeur">
+                            <textarea className={`${inp} min-h-[140px] resize-y`} value={form.instructions ?? ''} onChange={e => setF('instructions', e.target.value || null)} />
+                          </Field>
+                          <Field label="Notes internes">
+                            <textarea className={`${inp} min-h-[140px] resize-y`} value={form.notes_internes ?? ''} onChange={e => setF('notes_internes', e.target.value || null)} />
+                          </Field>
+                        </div>
+                      </SectionCard>
+                    </div>
+
+                    <div className="space-y-6">
+                      <SectionCard
+                        title="Mission / groupage"
+                        description="Le rattachement mission reste visible comme une donnée métier centrale, avec les actions disponibles selon l existant."
+                        tone="highlight"
+                      >
+                        <div className="space-y-4">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <SummaryPill label="Statut mission" value={selected?.mission_id ? (selected.groupage_fige ? 'Mission figee' : 'Mission deliable') : 'Course independante'} tone={selected?.mission_id ? 'success' : 'neutral'} />
+                            <SummaryPill label="Courses liees" value={selected?.mission_id ? `${selectedGroupMembers.length}` : '0'} />
+                          </div>
+                          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <p className="text-sm font-semibold text-slate-900">Etat du groupage</p>
+                            <p className="mt-2 text-sm text-slate-600">
+                              {selected?.mission_id
+                                ? `Cette course appartient a une mission avec ${selectedGroupMembers.length} course${selectedGroupMembers.length > 1 ? 's' : ''}.`
+                                : 'Cette course est actuellement independante.'}
+                            </p>
+                            {selected?.mission_id && selectedGroupMembers.length > 0 && (
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                {selectedGroupMembers.map(item => (
+                                  <span key={item.id} className={`rounded-full px-3 py-1 text-sm font-medium ${item.id === selected.id ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                                    {item.reference}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-4">
+                            <div>
+                              <label className="text-xs font-medium text-slate-600">Ajouter ou lier une autre course</label>
+                              <div className="mt-2 flex flex-col gap-3 sm:flex-row">
+                                <select
+                                  className={inp}
+                                  value={groupageTargetId}
+                                  onChange={event => setGroupageTargetId(event.target.value)}
+                                  disabled={!editingOtId || !canChangeOtStatus || selected?.groupage_fige}
+                                >
+                                  <option value="">Selectionner une course a lier</option>
+                                  {groupageCandidates.map(item => (
+                                    <option key={item.id} value={item.id}>
+                                      {item.reference} - {clientMap[item.client_id] ?? 'Client inconnu'}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => { void linkSelectedToGroupage() }}
+                                  disabled={!editingOtId || !groupageTargetId || !canChangeOtStatus || selected?.groupage_fige}
+                                  className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Ajouter au groupage
+                                </button>
+                              </div>
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <button
+                                type="button"
+                                onClick={() => { void unlinkSelectedFromGroupage() }}
+                                disabled={!selected?.mission_id || !canChangeOtStatus}
+                                className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Sortir de la mission
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { void toggleSelectedGroupageFreeze(!selected?.groupage_fige) }}
+                                disabled={!selected?.mission_id || !canChangeOtStatus}
+                                className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {selected?.groupage_fige ? 'Defiger la mission' : 'Figer la mission'}
+                              </button>
+                            </div>
+                            {!editingOtId && <p className="text-sm text-slate-500">Le groupage devient modifiable apres creation de la course.</p>}
+                          </div>
+                        </div>
+                      </SectionCard>
+
+                      <SectionCard
+                        title="Lieux de chargement et de livraison"
+                        description="Deux blocs distincts pour éviter la confusion entre amont et aval de mission."
+                      >
+                        <div className="space-y-5">
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <Field label="Site de chargement">
+                              <select className={inp} value={form.chargement_site_id ?? ''} onChange={e => setF('chargement_site_id', e.target.value || null)}>
+                                <option value="">Sélectionner un site</option>
+                                {sites.filter(site => siteSupportsKind(site, 'chargement')).map(site => <option key={site.id} value={site.id}>{site.nom} - {site.adresse}</option>)}
+                              </select>
+                            </Field>
+                            <details className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                              <summary className="cursor-pointer text-sm font-semibold text-slate-800">Ajouter un nouveau lieu de chargement</summary>
+                              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                <Field label="Entreprise rattachee *">
+                                  <select className={inp} value={siteDrafts.chargement.entreprise_id} onChange={e => setSiteDraft('chargement', 'entreprise_id', e.target.value)}>
+                                    <option value="">Selectionner une entreprise</option>
+                                    {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                                  </select>
+                                </Field>
+                                <Field label="Nom du lieu">
+                                  <input className={inp} value={siteDrafts.chargement.nom} onChange={e => setSiteDraft('chargement', 'nom', e.target.value)} placeholder="Ex: Quai 2 - Entrepot Nord" />
+                                </Field>
+                                <div className="md:col-span-2">
+                                  <Field label="Adresse manuelle *">
+                                    <input className={inp} value={siteDrafts.chargement.adresse} onChange={e => setSiteDraft('chargement', 'adresse', e.target.value)} placeholder="Saisissez une adresse ou detectez-la sur carte" />
+                                  </Field>
+                                </div>
+                                <Field label="Usage du lieu">
+                                  <select className={inp} value={siteDrafts.chargement.usage_type} onChange={e => setSiteDraft('chargement', 'usage_type', e.target.value as SiteUsageType)}>
+                                    {Object.entries(SITE_USAGE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                                  </select>
+                                </Field>
+                                <div className="flex items-end">
+                                  <button type="button" className="text-sm font-medium text-blue-700 hover:text-blue-800" onClick={() => setSiteDraft('chargement', 'showMap', !siteDrafts.chargement.showMap)}>
+                                    {siteDrafts.chargement.showMap ? 'Masquer la carte' : 'Poser un point sur la carte'}
+                                  </button>
+                                </div>
+                                {(siteDrafts.chargement.usage_type === 'livraison' || siteDrafts.chargement.usage_type === 'mixte') && (
+                                  <>
+                                    <Field label="Jours d ouverture">
+                                      <input className={inp} value={siteDrafts.chargement.jours_ouverture} onChange={e => setSiteDraft('chargement', 'jours_ouverture', e.target.value)} placeholder="Ex: Lun-Ven" />
+                                    </Field>
+                                    <Field label="Horaires d ouverture">
+                                      <input className={inp} value={siteDrafts.chargement.horaires_ouverture} onChange={e => setSiteDraft('chargement', 'horaires_ouverture', e.target.value)} placeholder="Ex: 08:00-12:00 / 14:00-18:00" />
+                                    </Field>
+                                    <div className="md:col-span-2">
+                                      <Field label="Specificites du lieu">
+                                        <textarea className={`${inp} min-h-[120px] resize-y`} value={siteDrafts.chargement.notes_livraison} onChange={e => setSiteDraft('chargement', 'notes_livraison', e.target.value)} placeholder="Quai, badge, acces PL, consignes..." />
+                                      </Field>
+                                    </div>
+                                  </>
+                                )}
+                                {siteDrafts.chargement.showMap && (
+                                  <div className="md:col-span-2">
+                                    <SiteMapPicker
+                                      onPick={({ latitude, longitude, adresse }) => {
+                                        setSiteDraft('chargement', 'latitude', latitude)
+                                        setSiteDraft('chargement', 'longitude', longitude)
+                                        setSiteDraft('chargement', 'adresse', adresse)
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                                <div className="md:col-span-2">
+                                  <button type="button" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-800 transition hover:bg-blue-100" onClick={() => { void createOrSelectSite('chargement') }}>
+                                    Enregistrer puis selectionner ce lieu
+                                  </button>
+                                </div>
+                              </div>
+                            </details>
+                          </div>
+
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <Field label="Site de livraison">
+                              <select className={inp} value={form.livraison_site_id ?? ''} onChange={e => setF('livraison_site_id', e.target.value || null)}>
+                                <option value="">Sélectionner un site</option>
+                                {sites.filter(site => siteSupportsKind(site, 'livraison')).map(site => <option key={site.id} value={site.id}>{site.nom} - {site.adresse}</option>)}
+                              </select>
+                            </Field>
+                            <details className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                              <summary className="cursor-pointer text-sm font-semibold text-slate-800">Ajouter un nouveau lieu de livraison</summary>
+                              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                <Field label="Entreprise rattachee *">
+                                  <select className={inp} value={siteDrafts.livraison.entreprise_id} onChange={e => setSiteDraft('livraison', 'entreprise_id', e.target.value)}>
+                                    <option value="">Selectionner une entreprise</option>
+                                    {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                                  </select>
+                                </Field>
+                                <Field label="Nom du lieu">
+                                  <input className={inp} value={siteDrafts.livraison.nom} onChange={e => setSiteDraft('livraison', 'nom', e.target.value)} placeholder="Ex: Magasin central" />
+                                </Field>
+                                <div className="md:col-span-2">
+                                  <Field label="Adresse manuelle *">
+                                    <input className={inp} value={siteDrafts.livraison.adresse} onChange={e => setSiteDraft('livraison', 'adresse', e.target.value)} placeholder="Saisissez une adresse ou detectez-la sur carte" />
+                                  </Field>
+                                </div>
+                                <Field label="Usage du lieu">
+                                  <select className={inp} value={siteDrafts.livraison.usage_type} onChange={e => setSiteDraft('livraison', 'usage_type', e.target.value as SiteUsageType)}>
+                                    {Object.entries(SITE_USAGE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                                  </select>
+                                </Field>
+                                <div className="flex items-end">
+                                  <button type="button" className="text-sm font-medium text-blue-700 hover:text-blue-800" onClick={() => setSiteDraft('livraison', 'showMap', !siteDrafts.livraison.showMap)}>
+                                    {siteDrafts.livraison.showMap ? 'Masquer la carte' : 'Poser un point sur la carte'}
+                                  </button>
+                                </div>
+                                {(siteDrafts.livraison.usage_type === 'livraison' || siteDrafts.livraison.usage_type === 'mixte') && (
+                                  <>
+                                    <Field label="Jours d ouverture">
+                                      <input className={inp} value={siteDrafts.livraison.jours_ouverture} onChange={e => setSiteDraft('livraison', 'jours_ouverture', e.target.value)} placeholder="Ex: Lun-Sam" />
+                                    </Field>
+                                    <Field label="Horaires d ouverture">
+                                      <input className={inp} value={siteDrafts.livraison.horaires_ouverture} onChange={e => setSiteDraft('livraison', 'horaires_ouverture', e.target.value)} placeholder="Ex: 07:00-17:30" />
+                                    </Field>
+                                    <div className="md:col-span-2">
+                                      <Field label="Specificites du lieu">
+                                        <textarea className={`${inp} min-h-[120px] resize-y`} value={siteDrafts.livraison.notes_livraison} onChange={e => setSiteDraft('livraison', 'notes_livraison', e.target.value)} placeholder="Quai dechargement, RDV, securite, acces..." />
+                                      </Field>
+                                    </div>
+                                  </>
+                                )}
+                                {siteDrafts.livraison.showMap && (
+                                  <div className="md:col-span-2">
+                                    <SiteMapPicker
+                                      onPick={({ latitude, longitude, adresse }) => {
+                                        setSiteDraft('livraison', 'latitude', latitude)
+                                        setSiteDraft('livraison', 'longitude', longitude)
+                                        setSiteDraft('livraison', 'adresse', adresse)
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                                <div className="md:col-span-2">
+                                  <button type="button" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-800 transition hover:bg-blue-100" onClick={() => { void createOrSelectSite('livraison') }}>
+                                    Enregistrer puis selectionner ce lieu
+                                  </button>
+                                </div>
+                              </div>
+                            </details>
+                          </div>
+                        </div>
+                      </SectionCard>
+                    </div>
                   </div>
-                )}
+                </div>
 
-                <div className="col-span-2 border-t pt-4">
-                  <p className="text-sm font-semibold text-slate-700 mb-3">Tarification</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="Prix HT (€)"><input className={inp} type="number" step="0.01" value={form.prix_ht ?? ''} onChange={e => setF('prix_ht', parseFloat(e.target.value) || null)} /></Field>
-                    <Field label="TVA (%)"><input className={inp} type="number" value={form.taux_tva ?? 20} onChange={e => setF('taux_tva', parseFloat(e.target.value) || null)} /></Field>
+                <div className="border-t border-slate-200 bg-white px-6 py-4 sm:px-8">
+                  <div className="mx-auto flex max-w-[1320px] flex-wrap items-center justify-between gap-3">
+                    <div className="text-sm text-slate-600">
+                      Les actions principales restent visibles en permanence pendant la saisie.
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      {editingOtId && selected?.mission_id && (
+                        <button
+                          type="button"
+                          onClick={() => { void unlinkSelectedFromGroupage() }}
+                          disabled={!canChangeOtStatus}
+                          className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Sortir de la mission
+                        </button>
+                      )}
+                      <button type="button" onClick={closeTransportForm} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                        Annuler
+                      </button>
+                      <button type="submit" disabled={saving} className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50">
+                        {saving ? 'Enregistrement...' : editingOtId ? 'Sauvegarder les modifications' : 'Creer l OT'}
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                <div className="col-span-2 border-t pt-4">
-                  <p className="text-sm font-semibold text-slate-700 mb-3">Documents</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="N° CMR"><input className={inp} value={form.numero_cmr ?? ''} onChange={e => setF('numero_cmr', e.target.value || null)} /></Field>
-                    <Field label="N° BL"><input className={inp} value={form.numero_bl ?? ''} onChange={e => setF('numero_bl', e.target.value || null)} /></Field>
-                  </div>
-                </div>
-
-                <div className="col-span-2">
-                  <Field label="Instructions chauffeur"><textarea className={`${inp} resize-none h-16`} value={form.instructions ?? ''} onChange={e => setF('instructions', e.target.value || null)} /></Field>
-                </div>
-                <div className="col-span-2">
-                  <Field label="Notes internes"><textarea className={`${inp} resize-none h-16`} value={form.notes_internes ?? ''} onChange={e => setF('notes_internes', e.target.value || null)} /></Field>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-                <button type="button" onClick={closeTransportForm} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>
-                <button type="submit" disabled={saving} className="px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50">
-                  {saving ? 'Enregistrement...' : editingOtId ? 'Mettre a jour l OT' : "Creer l OT"}
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
         </div>
       )}

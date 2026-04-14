@@ -41,6 +41,14 @@ type WidgetPreviewTone = 'blue' | 'green' | 'amber' | 'violet' | 'slate'
 
 const WIDGET_REGISTRY: WidgetDef[] = [
   {
+    id: 'role-cockpit-panel',
+    title: 'Cockpit prioritaire par role',
+    subtitle: 'Synthese metier et alertes pilotage',
+    colSpan: 'full',
+    roles: ['admin', 'super_admin', 'dirigeant', 'exploitant', 'commercial', 'comptable', 'administratif', 'facturation', 'flotte', 'observateur', 'investisseur', 'demo', 'affreteur', 'logisticien', 'maintenance', 'rh', 'mecanicien', 'conducteur', 'conducteur_affreteur', 'client'],
+    component: RoleCockpitPanel,
+  },
+  {
     id: 'kpi-dirigeant',
     title: 'Tableau de bord financier',
     subtitle: 'CA, marge et OT ce mois',
@@ -342,9 +350,11 @@ export default function Dashboard() {
       if (missing.length === 0) return previous
 
       const next: WidgetPrefsMap = { ...previous }
+      const minOrder = Object.values(next).reduce((minimum, pref) => Math.min(minimum, pref.order), 0)
       let nextOrder = Object.keys(next).length
       for (const widget of missing) {
-        next[widget.id] = { visible: true, order: nextOrder++ }
+        const order = widget.id === 'role-cockpit-panel' ? minOrder - 1 : nextOrder++
+        next[widget.id] = { visible: true, order }
       }
 
       savePrefs(currentRole, next)
@@ -531,9 +541,6 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
-
-      <RoleCockpitPanel />
-
       {isCustomizing && (
         <div className="grid gap-4 lg:grid-cols-3">
           <div className="nx-card rounded-[26px] px-4 py-4 text-sm lg:col-span-2" style={{ borderColor: 'var(--border)', background: 'linear-gradient(145deg, color-mix(in srgb, var(--surface-soft) 80%, #ffffff 20%), color-mix(in srgb, var(--surface) 88%, #dbeafe 12%))', color: 'var(--text-secondary)' }}>
@@ -625,46 +632,48 @@ export default function Dashboard() {
             <div className="min-w-0 flex-1">
               {selectedWidgetDef ? (
                 <>
-                  <div className="mb-5">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">Mes widgets</p>
-                        <p className="text-xs text-slate-600">Maintenez puis glissez pour reordonner comme sur l ecran d accueil Apple.</p>
+                  {menuOpen && (
+                    <div className="mb-5">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">Mes widgets</p>
+                          <p className="text-xs text-slate-600">Maintenez puis glissez pour reordonner comme sur l ecran d accueil Apple.</p>
+                        </div>
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700">{visibleIds.length} visibles</span>
                       </div>
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700">{visibleIds.length} visibles</span>
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        {visibleIds.map(id => {
+                          const def = roleWidgets.find(widget => widget.id === id)
+                          if (!def) return null
+                          const size = getWidgetSize(id, def.colSpan)
+                          const isSelected = id === selectedWidgetIdSafe
+                          const isDropTarget = galleryDropTarget === id
+                          return (
+                            <button
+                              key={id}
+                              type="button"
+                              draggable
+                              onClick={() => setSelectedWidgetId(id)}
+                              onDragStart={event => handleDragStart(id, event as unknown as DragEvent<HTMLDivElement>)}
+                              onDragOver={event => handleGalleryDragOver(id, event)}
+                              onDrop={event => handleGalleryDrop(id, event)}
+                              onDragEnd={() => handleDragEnd()}
+                              className={`rounded-[24px] border p-3 text-left transition-all ${isSelected ? 'border-blue-300 bg-blue-50 shadow-sm' : 'border-[color:var(--border)] bg-white'} ${draggedWidgetId === id ? 'opacity-50 scale-[0.98]' : ''} ${isDropTarget ? 'ring-2 ring-[color:var(--primary)] ring-offset-2 shadow-[0_0_0_6px_rgba(37,99,235,0.08)]' : ''}`}
+                            >
+                              <div className="mb-3 flex items-center justify-between gap-2">
+                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">{WIDGET_SIZE_LABEL[size]}</span>
+                                <span className="text-[11px] font-semibold text-slate-500">Glisser</span>
+                              </div>
+                              <WidgetPreviewCard widget={def} size={size} tone={widgetTone} />
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <div className="mt-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-3 text-xs text-slate-600">
+                        Astuce: glissez un widget sur un autre pour l inserer a sa place. Le halo bleu indique la future position.
+                      </div>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                      {visibleIds.map(id => {
-                        const def = roleWidgets.find(widget => widget.id === id)
-                        if (!def) return null
-                        const size = getWidgetSize(id, def.colSpan)
-                        const isSelected = id === selectedWidgetIdSafe
-                        const isDropTarget = galleryDropTarget === id
-                        return (
-                          <button
-                            key={id}
-                            type="button"
-                            draggable
-                            onClick={() => setSelectedWidgetId(id)}
-                            onDragStart={event => handleDragStart(id, event as unknown as DragEvent<HTMLDivElement>)}
-                            onDragOver={event => handleGalleryDragOver(id, event)}
-                            onDrop={event => handleGalleryDrop(id, event)}
-                            onDragEnd={() => handleDragEnd()}
-                            className={`rounded-[24px] border p-3 text-left transition-all ${isSelected ? 'border-blue-300 bg-blue-50 shadow-sm' : 'border-[color:var(--border)] bg-white'} ${draggedWidgetId === id ? 'opacity-50 scale-[0.98]' : ''} ${isDropTarget ? 'ring-2 ring-[color:var(--primary)] ring-offset-2 shadow-[0_0_0_6px_rgba(37,99,235,0.08)]' : ''}`}
-                          >
-                            <div className="mb-3 flex items-center justify-between gap-2">
-                              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">{WIDGET_SIZE_LABEL[size]}</span>
-                              <span className="text-[11px] font-semibold text-slate-500">Glisser</span>
-                            </div>
-                            <WidgetPreviewCard widget={def} size={size} tone={widgetTone} />
-                          </button>
-                        )
-                      })}
-                    </div>
-                    <div className="mt-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-3 text-xs text-slate-600">
-                      Astuce: glissez un widget sur un autre pour l inserer a sa place. Le halo bleu indique la future position.
-                    </div>
-                  </div>
+                  )}
 
                   <div className="mb-4 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div>
@@ -694,27 +703,29 @@ export default function Dashboard() {
 
                   <WidgetPreviewCard widget={selectedWidgetDef} size={selectedWidgetSize} tone={widgetTone} />
 
-                  <div className="mt-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">Taille du widget</p>
-                      <p className="text-xs text-slate-600">Comme sur Apple: choisissez le format avant de revenir au cockpit.</p>
+                  {menuOpen && (
+                    <div className="mt-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">Taille du widget</p>
+                        <p className="text-xs text-slate-600">Comme sur Apple: choisissez le format avant de revenir au cockpit.</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {WIDGET_SIZE_ORDER.map(size => {
+                          const isActive = selectedWidgetSize === size
+                          return (
+                            <button
+                              key={size}
+                              type="button"
+                              onClick={() => setWidgetSize(selectedWidgetDef.id, size)}
+                              className={`rounded-full px-4 py-2 text-xs font-semibold transition-colors ${isActive ? 'bg-[color:var(--primary)] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                            >
+                              {WIDGET_SIZE_LABEL[size]}
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {WIDGET_SIZE_ORDER.map(size => {
-                        const isActive = selectedWidgetSize === size
-                        return (
-                          <button
-                            key={size}
-                            type="button"
-                            onClick={() => setWidgetSize(selectedWidgetDef.id, size)}
-                            className={`rounded-full px-4 py-2 text-xs font-semibold transition-colors ${isActive ? 'bg-[color:var(--primary)] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-                          >
-                            {WIDGET_SIZE_LABEL[size]}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
+                  )}
 
                   <div className="mt-5 grid gap-3 md:grid-cols-3">
                     <button

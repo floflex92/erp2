@@ -23,6 +23,7 @@ type NavSection = {
 }
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'nexora_sidebar_collapsed_v2'
+const SIDEBAR_COLLAPSED_EVENT = 'nexora:sidebar-collapsed-change'
 
 // Couleur de l'avatar selon la famille de rôle
 export function getRoleAvatarColor(role: Role | null): string {
@@ -57,7 +58,7 @@ const NAV_SECTIONS: NavSection[] = [
     key: 'operations',
     label: 'Opérations',
     items: [
-      { to: '/ops-center',         page: 'ops-center',         label: 'Centre Ops',           icon: 'ops-center' },
+      { to: '/ops-center',         page: 'ops-center',         label: 'Ops Center',           icon: 'ops-center' },
       { to: '/dashboard',         page: 'dashboard',         label: 'Tableau de bord',      icon: 'dashboard' },
       { to: '/dashboard-conducteur', page: 'dashboard-conducteur', label: 'Mon accueil',   icon: 'house' },
       { to: '/planning',          page: 'planning',          label: 'Planning',             icon: 'calendar' },
@@ -67,7 +68,6 @@ const NAV_SECTIONS: NavSection[] = [
       { to: '/map-live',          page: 'map-live',          label: 'Map live',             icon: 'pin' },
       { to: '/demandes-clients',  page: 'demandes-clients',  label: 'Demandes clients',     icon: 'inbox-request' },
       { to: '/tasks',             page: 'tasks',             label: 'Tâches',               icon: 'check' },
-      { to: '/frais-rapide',      page: 'frais-rapide',      label: 'Saisie frais rapide',  icon: 'receipt-quick' },
     ],
   },
   {
@@ -93,6 +93,7 @@ const NAV_SECTIONS: NavSection[] = [
       { to: '/tresorerie',           page: 'tresorerie',           label: 'Trésorerie',   icon: 'bank' },
       { to: '/analytique-transport', page: 'analytique-transport', label: 'Analytique',   icon: 'pie-chart' },
       { to: '/frais',                page: 'frais',                label: 'Frais',        icon: 'expense' },
+      { to: '/frais-rapide',         page: 'frais-rapide',         label: 'Saisie frais rapide', icon: 'receipt-quick' },
       { to: '/paie',                 page: 'paie',                 label: 'Paie',         icon: 'payroll' },
     ],
   },
@@ -313,14 +314,30 @@ function useBadgeCount(page: string, profilId: string | null, demoProfil: unknow
 }
 
 export default function Sidebar() {
-  const { profil, role, isDemoSession, tenantAllowedPages, enabledModules, canUseSessionPicker } = useAuth()
+  const { user, profil, accountProfil, role, isDemoSession, tenantAllowedPages, enabledModules, canUseSessionPicker } = useAuth()
   const profilId = profil?.id ?? null
   const demoProfil = isDemoSession && profil && isDemoProfil(profil) ? profil : null
   const navigate = useNavigate()
 
-  const displayName = profil?.prenom || profil?.nom
-    ? `${profil?.prenom ?? ''} ${profil?.nom ?? ''}`.trim()
-    : 'Utilisateur'
+  const firstName = profil?.prenom?.trim() || accountProfil?.prenom?.trim() || ''
+  const lastName = profil?.nom?.trim() || accountProfil?.nom?.trim() || ''
+  const emailNameParts = (user?.email ?? '')
+    .split('@')[0]
+    ?.split(/[._-]+/)
+    .map(part => part.trim())
+    .filter(Boolean) ?? []
+  const derivedFirstName = !firstName && emailNameParts.length >= 2
+    ? emailNameParts[emailNameParts.length - 1]
+    : ''
+  const derivedLastNameInitial = !lastName && emailNameParts.length >= 1
+    ? emailNameParts[0].charAt(0).toUpperCase()
+    : ''
+  const lastNameInitial = lastName.charAt(0).toUpperCase()
+  const displayName = firstName
+    ? [firstName, lastNameInitial ? `${lastNameInitial}.` : ''].filter(Boolean).join(' ')
+    : derivedFirstName
+      ? [derivedFirstName, derivedLastNameInitial ? `${derivedLastNameInitial}.` : ''].filter(Boolean).join(' ')
+      : lastName || 'Utilisateur'
 
   const initials = displayName
     .split(' ')
@@ -349,19 +366,17 @@ export default function Sidebar() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, collapsed ? '1' : '0')
+    window.dispatchEvent(new Event(SIDEBAR_COLLAPSED_EVENT))
   }, [collapsed])
-
-  const isAdminRole = role === 'admin' || role === 'super_admin'
 
   const visibleSections = useMemo(() => (
     NAV_SECTIONS
-      .filter(section => !(section.key === 'admin' && isAdminRole))
       .map(section => ({
         ...section,
         items: section.items.filter(item => canAccess(role, item.page, tenantAllowedPages, enabledModules)),
       }))
       .filter(section => section.items.length > 0)
-  ), [role, isAdminRole, tenantAllowedPages, enabledModules])
+  ), [role, tenantAllowedPages, enabledModules])
 
   function getBadge(page: string): number {
     if (page === 'tchat') return chatCount
