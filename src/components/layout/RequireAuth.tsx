@@ -50,7 +50,7 @@ function ProfileBootstrapScreen({
 }
 
 export default function RequireAuth() {
-  const { session, loading, accountProfil, canUseSessionPicker, sessionRole, profilLoading, reloadProfil, authError } = useAuth()
+  const { session, loading, accountProfil, canUseSessionPicker, sessionRole, profilLoading, reloadProfil, authError, isPlatformAdmin, impersonation } = useAuth()
   const location = useLocation()
   const [bootstrapTick, setBootstrapTick] = useState(0)
   const [bootstrapping, setBootstrapping] = useState(false)
@@ -142,7 +142,12 @@ export default function RequireAuth() {
     )
   }
 
-  if (canUseSessionPicker && !sessionRole && location.pathname !== '/session-picker') return <Navigate to="/session-picker" replace />
+  if (canUseSessionPicker && !sessionRole && !isPlatformAdmin && location.pathname !== '/session-picker') return <Navigate to="/session-picker" replace />
+
+  // Platform admin sans session d'impersonation → backoffice plateforme
+  if (isPlatformAdmin && !impersonation && !sessionRole && location.pathname !== '/super-admin' && location.pathname !== '/session-picker') {
+    return <Navigate to="/super-admin" replace />
+  }
 
   return <Outlet />
 }

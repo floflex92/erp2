@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useScrollToTopOnChange } from '@/hooks/useScrollToTopOnChange'
 import {
   listComptes, listPartenaires, listUtilisateurs, listRoles, listOrdresTransport,
   listDocuments, listMessages, listEvenements, listNotifications, listJournalActions,
@@ -573,6 +574,8 @@ export default function CompteClientDB() {
   const [partenaires, setPartenaires] = useState<Partenaire[]>([])
   const [stats, setStats] = useState({ partenaires: 0, utilisateurs: 0, ot: 0, docs: 0, messages: 0, notifs: 0 })
 
+  useScrollToTopOnChange(activeTab)
+
   useEffect(() => {
     (async () => {
       const { data, error: e } = await listComptes()
@@ -644,6 +647,7 @@ export default function CompteClientDB() {
             {tabs.map(t => (
               <button
                 key={t.key}
+                type="button"
                 onClick={() => setActiveTab(t.key)}
                 className={`px-3 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
                   activeTab === t.key

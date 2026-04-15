@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { canAccess, ROLE_LABELS, useAuth } from '@/lib/auth'
 import { APP_VERSION } from '@/lib/appVersion'
 import { DEFAULT_COMPANY_NAME, readCompanySettings, subscribeCompanySettings, updateCompanySettings } from '@/lib/companySettings'
-import { releaseNotes } from '@/lib/releaseNotes'
+import { releaseNotes, type ReleaseNote } from '@/lib/releaseNotes'
 import { getDigitalSignature, subscribeDigitalSignatures, upsertDigitalSignature } from '@/lib/signatureStore'
 import { ErpV11Settings } from '@/components/settings/ErpV11Settings'
 import OllamaChat from '@/components/OllamaChat'
@@ -154,6 +154,17 @@ const ERP_FEATURE_CARDS = [
     ],
   },
   {
+    title: 'Benchmark marché TMS',
+    subtitle: '24 features issues du benchmark Akanea, Dashdoc, GedTrans, Transporeon.',
+    items: [
+      'App mobile chauffeur, mode hors-ligne et eCMR dématérialisée.',
+      'Preuve de livraison photo/signature, portail client et portail affrété autonome.',
+      'Saisie commandes par IA, suivi temps réel client et bilan CO2 réglementaire.',
+      'Grilles tarifaires versionnées, prise de RDV quai et gestion doc fournisseurs.',
+      'API ouverte, e-formulaires terrain, multi-devises et booking chargeurs.',
+    ],
+  },
+  {
     title: 'Ce qui manque encore',
     subtitle: 'Travaux de fond pour fiabiliser l application au-delà du front.',
     items: [
@@ -171,8 +182,8 @@ const ERP_FEATURE_CARDS = [
     items: [
       'IA de parsing d emails transport vers création de course.',
       'ETA prédictif multi-contraintes et scoring automatique des demandes.',
-      'Application mobile conducteur avec mode dégradé.',
       'Cockpit KPI ultra visuel par rôle et notifications intelligentes.',
+      'Optimisation tournées multi-contraintes et suivi température frigo.',
       'Intégration API bourse de fret et tracking temps réel externe.',
     ],
   },
@@ -377,9 +388,16 @@ export default function Parametres() {
               <p className="text-xs nx-muted">Version deploiement</p>
               <p className="text-sm font-semibold">{DEPLOYED_VERSION}</p>
             </div>
-            <Link to="/versions" className="text-xs font-semibold text-blue-600 hover:text-blue-700">
-              Voir l historique des versions
-            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveMenu('developpement')
+                setDevTab('versions')
+              }}
+              className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+            >
+              Voir l historique des versions dans l ERP
+            </button>
           </div>
         </div>
 
@@ -841,9 +859,9 @@ function DevelopmentVersionsSection() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-900">Versions</p>
-            <h3 className="mt-2 text-xl font-semibold text-slate-900">Historique des releases directement dans l ERP</h3>
+            <h3 className="mt-2 text-xl font-semibold text-slate-900">Historique des releases interne ERP</h3>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-700">
-              Cet onglet reprend l historique de version sans passer par le site public. Tu peux donc suivre les ajouts, modifications et rectifications depuis Réglages.
+              Cette vue reste strictement métier: elle indique les ajouts, modifications, rectifications et suppressions, sans exposer de détails techniques de conception.
             </p>
           </div>
           <div className="rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800">
@@ -860,13 +878,14 @@ function DevelopmentVersionsSection() {
                 </span>
                 <span className="text-sm text-slate-700">{note.date}</span>
               </div>
-              <h4 className="mt-3 text-lg font-semibold text-slate-900">{note.version} · {note.title}</h4>
-              <p className="mt-2 text-sm leading-6 text-slate-700">{note.summary}</p>
+              <h4 className="mt-3 text-lg font-semibold text-slate-900">Version {note.version}</h4>
+              <p className="mt-2 text-sm leading-6 text-slate-700">Communication métier synthétique sans détail d implémentation.</p>
 
-              <div className="mt-4 grid gap-3 lg:grid-cols-3">
-                <DevelopmentVersionList title="Ajouts" items={note.additions} accent="#2563EB" />
-                <DevelopmentVersionList title="Modifications" items={note.modifications} accent="#0F766E" />
-                <DevelopmentVersionList title="Rectifications" items={note.fixes} accent="#DC2626" />
+              <div className="mt-4 grid gap-3 lg:grid-cols-4">
+                <DevelopmentVersionMetric title="Ajouts" count={note.additions.length} accent="#2563EB" description="Nouvelles capacités métier livrées." />
+                <DevelopmentVersionMetric title="Modifications" count={note.modifications.length} accent="#0F766E" description="Parcours ou règles métier améliorés." />
+                <DevelopmentVersionMetric title="Rectifications" count={note.fixes.length} accent="#DC2626" description="Anomalies ou écarts corrigés." />
+                <DevelopmentVersionMetric title="Suppressions" count={countSuppressions(note)} accent="#7C2D12" description="Éléments retirés ou décommissionnés." />
               </div>
             </article>
           ))}
@@ -880,16 +899,16 @@ function DevelopmentVersionsSection() {
           items={[
             `Version déployée : ${APP_VERSION}`,
             'Le numéro suit automatiquement le build courant.',
-            'Le détail métier reste centralisé dans src/lib/releaseNotes.ts.',
+            'Le journal interne conserve une communication métier non technique.',
           ]}
         />
         <DevelopmentBulletCard
           title="Mise à jour future"
-          subtitle="Ce qui est déjà automatisé et ce qui reste éditorial."
+          subtitle="Règles de communication pour les prochaines releases."
           items={[
-            'Le numéro de version et la date de build suivent automatiquement les builds Netlify.',
-            'La page expose une entrée de fallback si une nouvelle version n est pas encore documentée.',
-            'Pour une release pleinement détaillée, il faut encore ajouter son bloc dans le registre des releases.',
+            'Chaque version doit communiquer les catégories: ajouts, modifications, rectifications, suppressions.',
+            'Ne pas publier de détails de conception ou de mise en oeuvre dans ce panneau.',
+            'Maintenir une formulation orientée bénéfice métier et usage opérationnel.',
           ]}
         />
       </div>
@@ -897,29 +916,29 @@ function DevelopmentVersionsSection() {
   )
 }
 
-function DevelopmentVersionList({
+function countSuppressions(note: ReleaseNote) {
+  const suppressionPattern = /suppression|supprim|retir|decommission|désactiv|desactiv/i
+  return [...note.additions, ...note.modifications, ...note.fixes].reduce((count, item) => {
+    return count + (suppressionPattern.test(item) ? 1 : 0)
+  }, 0)
+}
+
+function DevelopmentVersionMetric({
   title,
-  items,
+  count,
   accent,
+  description,
 }: {
   title: string
-  items: readonly string[]
+  count: number
   accent: string
+  description: string
 }) {
   return (
     <div className="rounded-xl border p-3" style={{ borderColor: 'rgba(148,163,184,0.18)', background: 'rgba(255,255,255,0.8)' }}>
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: accent }}>{title}</p>
-      {items.length === 0 ? (
-        <p className="mt-3 text-xs leading-5 text-slate-600">Aucune entrée pour cette version.</p>
-      ) : (
-        <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-          {items.map(item => (
-            <li key={item} className="rounded-lg border border-slate-300/90 bg-white px-3 py-2">
-              {item}
-            </li>
-          ))}
-        </ul>
-      )}
+      <p className="mt-3 text-2xl font-semibold text-slate-900">{count}</p>
+      <p className="mt-2 text-xs leading-5 text-slate-600">{description}</p>
     </div>
   )
 }

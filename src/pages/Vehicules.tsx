@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
+import { listAssets } from '@/lib/services/assetsService'
 import type { Tables, TablesInsert } from '@/lib/database.types'
 
 type Vehicule = Tables<'vehicules'>
@@ -313,8 +314,38 @@ export default function Vehicules() {
     try {
       const vehiculesRes = await looseSupabase.from('vehicules').select('*').order('immatriculation')
       if (vehiculesRes.error) throw vehiculesRes.error
+      const legacyVehicules = ((vehiculesRes.data ?? []) as unknown as VehiculeRow[])
 
-      setList(((vehiculesRes.data ?? []) as unknown as VehiculeRow[]))
+      if (legacyVehicules.length > 0) {
+        setList(legacyVehicules)
+      } else {
+        const assets = await listAssets()
+        const fallbackVehicules = assets
+          .filter(asset => asset.type === 'vehicle')
+          .map(asset => ({
+            id: asset.legacy_vehicule_id ?? asset.id,
+            immatriculation: asset.registration ?? '-',
+            marque: null,
+            modele: null,
+            annee: null,
+            type_vehicule: 'tracteur',
+            ptac_kg: null,
+            ct_expiration: null,
+            assurance_expiration: null,
+            vignette_expiration: null,
+            tachy_serie: null,
+            tachy_etalonnage_prochain: null,
+            statut: asset.status ?? 'disponible',
+            notes: null,
+            preferences: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            km_actuel: 0,
+            numero_parc: asset.fleet_number ?? null,
+          })) as unknown as VehiculeRow[]
+
+        setList(fallbackVehicules)
+      }
 
       const alertsRes = await looseSupabase.from('vue_alertes_flotte').select('*').eq('asset_type', 'vehicule')
       if (alertsRes.error) {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
+import { listAssets } from '@/lib/services/assetsService'
 import type { Tables, TablesInsert } from '@/lib/database.types'
 
 type Remorque = Tables<'remorques'>
@@ -275,7 +276,30 @@ export default function Remorques() {
     try {
       const remorquesRes = await looseSupabase.from('remorques').select('*').order('immatriculation')
       if (remorquesRes.error) throw remorquesRes.error
-      const remorques = (remorquesRes.data ?? []) as unknown as RemorqueRow[]
+      let remorques = (remorquesRes.data ?? []) as unknown as RemorqueRow[]
+
+      if (remorques.length === 0) {
+        const assets = await listAssets()
+        remorques = assets
+          .filter(asset => asset.type === 'trailer')
+          .map(asset => ({
+            id: asset.legacy_remorque_id ?? asset.id,
+            immatriculation: asset.registration ?? '-',
+            type_remorque: 'fourgon',
+            marque: null,
+            charge_utile_kg: null,
+            longueur_m: null,
+            ct_expiration: null,
+            assurance_expiration: null,
+            statut: asset.status ?? 'disponible',
+            notes: null,
+            preferences: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            numero_parc: asset.fleet_number ?? null,
+          })) as unknown as RemorqueRow[]
+      }
+
       setList(remorques)
 
       const kmRes = await looseSupabase.from('remorque_releves_km').select('remorque_id, reading_date, km_compteur').order('reading_date', { ascending: false })

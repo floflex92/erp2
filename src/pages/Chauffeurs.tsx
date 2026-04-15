@@ -1,6 +1,8 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
+import { listAssets } from '@/lib/services/assetsService'
+import { listPersonsForDirectory } from '@/lib/services/personsService'
 import { ST_PLANIFIE, ST_EN_COURS } from '@/lib/transportCourses'
 import type { Tables, TablesInsert } from '@/lib/database.types'
 import { INTERVIEW_STATUS_LABELS, listInterviewsForEmployee, type InterviewRow } from '@/lib/hrInterviewsModule'
@@ -224,6 +226,57 @@ export default function Chauffeurs() {
       if (affRes.error) throw affRes.error
       if (otRes.error) throw otRes.error
 
+      let conducteurs = (condRes.data ?? []) as Conducteur[]
+      let vehicules = (vehRes.data ?? []) as Vehicule[]
+      let remorques = (remRes.data ?? []) as Remorque[]
+
+      if (conducteurs.length === 0) {
+        const persons = await listPersonsForDirectory()
+        conducteurs = persons
+          .filter(person => ['driver', 'conducteur', 'chauffeur'].includes((person.person_type ?? '').toLowerCase()))
+          .map(person => ({
+            id: person.legacy_conducteur_id ?? person.id,
+            nom: person.last_name ?? '-',
+            prenom: person.first_name ?? '',
+            telephone: person.phone ?? null,
+            email: person.email ?? null,
+            statut: (person.status as Conducteur['statut']) ?? 'actif',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })) as Conducteur[]
+      }
+
+      if (vehicules.length === 0 || remorques.length === 0) {
+        const assets = await listAssets()
+
+        if (vehicules.length === 0) {
+          vehicules = assets
+            .filter(asset => asset.type === 'vehicle')
+            .map(asset => ({
+              id: asset.legacy_vehicule_id ?? asset.id,
+              immatriculation: asset.registration ?? '-',
+              marque: null,
+              modele: null,
+              statut: (asset.status as Vehicule['statut']) ?? 'disponible',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })) as Vehicule[]
+        }
+
+        if (remorques.length === 0) {
+          remorques = assets
+            .filter(asset => asset.type === 'trailer')
+            .map(asset => ({
+              id: asset.legacy_remorque_id ?? asset.id,
+              immatriculation: asset.registration ?? '-',
+              type_remorque: 'standard',
+              statut: (asset.status as Remorque['statut']) ?? 'disponible',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })) as Remorque[]
+        }
+      }
+
       const groupedOrders: Record<string, OtLite[]> = {}
       for (const order of (otRes.data ?? []) as OtLite[]) {
         if (!order.conducteur_id) continue
@@ -240,9 +293,9 @@ export default function Chauffeurs() {
         })
       }
 
-      setList(condRes.data ?? [])
-      setVehicules(vehRes.data ?? [])
-      setRemorques(remRes.data ?? [])
+      setList(conducteurs)
+      setVehicules(vehicules)
+      setRemorques(remorques)
       setAffectations(affRes.data ?? [])
       setActiveOrdersByConducteur(groupedOrders)
       setServices((svcRes.data as Service[] | null) ?? [])

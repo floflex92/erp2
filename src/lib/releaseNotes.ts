@@ -12,6 +12,53 @@ export type ReleaseNote = {
 
 const documentedReleaseNotes: ReleaseNote[] = [
   {
+    version: '1.13.0',
+    date: '2026-04-15',
+    title: 'Refonte V2 – Architecture multi-tenant, impersonation et planning',
+    summary: 'Refonte complète de l architecture base de données (blocs 1-7), couche auth multi-tenant avec impersonation admin, résolution de rôle robuste et améliorations majeures du Planning et du SuperAdmin.',
+    additions: [
+      'Architecture DB refonte V2 complète : 14 migrations (diagnostic, mapping tables, fondations persons/assets, refs uniqueness, runtime, seed mappings, réconciliation auto v1-v3, bridge documents/coffre salarié, complétion phases 3-7).',
+      'Couche auth multi-tenant centralisée : getCurrentTenant(), getActiveRole(), isPlatformAdmin() avec fallback robuste.',
+      'Impersonation admin par tenant : démarrage/fin de session d impersonation, bannière ImpersonationBanner visible en contexte de simulation.',
+      'SessionPicker multi-tenant : sélection de tenant au login, persistance de la session active.',
+      'Planning transport : refonte majeure de la vue avec gains de lisibilité et nouvelles interactions.',
+      'SuperAdminPage refondue : gestion centralisée des tenants, utilisateurs, rôles et impersonation.',
+      'Composants routing centralisés et hook useScrollToTopOnChange.',
+      'Couche services (src/lib/services/) pour les appels API métier.',
+    ],
+    modifications: [
+      'L onglet Développement dans Réglages reflète les livraisons refonte V2 et multi-tenant.',
+      'Version portée à 1.13.0 avec synchronisation package, build et affichage site.',
+      'Résolution RLS planning et clients_read alignée sur les rôles multi-tenant.',
+    ],
+    fixes: [
+      'Résolue : get_user_role sans fallback empêchait l accès pour les users sans profil candidat.',
+      'Résolue : RLS clients_read bloquait les rôles exploitant/conducteur sur la table contacts.',
+      'Résolue : RLS planning bloquait les rôles de lecture sur certains tenants.',
+    ],
+  },
+  {
+    version: '1.12.12',
+    date: '2026-04-15',
+    title: 'Benchmark marché TMS – 24 nouvelles features roadmap',
+    summary: 'Ajout de 24 fonctionnalités issues du benchmark concurrentiel (Akanea, Dashdoc, GedTrans, Transporeon) dans le catalogue produit.',
+    additions: [
+      'App mobile chauffeur, mode hors-ligne et eCMR dématérialisée (features 102-104).',
+      'Preuve de livraison photo/signature, portail client et portail affrété autonome (features 105-107, 113).',
+      'Saisie commandes par IA, suivi client temps réel et bilan CO2 réglementaire (features 108-110).',
+      'White-label multi-marque, pointage automatique factures et messagerie embarquée (features 111-112, 114).',
+      'WMS simplifié transport et optimisation tournées multi-contraintes (features 115-116).',
+      'Grilles tarifaires versionnées, prise de RDV quai et gestion doc fournisseurs (features 117-119).',
+      'Notification approche livraison, API ouverte et e-formulaires terrain (features 120-122).',
+      'Multi-devises/taxes, suivi température frigo et booking chargeurs (features 123-125).',
+    ],
+    modifications: [
+      'L onglet Développement dans Réglages reflète les 24 nouvelles features roadmap.',
+      'Version portée à 1.12.12 avec synchronisation package, build et affichage site.',
+    ],
+    fixes: [],
+  },
+  {
     version: '1.12.11',
     date: '2026-04-14',
     title: 'Groupage multi-courses et missions transport',

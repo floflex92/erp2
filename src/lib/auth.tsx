@@ -1,7 +1,14 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { type TenantModule, MODULE_TO_PAGES, normalizeEnabledModules } from './tenantAdmin'
+import {
+  checkIsPlatformAdmin,
+  clearPlatformAdminCache,
+  getActiveImpersonation,
+  endImpersonation as endImpersonationAPI,
+  type ImpersonationSession,
+} from './multiTenantAuth'
 
 const SESSION_TIMEOUT_MS = 8000
 const PROFILE_TIMEOUT_MS = 8000
@@ -329,6 +336,10 @@ interface AuthContextType {
   canUseSessionPicker: boolean
   // true quand l'utilisateur connecté a le rôle 'demo'
   isDemoSession: boolean
+  // true si l'utilisateur est un platform admin (vérifié en DB)
+  isPlatformAdmin: boolean
+  // Session d'impersonation active (null si aucune)
+  impersonation: ImpersonationSession | null
   loading: boolean
   profilLoading: boolean
   authError: string | null
@@ -344,6 +355,9 @@ interface AuthContextType {
   resetSessionRole: () => void
   setSessionProfil: (profil: Profil | null) => void
   resetSessionProfil: () => void
+  // Impersonation helpers
+  loadImpersonation: () => Promise<void>
+  exitImpersonation: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -356,11 +370,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [profilLoading, setProfilLoading] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
+  const [isPlatformAdminState, setIsPlatformAdminState] = useState(false)
+  const [impersonation, setImpersonation] = useState<ImpersonationSession | null>(null)
 
   async function loadProfil(user: User) {
     setProfilLoading(true)
 
     try {
+      // Vérifie si l'utilisateur est un platform admin (DB check)
+      const platformAdminResult = await checkIsPlatformAdmin().catch(() => false)
+      setIsPlatformAdminState(platformAdminResult)
+
+      // Charge la session d'impersonation active si platform admin
+      if (platformAdminResult) {
+        const imp = await getActiveImpersonation().catch(() => null)
+        setImpersonation(imp)
+      }
+
       const data = await withTimeout(fetchProfileRow(user.id), PROFILE_TIMEOUT_MS, 'profile load')
           // MULTI-TENANT Phase 1 : company_id ajouté au select
 
@@ -579,6 +605,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSessionRoleState(null)
     setAuthError(null)
     setProfilLoading(false)
+    setIsPlatformAdminState(false)
+    setImpersonation(null)
+    clearPlatformAdminCache()
     // scope:'local' — supprime le token localStorage immédiatement, sans appel réseau.
     // Évite la race condition où un TOKEN_REFRESHED en cours restaurerait la session.
     try {
@@ -587,6 +616,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Ignoré — la session locale est déjà effacée
     }
   }
+
+  const loadImpersonation = useCallback(async () => {
+    if (!isPlatformAdminState) return
+    const imp = await getActiveImpersonation().catch(() => null)
+    setImpersonation(imp)
+    // Si impersonation active, appliquer le rôle et le tenant
+    if (imp) {
+      const impRole = normalizeRole(imp.roleName)
+      if (impRole) {
+        setSessionRoleState(impRole)
+      }
+    }
+  }, [isPlatformAdminState])
+
+  const exitImpersonation = useCallback(async () => {
+    await endImpersonationAPI()
+    setImpersonation(null)
+    setSessionRoleState(null)
+    setSessionProfilState(null)
+  }, [])
 
   const profil = session?.user ? (sessionProfil ?? accountProfil) : null
   const metadataRole = normalizeRole(session?.user?.app_metadata?.role ?? session?.user?.user_metadata?.role ?? null)
@@ -621,6 +670,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAdmin,
       canUseSessionPicker,
       isDemoSession,
+      isPlatformAdmin: isPlatformAdminState,
+      impersonation,
       loading,
       profilLoading,
       authError,
@@ -634,6 +685,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       resetSessionRole,
       setSessionProfil,
       resetSessionProfil,
+      loadImpersonation,
+      exitImpersonation,
     }}>
       {children}
     </AuthContext.Provider>

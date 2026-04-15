@@ -1,6 +1,7 @@
 ﻿import { useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
+import ImpersonationBanner from './ImpersonationBanner'
 import { canAccess, useAuth } from '@/lib/auth'
 import { useTheme } from '@/lib/theme'
 
@@ -224,6 +225,7 @@ export default function AppLayout() {
 
   return (
     <div className="nx-shell nx-main lg:flex">
+      <ImpersonationBanner />
       <a href="#app-main-content" className="nx-skip-link">
         Aller au contenu principal
       </a>

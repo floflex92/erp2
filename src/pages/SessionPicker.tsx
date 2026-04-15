@@ -96,11 +96,50 @@ async function loadSupabaseUsers(accessToken: string): Promise<SessionUser[]> {
     // Fallback direct sur la table profils si la fonction Netlify est indisponible.
     const { data, error: supabaseError } = await supabase.from('profils').select('id,user_id,matricule,role,nom,prenom').order('created_at')
 
-    if (supabaseError) {
+    if (!supabaseError) {
+      return transformUsers(data as ManagedUser[])
+    }
+
+    // Fallback V2: lire person_profiles/persons pour garder la selection de session fonctionnelle.
+    const { data: personsData, error: personsError } = await (supabase as unknown as {
+      from: (table: string) => {
+        select: (columns: string) => {
+          order: (column: string) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>
+        }
+      }
+    })
+      .from('person_profiles')
+      .select('id, role_code, person_id, persons(first_name,last_name,matricule)')
+      .order('created_at')
+
+    if (personsError) {
       throw new Error(`Impossible de charger les sessions utilisateurs (fallback Supabase) : ${supabaseError.message}`)
     }
 
-    return transformUsers(data as ManagedUser[])
+    const mapped = (personsData ?? []).flatMap(raw => {
+      const row = raw as {
+        id?: string
+        role_code?: string | null
+        person_id?: string | null
+        persons?: { first_name?: string | null; last_name?: string | null; matricule?: string | null } | null
+      }
+
+      const role = normalizeRole(row.role_code ?? null)
+      if (!role) return []
+
+      return [{
+        id: row.id ?? row.person_id ?? crypto.randomUUID(),
+        user_id: null,
+        matricule: row.persons?.matricule ?? null,
+        role,
+        nom: row.persons?.last_name ?? null,
+        prenom: row.persons?.first_name ?? null,
+        email: null,
+        last_sign_in_at: null,
+      }]
+    })
+
+    return mapped
   }
 }
 

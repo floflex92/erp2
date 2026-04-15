@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { listAssets } from '@/lib/services/assetsService'
+import { listPersonsForDirectory } from '@/lib/services/personsService'
 
 interface Journal { id: string; code_journal: string; libelle: string }
 interface Compte { code_compte: string; libelle: string; classe: number }
@@ -52,18 +54,32 @@ export default function SaisieEcrituresTab() {
     setLoading(true)
     setError(null)
     try {
-      const [jRes, cRes, eRes, vRes, chRes, clRes, mRes] = await Promise.all([
+      const [jRes, cRes, eRes, assets, persons, clRes, mRes] = await Promise.all([
         supabase.from('compta_journaux').select('id, code_journal, libelle').eq('actif', true).order('code_journal'),
         supabase.from('compta_plan_comptable').select('code_compte, libelle, classe').eq('actif', true).order('code_compte'),
         supabase.rpc('compta_list_ecritures_recentes' as any, { p_limit: 50 }),
-        supabase.from('vehicules').select('id, immatriculation').order('immatriculation'),
-        supabase.from('conducteurs').select('id, nom, prenom').order('nom'),
+        listAssets(),
+        listPersonsForDirectory(),
         supabase.from('clients').select('id, nom').order('nom'),
         (supabase.from('ordres_transport' as any).select('id, reference').order('created_at', { ascending: false }).limit(200) as any),
       ])
 
-      if (vRes.data) setVehicules(vRes.data as VehiculeRef[])
-      if (chRes.data) setChauffeursList(chRes.data as unknown as ChauffeurRef[])
+      setVehicules(
+        assets
+          .filter(asset => asset.type === 'vehicle')
+          .map(asset => ({ id: asset.id, immatriculation: asset.registration ?? 'N/A' })),
+      )
+
+      setChauffeursList(
+        persons
+          .filter(person => person.person_type === 'driver')
+          .map(person => ({
+            id: person.id,
+            nom: person.last_name ?? '',
+            prenom: person.first_name,
+          })),
+      )
+
       if (clRes.data) setClientsList(clRes.data as ClientRef[])
       if (mRes.data) setMissionsList(mRes.data as MissionRef[])
 

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { useAuth } from '@/lib/auth'
+import { useScrollToTopOnChange } from '@/hooks/useScrollToTopOnChange'
 import {
   ST_ACTIFS,
   ST_EN_COURS,
@@ -383,6 +384,7 @@ export default function OpsCenter() {
 
   // ── navigation ─────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'missions' | 'imprevu'>('missions')
+  useScrollToTopOnChange(activeTab)
 
   const channelMissionsRef = useRef<RealtimeChannel | null>(null)
   const channelImprevusRef = useRef<RealtimeChannel | null>(null)
@@ -651,6 +653,7 @@ export default function OpsCenter() {
         ]).map(tab => (
           <button
             key={tab.key}
+            type="button"
             onClick={() => setActiveTab(tab.key)}
             className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === tab.key

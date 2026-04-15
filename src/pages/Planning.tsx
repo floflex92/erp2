@@ -16,11 +16,14 @@ import { validatePlanningDropAudit, type CEAlert } from '@/lib/ce561Validation'
 import { createLogisticSite, updateLogisticSite, type LogisticSite } from '@/lib/transportCourses'
 import { addCourseToMission, createMissionFromCourses, removeCourseFromMission } from '@/lib/transportMissions'
 import { listCourseTemplates, saveCourseTemplate, deleteCourseTemplate, type CourseTemplate } from '@/lib/courseTemplates'
+import { listPersonsForDirectory } from '@/lib/services/personsService'
+import { listAssets } from '@/lib/services/assetsService'
 import { fetchCustomRows, fetchCustomBlocks, deleteCustomRow as dbDeleteCustomRow, deleteCustomBlock as dbDeleteCustomBlock, type RemoteCustomRow, type RemoteCustomBlock } from '@/lib/planningCustomBlocks'
 import { generatePlanningWeekPDF } from '@/lib/planningPdf'
 import { fetchAllAbsencesValideesPeriode, TYPE_ABSENCE_LABELS, type AbsenceRh } from '@/lib/absencesRh'
 import { useAuth } from '@/lib/auth'
 import { usePlanningCompliance } from '@/hooks/useCompliancePlanning'
+import { useScrollToTopOnChange } from '@/hooks/useScrollToTopOnChange'
 import type {
   OT, Conducteur, Vehicule, Remorque, ClientRef, Affectation,
   Tab, ViewMode, PlanningScope, ColorMode,
@@ -60,6 +63,22 @@ import {
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'nexora_sidebar_collapsed_v2'
 const SIDEBAR_COLLAPSED_EVENT = 'nexora:sidebar-collapsed-change'
 
+function normalizeResourceStatus(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase()
+}
+
+function isDriverActiveStatus(value: string | null | undefined): boolean {
+  const normalized = normalizeResourceStatus(value)
+  if (!normalized) return true
+  return !['inactif', 'inactive', 'disabled', 'archive', 'archived'].includes(normalized)
+}
+
+function isAssetAvailableStatus(value: string | null | undefined): boolean {
+  const normalized = normalizeResourceStatus(value)
+  if (!normalized) return true
+  return !['hors_service', 'out_of_service', 'inactive', 'inactif', 'archive', 'archived'].includes(normalized)
+}
+
 export default function Planning() {
   const { role } = useAuth()
   const planningComplianceService = usePlanningCompliance()
@@ -76,6 +95,8 @@ export default function Planning() {
   const [monthStart,  setMonthStart]  = useState(() => getMonthStart(new Date()))
   const [tab,         setTab]         = useState<Tab>('conducteurs')
   const [viewMode,    setViewMode]    = useState<ViewMode>('semaine')
+  useScrollToTopOnChange(tab)
+  useScrollToTopOnChange(viewMode)
   const [planningScope, setPlanningScope] = useState<PlanningScope>(() => {
     try {
       const raw = localStorage.getItem(PLANNING_SCOPE_KEY)
@@ -292,6 +313,7 @@ export default function Planning() {
   const [dragOverRowId, setDragOverRowId] = useState<string | null>(null)
 
   const noticeTimerRef = useRef<number | null>(null)
+  const lastLoadErrorRef = useRef<string | null>(null)
   const bottomDockResizeRef = useRef<{ startY: number; startHeight: number } | null>(null)
   const today = toISO(new Date())
 
@@ -746,37 +768,122 @@ export default function Planning() {
       // OTs seulement — ref data depuis le cache
       otR = await otPromise
     } else {
+      const loadConducteurs = async () => {
+        const primary = await looseSupabase.from('conducteurs').select('id, nom, prenom, statut').order('nom')
+        if (!primary.error) return primary
+        const rawError = `${primary.error.message ?? ''} ${primary.error.details ?? ''}`.toLowerCase()
+        if (!rawError.includes('person_id')) return primary
+        return looseSupabase.from('conducteurs').select('id, nom, prenom, statut').order('nom')
+      }
+
+      const loadVehicules = async () => {
+        const primary = await looseSupabase.from('vehicules').select('id, immatriculation, marque, modele, statut').order('immatriculation')
+        if (!primary.error) return primary
+        const rawError = `${primary.error.message ?? ''} ${primary.error.details ?? ''}`.toLowerCase()
+        if (!rawError.includes('asset_id')) return primary
+        return looseSupabase.from('vehicules').select('id, immatriculation, marque, modele, statut').order('immatriculation')
+      }
+
+      const loadRemorques = async () => {
+        const primary = await looseSupabase.from('remorques').select('id, immatriculation, type_remorque, statut').order('immatriculation')
+        if (!primary.error) return primary
+        const rawError = `${primary.error.message ?? ''} ${primary.error.details ?? ''}`.toLowerCase()
+        if (!rawError.includes('asset_id')) return primary
+        return looseSupabase.from('remorques').select('id, immatriculation, type_remorque, statut').order('immatriculation')
+      }
+
       const [otResult, siteR, cR, vR, rR, clientR, aR] = await Promise.all([
         otPromise,
         looseSupabase.from('sites_logistiques').select(SITE_SELECT).order('nom'),
-        supabase.from('conducteurs').select('id, nom, prenom, statut').eq('statut', 'actif').order('nom'),
-        supabase.from('vehicules').select('id, immatriculation, marque, modele, statut').neq('statut', 'hors_service').order('immatriculation'),
-        supabase.from('remorques').select('id, immatriculation, type_remorque, statut').neq('statut', 'hors_service').order('immatriculation'),
+        loadConducteurs(),
+        loadVehicules(),
+        loadRemorques(),
         supabase.from('clients').select('id, nom, actif').eq('actif', true).order('nom'),
         supabase.from('affectations').select('id, conducteur_id, vehicule_id, remorque_id, actif').eq('actif', true),
       ])
       otR = otResult
 
       // Mise à jour des données référentielles
-      const newConducteurs = cR.error ? [] : (cR.data ?? [])
-      const newVehicules = vR.error ? [] : (vR.data ?? [])
-      const newRemorques = rR.error ? [] : (rR.data ?? [])
+      let newConducteurs: Conducteur[] = cR.error
+        ? []
+        : (cR.data ?? [])
+            .filter((c: { statut?: string | null }) => isDriverActiveStatus(c.statut))
+            .map((c: { id: string; nom: string; prenom: string; statut: string }) => c)
+      let newVehicules: Vehicule[] = vR.error
+        ? []
+        : (vR.data ?? [])
+            .filter((v: { statut?: string | null }) => isAssetAvailableStatus(v.statut))
+            .map((v: { id: string; immatriculation: string; marque: string | null; modele: string | null; statut: string }) => v)
+      let newRemorques: Remorque[] = rR.error
+        ? []
+        : (rR.data ?? [])
+            .filter((r: { statut?: string | null }) => isAssetAvailableStatus(r.statut))
+            .map((r: { id: string; immatriculation: string; type_remorque: string; statut: string }) => r)
       const newClients = clientR.error ? [] : (clientR.data ?? [])
       const newSites = siteR.error ? [] : sortLogisticSites(((siteR.data ?? []) as SiteLoadRow[]).map(mapSiteLoadRow))
       const newAffectations = aR.error ? [] : (aR.data ?? [])
 
-      setConducteurs(newConducteurs as Conducteur[])
-      setVehicules(newVehicules as Vehicule[])
-      setRemorques(newRemorques as Remorque[])
+      // Fallback V2: si les tables legacy sont vides (ou non exploitables), hydrater depuis persons/assets.
+      if (newConducteurs.length === 0) {
+        const persons = await listPersonsForDirectory()
+        const personDrivers = persons
+          .filter(p => ['driver', 'conducteur', 'chauffeur'].includes((p.person_type ?? '').toLowerCase()))
+          .filter(p => isDriverActiveStatus(p.status))
+
+        newConducteurs = personDrivers.map(p => ({
+          id: p.legacy_conducteur_id ?? p.id,
+          nom: p.last_name ?? '-',
+          prenom: p.first_name ?? '',
+          statut: p.status ?? 'active',
+        }))
+      }
+
+      if (newVehicules.length === 0 || newRemorques.length === 0) {
+        const assets = await listAssets()
+
+        if (newVehicules.length === 0) {
+          newVehicules = assets
+            .filter(a => a.type === 'vehicle')
+            .filter(a => isAssetAvailableStatus(a.status))
+            .map(a => ({
+              id: a.legacy_vehicule_id ?? a.id,
+              immatriculation: a.registration ?? '-',
+              marque: null,
+              modele: null,
+              statut: a.status ?? 'active',
+            }))
+        }
+
+        if (newRemorques.length === 0) {
+          newRemorques = assets
+            .filter(a => a.type === 'trailer')
+            .filter(a => isAssetAvailableStatus(a.status))
+            .map(a => ({
+              id: a.legacy_remorque_id ?? a.id,
+              immatriculation: a.registration ?? '-',
+              type_remorque: 'standard',
+              statut: a.status ?? 'active',
+            }))
+        }
+      }
+
+      // En V2, plusieurs lignes legacy peuvent pointer le meme pivot; on dedupe par id final.
+      const uniqueConducteurs = Array.from(new Map(newConducteurs.map(item => [item.id, item])).values())
+      const uniqueVehicules = Array.from(new Map(newVehicules.map(item => [item.id, item])).values())
+      const uniqueRemorques = Array.from(new Map(newRemorques.map(item => [item.id, item])).values())
+
+      setConducteurs(uniqueConducteurs as Conducteur[])
+      setVehicules(uniqueVehicules as Vehicule[])
+      setRemorques(uniqueRemorques as Remorque[])
       setClients(newClients as ClientRef[])
       setLogisticSites(newSites)
       setAffectations(newAffectations as Affectation[])
 
       refDataCacheRef.current = {
         ts: now,
-        conducteurs: newConducteurs as Conducteur[],
-        vehicules: newVehicules as Vehicule[],
-        remorques: newRemorques as Remorque[],
+        conducteurs: uniqueConducteurs as Conducteur[],
+        vehicules: uniqueVehicules as Vehicule[],
+        remorques: uniqueRemorques as Remorque[],
         clients: newClients as ClientRef[],
         sites: newSites,
         affectations: newAffectations as Affectation[],
@@ -794,14 +901,38 @@ export default function Planning() {
       if (!fallback.error) finalOtR = fallback as typeof finalOtR
     }
 
+    // Filet de securite: si la fenetre datee remonte 0 OT, recharger un lot recent
+    // sans filtre de date pour eviter un planning vide lorsque les courses sont hors fenetre.
+    if (!finalOtR.error && (finalOtR.data?.length ?? 0) === 0) {
+      const wideFallback = await supabase
+        .from('ordres_transport')
+        .select(OT_SELECT)
+        .order('date_chargement_prevue', { ascending: false, nullsFirst: false })
+        .limit(300)
+      if (!wideFallback.error && (wideFallback.data?.length ?? 0) > 0) {
+        finalOtR = wideFallback as typeof finalOtR
+      }
+    }
+
     // ── Traitement OTs (dans une transition pour ne pas bloquer le rendu) ────
     const processOTs = () => {
       if (finalOtR.error) {
+        const rawMessage = finalOtR.error.message ?? 'Erreur inconnue de chargement.'
+        const normalized = rawMessage.toLowerCase()
+        const isAccessDenied = normalized.includes('row-level security') || normalized.includes('permission denied') || normalized.includes('rls')
+        const noticeMessage = isAccessDenied
+          ? 'Chargement du planning bloque par les droits RLS. Verifiez le role utilisateur et les policies SQL des tables planning.'
+          : `Erreur de chargement planning: ${rawMessage}`
+        if (lastLoadErrorRef.current !== noticeMessage) {
+          pushPlanningNotice(noticeMessage, 'error')
+          lastLoadErrorRef.current = noticeMessage
+        }
         setPool([])
         setGanttOTs([])
         setCancelledOTs([])
         setSelected(null)
       } else if (finalOtR.data) {
+        lastLoadErrorRef.current = null
         type OtLoadRow = Omit<OT, 'client_nom'> & {
           clients: { nom: string } | { nom: string }[] | null
           distance_km?: number | null
@@ -822,14 +953,46 @@ export default function Planning() {
           mission_id: r.mission_id ?? null, groupage_fige: Boolean(r.groupage_fige),
           est_affretee: Boolean(r.est_affretee),
         }))
-        const scopedPlanning = ots.filter(o => planningScope === 'affretement' ? o.est_affretee : !o.est_affretee)
-        const cancelled = scopedPlanning.filter(o => o.statut === 'annule')
-        const principalPlanning = scopedPlanning.filter(o => o.statut !== 'annule')
-        const isDraftStatut = (ot: OT) => ST_BROUILLON.includes((ot.statut_transport ?? '') as never) || ST_CONFIRME.includes((ot.statut_transport ?? '') as never)
+        const principalCount = ots.filter(o => !o.est_affretee).length
+        const affretementCount = ots.filter(o => o.est_affretee).length
+        if (planningScope === 'affretement' && affretementCount === 0 && principalCount > 0) {
+          setPlanningScope('principal')
+          pushPlanningNotice('Aucune course affretee detectee: bascule automatique sur le planning principal.', 'error')
+          setIsLoadingOTs(false)
+          return
+        }
+        if (planningScope === 'principal' && principalCount === 0 && affretementCount > 0) {
+          setPlanningScope('affretement')
+          pushPlanningNotice('Aucune course principale detectee: bascule automatique sur le planning affretement.', 'error')
+          setIsLoadingOTs(false)
+          return
+        }
+        const normalizeStatut = (value: string | null | undefined) => (value ?? '').trim().toLowerCase()
+        const isCancelledStatut = (ot: OT) => {
+          const transport = normalizeStatut(ot.statut_transport)
+          const legacy = normalizeStatut(ot.statut)
+          return transport === 'annule' || transport === 'annulé' || legacy === 'annule' || legacy === 'annulé'
+        }
+        const isDraftStatut = (ot: OT) => {
+          const transport = normalizeStatut(ot.statut_transport)
+          const legacy = normalizeStatut(ot.statut)
+          if (transport) {
+            return ST_BROUILLON.includes(transport as never) || ST_CONFIRME.includes(transport as never)
+          }
+          return legacy === 'brouillon' || legacy === 'confirme' || legacy === 'confirmé'
+        }
         const hasAssignedResource = (ot: OT) => Boolean(ot.conducteur_id || ot.vehicule_id || ot.remorque_id)
+        const hasScheduleDates = (ot: OT) => Boolean(ot.date_chargement_prevue || ot.date_livraison_prevue)
+
+        const scopedPlanning = ots.filter(o => planningScope === 'affretement' ? o.est_affretee : !o.est_affretee)
+        const cancelled = scopedPlanning.filter(isCancelledStatut)
+        const principalPlanning = scopedPlanning.filter(o => !isCancelledStatut(o))
+        const isPoolCandidate = (ot: OT) => !hasScheduleDates(ot) || (isDraftStatut(ot) && !hasAssignedResource(ot))
+        const poolItems = principalPlanning.filter(isPoolCandidate)
+        const poolIds = new Set(poolItems.map(ot => ot.id))
         setCancelledOTs(cancelled)
-        setPool(principalPlanning.filter(o => isDraftStatut(o) && !hasAssignedResource(o)))
-        setGanttOTs(principalPlanning.filter(o => !isDraftStatut(o) || hasAssignedResource(o)))
+        setPool(poolItems)
+        setGanttOTs(principalPlanning.filter(o => !poolIds.has(o.id)))
         setSelected(current => current ? (scopedPlanning.find(ot => ot.id === current.id) ?? null) : current)
       }
       setIsLoadingOTs(false)
@@ -2673,8 +2836,7 @@ export default function Planning() {
 
   // Pool filtre
   const visiblePool = useMemo(() => {
-    let list = ganttOTs
-      .filter(ot => !resolveRowId(ot))
+    let list = pool
       .filter(ot => !customOTIds.has(ot.id))
       .filter(ot => !centerFilter || ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter)
       .filter(ot => viewMode === 'semaine' ? blockPos(ot, weekStart) !== null : isoToDate(ot.date_chargement_prevue) === selectedDay)
@@ -2685,7 +2847,7 @@ export default function Planning() {
     if (filterType) list = list.filter(o => o.type_transport === filterType)
     if (filterClient) list = list.filter(o => o.client_nom === filterClient)
     return list
-  }, [ganttOTs, customOTIds, centerFilter, viewMode, weekStart, selectedDay, poolSearch, filterType, filterClient])
+  }, [pool, customOTIds, centerFilter, viewMode, weekStart, selectedDay, poolSearch, filterType, filterClient])
 
   function getAffretementRowId(ot: OT): string | null {
     const context = affretementContextByOtId[ot.id]
@@ -3813,7 +3975,7 @@ export default function Planning() {
               { key:'camions'     as Tab, label:'Camions',     count:vehicules.length   + affretementRows.filter(r=>r.id.startsWith('aff-vehicle')).length },
               { key:'remorques'   as Tab, label:'Remorques',   count:remorques.length   + affretementRows.filter(r=>r.id.startsWith('aff-equipment')).length },
             ]).map(t => (
-              <button key={t.key} onClick={() => setTab(t.key)}
+              <button key={t.key} type="button" onClick={() => setTab(t.key)}
                 className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                   tab===t.key ? 'border-indigo-400 text-white' : 'border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-600'
                 }`}>

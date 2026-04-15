@@ -5,6 +5,7 @@ import { DEMO_PROFILES } from '@/lib/demoUsers'
 import { createPdfDocument } from '@/lib/pdfDocument'
 import { supabase } from '@/lib/supabase'
 import { serializeTchatPayload } from '@/lib/tchatMessage'
+import { useScrollToTopOnChange } from '@/hooks/useScrollToTopOnChange'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1610,6 +1611,7 @@ type Tab = 'donnees' | 'infractions' | 'attestations' | 'alertes'
 export default function Tachygraphe() {
   const { profil, role } = useAuth()
   const [tab, setTab] = useState<Tab>('infractions')
+  useScrollToTopOnChange(tab)
   const [syncing, setSyncing] = useState(false)
   const [lastSync, setLastSync] = useState(new Date().toISOString())
   const [loading, setLoading] = useState(true)
@@ -1775,7 +1777,7 @@ export default function Tachygraphe() {
       <div>
         <div className="flex items-center gap-1 border-b" style={{ borderColor: 'var(--border)' }}>
           {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
+            <button key={t.id} type="button" onClick={() => setTab(t.id)}
               className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors ${tab === t.id ? 'border-[color:var(--primary)] text-[color:var(--primary)]' : 'border-transparent nx-subtle hover:text-[color:var(--text)]'}`}
               style={{ marginBottom: -1 }}>
               {t.label}

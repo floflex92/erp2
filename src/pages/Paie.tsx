@@ -9,6 +9,7 @@ import { buildStaffDirectory, findStaffMember, staffDisplayName } from '@/lib/st
 import { supabase } from '@/lib/supabase'
 import { computeAbsenceHeuresFromAbsences, fetchAbsencesValideesPeriode, type AbsenceRh } from '@/lib/absencesRh'
 import { linkPayrollBonusesToAccounting, listPayrollBonusLinkStatuses, listValidatedUnpaidBonusesForPayroll, type PayrollBonusLinkStatus } from '@/lib/payrollBonusBridge'
+import { useScrollToTopOnChange } from '@/hooks/useScrollToTopOnChange'
 
 const inp = 'nx-input w-full'
 type PaieTab = 'saisie' | 'revision'
@@ -57,6 +58,7 @@ export default function Paie() {
   const [importingTachy, setImportingTachy] = useState(false)
   const [importingAbsences, setImportingAbsences] = useState(false)
   const [activeTab, setActiveTab] = useState<PaieTab>('saisie')
+  useScrollToTopOnChange(activeTab)
   const [payrollValidations, setPayrollValidations] = useState<PayrollValidationState>(() => readPayrollValidationState())
   const [absencesValidees, setAbsencesValidees] = useState<AbsenceRh[]>([])
   const [bonusLinkStatusesBySlip, setBonusLinkStatusesBySlip] = useState<Record<string, PayrollBonusLinkStatus>>({})

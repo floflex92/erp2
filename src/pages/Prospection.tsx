@@ -4,6 +4,7 @@ import ContactsTab  from '@/components/prospection/ContactsTab'
 import DevisTab     from '@/components/prospection/DevisTab'
 import RelancesTab  from '@/components/prospection/RelancesTab'
 import DashboardTab from '@/components/prospection/DashboardTab'
+import { useScrollToTopOnChange } from '@/hooks/useScrollToTopOnChange'
 
 type Tab = 'pipeline' | 'contacts' | 'devis' | 'relances' | 'dashboard'
 
@@ -17,6 +18,7 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
 
 export default function Prospection() {
   const [activeTab, setActiveTab] = useState<Tab>('pipeline')
+  useScrollToTopOnChange(activeTab)
 
   return (
     <div className="space-y-6">
@@ -32,6 +34,7 @@ export default function Prospection() {
         {TABS.map(tab => (
           <button
             key={tab.key}
+            type="button"
             onClick={() => setActiveTab(tab.key)}
             className={`flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all ${
               activeTab === tab.key

@@ -11,6 +11,7 @@ import { generateCongeDocumentPDF } from '@/lib/congePdf'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
 import EntretiensSalaries from '@/pages/EntretiensSalaries'
+import { useScrollToTopOnChange } from '@/hooks/useScrollToTopOnChange'
 
 const RH_UPLOAD_CATEGORIES = ['carte_vitale', 'carte_identite', 'justificatif_domicile', 'scan_complementaire'] as const
 const inp = 'nx-input w-full'
@@ -33,6 +34,7 @@ type WorkforceMember = {
 export default function Rh() {
   const { profil, accountProfil, companyId } = useAuth()
   const [activeTab, setActiveTab] = useState<RhTab>('employes')
+  useScrollToTopOnChange(activeTab)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
   const [employeeRecords, setEmployeeRecords] = useState<EmployeeRecord[]>(() => listEmployeeRecords())
   const [roleFilter, setRoleFilter] = useState('all')

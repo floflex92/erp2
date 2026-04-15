@@ -171,7 +171,7 @@ export default function PlanningConducteur() {
       const emailNorm = (profil.email ?? '').toLowerCase().trim()
       const { data: condData } = await supabase
         .from('conducteurs')
-        .select('id')
+        .select('id, email')
         .eq('statut', 'actif')
 
       const conducteur = ((condData ?? []) as Array<{ id: string; email: string | null }>)
