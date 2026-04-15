@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback, useMemo, useTransition } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, useTransition } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ST_BROUILLON, ST_CONFIRME, ST_PLANIFIE, ST_EN_COURS, ST_TERMINE } from '@/lib/transportCourses'
 import { looseSupabase } from '@/lib/supabaseLoose'
@@ -82,12 +82,12 @@ function isAssetAvailableStatus(value: string | null | undefined): boolean {
 export default function Planning() {
   const { role } = useAuth()
   const planningComplianceService = usePlanningCompliance()
-  // Guard contre les race conditions : on ne rechargera pas pendant une écriture active.
+  // Guard contre les race conditions : on ne rechargera pas pendant une �criture active.
   const isMutatingRef = useRef(false)
-  // ── Performance : état de chargement et transition non-bloquante ──
+  // -- Performance : �tat de chargement et transition non-bloquante --
   const [isLoadingOTs, setIsLoadingOTs] = useState(true)
   const [, startTransition] = useTransition()
-  // Cache des données référentielles (conducteurs, véhicules, etc.) — rechargées max 1×/60s
+  // Cache des donn�es r�f�rentielles (conducteurs, v�hicules, etc.) � recharg�es max 1�/60s
   const refDataCacheRef = useRef<{ ts: number; conducteurs: Conducteur[]; vehicules: Vehicule[]; remorques: Remorque[]; clients: ClientRef[]; sites: LogisticSite[]; affectations: Affectation[] } | null>(null)
   const REF_DATA_TTL = 60_000 // 60 secondes
   const [weekStart,   setWeekStart]   = useState(() => getMonday(new Date()))
@@ -132,6 +132,9 @@ export default function Planning() {
   const dragRef = useRef<DragState | null>(null)
   const setDrag = useCallback((d: DragState | null) => { dragRef.current = d; setDragState(d) }, [])
   const [hoverRow,   setHoverRow]   = useState<{ rowId:string; dayIdx:number; timeMin:number } | null>(null)
+  // Throttle drag-over updates via RAF to avoid per-frame re-renders causing jitter
+  const hoverRowRef = useRef<{ rowId:string; dayIdx:number; timeMin:number } | null>(null)
+  const dragOverRafRef = useRef<number | null>(null)
 
   const liveConducteurId = useMemo(() => {
     if (tab !== 'conducteurs') return null
@@ -166,7 +169,7 @@ export default function Planning() {
   const [newBlockDurationMinutes, setNewBlockDurationMinutes] = useState('00')
   const [creatingInlineEvent, setCreatingInlineEvent] = useState(false)
 
-  // Modèles de courses
+  // Mod�les de courses
   const [courseTemplates,     setCourseTemplates]     = useState<CourseTemplate[]>([])
   const [saveAsTemplateLabel, setSaveAsTemplateLabel] = useState('')
   const [showSaveTemplate,    setShowSaveTemplate]    = useState(false)
@@ -176,7 +179,7 @@ export default function Planning() {
   const [notifyClientOt, setNotifyClientOt] = useState<OT | null>(null)
   const [notifyMessage,  setNotifyMessage]  = useState('')
 
-  // Mini-carte itinéraire (tooltip hover)
+  // Mini-carte itin�raire (tooltip hover)
   const [hoveredBlock,   setHoveredBlock]   = useState<{ ot: OT; x: number; y: number } | null>(null)
   const hoveredMissionId = !drag && hoveredBlock?.ot.mission_id ? hoveredBlock.ot.mission_id : null
 
@@ -274,10 +277,10 @@ export default function Planning() {
   const [retourChargeLoading, setRetourChargeLoading] = useState(false)
   const [retourChargeError, setRetourChargeError] = useState<string | null>(null)
 
-  // ── Radar km à vide ─────────────────────────────────────────────────────────
+  // -- Radar km � vide ---------------------------------------------------------
   const [kmVideSynthese, setKmVideSynthese] = useState<Map<string, { taux_charge_pct: number | null; total_km_vide_estime: number | null }>>(new Map())
 
-  // ── Relais ──────────────────────────────────────────────────────────────────
+  // -- Relais ------------------------------------------------------------------
   const [relaisList, setRelaisList] = useState<TransportRelaisRecord[]>([])
   const [relaisLoading, setRelaisLoading] = useState(false)
   const [relaisError, setRelaisError] = useState<string | null>(null)
@@ -459,11 +462,11 @@ export default function Planning() {
 
     const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000)
     if (autoPauseReglementaire && durationMinutes >= 6 * 60) {
-      // Ne pas générer de pause auto si une pause matérialisée existe déjà pour cet OT
+      // Ne pas g�n�rer de pause auto si une pause mat�rialis�e existe d�j� pour cet OT
       const hasMaterialized = customBlocks.some(b => b.kind === 'repos' && b.rowId === rowId && b.label.includes(ot.reference))
       if (!hasMaterialized) {
-        // CE 561 : pause obligatoire de 45 min après 4h30 max de conduite
-        // Placement intelligent : si d'autres OTs existent sur la ligne, chercher un créneau libre
+        // CE 561 : pause obligatoire de 45 min apr�s 4h30 max de conduite
+        // Placement intelligent : si d'autres OTs existent sur la ligne, chercher un cr�neau libre
         const rowItems = ganttOTs
           .filter(o => resolveRowId(o) === rowId && o.id !== ot.id && !customOTIds.has(o.id))
           .map(o => ({ start: new Date(o.date_chargement_prevue ?? '').getTime(), end: new Date(o.date_livraison_prevue ?? o.date_chargement_prevue ?? '').getTime() }))
@@ -474,12 +477,12 @@ export default function Planning() {
         let pauseStart = new Date(start.getTime() + idealOffsetMs)
         const pauseDuration = 45 * 60000
 
-        // Vérifier si le créneau idéal chevauche un autre OT; sinon trouver le premier gap libre
+        // V�rifier si le cr�neau id�al chevauche un autre OT; sinon trouver le premier gap libre
         const conflicts = rowItems.some(item =>
           pauseStart.getTime() < item.end && (pauseStart.getTime() + pauseDuration) > item.start
         )
         if (conflicts) {
-          // Chercher un gap entre les OTs de la ligne après le début de cet OT
+          // Chercher un gap entre les OTs de la ligne apr�s le d�but de cet OT
           const sortedAll = [
             { start: start.getTime(), end: end.getTime() },
             ...rowItems,
@@ -495,7 +498,7 @@ export default function Planning() {
             }
           }
           if (!placed) {
-            // Fallback : placer après la dernière mission de la journée
+            // Fallback : placer apr�s la derni�re mission de la journ�e
             const lastEnd = sortedAll[sortedAll.length - 1].end
             if (lastEnd >= start.getTime()) {
               pauseStart = new Date(lastEnd)
@@ -519,14 +522,14 @@ export default function Planning() {
     return events
   }
 
-  /** Vérifie si un conducteur est absent sur une période donnée */
+  /** V�rifie si un conducteur est absent sur une p�riode donn�e */
   function getConducteurAbsencesForPeriod(conducteurId: string, dateDebut: string, dateFin: string): AbsenceRh[] {
     const abs = conducteurAbsences.get(conducteurId)
     if (!abs) return []
     return abs.filter(a => a.date_debut <= dateFin && a.date_fin >= dateDebut)
   }
 
-  /** Matérialise une pause auto-générée en customBlock éditable */
+  /** Mat�rialise une pause auto-g�n�r�e en customBlock �ditable */
   function materializePause(block: GeneratedInlineEvent) {
     const newBlock: CustomBlock = {
       id: uid(),
@@ -540,7 +543,7 @@ export default function Planning() {
     const next = [...customBlocks, newBlock]
     setCustomBlocks(next)
     saveCustomBlocks(next)
-    pushPlanningNotice(`Pause materialisee — vous pouvez la deplacer ou la redimensionner.`)
+    pushPlanningNotice(`Pause materialisee � vous pouvez la deplacer ou la redimensionner.`)
   }
 
   function isRuleBlocking(code: string): boolean {
@@ -726,17 +729,17 @@ export default function Planning() {
   }, [])
 
   const loadAll = useCallback(async () => {
-    // Guard : ne pas recharger si une mutation est en cours (évite race condition).
+    // Guard : ne pas recharger si une mutation est en cours (�vite race condition).
     if (isMutatingRef.current) return
     setIsLoadingOTs(true)
-    // ── Sélect OT canonique (schema stable depuis les migrations du 2026-03-30) ──
+    // -- S�lect OT canonique (schema stable depuis les migrations du 2026-03-30) --
     const OT_SELECT = 'id, reference, statut, statut_transport, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, donneur_ordre_id, chargement_site_id, livraison_site_id, mission_id, groupage_fige, est_affretee, clients!ordres_transport_client_id_fkey(nom)'
     const SITE_SELECT = 'id, nom, adresse, entreprise_id, usage_type, horaires_ouverture, jours_ouverture, notes_livraison, latitude, longitude, created_at, updated_at'
 
-    // Fenêtre glissante adaptée selon le mode :
-    //   • 'mois'    : 1er du mois → dernier jour du mois (± 2j buffer)
-    //   • 'semaine' : J-7 / J+15 centré sur weekStart (optimisé pour la perf)
-    //   • 'jour'    : identique semaine (la fenêtre journée est incluse)
+    // Fen�tre glissante adapt�e selon le mode :
+    //   � 'mois'    : 1er du mois ? dernier jour du mois (� 2j buffer)
+    //   � 'semaine' : J-7 / J+15 centr� sur weekStart (optimis� pour la perf)
+    //   � 'jour'    : identique semaine (la fen�tre journ�e est incluse)
     // Les brouillons sans date (pool) sont toujours inclus via .is.null.
     let winFrom: Date, winTo: Date
     if (viewMode === 'mois') {
@@ -749,14 +752,14 @@ export default function Planning() {
     }
     const winFromISO = toISO(winFrom)
     const winToISO   = toISO(winTo)
-    // Filtre : (chargement dans fenêtre ET livraison dans fenêtre) OU pas de date (pool)
+    // Filtre : (chargement dans fen�tre ET livraison dans fen�tre) OU pas de date (pool)
     const otDateFilter = `and(date_chargement_prevue.gte.${winFromISO},date_chargement_prevue.lte.${winToISO}),date_chargement_prevue.is.null`
 
-    // ── Données référentielles : cache TTL 60s pour éviter les re-fetch inutiles ─
+    // -- Donn�es r�f�rentielles : cache TTL 60s pour �viter les re-fetch inutiles -
     const now = Date.now()
     const refCacheValid = refDataCacheRef.current && (now - refDataCacheRef.current.ts) < REF_DATA_TTL
 
-    // ── Requêtes en parallèle — OTs toujours frais, ref data conditionnelle ──
+    // -- Requ�tes en parall�le � OTs toujours frais, ref data conditionnelle --
     const otPromise = supabase
       .from('ordres_transport')
       .select(OT_SELECT)
@@ -765,7 +768,7 @@ export default function Planning() {
 
     let otR: Awaited<typeof otPromise>
     if (refCacheValid) {
-      // OTs seulement — ref data depuis le cache
+      // OTs seulement � ref data depuis le cache
       otR = await otPromise
     } else {
       const loadConducteurs = async () => {
@@ -803,7 +806,7 @@ export default function Planning() {
       ])
       otR = otResult
 
-      // Mise à jour des données référentielles
+      // Mise � jour des donn�es r�f�rentielles
       let newConducteurs: Conducteur[] = cR.error
         ? []
         : (cR.data ?? [])
@@ -890,7 +893,7 @@ export default function Planning() {
       }
     }
 
-    // ── OT : fallback minimal si la colonne est_affretee est manquante ───────
+    // -- OT : fallback minimal si la colonne est_affretee est manquante -------
     let finalOtR = otR as { data: unknown[] | null; error: { message?: string } | null }
     if (otR.error) {
       const fallback = await supabase
@@ -914,7 +917,7 @@ export default function Planning() {
       }
     }
 
-    // ── Traitement OTs (dans une transition pour ne pas bloquer le rendu) ────
+    // -- Traitement OTs (dans une transition pour ne pas bloquer le rendu) ----
     const processOTs = () => {
       if (finalOtR.error) {
         const rawMessage = finalOtR.error.message ?? 'Erreur inconnue de chargement.'
@@ -971,7 +974,7 @@ export default function Planning() {
         const isCancelledStatut = (ot: OT) => {
           const transport = normalizeStatut(ot.statut_transport)
           const legacy = normalizeStatut(ot.statut)
-          return transport === 'annule' || transport === 'annulé' || legacy === 'annule' || legacy === 'annulé'
+          return transport === 'annule' || transport === 'annul�' || legacy === 'annule' || legacy === 'annul�'
         }
         const isDraftStatut = (ot: OT) => {
           const transport = normalizeStatut(ot.statut_transport)
@@ -979,7 +982,7 @@ export default function Planning() {
           if (transport) {
             return ST_BROUILLON.includes(transport as never) || ST_CONFIRME.includes(transport as never)
           }
-          return legacy === 'brouillon' || legacy === 'confirme' || legacy === 'confirmé'
+          return legacy === 'brouillon' || legacy === 'confirme' || legacy === 'confirm�'
         }
         const hasAssignedResource = (ot: OT) => Boolean(ot.conducteur_id || ot.vehicule_id || ot.remorque_id)
         const hasScheduleDates = (ot: OT) => Boolean(ot.date_chargement_prevue || ot.date_livraison_prevue)
@@ -999,7 +1002,7 @@ export default function Planning() {
     }
     startTransition(processOTs)
 
-    // ── Absences RH conducteurs — 1 seule requête batch au lieu de N ─────────
+    // -- Absences RH conducteurs � 1 seule requ�te batch au lieu de N ---------
     const activeConducteurs = refDataCacheRef.current?.conducteurs ?? []
     if (activeConducteurs.length > 0) {
       const absMap = await fetchAllAbsencesValideesPeriode(
@@ -1015,7 +1018,7 @@ export default function Planning() {
 
   useEffect(() => { void loadAll() }, [loadAll])
 
-  // Chargement des modèles de courses (une seule fois au mount)
+  // Chargement des mod�les de courses (une seule fois au mount)
   useEffect(() => {
     void listCourseTemplates().then(setCourseTemplates)
   }, [])
@@ -1090,16 +1093,16 @@ export default function Planning() {
       : '-'
     setNotifyMessage(
       `Bonjour,\n\nNous vous confirmons la course ${ot.reference}.\n` +
-      `Enlèvement prévu : ${charDate}\n` +
-      `Livraison prévue : ${livDate}\n\n` +
+      `Enl�vement pr�vu : ${charDate}\n` +
+      `Livraison pr�vue : ${livDate}\n\n` +
       `Cordialement,\nNexora Truck`,
     )
     setNotifyClientOt(ot)
   }
 
-  // Chargement radar km à vide (synthèse par véhicule, 30 jours)
-  // NOTE: v_radar_km_vide_synthese est une vue Supabase non typée (looseSupabase).
-  // Si la structure de la vue change, mettre à jour le type KmVideRow ci-dessous.
+  // Chargement radar km � vide (synth�se par v�hicule, 30 jours)
+  // NOTE: v_radar_km_vide_synthese est une vue Supabase non typ�e (looseSupabase).
+  // Si la structure de la vue change, mettre � jour le type KmVideRow ci-dessous.
   const kmVideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     if (kmVideTimerRef.current) clearTimeout(kmVideTimerRef.current)
@@ -1117,17 +1120,17 @@ export default function Planning() {
         setKmVideSynthese(map)
       }
       void fetchKmVide()
-    }, 3000) // debounce 3s — données synthétiques, pas urgentes
+    }, 3000) // debounce 3s � donn�es synth�tiques, pas urgentes
     return () => { if (kmVideTimerRef.current) clearTimeout(kmVideTimerRef.current) }
-  }, [ganttOTs]) // rafraîchit quand les OT changent (debounced)
+  }, [ganttOTs]) // rafra�chit quand les OT changent (debounced)
 
   const realtimeReloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const debouncedLoad = () => {
       if (realtimeReloadTimer.current) clearTimeout(realtimeReloadTimer.current)
-      // Ne pas recharger si une mutation est en cours : isMutatingRef est relâché
-      // après la mutation → le prochain événement realtime déclenchera le rechargement.
+      // Ne pas recharger si une mutation est en cours : isMutatingRef est rel�ch�
+      // apr�s la mutation ? le prochain �v�nement realtime d�clenchera le rechargement.
       realtimeReloadTimer.current = setTimeout(() => {
         if (!isMutatingRef.current) void loadAll()
       }, 2000)
@@ -1147,9 +1150,9 @@ export default function Planning() {
     }
   }, [loadAll])
 
-  // â”€â”€ Assign modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Assign modal ─────────────────────────────────────────────────────────────
 
-  // ── Edit modal (clic sur un bloc du planning) ─────────────────────────────────────────────
+  // -- Edit modal (clic sur un bloc du planning) ---------------------------------------------
 
   function openSelected(ot: OT) {
     const enterpriseId = ot.donneur_ordre_id ?? ''
@@ -1335,7 +1338,7 @@ export default function Planning() {
     if (!assignModal) return
     if (!ensureWriteAllowed('Affectation')) return
     if (!ensureGroupageEditable(assignModal.ot, 'Affectation')) return
-    // ── Vérification absence RH ──────────────────────────────────────────────
+    // -- V�rification absence RH ----------------------------------------------
     if (assignModal.conducteur_id) {
       const absConflicts = getConducteurAbsencesForPeriod(
         assignModal.conducteur_id,
@@ -1344,9 +1347,9 @@ export default function Planning() {
       )
       if (absConflicts.length > 0) {
         const cName = conducteurs.find(c => c.id === assignModal.conducteur_id)
-        const absLabel = absConflicts.map(a => `${TYPE_ABSENCE_LABELS[a.type_absence]} (${a.date_debut} → ${a.date_fin})`).join(', ')
+        const absLabel = absConflicts.map(a => `${TYPE_ABSENCE_LABELS[a.type_absence]} (${a.date_debut} ? ${a.date_fin})`).join(', ')
         const ok = window.confirm(
-          `⚠ ${cName ? `${cName.prenom} ${cName.nom}` : 'Ce conducteur'} est en absence : ${absLabel}.\n\nVoulez-vous affecter quand meme ?`
+          `? ${cName ? `${cName.prenom} ${cName.nom}` : 'Ce conducteur'} est en absence : ${absLabel}.\n\nVoulez-vous affecter quand meme ?`
         )
         if (!ok) return
       }
@@ -1470,7 +1473,7 @@ export default function Planning() {
         }
       }
 
-      const updatePayload: Record<string, string> = { statut: 'planifie' }
+      const updatePayload: Record<string, string> = { statut: 'planifie', statut_transport: 'planifie' }
       if (tab === 'conducteurs') updatePayload.conducteur_id = resourceId
       if (tab === 'camions') updatePayload.vehicule_id = resourceId
       if (tab === 'remorques') updatePayload.remorque_id = resourceId
@@ -1520,7 +1523,7 @@ export default function Planning() {
     closeSelected(); setContextMenu(null); loadAll()
   }
 
-  // â”€â”€ Direct block move â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Direct block move ─────────────────────────────────────────────────────────
 
   async function loadRelais() {
     setRelaisLoading(true)
@@ -1913,7 +1916,7 @@ export default function Planning() {
     return pool.find(ot => ot.id === otId) ?? ganttOTs.find(ot => ot.id === otId) ?? null
   }
 
-  // â”€â”€ OT Drag handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── OT Drag handlers ──────────────────────────────────────────────────────────
 
   function onDragStartPool(ot: OT, e: React.DragEvent) {
     if (isRowEditMode) return
@@ -1959,26 +1962,40 @@ export default function Planning() {
     })
     setDrag({ ot:null, kind:'custom', durationDays, durationMinutes, customBlockId:block.id })
   }
-  function onDragEnd() { setDrag(null); setHoverRow(null) }
+  function onDragEnd() {
+    if (dragOverRafRef.current !== null) { cancelAnimationFrame(dragOverRafRef.current); dragOverRafRef.current = null }
+    hoverRowRef.current = null
+    setDrag(null)
+    setHoverRow(null)
+  }
 
   function onRowDragOver(e: React.DragEvent, rowId: string) {
     if (isRowEditMode) return
     e.preventDefault()
     e.stopPropagation()
     e.dataTransfer.dropEffect = 'move'
+    const clientX = e.clientX
     const rect = e.currentTarget.getBoundingClientRect()
-    const relX = e.clientX - rect.left
-    if (viewMode === 'semaine') {
-      const dayIdx = Math.max(0, Math.min(6, Math.floor(relX / rect.width * 7)))
-      setHoverRow({ rowId, dayIdx, timeMin:0 })
-    } else {
-      const rawMin = DAY_START_MIN + (relX / rect.width) * DAY_TOTAL_MIN
-      const timeMin = snapToQuarter(Math.max(DAY_START_MIN, Math.min(DAY_START_MIN + DAY_TOTAL_MIN - 15, rawMin)))
-      setHoverRow({ rowId, dayIdx:0, timeMin })
-    }
+    const relX = clientX - rect.left
+    const next = viewMode === 'semaine'
+      ? { rowId, dayIdx: Math.max(0, Math.min(6, Math.floor(relX / rect.width * 7))), timeMin: 0 }
+      : { rowId, dayIdx: 0, timeMin: snapToQuarter(Math.max(DAY_START_MIN, Math.min(DAY_START_MIN + DAY_TOTAL_MIN - 15, DAY_START_MIN + (relX / rect.width) * DAY_TOTAL_MIN))) }
+    const prev = hoverRowRef.current
+    // Skip setState if nothing changed (avoid per-frame re-renders)
+    if (prev && prev.rowId === next.rowId && prev.dayIdx === next.dayIdx && prev.timeMin === next.timeMin) return
+    hoverRowRef.current = next
+    if (dragOverRafRef.current !== null) return // already queued
+    dragOverRafRef.current = requestAnimationFrame(() => {
+      dragOverRafRef.current = null
+      setHoverRow(hoverRowRef.current)
+    })
   }
   function onRowDragLeave(e: React.DragEvent) {
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) setHoverRow(null)
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      hoverRowRef.current = null
+      if (dragOverRafRef.current !== null) { cancelAnimationFrame(dragOverRafRef.current); dragOverRafRef.current = null }
+      setHoverRow(null)
+    }
   }
 
   async function onRowDrop(e: React.DragEvent, rowId: string, isCustomRow = false) {
@@ -1986,7 +2003,8 @@ export default function Planning() {
     e.preventDefault()
     e.stopPropagation()
     const activeDrag = dragRef.current ?? readNativeDragPayload(e)
-    if (!activeDrag) return
+    if (!activeDrag) { setDrag(null); return }
+    try {
     const rect = e.currentTarget.getBoundingClientRect()
     const relX = e.clientX - rect.left
     setHoverRow(null)
@@ -2036,7 +2054,7 @@ export default function Planning() {
             return
           }
           if (!getWeekBlockMetrics(activeDrag.ot, weekStart)) {
-            pushPlanningNotice('Cette course n\'est pas planifiée cette semaine. Naviguez vers sa période pour l\'assigner.', 'error')
+            pushPlanningNotice('Cette course n\'est pas planifi�e cette semaine. Naviguez vers sa p�riode pour l\'assigner.', 'error')
             setDrag(null)
             return
           }
@@ -2064,13 +2082,14 @@ export default function Planning() {
           setDrag(null)
           return
         }
-        // Calcul de la nouvelle position à partir du drop X
-        const weekMs = 7 * 24 * 60 * 60 * 1000
-        const dropRatio = Math.max(0, Math.min(1, relX / rect.width))
-        const newStartMs = weekStart.getTime() + dropRatio * weekMs
+        // Snap au jour survol� en conservant l'heure d'origine du bloc
+        const dayIdx = Math.max(0, Math.min(6, Math.floor(relX / rect.width * 7)))
+        const targetDay = addDays(weekStart, dayIdx)
+        const origStart = activeDrag.ot.date_chargement_prevue ? new Date(activeDrag.ot.date_chargement_prevue) : new Date(weekStart)
         const durationMs = activeDrag.durationMinutes * 60 * 1000
-        const newStartDate = new Date(newStartMs)
-        const newEndDate = new Date(newStartMs + durationMs)
+        const newStartDate = new Date(targetDay)
+        newStartDate.setHours(origStart.getHours(), origStart.getMinutes(), 0, 0)
+        const newEndDate = new Date(newStartDate.getTime() + durationMs)
         const newStartISO = toDateTimeFromDate(newStartDate)
         const newEndISO = toDateTimeFromDate(newEndDate)
         const overlapTarget = findOverlapTarget(rowId, newStartISO, newEndISO, movingOtIds)
@@ -2108,7 +2127,7 @@ export default function Planning() {
             return
           }
           if (!getDayBlockMetrics(activeDrag.ot.date_chargement_prevue, activeDrag.ot.date_livraison_prevue, selectedDay)) {
-            pushPlanningNotice('Cette course n\'est pas planifiée ce jour. Naviguez vers son jour pour l\'assigner.', 'error')
+            pushPlanningNotice('Cette course n\'est pas planifi�e ce jour. Naviguez vers son jour pour l\'assigner.', 'error')
             setDrag(null)
             return
           }
@@ -2136,13 +2155,20 @@ export default function Planning() {
           setDrag(null)
           return
         }
-        const overlapTarget = findOverlapTarget(rowId, currentSchedule.startISO, currentSchedule.endISO, movingOtIds)
+        // Calculer la nouvelle heure depuis la position du curseur
+        const timeMin = snapToQuarter(Math.max(DAY_START_MIN, Math.min(DAY_START_MIN + DAY_TOTAL_MIN - 15, DAY_START_MIN + Math.round((relX / rect.width) * DAY_TOTAL_MIN))))
+        const newStartDate = parseDay(selectedDay)
+        newStartDate.setHours(Math.floor(timeMin / 60), timeMin % 60, 0, 0)
+        const durationMs = activeDrag.durationMinutes * 60 * 1000
+        const newStartISO = toDateTimeFromDate(newStartDate)
+        const newEndISO = toDateTimeFromDate(new Date(newStartDate.getTime() + durationMs))
+        const overlapTarget = findOverlapTarget(rowId, newStartISO, newEndISO, movingOtIds)
         if (overlapTarget) {
           const shouldCreateGroupage = await showConfirm(`Superposition detectee avec ${overlapTarget.reference}. Voulez-vous creer un groupage deliable ?`)
           if (shouldCreateGroupage) {
             const linked = await linkCoursesToGroupage(activeDrag.ot, overlapTarget)
             if (linked) {
-              await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
+              await moveBlock(activeDrag.ot, rowId, newStartISO, newEndISO)
               if (activeDrag.customBlockId) {
                 const upd = customBlocks.filter(b => b.id !== activeDrag.customBlockId)
                 if (upd.length !== customBlocks.length) { setCustomBlocks(upd); saveCustomBlocks(upd) }
@@ -2153,17 +2179,22 @@ export default function Planning() {
             }
           }
         }
-        await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
+        await moveBlock(activeDrag.ot, rowId, newStartISO, newEndISO)
         if (activeDrag.customBlockId) {
           const upd = customBlocks.filter(b => b.id !== activeDrag.customBlockId)
           if (upd.length !== customBlocks.length) { setCustomBlocks(upd); saveCustomBlocks(upd) }
         }
       }
     }
-    setDrag(null)
+    } finally {
+      if (dragOverRafRef.current !== null) { cancelAnimationFrame(dragOverRafRef.current); dragOverRafRef.current = null }
+      hoverRowRef.current = null
+      setDrag(null)
+      setHoverRow(null)
+    }
   }
 
-  // â”€â”€ Row reorder drag handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Row reorder drag handlers ─────────────────────────────────────────────────
 
   function onRowReorderStart(rowId: string, e: React.DragEvent) {
     e.stopPropagation()
@@ -2200,7 +2231,7 @@ export default function Planning() {
   }
   function onRowReorderEnd() { setDraggingRowId(null); setDragOverRowId(null) }
 
-  // â”€â”€ Custom rows management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Custom rows management ────────────────────────────────────────────────────
 
   function addCustomRow() {
     if (!newRowLabel.trim()) return
@@ -2444,7 +2475,7 @@ export default function Planning() {
     await unassign(linkedOT)
   }
 
-  // â”€â”€ Block color resolver â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Block color resolver ───────────────────────────────────────────────────────
 
   function getBlockColors(ot: OT, rowId: string): { cls:string; style:React.CSSProperties } {
     if (colorMode === 'conducteur' && tab === 'conducteurs' && conductorColors[rowId]) {
@@ -2462,7 +2493,7 @@ export default function Planning() {
     return { cls: STATUT_CLS[ot.statut] ?? 'bg-slate-600 border-slate-500', style:{} }
   }
 
-  // â”€â”€ Computed values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Computed values ───────────────────────────────────────────────────────────
 
   const weekDays  = Array.from({ length: 7  }, (_, i) => addDays(weekStart, i))
   const hourSlots = Array.from({ length: 24 }, (_, i) => i)  // 00-23
@@ -2728,6 +2759,18 @@ export default function Planning() {
       })
   })()
 
+  // Map id ? ville pour les sites logistiques
+  const sitesMap = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const s of logisticSites) m.set(s.id, s.ville ?? s.nom)
+    return m
+  }, [logisticSites])
+
+  const getOtVilles = (ot: OT) => ({
+    dep: ot.chargement_site_id ? (sitesMap.get(ot.chargement_site_id) ?? '') : '',
+    arr: ot.livraison_site_id  ? (sitesMap.get(ot.livraison_site_id)  ?? '') : '',
+  })
+
   const bottomDockMissions = useMemo(() => {
     const sorted = [...ganttOTs]
       .filter(ot => !centerFilter || ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter)
@@ -2739,9 +2782,34 @@ export default function Planning() {
     return sorted.slice(0, 80)
   }, [centerFilter, ganttOTs])
 
+  // P�riode visible (� 2j buffer) � utilis�e pour synchroniser la file d'attente
+  const viewPeriodStartISO = useMemo(() => {
+    if (viewMode === 'mois') return toISO(addDays(monthStart, -2))
+    if (viewMode === 'jour') return toISO(addDays(new Date(selectedDay), -2))
+    return toISO(addDays(weekStart, -2))
+  }, [viewMode, monthStart, selectedDay, weekStart])
+
+  const viewPeriodEndISO = useMemo(() => {
+    if (viewMode === 'mois') {
+      const lastDay = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0)
+      return toISO(addDays(lastDay, 2))
+    }
+    if (viewMode === 'jour') return toISO(addDays(new Date(selectedDay), 2))
+    return toISO(addDays(weekStart, 9)) // 7j semaine + 2j buffer
+  }, [viewMode, monthStart, selectedDay, weekStart])
+
   const bottomDockNonProgrammees = useMemo(
-    () => pool.filter(ot => !centerFilter || ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter),
-    [centerFilter, pool],
+    () => pool
+      .filter(ot => !centerFilter || ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter)
+      .filter(ot => {
+        // OTs sans aucune date ? toujours dans la file (brouillons � planifier)
+        if (!ot.date_chargement_prevue && !ot.date_livraison_prevue) return true
+        // Chevauchement avec la p�riode visible (� 2j buffer)
+        const start = (ot.date_chargement_prevue ?? ot.date_livraison_prevue!).slice(0, 10)
+        const end   = (ot.date_livraison_prevue  ?? ot.date_chargement_prevue!).slice(0, 10)
+        return start <= viewPeriodEndISO && end >= viewPeriodStartISO
+      }),
+    [centerFilter, pool, viewPeriodStartISO, viewPeriodEndISO],
   )
 
   const bottomDockGroupages = useMemo(() => {
@@ -2789,10 +2857,13 @@ export default function Planning() {
 
   const planningGroupageCandidates = useMemo(() => {
     if (!selected) return []
+    const selectedDay = selected.date_chargement_prevue ? selected.date_chargement_prevue.slice(0, 10) : null
     return [...pool, ...ganttOTs]
       .filter(ot => ot.id !== selected.id)
       .filter(ot => planningScope === 'affretement' ? ot.est_affretee : !ot.est_affretee)
       .filter(ot => !ot.groupage_fige)
+      .filter(ot => selected.conducteur_id ? ot.conducteur_id === selected.conducteur_id : true)
+      .filter(ot => selectedDay ? (ot.date_chargement_prevue ?? '').slice(0, 10) === selectedDay : true)
       .sort((left, right) => left.reference.localeCompare(right.reference, 'fr-FR'))
   }, [ganttOTs, planningScope, pool, selected])
 
@@ -2839,7 +2910,18 @@ export default function Planning() {
     let list = pool
       .filter(ot => !customOTIds.has(ot.id))
       .filter(ot => !centerFilter || ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter)
-      .filter(ot => viewMode === 'semaine' ? blockPos(ot, weekStart) !== null : isoToDate(ot.date_chargement_prevue) === selectedDay)
+      .filter(ot => {
+        if (viewMode === 'semaine') return blockPos(ot, weekStart) !== null
+        if (viewMode === 'mois') {
+          // OTs sans dates ? visibles (brouillons � planifier)
+          if (!ot.date_chargement_prevue && !ot.date_livraison_prevue) return true
+          const start = (ot.date_chargement_prevue ?? ot.date_livraison_prevue!).slice(0, 10)
+          const end   = (ot.date_livraison_prevue  ?? ot.date_chargement_prevue!).slice(0, 10)
+          return start <= viewPeriodEndISO && end >= viewPeriodStartISO
+        }
+        // mode 'jour'
+        return isoToDate(ot.date_chargement_prevue) === selectedDay
+      })
     if (poolSearch) {
       const q = poolSearch.toLowerCase()
       list = list.filter(o => o.reference.toLowerCase().includes(q) || o.client_nom.toLowerCase().includes(q))
@@ -2847,7 +2929,7 @@ export default function Planning() {
     if (filterType) list = list.filter(o => o.type_transport === filterType)
     if (filterClient) list = list.filter(o => o.client_nom === filterClient)
     return list
-  }, [pool, customOTIds, centerFilter, viewMode, weekStart, selectedDay, poolSearch, filterType, filterClient])
+  }, [pool, customOTIds, centerFilter, viewMode, weekStart, selectedDay, poolSearch, filterType, filterClient, viewPeriodStartISO, viewPeriodEndISO])
 
   function getAffretementRowId(ot: OT): string | null {
     const context = affretementContextByOtId[ot.id]
@@ -2931,13 +3013,13 @@ export default function Planning() {
       ? (uniqueClients[0] ?? firstMember?.client_nom ?? 'Client non renseigne')
       : `${uniqueClients.length} clients`
     const subtitle = missionType === 'groupage'
-      ? `${sortedMembers.length} courses · ${clientLabel}`
+      ? `${sortedMembers.length} courses � ${clientLabel}`
       : clientLabel
     const timeRange = [isoToTime(earliest), isoToTime(latest)].filter(Boolean).join(' - ') || 'Horaire non renseigne'
     const coursePreview = sortedMembers.map(member => {
       const memberRange = [isoToTime(member.date_chargement_prevue), isoToTime(member.date_livraison_prevue)].filter(Boolean).join('-')
-      const head = [member.reference, member.client_nom].filter(Boolean).join(' · ')
-      return memberRange ? `${head} · ${memberRange}` : head
+      const head = [member.reference, member.client_nom].filter(Boolean).join(' � ')
+      return memberRange ? `${head} � ${memberRange}` : head
     })
 
     return {
@@ -2950,7 +3032,7 @@ export default function Planning() {
       timeRange,
       statusLabel,
       clientLabel,
-      referencesLabel: sortedMembers.map(member => member.reference).join(' · '),
+      referencesLabel: sortedMembers.map(member => member.reference).join(' � '),
       coursePreview,
       frozen: sortedMembers.some(member => member.groupage_fige),
       members: sortedMembers,
@@ -2998,8 +3080,8 @@ export default function Planning() {
         groupId,
         leftPct,
         widthPct: rightPct - leftPct,
-        label: `Lot verrouille · ${visibleMembers.length} courses`,
-        references: visibleMembers.map(item => item.member.reference).join(' · '),
+        label: `Lot verrouille � ${visibleMembers.length} courses`,
+        references: visibleMembers.map(item => item.member.reference).join(' � '),
       })
     }
 
@@ -3031,7 +3113,7 @@ export default function Planning() {
       leftPct,
       widthPct: rightPct - leftPct,
       frozen: summary.frozen,
-      label: `${summary.label} · ${summary.courseCount} course${summary.courseCount > 1 ? 's' : ''}`,
+      label: `${summary.label} � ${summary.courseCount} course${summary.courseCount > 1 ? 's' : ''}`,
     }]
   }
 
@@ -3251,13 +3333,16 @@ export default function Planning() {
       .slice(0, 40)
   }, [bottomDockConflicts, ganttOTs, unresourced])
 
-  const canMove   = (ot: OT) => (ST_PLANIFIE.includes((ot.statut_transport ?? '') as never) || ST_CONFIRME.includes((ot.statut_transport ?? '') as never)) && !ot.groupage_fige
+  const canMove = (ot: OT) => {
+    const st = (ot.statut_transport ?? ot.statut ?? '').trim().toLowerCase()
+    return (ST_PLANIFIE.includes(st as never) || ST_CONFIRME.includes(st as never)) && !ot.groupage_fige
+  }
   const canUnlock = canMove
 
   function ghostPos(rowId: string): React.CSSProperties | null {
     if (!hoverRow || hoverRow.rowId !== rowId || !drag) return null
-    if (drag.kind === 'pool' || drag.kind === 'block') {
-      // La course reste à sa propre position sur la timeline – on affiche le ghost à cet endroit
+    if (drag.kind === 'pool') {
+      // Pool drag: la course garde sa position sur la timeline, seule la ressource change
       if (!drag.ot) return null
       if (viewMode === 'semaine') {
         const metrics = getWeekBlockMetrics(drag.ot, weekStart)
@@ -3269,6 +3354,7 @@ export default function Planning() {
         return { position:'absolute', top:'4px', height:'44px', left:`${metrics.leftPct}%`, width:`${metrics.widthPct}%`, zIndex:20, pointerEvents:'none' }
       }
     }
+    // block et custom: le ghost suit la position du curseur
     if (viewMode === 'semaine') {
       const left  = hoverRow.dayIdx / 7
       const width = Math.min(drag.durationDays, 7 - hoverRow.dayIdx) / 7
@@ -3295,7 +3381,7 @@ export default function Planning() {
     return `${m} min`
   }
 
-  // â”€â”€ Row label renderer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Row label renderer ────────────────────────────────────────────────────────
 
   const ROW_H = 64
 
@@ -3389,17 +3475,17 @@ export default function Planning() {
           )}
           {row.isCustom && <span className="text-[9px] bg-amber-500/20 text-amber-400 rounded px-1 py-0.5 font-semibold flex-shrink-0">Libre</span>}
 
-          {/* Badge statut maintenance véhicule */}
+          {/* Badge statut maintenance v�hicule */}
           {tab === 'camions' && !row.isCustom && !row.isAffretementAsset && (() => {
             const vStatut = vehiculeById.get(row.id)?.statut
-            if (vStatut === 'maintenance') return <span className="text-[9px] bg-orange-600/30 text-orange-300 rounded px-1 py-0.5 font-bold flex-shrink-0" title="Véhicule en maintenance">MAINT</span>
+            if (vStatut === 'maintenance') return <span className="text-[9px] bg-orange-600/30 text-orange-300 rounded px-1 py-0.5 font-bold flex-shrink-0" title="V�hicule en maintenance">MAINT</span>
             if (vStatut === 'hs') return <span className="text-[9px] bg-red-600/30 text-red-300 rounded px-1 py-0.5 font-bold flex-shrink-0" title="Hors service">HS</span>
             return null
           })()}
 
           {/* Alerte retard */}
           {hasLateOT && !row.isCustom && (
-            <span className="text-[9px] text-red-400 flex-shrink-0" title="OT en retard">⚠</span>
+            <span className="text-[9px] text-red-400 flex-shrink-0" title="OT en retard">?</span>
           )}
 
           {/* Badge absence RH */}
@@ -3415,14 +3501,14 @@ export default function Planning() {
           {/* Badge scan CE561 */}
           {!row.isCustom && !row.isAffretementAsset && weekScanResults[row.id] && (
             <span
-              title={weekScanResults[row.id].alerts.map(a => `${a.type === 'bloquant' ? '⛔' : '⚠'} ${a.code}: ${a.message}`).join('\n')}
+              title={weekScanResults[row.id].alerts.map(a => `${a.type === 'bloquant' ? '?' : '?'} ${a.code}: ${a.message}`).join('\n')}
               className={`text-[9px] px-1 py-0.5 rounded font-bold flex-shrink-0 cursor-default ${
                 weekScanResults[row.id].hasBlocking
                   ? 'bg-rose-500/30 text-rose-200'
                   : 'bg-amber-500/20 text-amber-300'
               }`}
             >
-              {weekScanResults[row.id].hasBlocking ? '⛔' : '⚠'} CE561
+              {weekScanResults[row.id].hasBlocking ? '?' : '?'} CE561
             </span>
           )}
 
@@ -3446,17 +3532,17 @@ export default function Planning() {
 
         {row.secondary && <p className="text-[10px] text-slate-600 truncate mt-0.5 pl-0.5">{row.secondary}</p>}
 
-        {/* Badge km à vide + taux de charge (camions uniquement) */}
+        {/* Badge km � vide + taux de charge (camions uniquement) */}
         {tab === 'camions' && !row.isCustom && !row.isAffretementAsset && (() => {
           const kmVide = kmVideSynthese.get(row.id)
           if (!kmVide) return null
           const taux = kmVide.taux_charge_pct
           if (taux === null) return null
           const couleur = taux >= 85 ? 'text-emerald-400' : taux >= 65 ? 'text-amber-400' : 'text-red-400'
-          const titre = `Taux de charge 30j : ${taux}%${kmVide.total_km_vide_estime ? ` — ${kmVide.total_km_vide_estime} km à vide estimés` : ''}`
+          const titre = `Taux de charge 30j : ${taux}%${kmVide.total_km_vide_estime ? ` � ${kmVide.total_km_vide_estime} km � vide estim�s` : ''}`
           return (
             <p className={`text-[9px] font-bold mt-0.5 pl-0.5 ${couleur}`} title={titre}>
-              {taux >= 85 ? '●' : taux >= 65 ? '◑' : '○'} {taux}% chg.
+              {taux >= 85 ? '?' : taux >= 65 ? '?' : '?'} {taux}% chg.
             </p>
           )
         })()}
@@ -3473,12 +3559,12 @@ export default function Planning() {
     )
   }
 
-  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
     <div
-      className={`nx-planning relative flex h-full bg-slate-950 overflow-x-hidden ${isResizingBottomDock ? 'cursor-ns-resize' : ''}`}
-      style={{ paddingBottom: `${BOTTOM_DOCK_VIEWPORT_OFFSET}px` }}
+      className={`nx-planning relative flex min-h-full bg-slate-950 ${isResizingBottomDock ? 'cursor-ns-resize' : ''}`}
+      style={{ overflowX: 'clip', paddingBottom: `${BOTTOM_DOCK_VIEWPORT_OFFSET}px` }}
     >
       {planningNotice && (
         <div className={`absolute right-4 top-4 z-[80] max-w-sm rounded-xl border px-4 py-3 text-xs font-semibold shadow-2xl ${drag ? 'pointer-events-none' : ''}`}
@@ -3534,22 +3620,21 @@ export default function Planning() {
       )}
 
       {/* -- Pool panel - file d'attente -- */}
-      <div className="w-60 flex-shrink-0 bg-slate-900 border-r border-slate-700/80 flex flex-col shadow-lg">
+      <div className="w-60 flex-shrink-0 bg-slate-900 border-r border-slate-700/80 flex flex-col shadow-lg overflow-hidden" style={{ position: 'sticky', top: 0, height: '100vh', alignSelf: 'flex-start' }}>
         {/* En-tete pool */}
-        <div className="px-3 pt-3 pb-2 border-b border-slate-700/60 flex-shrink-0 space-y-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">File d'attente</p>
-              <div className="flex items-baseline gap-1.5 mt-0.5">
-                <span className="text-2xl font-bold text-white">{visiblePool.length}</span>
-                <span className="text-xs text-slate-500">OT{visiblePool.length !== 1 ? 's' : ''} a placer</span>
+        <div className="px-3 pt-2.5 pb-2 border-b border-slate-700/60 flex-shrink-0 space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">File d'attente</p>
+              <div className="flex items-baseline gap-1.5 mt-1">
+                <span className="text-xl font-bold text-white">{visiblePool.length}</span>
+                <span className="text-xs text-slate-500">OT{visiblePool.length !== 1 ? 's' : ''} � placer</span>
               </div>
-              <p className="mt-0.5 text-[10px] text-slate-500">OT sans ressource sur la vue active (conducteurs, camions ou remorques).</p>
             </div>
             {kpi.retard > 0 && (
-              <div className="flex flex-col items-center bg-red-900/30 border border-red-700/40 rounded-lg px-2 py-1">
-                <span className="text-lg font-bold text-red-400">{kpi.retard}</span>
-                <span className="text-[9px] text-red-500 font-semibold">RETARD</span>
+              <div className="flex flex-col items-center bg-red-900/30 border border-red-700/40 rounded-lg px-2 py-1 flex-shrink-0">
+                <span className="text-base font-bold text-red-400 leading-none">{kpi.retard}</span>
+                <span className="text-[9px] text-red-500 font-semibold mt-0.5">RETARD</span>
               </div>
             )}
           </div>
@@ -3576,7 +3661,10 @@ export default function Planning() {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto py-1.5 px-2">
+        {/* Gradient scroll indicator */}
+        <div className="relative flex-1 min-h-0 flex flex-col">
+          <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-slate-900 to-transparent pointer-events-none z-10" />
+          <div className="flex-1 overflow-y-auto py-1.5 px-2 min-h-0" style={{ scrollbarWidth: 'thin', scrollbarColor: '#334155 transparent' }}>
           {visiblePool.length === 0 ? (
             <div className="py-10 text-center">
               <p className="text-2xl mb-2">?</p>
@@ -3675,13 +3763,14 @@ export default function Planning() {
               </div>
             )})
           })()}
+          </div>
         </div>
       </div>
 
       {/* -- Gantt area ---------------------------------------------------------- */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-0">
+      <div className="flex-1 flex flex-col min-w-0">
 
-        {/* â”€â”€ Top bar â”€â”€ */}
+        {/* ── Top bar ── */}
         <div className="flex flex-wrap items-start justify-between px-5 py-3 border-b border-slate-700 bg-slate-900 flex-shrink-0 gap-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <h1 className="text-base font-bold text-white flex-shrink-0">Planning</h1>
@@ -3791,7 +3880,7 @@ export default function Planning() {
                 onClick={() => setWeekScanResults({})}
                 title="Effacer les resultats du scan"
                 className="h-8 w-8 flex items-center justify-center rounded-lg text-xs border border-slate-700 text-slate-500 hover:text-slate-300"
-              >✕</button>
+              >?</button>
             )}
 
             <button
@@ -3802,7 +3891,7 @@ export default function Planning() {
               Regles CE561
             </button>
 
-            {/* Export PDF — uniquement en vue semaine */}
+            {/* Export PDF � uniquement en vue semaine */}
             {viewMode === 'semaine' && (
               <button
                 onClick={() => generatePlanningWeekPDF({
@@ -4085,10 +4174,10 @@ export default function Planning() {
           </div>
         </div>
 
-        {/* ── scrollable view area ───────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto min-h-0">
+        {/* -- gantt rows area --------------------------------------------- */}
+        <div className="overflow-x-auto">
 
-        {/* ── Skeleton de chargement initial ─────────────────────────────── */}
+        {/* -- Skeleton de chargement initial ------------------------------- */}
         {isLoadingOTs && ganttOTs.length === 0 && (
           <div className="animate-pulse px-4 py-6 space-y-3">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -4100,7 +4189,7 @@ export default function Planning() {
           </div>
         )}
 
-        {/* â”€â”€ WEEK VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── WEEK VIEW ──────────────────────────────────────────────────────── */}
         {viewMode === 'semaine' && (
           <div className="overflow-visible" onDragOver={e => e.preventDefault()}>
             {/* Day headers */}
@@ -4267,14 +4356,23 @@ export default function Planning() {
                                 onClick={e => { e.stopPropagation(); unassign(ot) }}>x</button>
                             )}
                           </div>
-                          {!groupedLayout?.compact && (
-                            <div className="flex items-center gap-1 min-w-0">
-                              <span className="truncate flex-1 text-[10px] text-white/80 font-semibold">{ot.client_nom}</span>
-                              {(hCharge || hLivre) && (
-                                <span className="text-[9px] text-white/50 flex-shrink-0 font-mono">{hCharge}{hCharge && hLivre ? '-' : ''}{hLivre}</span>
+                          {!groupedLayout?.compact && (() => { const v = getOtVilles(ot); return (
+                            <>
+                              <div className="flex items-center gap-1 min-w-0">
+                                <span className="truncate flex-1 text-[10px] text-white/80 font-semibold">{ot.client_nom}</span>
+                                {(hCharge || hLivre) && (
+                                  <span className="text-[9px] text-white/50 flex-shrink-0 font-mono">{hCharge}{hCharge && hLivre ? '-' : ''}{hLivre}</span>
+                                )}
+                              </div>
+                              {(v.dep || v.arr) && (
+                                <div className="flex items-center gap-0.5 min-w-0 leading-none">
+                                  <span className="truncate text-[9px] text-white/45 font-medium">{v.dep}</span>
+                                  {v.dep && v.arr && <span className="text-[9px] text-white/25 flex-shrink-0">{String.fromCharCode(8594)}</span>}
+                                  <span className="truncate text-[9px] text-white/45 font-medium">{v.arr}</span>
+                                </div>
                               )}
-                            </div>
-                          )}
+                            </>
+                          )})()}
                         </div>
                       )
                     })}
@@ -4317,12 +4415,23 @@ export default function Planning() {
                                   onClick={async e => { e.stopPropagation(); await unassignFromCustomBlock(block) }}>x</button>
                               )}
                             </div>
-                            <div className="flex items-center gap-1 min-w-0">
-                              <span className="truncate flex-1 text-[10px] text-white/80 font-semibold">{linkedOT.client_nom}</span>
-                              {(hCharge || hLivre) && (
-                                <span className="text-[9px] text-white/50 flex-shrink-0 font-mono">{hCharge}{hCharge && hLivre ? '-' : ''}{hLivre}</span>
-                              )}
-                            </div>
+                            {(() => { const v = getOtVilles(linkedOT); return (
+                              <>
+                                <div className="flex items-center gap-1 min-w-0">
+                                  <span className="truncate flex-1 text-[10px] text-white/80 font-semibold">{linkedOT.client_nom}</span>
+                                  {(hCharge || hLivre) && (
+                                    <span className="text-[9px] text-white/50 flex-shrink-0 font-mono">{hCharge}{hCharge && hLivre ? '-' : ''}{hLivre}</span>
+                                  )}
+                                </div>
+                                {(v.dep || v.arr) && (
+                                  <div className="flex items-center gap-0.5 min-w-0 leading-none">
+                                    <span className="truncate text-[9px] text-white/45 font-medium">{v.dep}</span>
+                                    {v.dep && v.arr && <span className="text-[9px] text-white/25 flex-shrink-0">{String.fromCharCode(8594)}</span>}
+                                    <span className="truncate text-[9px] text-white/45 font-medium">{v.arr}</span>
+                                  </div>
+                                )}
+                              </>
+                            )})()}
                           </div>
                         )
                       }
@@ -4335,13 +4444,13 @@ export default function Planning() {
                           {!isRowEditMode && <button className="opacity-0 group-hover/cblock:opacity-100 transition-opacity flex-shrink-0 w-4 h-4 flex items-center justify-center rounded hover:bg-white/20 text-xs"
                             title="Modifier"
                             onClick={e => { e.stopPropagation(); openPlanningBlockEditor(block) }}>
-                            ✎</button>}
+                            ?</button>}
                           {!isRowEditMode && <button className="opacity-0 group-hover/cblock:opacity-100 transition-opacity flex-shrink-0 w-4 h-4 flex items-center justify-center rounded hover:bg-white/20 text-xs"
                             onClick={async e => { e.stopPropagation(); await unassignFromCustomBlock(block) }}>x</button>}
                         </div>
                       )
                     })}
-                    {/* Bandes d'indisponibilité RH */}
+                    {/* Bandes d'indisponibilit� RH */}
                     {tab === 'conducteurs' && !row.isCustom && !row.isAffretementAsset && (conducteurAbsences.get(row.id) ?? []).map(abs => {
                       const sD = parseDay(abs.date_debut)
                       const eD = parseDay(abs.date_fin)
@@ -4438,7 +4547,7 @@ export default function Planning() {
           </div>
         )}
 
-        {/* â”€â”€ DAY VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── DAY VIEW ──────────────────────────────────────────────────────── */}
         {viewMode === 'jour' && (
           <div className="flex flex-col">
             {/* Hour header */}
@@ -4622,12 +4731,21 @@ export default function Planning() {
                                 </>
                               )}
                             </div>
-                            {!groupedLayout?.compact && (
-                              <div className="flex items-center gap-1 min-w-0">
-                                <span className="text-white/80 text-[10px] font-semibold truncate flex-1">{ot.client_nom}</span>
-                                <span className="text-white/50 text-[9px] font-mono flex-shrink-0">{isoToTime(ot.date_chargement_prevue)}-{isoToTime(ot.date_livraison_prevue)}</span>
-                              </div>
-                            )}
+                            {!groupedLayout?.compact && (() => { const v = getOtVilles(ot); return (
+                              <>
+                                <div className="flex items-center gap-1 min-w-0">
+                                  <span className="text-white/80 text-[10px] font-semibold truncate flex-1">{ot.client_nom}</span>
+                                  <span className="text-white/50 text-[9px] font-mono flex-shrink-0">{isoToTime(ot.date_chargement_prevue)}-{isoToTime(ot.date_livraison_prevue)}</span>
+                                </div>
+                                {(v.dep || v.arr) && (
+                                  <div className="flex items-center gap-0.5 min-w-0 leading-none">
+                                    <span className="truncate text-[9px] text-white/45 font-medium">{v.dep}</span>
+                                    {v.dep && v.arr && <span className="text-[9px] text-white/25 flex-shrink-0">{String.fromCharCode(8594)}</span>}
+                                    <span className="truncate text-[9px] text-white/45 font-medium">{v.arr}</span>
+                                  </div>
+                                )}
+                              </>
+                            )})()}
                           </div>
                         )
                       })}
@@ -4665,10 +4783,21 @@ export default function Planning() {
                                     onClick={async e => { e.stopPropagation(); await unassignFromCustomBlock(block) }}>x</button>
                                 )}
                               </div>
-                              <div className="flex items-center gap-1 min-w-0">
-                                <span className="text-white/80 text-[10px] font-semibold truncate flex-1">{linkedOT.client_nom}</span>
-                                <span className="text-white/50 text-[9px] font-mono flex-shrink-0">{isoToTime(linkedOT.date_chargement_prevue)}-{isoToTime(linkedOT.date_livraison_prevue)}</span>
-                              </div>
+                              {(() => { const v = getOtVilles(linkedOT); return (
+                                <>
+                                  <div className="flex items-center gap-1 min-w-0">
+                                    <span className="text-white/80 text-[10px] font-semibold truncate flex-1">{linkedOT.client_nom}</span>
+                                    <span className="text-white/50 text-[9px] font-mono flex-shrink-0">{isoToTime(linkedOT.date_chargement_prevue)}-{isoToTime(linkedOT.date_livraison_prevue)}</span>
+                                  </div>
+                                  {(v.dep || v.arr) && (
+                                    <div className="flex items-center gap-0.5 min-w-0 leading-none">
+                                      <span className="truncate text-[9px] text-white/45 font-medium">{v.dep}</span>
+                                      {v.dep && v.arr && <span className="text-[9px] text-white/25 flex-shrink-0">{String.fromCharCode(8594)}</span>}
+                                      <span className="truncate text-[9px] text-white/45 font-medium">{v.arr}</span>
+                                    </div>
+                                  )}
+                                </>
+                              )})()}
                             </div>
                           )
                         }
@@ -4681,13 +4810,13 @@ export default function Planning() {
                               <span className="text-white/60 text-[9px]">{block.dateStart.slice(11,16)}-{block.dateEnd.slice(11,16)}</span>
                             {!isRowEditMode && <button className="absolute right-5 top-1 opacity-0 group-hover/cblock:opacity-100 w-4 h-4 flex items-center justify-center rounded hover:bg-white/20 text-xs"
                               title="Modifier"
-                              onClick={e => { e.stopPropagation(); openPlanningBlockEditor(block) }}>✎</button>}
+                              onClick={e => { e.stopPropagation(); openPlanningBlockEditor(block) }}>?</button>}
                             {!isRowEditMode && <button className="absolute right-1 top-1 opacity-0 group-hover/cblock:opacity-100 w-4 h-4 flex items-center justify-center rounded hover:bg-white/20 text-xs"
                               onClick={async e => { e.stopPropagation(); await unassignFromCustomBlock(block) }}>x</button>}
                           </div>
                         )
                       })}
-                      {/* Bandes d'indisponibilité RH (vue jour) */}
+                      {/* Bandes d'indisponibilit� RH (vue jour) */}
                       {tab === 'conducteurs' && !row.isCustom && !row.isAffretementAsset && (conducteurAbsences.get(row.id) ?? []).map(abs => {
                         if (abs.date_debut > selectedDay || abs.date_fin < selectedDay) return null
                         return (
@@ -4740,7 +4869,7 @@ export default function Planning() {
           </div>
         )}
 
-        {/* ── MONTH VIEW ──────────────────────────────────────────────────── */}
+        {/* -- MONTH VIEW ---------------------------------------------------- */}
         {viewMode === 'mois' && (() => {
           const monthDaysList = getMonthDays(monthStart)
           const DAY_ABBR = ['D','L','M','M','J','V','S']
@@ -5238,7 +5367,7 @@ export default function Planning() {
                           <td className="px-3 py-2 text-slate-200">
                             <div className="flex flex-col gap-0.5">
                               <span>{summary.subtitle}</span>
-                              <span className="text-[10px] text-slate-500">{summary.timeRange} · {summary.referencesLabel}</span>
+                              <span className="text-[10px] text-slate-500">{summary.timeRange} � {summary.referencesLabel}</span>
                             </div>
                           </td>
                           <td className="px-3 py-2">
@@ -5499,7 +5628,7 @@ export default function Planning() {
                                   : <span className="text-slate-500">N/A</span>
                                 }
                               </td>
-                              <td className="px-3 py-2 text-slate-300">{s.prix_ht != null ? `${s.prix_ht.toFixed(0)} €` : '—'}</td>
+                              <td className="px-3 py-2 text-slate-300">{s.prix_ht != null ? `${s.prix_ht.toFixed(0)} �` : '�'}</td>
                               <td className="px-3 py-2">
                                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/25 text-indigo-200">
                                   {s.score_rentabilite.toFixed(2)}
@@ -5507,8 +5636,8 @@ export default function Planning() {
                               </td>
                               <td className="px-3 py-2">
                                 {s.retour_depot_ok
-                                  ? <span className="text-emerald-300 text-[10px]">✓</span>
-                                  : <span className="text-red-300 text-[10px]">✗</span>
+                                  ? <span className="text-emerald-300 text-[10px]">?</span>
+                                  : <span className="text-red-300 text-[10px]">?</span>
                                 }
                               </td>
                               <td className="px-3 py-2">
@@ -5517,7 +5646,7 @@ export default function Planning() {
                                     Affecter
                                   </button>
                                 ) : (
-                                  <span className="text-slate-500">—</span>
+                                  <span className="text-slate-500">�</span>
                                 )}
                               </td>
                             </tr>
@@ -5535,7 +5664,7 @@ export default function Planning() {
                 </div>
               )}
 
-              {/* ── Onglet Entrepôts : marchandises en attente de reprise ── */}
+              {/* -- Onglet Entrep�ts : marchandises en attente de reprise -- */}
               {bottomDockTab === 'entrepots' && (
                 <div className="overflow-auto p-3 space-y-3">
                   <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex items-start justify-between gap-3">
@@ -5576,17 +5705,17 @@ export default function Planning() {
                                 <button type="button"
                                   onClick={() => { const ot = [...pool, ...ganttOTs].find(o => o.id === relais.ot_id); if (ot) openSelected(ot) }}
                                   className="text-indigo-300 hover:text-indigo-200 font-medium">
-                                  {relais.ordres_transport?.reference ?? '—'}
+                                  {relais.ordres_transport?.reference ?? '�'}
                                 </button>
                               </td>
-                              <td className="px-3 py-2 text-slate-300">{relais.ordres_transport?.client_nom ?? '—'}</td>
+                              <td className="px-3 py-2 text-slate-300">{relais.ordres_transport?.client_nom ?? '�'}</td>
                               <td className="px-3 py-2">
                                 <p className="text-slate-200 font-medium">{relais.lieu_nom}</p>
                                 {relais.lieu_adresse && <p className="text-slate-500 text-[10px]">{relais.lieu_adresse}</p>}
                               </td>
                               <td className="px-3 py-2 text-slate-400">{new Date(relais.date_depot).toLocaleString('fr-FR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</td>
                               <td className="px-3 py-2 text-slate-400">
-                                {relais.date_reprise_prevue ? new Date(relais.date_reprise_prevue).toLocaleDateString('fr-FR', { day:'2-digit', month:'short' }) : '—'}
+                                {relais.date_reprise_prevue ? new Date(relais.date_reprise_prevue).toLocaleDateString('fr-FR', { day:'2-digit', month:'short' }) : '�'}
                               </td>
                               <td className="px-3 py-2 text-slate-300">
                                 {relais.conducteur_reprise ? `${relais.conducteur_reprise.prenom} ${relais.conducteur_reprise.nom}` : <span className="text-slate-500 italic">Non assigne</span>}
@@ -5621,7 +5750,7 @@ export default function Planning() {
                 </div>
               )}
 
-              {/* ── Onglet Relais conducteur ── */}
+              {/* -- Onglet Relais conducteur -- */}
               {bottomDockTab === 'relais' && (
                 <div className="overflow-auto p-3 space-y-3">
                   <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-3 flex items-start justify-between gap-3">
@@ -5662,22 +5791,22 @@ export default function Planning() {
                                 <button type="button"
                                   onClick={() => { const ot = [...pool, ...ganttOTs].find(o => o.id === relais.ot_id); if (ot) openSelected(ot) }}
                                   className="text-indigo-300 hover:text-indigo-200 font-medium">
-                                  {relais.ordres_transport?.reference ?? '—'}
+                                  {relais.ordres_transport?.reference ?? '�'}
                                 </button>
                               </td>
-                              <td className="px-3 py-2 text-slate-300">{relais.ordres_transport?.client_nom ?? '—'}</td>
+                              <td className="px-3 py-2 text-slate-300">{relais.ordres_transport?.client_nom ?? '�'}</td>
                               <td className="px-3 py-2">
                                 <p className="text-slate-200 font-medium">{relais.lieu_nom}</p>
                                 {relais.lieu_adresse && <p className="text-slate-500 text-[10px]">{relais.lieu_adresse}</p>}
                               </td>
                               <td className="px-3 py-2 text-slate-300">
-                                {relais.conducteur_depose ? `${relais.conducteur_depose.prenom} ${relais.conducteur_depose.nom}` : '—'}
+                                {relais.conducteur_depose ? `${relais.conducteur_depose.prenom} ${relais.conducteur_depose.nom}` : '�'}
                               </td>
                               <td className="px-3 py-2 text-slate-300">
                                 {relais.conducteur_reprise ? `${relais.conducteur_reprise.prenom} ${relais.conducteur_reprise.nom}` : <span className="text-slate-500 italic">Non assigne</span>}
                               </td>
                               <td className="px-3 py-2 text-slate-400">
-                                {relais.date_reprise_prevue ? new Date(relais.date_reprise_prevue).toLocaleString('fr-FR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—'}
+                                {relais.date_reprise_prevue ? new Date(relais.date_reprise_prevue).toLocaleString('fr-FR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '�'}
                               </td>
                               <td className="px-3 py-2">
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
@@ -5797,7 +5926,7 @@ export default function Planning() {
               {[
                 { label:'Conducteur', key:'conducteur_id' as const, items: conducteurs.map(c => {
                   const isAbsent = assignModal && getConducteurAbsencesForPeriod(c.id, assignModal.date_chargement, assignModal.date_livraison).length > 0
-                  return { id: c.id, label: `${c.prenom} ${c.nom}${isAbsent ? ' ⛔ ABSENT' : ''}`, absent: isAbsent }
+                  return { id: c.id, label: `${c.prenom} ${c.nom}${isAbsent ? ' ? ABSENT' : ''}`, absent: isAbsent }
                 }).sort((a, b) => (a.absent ? 1 : 0) - (b.absent ? 1 : 0)), placeholder:'Non affecte' },
                 { label:'Camion',     key:'vehicule_id'   as const, items: vehicules.map(v  => ({ id:v.id, label:`${v.immatriculation}${v.marque?` - ${v.marque}`:''}`, absent: false })), placeholder:'Non affecte' },
                 { label:'Remorque',   key:'remorque_id'   as const, items: remorques.map(r  => ({ id:r.id, label:`${r.immatriculation} - ${r.type_remorque}`, absent: false })), placeholder:'Sans remorque' },
@@ -5836,7 +5965,7 @@ export default function Planning() {
                 ? 'Ajustez le type, le libelle ou la duree du bloc selectionne.'
                 : 'Ajoutez un HLP, une pause, une maintenance ou un autre bloc directement sur la ligne choisie.'}
             </p>
-            {/* Modèles de courses */}
+            {/* Mod�les de courses */}
             {newBlockType === 'course' && courseTemplates.length > 0 && (
               <div className="mb-3 rounded-xl border border-slate-700 bg-slate-800/50 px-3 py-2.5">
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Charger un modele</p>
@@ -5846,7 +5975,7 @@ export default function Planning() {
                       <button type="button" onClick={() => applyTemplate(tpl)} className="text-[11px] text-slate-200 hover:text-white transition-colors">
                         {tpl.label}
                       </button>
-                      <button type="button" onClick={() => void handleDeleteTemplate(tpl.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-rose-400 hover:text-rose-300 text-[10px] leading-none">×</button>
+                      <button type="button" onClick={() => void handleDeleteTemplate(tpl.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-rose-400 hover:text-rose-300 text-[10px] leading-none">�</button>
                     </div>
                   ))}
                 </div>
@@ -6012,14 +6141,14 @@ export default function Planning() {
                         onClick={() => setPlanningEventStart(nearestPlanningCourseSuggestion.beforeStartISO)}
                         className={`rounded-full border px-3 py-1.5 text-[10px] font-semibold hover:bg-slate-800 ${nearestPlanningCourseSuggestion.preferredMode === 'before' ? 'border-amber-300/60 bg-amber-400/20 text-amber-50' : 'border-amber-400/30 bg-slate-900/60 text-amber-100'}`}
                       >
-                        Coller avant · {nearestPlanningCourseSuggestion.beforeLabel}
+                        Coller avant � {nearestPlanningCourseSuggestion.beforeLabel}
                       </button>
                       <button
                         type="button"
                         onClick={() => setPlanningEventStart(nearestPlanningCourseSuggestion.afterStartISO)}
                         className={`rounded-full border px-3 py-1.5 text-[10px] font-semibold hover:bg-slate-800 ${nearestPlanningCourseSuggestion.preferredMode === 'after' ? 'border-amber-300/60 bg-amber-400/20 text-amber-50' : 'border-amber-400/30 bg-slate-900/60 text-amber-100'}`}
                       >
-                        Coller apres · {nearestPlanningCourseSuggestion.afterLabel}
+                        Coller apres � {nearestPlanningCourseSuggestion.afterLabel}
                       </button>
                     </div>
                   </div>
@@ -6072,7 +6201,7 @@ export default function Planning() {
                 </div>
               </>
             )}
-            {/* Sauvegarder comme modèle (courses uniquement) */}
+            {/* Sauvegarder comme mod�le (courses uniquement) */}
             {newBlockType === 'course' && (
               <div className="mb-3">
                 {showSaveTemplate ? (
@@ -6168,7 +6297,7 @@ export default function Planning() {
                   {([
                     { label: 'Conducteur', key: 'conducteur_id' as const, items: conducteurs.map(c => {
                       const isAbsent = editDraft && getConducteurAbsencesForPeriod(c.id, editDraft.date_chargement, editDraft.date_livraison).length > 0
-                      return { id: c.id, label: `${c.prenom} ${c.nom}${isAbsent ? ' ⛔ ABSENT' : ''}` }
+                      return { id: c.id, label: `${c.prenom} ${c.nom}${isAbsent ? ' ? ABSENT' : ''}` }
                     }).sort((a, b) => (a.label.includes('ABSENT') ? 1 : 0) - (b.label.includes('ABSENT') ? 1 : 0)), placeholder: 'Non affecte' },
                     { label: 'Camion',     key: 'vehicule_id'   as const, items: vehicules.map(v  => ({ id:v.id, label:`${v.immatriculation}${v.marque?` - ${v.marque}`:''}` })), placeholder: 'Non affecte' },
                     { label: 'Remorque',   key: 'remorque_id'   as const, items: remorques.map(r  => ({ id:r.id, label:`${r.immatriculation} - ${r.type_remorque}` })), placeholder: 'Sans remorque' },
@@ -6632,7 +6761,7 @@ export default function Planning() {
             {missionSummary.missionType === 'groupage' && (
               <div className="mt-1.5 rounded-lg border border-amber-300/20 bg-amber-400/5 px-2 py-1.5">
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-200">Groupage</p>
-                <p className="text-[11px] font-semibold text-slate-100">{missionSummary.courseCount} courses · {missionSummary.timeRange}</p>
+                <p className="text-[11px] font-semibold text-slate-100">{missionSummary.courseCount} courses � {missionSummary.timeRange}</p>
                 <p className="truncate text-[10px] text-slate-400">{missionSummary.referencesLabel}</p>
               </div>
             )}
@@ -6715,7 +6844,7 @@ export default function Planning() {
 
             <div className="border-t border-slate-800 my-1"/>
 
-            {/* Déposer en dépôt */}
+            {/* D�poser en d�p�t */}
             {(['planifie','en_cours','livre','confirme'].includes(contextMenu.ot.statut)) && (
               <button
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-amber-300 hover:bg-amber-900/20 hover:text-amber-200 transition-colors text-left"
@@ -6767,7 +6896,7 @@ export default function Planning() {
         </div>
       )}
 
-      {/* ── Tooltip mini-itinéraire ────────────────────────────────────────── */}
+      {/* -- Tooltip mini-itin�raire ------------------------------------------ */}
       {hoveredBlock && !drag && (() => {
         const { ot, x, y } = hoveredBlock
         const missionSummary = getMissionSummary(ot)
@@ -6790,9 +6919,9 @@ export default function Planning() {
                 </span>
               </div>
               <p className="mt-1 text-xs font-semibold text-white">{missionSummary.subtitle}</p>
-              <p className="text-[10px] text-slate-400">{missionSummary.timeRange} · {missionSummary.statusLabel}</p>
+              <p className="text-[10px] text-slate-400">{missionSummary.timeRange} � {missionSummary.statusLabel}</p>
               {hoveredMissionSummary && (
-                <p className="mt-1 text-[10px] text-slate-500">Mission {hoveredMissionSummary.missionId.slice(0, 8)} · {missionSummary.courseCount} course{missionSummary.courseCount > 1 ? 's' : ''}</p>
+                <p className="mt-1 text-[10px] text-slate-500">Mission {hoveredMissionSummary.missionId.slice(0, 8)} � {missionSummary.courseCount} course{missionSummary.courseCount > 1 ? 's' : ''}</p>
               )}
             </div>
             {missionSummary.missionType === 'groupage' && (
@@ -6841,7 +6970,7 @@ export default function Planning() {
         )
       })()}
 
-      {/* ── Modale Confirmation ────────────────────────────────────────────── */}
+      {/* -- Modale Confirmation ---------------------------------------------- */}
       {confirmModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70]" onClick={() => { confirmModal.resolve(false); setConfirmModal(null) }}>
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -6854,13 +6983,13 @@ export default function Planning() {
         </div>
       )}
 
-      {/* ── Modale Notification client ─────────────────────────────────────── */}
+      {/* -- Modale Notification client --------------------------------------- */}
       {notifyClientOt && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setNotifyClientOt(null)}>
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-sm font-semibold text-white mb-1">Notifier le client</h3>
             <p className="text-[11px] text-slate-400 mb-3">
-              Course <span className="font-mono text-slate-300">{notifyClientOt.reference}</span> — <span className="text-slate-300">{notifyClientOt.client_nom}</span>
+              Course <span className="font-mono text-slate-300">{notifyClientOt.reference}</span> � <span className="text-slate-300">{notifyClientOt.client_nom}</span>
             </p>
             <textarea
               value={notifyMessage}
@@ -6892,9 +7021,9 @@ export default function Planning() {
         </div>
       )}
 
-      {/* ── Modales Relais ─────────────────────────────────────────────────── */}
+      {/* -- Modales Relais --------------------------------------------------- */}
 
-      {/* Modale Dépôt marchandise */}
+      {/* Modale D�p�t marchandise */}
       {(relaisModal.mode === 'depot' || relaisModal.mode === 'relais_conducteur') && relaisModal.ot && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
           onClick={() => setRelaisModal({ mode: null, ot: null, relais: null })}>
@@ -6904,7 +7033,7 @@ export default function Planning() {
               <h3 className="text-base font-semibold text-white">
                 {relaisModal.mode === 'relais_conducteur' ? 'Relais conducteur' : 'Deposer en entrepot / depot'}
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">Course {relaisModal.ot.reference} — {relaisModal.ot.client_nom}</p>
+              <p className="text-xs text-slate-400 mt-0.5">Course {relaisModal.ot.reference} � {relaisModal.ot.client_nom}</p>
             </div>
             <form onSubmit={e => void submitRelaisDepot(e)} className="p-5 space-y-4">
               {/* Site logistique */}
@@ -6922,7 +7051,7 @@ export default function Planning() {
                     }))
                   }}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
-                  <option value="">— Saisie libre —</option>
+                  <option value="">� Saisie libre �</option>
                   {relaisDepotSites.map(s => (
                     <option key={s.id} value={s.id}>{s.nom}{s.ville ? ` (${s.ville})` : ''}</option>
                   ))}
@@ -6939,7 +7068,7 @@ export default function Planning() {
                     <input required
                       value={relaisDepotForm.lieu_nom}
                       onChange={e => setRelaisDepotForm(f => ({ ...f, lieu_nom: e.target.value }))}
-                      placeholder={relaisModal.mode === 'relais_conducteur' ? 'ex: Aire A7 km 142, Montélimar' : 'ex: Entrepôt Nexora Lille'}
+                      placeholder={relaisModal.mode === 'relais_conducteur' ? 'ex: Aire A7 km 142, Mont�limar' : 'ex: Entrep�t Nexora Lille'}
                       className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" />
                   </div>
                   <div>
@@ -6952,7 +7081,7 @@ export default function Planning() {
                 </>
               )}
 
-              {/* Date dépôt / RDV */}
+              {/* Date d�p�t / RDV */}
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
                   {relaisModal.mode === 'relais_conducteur' ? 'Date / heure du RDV' : 'Date de depot'}
@@ -6963,16 +7092,16 @@ export default function Planning() {
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" />
               </div>
 
-              {/* Véhicule */}
+              {/* V�hicule */}
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
-                  {relaisModal.mode === 'relais_conducteur' ? 'Conducteur qui repart (conducteur A)' : 'Conducteur qui dépose'}
+                  {relaisModal.mode === 'relais_conducteur' ? 'Conducteur qui repart (conducteur A)' : 'Conducteur qui d�pose'}
                 </label>
                 <select
                   value={relaisDepotForm.conducteur_depose_id}
                   onChange={e => setRelaisDepotForm(f => ({ ...f, conducteur_depose_id: e.target.value }))}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
-                  <option value="">— Aucun —</option>
+                  <option value="">� Aucun �</option>
                   {conducteurs.map(c => (
                     <option key={c.id} value={c.id}>{c.prenom} {c.nom}</option>
                   ))}
@@ -7013,7 +7142,7 @@ export default function Planning() {
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
                 {relaisModal.relais.lieu_nom}
-                {relaisModal.relais.ordres_transport ? ` — Course ${relaisModal.relais.ordres_transport.reference}` : ''}
+                {relaisModal.relais.ordres_transport ? ` � Course ${relaisModal.relais.ordres_transport.reference}` : ''}
               </p>
             </div>
             <form onSubmit={e => void submitRelaisAssign(e)} className="p-5 space-y-4">
@@ -7025,7 +7154,7 @@ export default function Planning() {
                   value={relaisAssignForm.conducteur_reprise_id}
                   onChange={e => setRelaisAssignForm(f => ({ ...f, conducteur_reprise_id: e.target.value }))}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
-                  <option value="">— Aucun —</option>
+                  <option value="">� Aucun �</option>
                   {conducteurs.map(c => (
                     <option key={c.id} value={c.id}>{c.prenom} {c.nom}</option>
                   ))}
@@ -7039,9 +7168,9 @@ export default function Planning() {
                     value={relaisAssignForm.vehicule_reprise_id}
                     onChange={e => setRelaisAssignForm(f => ({ ...f, vehicule_reprise_id: e.target.value }))}
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
-                    <option value="">— Aucun —</option>
+                    <option value="">� Aucun �</option>
                     {vehicules.map(v => (
-                      <option key={v.id} value={v.id}>{v.immatriculation}{v.modele ? ` — ${v.modele}` : ''}</option>
+                      <option key={v.id} value={v.id}>{v.immatriculation}{v.modele ? ` � ${v.modele}` : ''}</option>
                     ))}
                   </select>
                 </div>

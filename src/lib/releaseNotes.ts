@@ -12,6 +12,24 @@ export type ReleaseNote = {
 
 const documentedReleaseNotes: ReleaseNote[] = [
   {
+    version: '1.14.0',
+    date: '2026-04-16',
+    title: 'Planning – Drag & drop robuste, file d attente sticky, villes OT, fix backoffice',
+    summary: 'Améliorations majeures de l expérience planning : drag & drop fiabilisé, panel file d attente toujours visible, villes départ/arrivée sur chaque carte OT, filtre groupage par conducteur et jour, et correction erreur 502 SuperAdmin.',
+    additions: [
+      'Villes départ et arrivée affichées sous chaque course dans le gantt planning (via sitesMap + getOtVilles).',
+      'Filtre candidats groupage limité au même conducteur et à la même journée.',
+    ],
+    modifications: [
+      'Drag & drop planning : ghost cursor aligné sur curseur, snap semaine/jour corrigé, canMove normalisé (null-safe), anti-vibration RAF throttle.',
+      'Panel file d attente planning : position sticky + overflow clip sur ancêtres → toujours visible lors du scroll page.',
+      'Version portée à 1.14.0.',
+    ],
+    fixes: [
+      'Résolue : erreur 502 sur SuperAdminPage due à SUPABASE_SERVICE_ROLE_KEY manquant dans .env.',
+    ],
+  },
+  {
     version: '1.13.0',
     date: '2026-04-15',
     title: 'Refonte V2 – Architecture multi-tenant, impersonation et planning',

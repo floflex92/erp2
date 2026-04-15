@@ -231,7 +231,10 @@ export default function AppLayout() {
       </a>
       <Sidebar />
 
-      <div className={isPlanning ? 'flex flex-1 flex-col overflow-x-hidden' : 'flex min-h-screen flex-1 flex-col px-4 pb-4 pt-4 sm:px-5 lg:px-6'}>
+      <div
+        className={isPlanning ? 'flex flex-1 flex-col' : 'flex min-h-screen flex-1 flex-col px-4 pb-4 pt-4 sm:px-5 lg:px-6'}
+        style={isPlanning ? { overflowX: 'clip' } : undefined}
+      >
         {!hidePlanningHeader && (
           <header className="nx-panel nx-glass-header nx-topbar nx-page-hero mb-4 overflow-visible px-4 py-3 sm:px-5">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
