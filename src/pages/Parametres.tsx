@@ -129,6 +129,8 @@ const ERP_IN_PROGRESS_CARDS = [
       'Portails client et affréteur : workflows présents, persistance à compléter.',
       'Utilisateurs : workflow admin complet dépendant encore de la function Netlify dédiée.',
       'Foundation compte client db et RLS strict : chantiers V1 encore à consolider.',
+      'Alertes transport : tableau de bord et moteur de règles opérationnels (v1.15) ; automatisation proactive serveur et notifications push à venir.',
+      'Optimiseur de routes : calcul distances et suggestions front posées (v1.15) ; intégration API cartographie réelle à connecter.',
     ],
   },
   {
@@ -159,7 +161,7 @@ const ERP_FEATURE_CARDS = [
     items: [
       'App mobile chauffeur, mode hors-ligne et eCMR dématérialisée.',
       'Preuve de livraison photo/signature, portail client et portail affrété autonome.',
-      'Saisie commandes par IA, suivi temps réel client et bilan CO2 réglementaire.',
+      'Saisie commandes par IA et suivi temps réel client.',
       'Grilles tarifaires versionnées, prise de RDV quai et gestion doc fournisseurs.',
       'API ouverte, e-formulaires terrain, multi-devises et booking chargeurs.',
     ],

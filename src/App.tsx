@@ -21,6 +21,7 @@ const Facturation = lazy(() => import('@/pages/Facturation'))
 const Reglements = lazy(() => import('@/pages/Reglements'))
 const Tresorerie = lazy(() => import('@/pages/Tresorerie'))
 const AnalytiqueTransport = lazy(() => import('@/pages/AnalytiqueTransport'))
+const BilanCo2 = lazy(() => import('@/pages/BilanCo2'))
 const Comptabilite = lazy(() => import('@/pages/Comptabilite'))
 const Paie = lazy(() => import('@/pages/Paie'))
 const Frais = lazy(() => import('@/pages/Frais'))
@@ -93,9 +94,69 @@ function RequireRole({ page, children }: { page: string; children: React.ReactNo
 
 function RouteFallback() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-slate-950 px-6 text-white">
-      <span className="sr-only">Chargement en cours…</span>
-      <div className="h-7 w-7 animate-spin rounded-full border-2 border-slate-600 border-t-white" aria-hidden="true" />
+    <div className="flex min-h-screen" style={{ background: 'var(--bg, #f3f4f6)' }}>
+      {/* Sidebar skeleton */}
+      <div
+        className="hidden w-56 shrink-0 flex-col gap-3 p-4 lg:flex"
+        style={{ background: 'var(--surface-sidebar, #111827)' }}
+        aria-hidden="true"
+      >
+        <div className="nx-skeleton mb-4 h-8 w-28 rounded-lg" style={{ '--skeleton-base': 'rgba(255,255,255,0.08)', '--skeleton-shine': 'rgba(255,255,255,0.13)' } as React.CSSProperties} />
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="nx-skeleton h-7 rounded-lg" style={{ width: `${60 + (i % 4) * 8}%`, '--skeleton-base': 'rgba(255,255,255,0.06)', '--skeleton-shine': 'rgba(255,255,255,0.10)' } as React.CSSProperties} />
+        ))}
+      </div>
+      {/* Main area skeleton */}
+      <div className="flex flex-1 flex-col gap-0" role="status" aria-label="Chargement en cours">
+        {/* Topbar */}
+        <div
+          className="flex h-14 items-center gap-4 border-b px-6"
+          style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+          aria-hidden="true"
+        >
+          <div className="nx-skeleton h-6 w-48 rounded-lg" />
+          <div className="ml-auto flex items-center gap-3">
+            <div className="nx-skeleton h-8 w-8 rounded-full" />
+            <div className="nx-skeleton h-6 w-24 rounded-lg" />
+          </div>
+        </div>
+        {/* Content */}
+        <div className="flex-1 p-6">
+          <div className="nx-skeleton mb-6 h-8 w-56 rounded-xl" />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className="rounded-xl border p-5 flex flex-col gap-3"
+                style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+                aria-hidden="true"
+              >
+                <div className="nx-skeleton h-4 w-24 rounded" />
+                <div className="nx-skeleton h-8 w-16 rounded" />
+                <div className="nx-skeleton h-3 w-32 rounded" />
+              </div>
+            ))}
+          </div>
+          <div
+            className="mt-4 overflow-hidden rounded-xl border"
+            style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+            aria-hidden="true"
+          >
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-4 border-b px-4 py-3 last:border-0"
+                style={{ borderColor: 'var(--border)', background: i % 2 !== 0 ? 'var(--surface-soft)' : 'var(--surface)' }}
+              >
+                {[35, 20, 18, 15, 12].map((w, j) => (
+                  <div key={j} className="nx-skeleton h-3 rounded" style={{ width: `${w}%` }} />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+        <span className="sr-only">Chargement en cours…</span>
+      </div>
     </div>
   )
 }
@@ -162,6 +223,7 @@ export default function App() {
                   <Route path="reglements"   element={<RequireRole page="reglements"><Reglements /></RequireRole>} />
                   <Route path="tresorerie"   element={<RequireRole page="tresorerie"><Tresorerie /></RequireRole>} />
                   <Route path="analytique-transport" element={<RequireRole page="analytique-transport"><AnalytiqueTransport /></RequireRole>} />
+                  <Route path="bilan-co2" element={<RequireRole page="bilan-co2"><BilanCo2 /></RequireRole>} />
                   <Route path="comptabilite" element={<RequireRole page="comptabilite"><Comptabilite /></RequireRole>} />
                   <Route path="paie"         element={<RequireRole page="paie"><Paie /></RequireRole>} />
                   <Route path="frais"        element={<RequireRole page="frais"><Frais /></RequireRole>} />
@@ -189,7 +251,7 @@ export default function App() {
                   <Route path="war-room"        element={<Navigate to="/ops-center" replace />} />
                   <Route path="obs-center"       element={<Navigate to="/ops-center" replace />} />
                   <Route path="ops-center"       element={<RequireRole page="ops-center"><OpsCenter /></RequireRole>} />
-                  <Route path="alertes"          element={<RequireRole page="ops-center"><OpsCenter /></RequireRole>} />
+                  <Route path="alertes"              element={<Navigate to="/ops-center" replace />} />
                   <Route path="dashboard-conducteur" element={<RequireRole page="dashboard-conducteur"><DashboardConducteur /></RequireRole>} />
                   <Route path="planning-conducteur" element={<RequireRole page="planning-conducteur"><PlanningConducteur /></RequireRole>} />
                   <Route path="frais-rapide" element={<RequireRole page="frais-rapide"><FraisRapide /></RequireRole>} />

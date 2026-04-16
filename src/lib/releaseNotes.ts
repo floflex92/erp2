@@ -12,6 +12,33 @@ export type ReleaseNote = {
 
 const documentedReleaseNotes: ReleaseNote[] = [
   {
+    version: '1.15.0',
+    date: '2026-04-16',
+    title: 'Chargement étendu, remorques, CO2, alertes et optimiseur de routes',
+    summary: 'Module chargement complet (types, tonnage, barres visuelles), catalogue types remorques avec compatibilité fret, page Bilan CO2, tableau de bord Alertes transport et optimiseur de routes front.',
+    additions: [
+      'Page BilanCo2 : calcul empreinte carbone par transport (distance, tonnage, type véhicule), indicateurs réglementaires.',
+      'Page Alertes transport : tableau de bord alertes actives avec hook useAlertesTransport (retards, dépassements capacité, anomalies).',
+      'RouteOptimizerPanel + lib routeOptimizer : suggestions de routes et calcul distances côté front.',
+      'Migrations Supabase : longueur_m / tonnage_kg sur ordres_transport, type_chargement étendu, catalogue trailer_types, champs capacité remorques, compatibilité remorque/fret.',
+      'Composants flotte : vue dépréciation flotte via lib fleetDepreciation.',
+      'ChargementBars : visualisation taux de remplissage chargeant/déchargeant sur les OT.',
+      'Skeletons UI : DataState, Skeleton, SkeletonKpi, SkeletonTable pour les états de chargement.',
+      'Hooks useAsyncData et useRouteOptimizer pour la gestion d état asynchrone.',
+      'Libs métier : chargementRules, trailerValidation, alertesTransport, co2Transport.',
+      'Migration normalize_super_admin_role_for_rls : alignement rôle super_admin dans les policies RLS.',
+    ],
+    modifications: [
+      'Pages Transports, Remorques, Véhicules, Chauffeurs, OpsCenter, MapLive, Planning, AnalytiqueTransport mises à jour.',
+      'L onglet Développement dans Réglages reflète les livraisons CO2, alertes et chargement.',
+      'CSV features : CO2 et Alertes transport passent de Features à Développé.',
+      'Version portée à 1.15.0 avec synchronisation package, build et affichage site.',
+    ],
+    fixes: [
+      'Résolue : backfill statut transport depuis legacy colonne statut pour cohérence données historiques.',
+    ],
+  },
+  {
     version: '1.14.0',
     date: '2026-04-16',
     title: 'Planning – Drag & drop robuste, file d attente sticky, villes OT, fix backoffice',

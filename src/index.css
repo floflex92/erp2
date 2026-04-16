@@ -1005,6 +1005,47 @@ textarea:focus {
   color: var(--status-warning-text);
 }
 
+/* ─── Skeleton / shimmer ────────────────────────────────────────────────── */
+:root {
+  --skeleton-base: #e9ecef;
+  --skeleton-shine: #f8f9fa;
+}
+[data-theme='dark'] {
+  --skeleton-base: #1e2736;
+  --skeleton-shine: #283044;
+}
+[data-theme='night'] {
+  --skeleton-base: #0e1624;
+  --skeleton-shine: #182236;
+}
+
+@keyframes nx-shimmer {
+  0%   { background-position: -60rem 0; }
+  100% { background-position: 60rem 0; }
+}
+
+.nx-skeleton {
+  background: linear-gradient(90deg,
+    var(--skeleton-base) 25%,
+    var(--skeleton-shine) 50%,
+    var(--skeleton-base) 75%
+  );
+  background-size: 60rem 100%;
+  animation: nx-shimmer 1.6s ease-in-out infinite;
+  border-radius: 0.4rem;
+}
+
+/* Fade-in pour les contenus qui apparaissent progressivement */
+@keyframes nx-fadein {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+.nx-fadein {
+  animation: nx-fadein 200ms ease forwards;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 .site-shell {
   font-family: Inter, 'SF Pro Text', 'Segoe UI', Tahoma, sans-serif;
   color-scheme: light;

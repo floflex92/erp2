@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useTransition } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { ST_BROUILLON, ST_CONFIRME, ST_PLANIFIE, ST_EN_COURS, ST_TERMINE } from '@/lib/transportCourses'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { STATUT_OPS, StatutOpsDot, type StatutOps } from '@/lib/statut-ops'
 import SiteMapPicker from '@/components/transports/SiteMapPicker'
+import RouteOptimizerPanel from '@/components/transports/RouteOptimizerPanel'
 import { ComplianceCountersBar } from '@/components/planning/ComplianceCountersBar'
 import {
   getAffretementContextByOtId,
@@ -13,6 +15,7 @@ import {
   type AffretementContract,
 } from '@/lib/affretementPortal'
 import { validatePlanningDropAudit, type CEAlert } from '@/lib/ce561Validation'
+import { validateTrailerAssignment } from '@/lib/trailerValidation'
 import { createLogisticSite, updateLogisticSite, type LogisticSite } from '@/lib/transportCourses'
 import { addCourseToMission, createMissionFromCourses, removeCourseFromMission } from '@/lib/transportMissions'
 import { listCourseTemplates, saveCourseTemplate, deleteCourseTemplate, type CourseTemplate } from '@/lib/courseTemplates'
@@ -81,6 +84,7 @@ function isAssetAvailableStatus(value: string | null | undefined): boolean {
 
 export default function Planning() {
   const { role } = useAuth()
+  const navigate = useNavigate()
   const planningComplianceService = usePlanningCompliance()
   // Guard contre les race conditions : on ne rechargera pas pendant une �criture active.
   const isMutatingRef = useRef(false)
@@ -264,6 +268,8 @@ export default function Planning() {
     return window.matchMedia('(min-width: 1024px)').matches
   })
   const [groupageTargetId, setGroupageTargetId] = useState('')
+  const [showRouteOptimizer, setShowRouteOptimizer] = useState(false)
+  const [optimizerConducteurId, setOptimizerConducteurId] = useState<string | null>(null)
 
   // Retour en charge IA
   const [retourChargeForm, setRetourChargeForm] = useState<RetourChargeForm>({
@@ -733,7 +739,7 @@ export default function Planning() {
     if (isMutatingRef.current) return
     setIsLoadingOTs(true)
     // -- S�lect OT canonique (schema stable depuis les migrations du 2026-03-30) --
-    const OT_SELECT = 'id, reference, statut, statut_transport, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, donneur_ordre_id, chargement_site_id, livraison_site_id, mission_id, groupage_fige, est_affretee, clients!ordres_transport_client_id_fkey(nom)'
+    const OT_SELECT = 'id, reference, statut, statut_transport, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, donneur_ordre_id, chargement_site_id, livraison_site_id, mission_id, groupage_fige, est_affretee, type_chargement, poids_kg, tonnage, volume_m3, longueur_m, hors_gabarit, temperature_dirigee, charge_indivisible, clients!ordres_transport_client_id_fkey(nom)'
     const SITE_SELECT = 'id, nom, adresse, entreprise_id, usage_type, horaires_ouverture, jours_ouverture, notes_livraison, latitude, longitude, created_at, updated_at'
 
     // Fen�tre glissante adapt�e selon le mode :
@@ -788,11 +794,11 @@ export default function Planning() {
       }
 
       const loadRemorques = async () => {
-        const primary = await looseSupabase.from('remorques').select('id, immatriculation, type_remorque, statut').order('immatriculation')
+        const primary = await looseSupabase.from('remorques').select('id, immatriculation, type_remorque, trailer_type_code, categorie_remorque, charge_utile_kg, volume_max_m3, longueur_m, statut').order('immatriculation')
         if (!primary.error) return primary
         const rawError = `${primary.error.message ?? ''} ${primary.error.details ?? ''}`.toLowerCase()
         if (!rawError.includes('asset_id')) return primary
-        return looseSupabase.from('remorques').select('id, immatriculation, type_remorque, statut').order('immatriculation')
+        return looseSupabase.from('remorques').select('id, immatriculation, type_remorque, trailer_type_code, categorie_remorque, charge_utile_kg, volume_max_m3, longueur_m, statut').order('immatriculation')
       }
 
       const [otResult, siteR, cR, vR, rR, clientR, aR] = await Promise.all([
@@ -1384,6 +1390,39 @@ export default function Planning() {
       remorque_id:            assignModal.remorque_id    || null,
       date_chargement_prevue: plannedStartISO,
       date_livraison_prevue:  plannedEndISO,
+    }
+
+    // ── Validation remorque ↔ chargement ─────────────────────────────────────
+    if (assignModal.remorque_id) {
+      const rem = remorques.find(r => r.id === assignModal.remorque_id)
+      if (rem) {
+        const firstOt = targets[0]
+        const otData = {
+          type_chargement:    firstOt.type_chargement,
+          poids_kg:           firstOt.poids_kg,
+          tonnage:            firstOt.tonnage,
+          volume_m3:          firstOt.volume_m3,
+          longueur_m:         firstOt.longueur_m,
+          hors_gabarit:       firstOt.hors_gabarit,
+          temperature_dirigee: firstOt.temperature_dirigee,
+          charge_indivisible: firstOt.charge_indivisible,
+        }
+        const validation = validateTrailerAssignment(otData, rem)
+        if (validation.status === 'blocked') {
+          setSaving(false)
+          isMutatingRef.current = false
+          pushPlanningNotice(
+            `Affectation remorque BLOQUÉE : ${validation.errors.map(e => e.message).join(' | ')}`,
+            'error',
+          )
+          return
+        }
+        if (validation.status === 'warning') {
+          const msg = validation.warnings.map(w => w.message).join('\n')
+          const ok = window.confirm(`⚠ Avertissement remorque :\n\n${msg}\n\nContinuer malgré tout ?`)
+          if (!ok) { setSaving(false); isMutatingRef.current = false; return }
+        }
+      }
     }
     const firstTry = assignModal.applyToGroupage
       ? await supabase
@@ -3564,7 +3603,7 @@ export default function Planning() {
   return (
     <div
       className={`nx-planning relative flex min-h-full bg-slate-950 ${isResizingBottomDock ? 'cursor-ns-resize' : ''}`}
-      style={{ overflowX: 'clip', paddingBottom: `${BOTTOM_DOCK_VIEWPORT_OFFSET}px` }}
+      style={{ overflowX: 'clip', paddingBottom: bottomDockCollapsed ? '52px' : `${bottomDockHeight + 20}px` }}
     >
       {planningNotice && (
         <div className={`absolute right-4 top-4 z-[80] max-w-sm rounded-xl border px-4 py-3 text-xs font-semibold shadow-2xl ${drag ? 'pointer-events-none' : ''}`}
@@ -3620,7 +3659,7 @@ export default function Planning() {
       )}
 
       {/* -- Pool panel - file d'attente -- */}
-      <div className="w-60 flex-shrink-0 bg-slate-900 border-r border-slate-700/80 flex flex-col shadow-lg overflow-hidden" style={{ position: 'sticky', top: 0, height: '100vh', alignSelf: 'flex-start' }}>
+      <div className="w-60 flex-shrink-0 bg-slate-900 border-r border-slate-700/80 flex flex-col shadow-lg overflow-hidden" style={{ position: 'sticky', top: 0, height: bottomDockCollapsed ? 'calc(100vh - 44px)' : `calc(100vh - ${Math.max(44, bottomDockHeight + 12)}px)`, alignSelf: 'flex-start' }}>
         {/* En-tete pool */}
         <div className="px-3 pt-2.5 pb-2 border-b border-slate-700/60 flex-shrink-0 space-y-1.5">
           <div className="flex items-center justify-between gap-2">
@@ -3950,6 +3989,34 @@ export default function Planning() {
               else { const d = parseDay(selectedDay); d.setDate(d.getDate()+1); setSelectedDay(toISO(d)) }
             }} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-xl font-light transition-colors">&gt;</button>
           </div>
+
+          {/* Boutons creation rapide */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => openPlanningCreationModal({ type: 'course' })}
+              className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold transition-colors border border-emerald-600/50 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30"
+            >
+              <span className="text-sm leading-none">+</span>
+              Nouvelle course
+            </button>
+            <button
+              type="button"
+              onClick={() => openPlanningCreationModal({ type: 'hlp' })}
+              className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium transition-colors border border-slate-600/50 bg-slate-700/30 text-slate-200 hover:bg-slate-700/50"
+            >
+              <span className="text-sm leading-none">+</span>
+              HLP / bloc
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/transports')}
+              className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium transition-colors border border-blue-600/50 bg-blue-500/15 text-blue-300 hover:bg-blue-500/25"
+              title="Aller saisir un OT complet"
+            >
+              OT / Fret ↗
+            </button>
+          </div>
         </div>
 
         {/* -- KPI Strip exploitation -- */}
@@ -4117,40 +4184,6 @@ export default function Planning() {
                 <option key={site.id} value={site.id}>{site.nom}</option>
               ))}
             </select>
-          </div>
-
-          {/* Option planning affreteur */}
-          <div className="flex items-center gap-1 flex-shrink-0 border-l border-slate-700 ml-1 pl-2">
-            <button
-              type="button"
-              onClick={() => openPlanningCreationModal({ type: 'course' })}
-              className="flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] rounded-full font-medium transition-colors border border-emerald-600/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25"
-            >
-              <span className="text-xs leading-none">+</span>
-              Nouvelle course
-            </button>
-            <button
-              type="button"
-              onClick={() => openPlanningCreationModal({ type: 'hlp' })}
-              className="flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] rounded-full font-medium transition-colors border border-slate-600/50 bg-slate-700/30 text-slate-100 hover:bg-slate-700/50"
-            >
-              <span className="text-xs leading-none">+</span>
-              HLP / pause / bloc
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowAffretementAssets(current => { const next = !current; saveShowAffretementAssets(next); return next })}
-              title="Afficher ou masquer le planning affreteur"
-              className={`flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] rounded-full font-medium transition-colors border ${
-                showAffretementAssets ? 'bg-blue-500/20 border-blue-600/40 text-blue-200' : 'border-slate-700 text-slate-500 hover:text-slate-300'
-              }`}>
-              <span className="text-[9px] font-bold uppercase tracking-wide">Planning affreteur</span>
-              <span className={`text-[9px] px-1.5 py-[1px] rounded-full border ${
-                showAffretementAssets ? 'bg-blue-500/30 border-blue-500/60 text-blue-100' : 'bg-slate-800 border-slate-700 text-slate-400'
-              }`}>
-                {showAffretementAssets ? 'Visible' : 'Masque'}
-              </span>
-            </button>
           </div>
 
           {/* Legende */}
@@ -5035,6 +5068,17 @@ export default function Planning() {
                 className="px-2.5 py-1 rounded-full text-[10px] font-bold border border-rose-700 bg-rose-600 text-white hover:bg-rose-500 transition-colors whitespace-nowrap"
               >
                 Focus alertes
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOptimizerConducteurId(null)
+                  setShowRouteOptimizer(true)
+                }}
+                className="px-2.5 py-1 rounded-full text-[10px] font-bold border border-blue-600 bg-blue-700 text-white hover:bg-blue-600 transition-colors whitespace-nowrap"
+                title="Optimiser la séquence de livraisons d'un conducteur"
+              >
+                🗺 Optimiser tournée
               </button>
               <button
                 type="button"
@@ -7020,6 +7064,16 @@ export default function Planning() {
           </div>
         </div>
       )}
+
+      {/* -- Panneau Optimisation Tournée ------------------------------------- */}
+      <RouteOptimizerPanel
+        open={showRouteOptimizer}
+        onClose={() => setShowRouteOptimizer(false)}
+        conducteurs={conducteurs}
+        defaultConducteurId={optimizerConducteurId}
+        defaultDate={toISO(new Date())}
+        onApplied={() => void loadAll()}
+      />
 
       {/* -- Modales Relais --------------------------------------------------- */}
 

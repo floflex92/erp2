@@ -7755,6 +7755,7 @@ export type Database = {
           id: string
           instructions: string | null
           livraison_site_id: string | null
+          longueur_m: number | null
           metrage_ml: number | null
           mission_id: string | null
           nature_marchandise: string | null
@@ -7776,7 +7777,10 @@ export type Database = {
           statut_transport: string | null
           taux_tva: number | null
           temperature_requise: string | null
+          tonnage: number | null
           transfer_id: string | null
+          type_chargement: string | null
+          type_palette: string | null
           type_transport: string
           updated_at: string
           vehicule_id: string | null
@@ -7802,6 +7806,7 @@ export type Database = {
           id?: string
           instructions?: string | null
           livraison_site_id?: string | null
+          longueur_m?: number | null
           metrage_ml?: number | null
           mission_id?: string | null
           nature_marchandise?: string | null
@@ -7823,7 +7828,10 @@ export type Database = {
           statut_transport?: string | null
           taux_tva?: number | null
           temperature_requise?: string | null
+          tonnage?: number | null
           transfer_id?: string | null
+          type_chargement?: string | null
+          type_palette?: string | null
           type_transport?: string
           updated_at?: string
           vehicule_id?: string | null
@@ -7849,6 +7857,7 @@ export type Database = {
           id?: string
           instructions?: string | null
           livraison_site_id?: string | null
+          longueur_m?: number | null
           metrage_ml?: number | null
           mission_id?: string | null
           nature_marchandise?: string | null
@@ -7870,7 +7879,10 @@ export type Database = {
           statut_transport?: string | null
           taux_tva?: number | null
           temperature_requise?: string | null
+          tonnage?: number | null
           transfer_id?: string | null
+          type_chargement?: string | null
+          type_palette?: string | null
           type_transport?: string
           updated_at?: string
           vehicule_id?: string | null
@@ -8162,6 +8174,7 @@ export type Database = {
           notes: string | null
           ot_id: string
           poids_kg: number | null
+          type_chargement: string | null
         }
         Insert: {
           company_id?: number
@@ -8173,6 +8186,7 @@ export type Database = {
           notes?: string | null
           ot_id: string
           poids_kg?: number | null
+          type_chargement?: string | null
         }
         Update: {
           company_id?: number
@@ -8184,6 +8198,7 @@ export type Database = {
           notes?: string | null
           ot_id?: string
           poids_kg?: number | null
+          type_chargement?: string | null
         }
         Relationships: [
           {

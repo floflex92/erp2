@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { listAssets } from '@/lib/services/assetsService'
 import type { Tables, TablesInsert } from '@/lib/database.types'
+import FlotteAmortissements from '@/components/flotte/FlotteAmortissements'
+import { TRAILER_TYPES } from '@/lib/trailerValidation'
 
 type Remorque = Tables<'remorques'>
 type RemorqueRow = Remorque & {
@@ -18,6 +20,14 @@ type RemorqueRow = Remorque & {
   contrat_entretien?: boolean | null
   prestataire_entretien?: string | null
   garage_entretien?: string | null
+  // Capacity fields (added in migration 20260416150000)
+  volume_max_m3?: number | null
+  largeur_utile_m?: number | null
+  hauteur_utile_m?: number | null
+  nb_palettes_max?: number | null
+  ptac_kg?: number | null
+  categorie_remorque?: string | null
+  trailer_type_code?: string | null
 }
 type RemorqueForm = TablesInsert<'remorques'> & {
   numero_carte_grise?: string | null
@@ -30,6 +40,14 @@ type RemorqueForm = TablesInsert<'remorques'> & {
   contrat_entretien?: boolean | null
   prestataire_entretien?: string | null
   garage_entretien?: string | null
+  // Capacity fields (added in migration 20260416150000)
+  volume_max_m3?: number | null
+  largeur_utile_m?: number | null
+  hauteur_utile_m?: number | null
+  nb_palettes_max?: number | null
+  ptac_kg?: number | null
+  categorie_remorque?: string | null
+  trailer_type_code?: string | null
 }
 type FlotteDocument = {
   id: string
@@ -137,6 +155,14 @@ const EMPTY: RemorqueForm = {
   statut: 'disponible',
   notes: null,
   preferences: null,
+  // Capacity fields
+  volume_max_m3: null,
+  largeur_utile_m: null,
+  hauteur_utile_m: null,
+  nb_palettes_max: null,
+  ptac_kg: null,
+  categorie_remorque: 'standard',
+  trailer_type_code: null,
 }
 
 const EMPTY_DOCUMENT = { category: 'autre', title: '', issued_at: '', expires_at: '', notes: '' }
@@ -420,6 +446,14 @@ export default function Remorques() {
       statut: remorque.statut,
       notes: remorque.notes,
       preferences: remorque.preferences,
+      // Capacity fields
+      volume_max_m3: remorque.volume_max_m3 ?? null,
+      largeur_utile_m: remorque.largeur_utile_m ?? null,
+      hauteur_utile_m: remorque.hauteur_utile_m ?? null,
+      nb_palettes_max: remorque.nb_palettes_max ?? null,
+      ptac_kg: remorque.ptac_kg ?? null,
+      categorie_remorque: remorque.categorie_remorque ?? 'standard',
+      trailer_type_code: remorque.trailer_type_code ?? null,
     })
     setNumeroParc(remorque.numero_parc ?? '')
     const currentKm = latestKmByRemorque[remorque.id] ?? 0
@@ -668,6 +702,20 @@ export default function Remorques() {
     }
   }
 
+  const [pageTab, setPageTab] = useState<'liste' | 'amortissements'>('liste')
+
+  const remorquesForAmort = useMemo(() => list.map(r => ({
+    id: r.id,
+    immatriculation: r.immatriculation,
+    marque: r.marque,
+    modele: null,
+    type: 'remorque' as const,
+    cout_achat_ht: r.cout_achat_ht ?? null,
+    date_achat: r.date_achat ?? null,
+    date_mise_en_circulation: r.date_mise_en_circulation ?? null,
+    km_actuel: null,
+  })), [list])
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-6">
@@ -675,11 +723,32 @@ export default function Remorques() {
           <h2 className="text-2xl font-bold text-slate-800">Remorques</h2>
           <p className="text-slate-500 text-sm">{list.length} remorque{list.length !== 1 ? 's' : ''}</p>
         </div>
-        {canManageFleetAssets && <button onClick={openCreate} className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors">+ Ajouter</button>}
+        <div className="flex items-center gap-2">
+          {(['liste', 'amortissements'] as const).map(t => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setPageTab(t)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                pageTab === t ? 'bg-slate-800 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {t === 'liste' ? 'Liste' : '📊 Amortissements'}
+            </button>
+          ))}
+          {canManageFleetAssets && pageTab === 'liste' && (
+            <button onClick={openCreate} className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors">+ Ajouter</button>
+          )}
+        </div>
       </div>
 
       {(error || notice) && <div className={`rounded-xl border px-4 py-3 text-sm ${error ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>{error ?? notice}</div>}
 
+      {pageTab === 'amortissements' && (
+        <FlotteAmortissements vehicules={[]} remorques={remorquesForAmort} />
+      )}
+
+      {pageTab === 'liste' && (<>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Disponibles" value={stats.disponibles} tone="emerald" />
         <StatCard label="CT < 60 j" value={stats.ctExpirent} tone="amber" />
@@ -709,8 +778,17 @@ export default function Remorques() {
                     <td className="px-4 py-3">
                       <div className="font-medium font-mono text-slate-800">{remorque.immatriculation}</div>
                       {remorque.numero_parc && <div className="text-xs text-slate-500">Parc: {remorque.numero_parc}</div>}
-                      <div className="text-xs text-slate-400">{remorque.type_remorque} {remorque.marque ? `· ${remorque.marque}` : ''}</div>
-                      {remorque.longueur_m !== null && <div className="text-xs text-slate-400">Longueur: {remorque.longueur_m} m</div>}
+                      <div className="text-xs text-slate-400">{remorque.marque ? `${remorque.type_remorque} · ${remorque.marque}` : remorque.type_remorque}</div>
+                      {remorque.categorie_remorque && remorque.categorie_remorque !== 'standard' && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${remorque.categorie_remorque === 'convoi_exceptionnel' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {remorque.categorie_remorque === 'convoi_exceptionnel' ? 'Convoi exceptionnel' : 'Specialise'}
+                        </span>
+                      )}
+                      <div className="flex gap-3 flex-wrap mt-0.5">
+                        {remorque.longueur_m != null && <span className="text-xs text-slate-400">{remorque.longueur_m} m</span>}
+                        {remorque.volume_max_m3 != null && <span className="text-xs text-slate-400">{remorque.volume_max_m3} m³</span>}
+                        {remorque.charge_utile_kg != null && <span className="text-xs text-slate-400">{(remorque.charge_utile_kg / 1000).toFixed(1)} t</span>}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className={`text-xs ${expColor(remorque.ct_expiration)}`}>CT: {formatDate(remorque.ct_expiration)}</div>
@@ -739,6 +817,7 @@ export default function Remorques() {
           </table>
         )}
       </div>
+      </>)}
 
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -755,7 +834,19 @@ export default function Remorques() {
                   <div className="grid grid-cols-2 gap-4">
                     <Field label="Immatriculation *"><input className={inp} value={form.immatriculation} onChange={e => set('immatriculation', e.target.value.toUpperCase())} required /></Field>
                     <Field label="Numero de parc"><input className={inp} value={numeroParc} onChange={e => setNumeroParc(e.target.value)} /></Field>
-                    <Field label="Type remorque"><input className={inp} value={form.type_remorque ?? ''} onChange={e => set('type_remorque', e.target.value || 'fourgon')} /></Field>
+                    <Field label="Categorie">
+                      <select className={inp} value={form.categorie_remorque ?? 'standard'} onChange={e => { set('categorie_remorque', e.target.value); set('trailer_type_code', null) }}>
+                        <option value="standard">Standard</option>
+                        <option value="specialise">Specialise</option>
+                        <option value="convoi_exceptionnel">Convoi exceptionnel</option>
+                      </select>
+                    </Field>
+                    <Field label="Type remorque">
+                      <select className={inp} value={form.trailer_type_code ?? form.type_remorque ?? ''} onChange={e => { const t = TRAILER_TYPES.find(x => x.code === e.target.value); set('trailer_type_code', e.target.value || null); if (t) set('type_remorque', t.code) }}>
+                        <option value="">-- Choisir --</option>
+                        {TRAILER_TYPES.filter(t => !form.categorie_remorque || t.categorie === form.categorie_remorque).map(t => <option key={t.code} value={t.code}>{t.label}</option>)}
+                      </select>
+                    </Field>
                     <Field label="Marque"><input className={inp} value={form.marque ?? ''} onChange={e => set('marque', e.target.value || null)} /></Field>
                     <Field label="Charge utile (kg)"><input className={inp} type="number" value={form.charge_utile_kg ?? ''} onChange={e => set('charge_utile_kg', e.target.value ? Number.parseInt(e.target.value, 10) : null)} /></Field>
                     <Field label="Longueur (m)"><input className={inp} type="number" step="0.1" value={form.longueur_m ?? ''} onChange={e => set('longueur_m', e.target.value ? Number.parseFloat(e.target.value) : null)} /></Field>
@@ -767,6 +858,15 @@ export default function Remorques() {
                         {Object.entries(STATUT_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
                       </select>
                     </Field>
+                  </div>
+
+                  <SectionTitle title="Capacites" subtitle="Volume, dimensions, palettes et masse totale autorisee." />
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label="Volume max (m³)"><input className={inp} type="number" step="0.1" value={(form as Record<string, unknown>).volume_max_m3 as number ?? ''} onChange={e => set('volume_max_m3', e.target.value ? Number.parseFloat(e.target.value) : null)} /></Field>
+                    <Field label="Largeur utile (m)"><input className={inp} type="number" step="0.01" value={(form as Record<string, unknown>).largeur_utile_m as number ?? ''} onChange={e => set('largeur_utile_m', e.target.value ? Number.parseFloat(e.target.value) : null)} /></Field>
+                    <Field label="Hauteur utile (m)"><input className={inp} type="number" step="0.01" value={(form as Record<string, unknown>).hauteur_utile_m as number ?? ''} onChange={e => set('hauteur_utile_m', e.target.value ? Number.parseFloat(e.target.value) : null)} /></Field>
+                    <Field label="Nb palettes max"><input className={inp} type="number" value={(form as Record<string, unknown>).nb_palettes_max as number ?? ''} onChange={e => set('nb_palettes_max', e.target.value ? Number.parseInt(e.target.value, 10) : null)} /></Field>
+                    <Field label="PTAC (kg)"><input className={inp} type="number" value={(form as Record<string, unknown>).ptac_kg as number ?? ''} onChange={e => set('ptac_kg', e.target.value ? Number.parseInt(e.target.value, 10) : null)} /></Field>
                   </div>
                 </div>
 

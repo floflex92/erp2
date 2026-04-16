@@ -6,6 +6,8 @@ import { getDemoSeedState, markDemoSeedState, resetDemoSeedState, seedTransportD
 import { isDemoDataEnabled } from '@/lib/runtimeFlags'
 import type { Tables, TablesInsert } from '@/lib/database.types'
 import { STATUT_OPS } from '@/lib/statut-ops'
+import { SkeletonTable } from '@/components/ui/SkeletonTable'
+import { DataState } from '@/components/ui/DataState'
 
 type Client = Tables<'clients'>
 type Contact = Tables<'contacts'>
@@ -837,11 +839,11 @@ export default function Clients() {
 
       <div className="nx-table-shell">
         {loading ? (
-          <div className="p-8 text-center text-sm text-slate-400">Chargement...</div>
+          <SkeletonTable cols={7} rows={8} colWidths={['28%','14%','10%','14%','10%','10%','14%']} />
         ) : filtered.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-400">
-            {search ? 'Aucun resultat.' : 'Aucun client enregistre.'}
-          </div>
+          <DataState.Empty
+            label={search ? 'Aucun résultat.' : 'Aucun client enregistré.'}
+          />
         ) : (
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50">

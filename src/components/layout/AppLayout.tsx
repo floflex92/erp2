@@ -39,6 +39,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/reglements': 'Reglements & Recouvrement',
   '/tresorerie': 'Tresorerie',
   '/analytique-transport': 'Analytique Transport',
+  '/bilan-co2': 'Bilan CO₂ Transport',
   '/comptabilite': 'Etats legaux',
   '/paie': 'Paie',
   '/frais': 'Frais',
@@ -364,7 +365,7 @@ export default function AppLayout() {
         </main>
 
         {/* Bouton action rapide contextuel par rôle */}
-        {role && ROLE_QUICK_ACTION[role] && (!ROLE_QUICK_ACTION[role].onlyOnPage || location.pathname === ROLE_QUICK_ACTION[role].onlyOnPage) && (
+        {role && ROLE_QUICK_ACTION[role] && (!ROLE_QUICK_ACTION[role].onlyOnPage || location.pathname === ROLE_QUICK_ACTION[role].onlyOnPage) && location.pathname !== '/planning' && (
           <Link
             to={ROLE_QUICK_ACTION[role].to}
             className="fixed bottom-6 right-6 z-[80] flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-xl transition-all hover:scale-105 active:scale-95"

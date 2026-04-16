@@ -7,6 +7,7 @@ import type { Role } from '@/lib/auth'
 import { canAccess, useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
+import { countAlertesActives } from '@/lib/alertesTransport'
 import NexoraTruckLogo from './NexoraTruckLogo'
 
 type NavItem = {
@@ -92,6 +93,7 @@ const NAV_SECTIONS: NavSection[] = [
       { to: '/reglements',           page: 'reglements',           label: 'Règlements',   icon: 'payment' },
       { to: '/tresorerie',           page: 'tresorerie',           label: 'Trésorerie',   icon: 'bank' },
       { to: '/analytique-transport', page: 'analytique-transport', label: 'Analytique',   icon: 'pie-chart' },
+      { to: '/bilan-co2',                page: 'bilan-co2',                label: 'Bilan CO₂',   icon: 'leaf' },
       { to: '/frais',                page: 'frais',                label: 'Frais',        icon: 'expense' },
       { to: '/frais-rapide',         page: 'frais-rapide',         label: 'Saisie frais rapide', icon: 'receipt-quick' },
       { to: '/paie',                 page: 'paie',                 label: 'Paie',         icon: 'payroll' },
@@ -146,6 +148,7 @@ function NavGlyph({ type, size = 18 }: { type: string; size?: number }) {
   // Opérations
   if (type === 'war-room')     return <svg {...common}><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><circle cx="12" cy="17" r=".6" fill="currentColor" /></svg>
   if (type === 'ops-center')   return <svg {...common}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="4.5" /><circle cx="12" cy="12" r="1.5" fill="currentColor" /><line x1="12" y1="3" x2="12" y2="7" /><line x1="12" y1="17" x2="12" y2="21" /><line x1="3" y1="12" x2="7" y2="12" /><line x1="17" y1="12" x2="21" y2="12" /></svg>
+  if (type === 'bell-alert')   return <svg {...common}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /><circle cx="12" cy="3" r="1.2" fill="currentColor" /></svg>
   if (type === 'dashboard')    return <svg {...common}><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>
   if (type === 'house')        return <svg {...common}><path d="M3 10.5 12 3l9 7.5V21H3V10.5Z" /><path d="M9 21v-8h6v8" /></svg>
   if (type === 'calendar')     return <svg {...common}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></svg>
@@ -170,6 +173,7 @@ function NavGlyph({ type, size = 18 }: { type: string; size?: number }) {
   if (type === 'payment')      return <svg {...common}><rect x="2" y="6" width="20" height="13" rx="2" /><path d="M2 10h20" /><path d="M7 14h.01M11 14h3" /></svg>
   if (type === 'bank')         return <svg {...common}><path d="M6 10v7M10 10v7M14 10v7M18 10v7" /><path d="M4 17h16M2 10h20M12 3 2 8h20L12 3z" /></svg>
   if (type === 'pie-chart')    return <svg {...common}><path d="M21.21 15.89A10 10 0 1 1 8 2.83" /><path d="M22 12A10 10 0 0 0 12 2v10z" /></svg>
+  if (type === 'leaf')         return <svg {...common}><path d="M7 20c0-5.5 4-9 9-9M7 20c4-1 7-4 7-9" /><path d="M21 3c-3 4-7 7-14 7" /></svg>
   if (type === 'expense')      return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5c.5-1.5 4-1.5 4 .5 0 2-4 1-4 3.5 0 2 4 2.5 4.5 1" /><path d="M12 7v1M12 16v1" /></svg>
   if (type === 'payroll')      return <svg {...common}><path d="M16 19a4 4 0 0 0-8 0" /><circle cx="12" cy="9" r="3" /><path d="M3 17h3M18 17h3" /><circle cx="3" cy="14" r="2" /><circle cx="21" cy="14" r="2" /></svg>
   // CRM
@@ -217,6 +221,7 @@ function DockItem({
   if (!canAccess(role, item.page, tenantAllowedPages, enabledModules)) return null
 
   const isMessageBadge = (item.page === 'tchat' || item.page === 'mail') && notificationCount > 0
+  const isAlertesBadge = item.page === 'ops-center' && notificationCount > 0
   const isWarRoom = item.page === 'war-room'
   const isOpsCenter = item.page === 'ops-center'
 
@@ -244,6 +249,14 @@ function DockItem({
             style={{ background: 'linear-gradient(180deg, #60A5FA, #2563EB)' }}
           >
             {notificationCount > 9 ? '9+' : notificationCount}
+          </span>
+        )}
+        {isAlertesBadge && (
+          <span
+            className={`inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white ${collapsed ? 'absolute -right-1 -top-1' : 'ml-auto'}`}
+            style={{ background: 'linear-gradient(180deg, #F87171, #DC2626)' }}
+          >
+            {notificationCount > 99 ? '99+' : notificationCount}
           </span>
         )}
         {isWarRoom && !isMessageBadge && (
@@ -360,8 +373,24 @@ export default function Sidebar() {
     Object.fromEntries(NAV_SECTIONS.map(section => [section.key, true]))
   ))
 
-  const chatCount = useBadgeCount('tchat', profilId, demoProfil)
-  const mailCount = useBadgeCount('mail', profilId, demoProfil)
+  const chatCount   = useBadgeCount('tchat', profilId, demoProfil)
+  const mailCount   = useBadgeCount('mail', profilId, demoProfil)
+  const [alertesCount, setAlertesCount] = useState(0)
+
+  useEffect(() => {
+    let mounted = true
+    async function loadAlertes() {
+      try {
+        const n = await countAlertesActives()
+        if (mounted) setAlertesCount(n)
+      } catch {
+        // silencieux
+      }
+    }
+    void loadAlertes()
+    const timer = setInterval(() => void loadAlertes(), 5 * 60 * 1000)
+    return () => { mounted = false; clearInterval(timer) }
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -379,8 +408,9 @@ export default function Sidebar() {
   ), [role, tenantAllowedPages, enabledModules])
 
   function getBadge(page: string): number {
-    if (page === 'tchat') return chatCount
-    if (page === 'mail') return mailCount
+    if (page === 'tchat')     return chatCount
+    if (page === 'mail')      return mailCount
+    if (page === 'ops-center') return alertesCount
     return 0
   }
 

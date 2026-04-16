@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { listAssets } from '@/lib/services/assetsService'
 import type { Tables, TablesInsert } from '@/lib/database.types'
+import FlotteAmortissements from '@/components/flotte/FlotteAmortissements'
 
 type Vehicule = Tables<'vehicules'>
 type VehiculeRow = Vehicule & {
@@ -748,6 +749,20 @@ export default function Vehicules() {
 
   const currentMonthCost = costSeries[costSeries.length - 1]?.total_cout_ht ?? null
   const currentCostKm = costKmSeries[costKmSeries.length - 1]?.cout_km_ht ?? null
+  const [pageTab, setPageTab] = useState<'liste' | 'amortissements'>('liste')
+
+  // Adapter la liste des véhicules pour FlotteAmortissements
+  const vehiculesForAmort = useMemo(() => list.map(v => ({
+    id: v.id,
+    immatriculation: v.immatriculation,
+    marque: v.marque,
+    modele: v.modele,
+    type: 'vehicule' as const,
+    cout_achat_ht: v.cout_achat_ht,
+    date_achat: v.date_achat ?? null,
+    date_mise_en_circulation: v.date_mise_en_circulation ?? null,
+    km_actuel: v.km_actuel,
+  })), [list])
 
   return (
     <div className="space-y-6">
@@ -756,11 +771,25 @@ export default function Vehicules() {
           <h2 className="text-2xl font-bold text-slate-800">Vehicules</h2>
           <p className="text-slate-500 text-sm">{list.length} vehicule{list.length !== 1 ? 's' : ''}</p>
         </div>
-        {canManageFleetAssets && (
-          <button onClick={openCreate} className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors">
-            + Ajouter
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {(['liste', 'amortissements'] as const).map(t => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setPageTab(t)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                pageTab === t ? 'bg-slate-800 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {t === 'liste' ? 'Liste' : '📊 Amortissements'}
+            </button>
+          ))}
+          {canManageFleetAssets && pageTab === 'liste' && (
+            <button onClick={openCreate} className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors">
+              + Ajouter
+            </button>
+          )}
+        </div>
       </div>
 
       {(error || notice) && (
@@ -769,6 +798,11 @@ export default function Vehicules() {
         </div>
       )}
 
+      {pageTab === 'amortissements' && (
+        <FlotteAmortissements vehicules={vehiculesForAmort} remorques={[]} />
+      )}
+
+      {pageTab === 'liste' && (<>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Disponibles" value={stats.disponibles} tone="emerald" />
         <StatCard label="CT < 60 j" value={stats.ctExpirent} tone="amber" />
@@ -842,6 +876,7 @@ export default function Vehicules() {
           </table>
         )}
       </div>
+      </>)}
 
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">

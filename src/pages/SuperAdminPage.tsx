@@ -159,6 +159,139 @@ function TenantImpersonationPanel({
   )
 }
 
+// ─── Panel d'édition d'un tenant ────────────────────────────────────────────
+
+function TenantEditPanel({
+  company,
+  onSaved,
+  onCancel,
+}: {
+  company: Company
+  onSaved: (updated: Company) => void
+  onCancel: () => void
+}) {
+  const [name, setName] = useState(company.name)
+  const [status, setStatus] = useState<Company['status']>(company.status)
+  const [plan, setPlan] = useState<Company['subscription_plan']>(company.subscription_plan)
+  const [maxUsers, setMaxUsers] = useState(company.max_users)
+  const [maxScreens, setMaxScreens] = useState(company.max_screens)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSave() {
+    setSaving(true)
+    setError(null)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) throw new Error('Session expirée.')
+
+      const response = await fetch(`/.netlify/functions/v11-companies?id=${company.id}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          status,
+          subscription_plan: plan,
+          max_users: Math.max(1, Math.trunc(maxUsers)),
+          max_screens: Math.max(1, Math.trunc(maxScreens)),
+        }),
+      })
+
+      const body = await response.json().catch(() => ({})) as { error?: string; company?: Company }
+      if (!response.ok) throw new Error(body.error ?? 'Mise à jour impossible.')
+
+      onSaved({ ...company, ...body.company })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur inconnue.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-slate-300 bg-slate-50 p-4">
+      <h4 className="text-sm font-semibold text-slate-800 mb-3">Modifier — {company.name}</h4>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <label className="text-xs text-slate-600">
+          Nom
+          <input
+            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+            value={name}
+            onChange={e => setName(e.target.value)}
+          />
+        </label>
+        <label className="text-xs text-slate-600">
+          Statut
+          <select
+            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+            value={status}
+            onChange={e => setStatus(e.target.value as Company['status'])}
+          >
+            <option value="active">Actif</option>
+            <option value="trial">Essai</option>
+            <option value="suspended">Suspendu</option>
+            <option value="cancelled">Annulé</option>
+          </select>
+        </label>
+        <label className="text-xs text-slate-600">
+          Plan
+          <select
+            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+            value={plan}
+            onChange={e => setPlan(e.target.value as Company['subscription_plan'])}
+          >
+            <option value="starter">Starter</option>
+            <option value="pro">Pro</option>
+            <option value="enterprise">Enterprise</option>
+          </select>
+        </label>
+        <label className="text-xs text-slate-600">
+          Utilisateurs max
+          <input
+            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+            type="number"
+            min={1}
+            value={maxUsers}
+            onChange={e => setMaxUsers(Math.max(1, Number(e.target.value || 1)))}
+          />
+        </label>
+        <label className="text-xs text-slate-600">
+          Écrans max
+          <input
+            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+            type="number"
+            min={1}
+            value={maxScreens}
+            onChange={e => setMaxScreens(Math.max(1, Number(e.target.value || 1)))}
+          />
+        </label>
+      </div>
+      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      <div className="mt-3 flex items-center gap-2 justify-end">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+        >
+          Annuler
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleSave()}
+          disabled={saving}
+          className="rounded-lg bg-slate-800 px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-50 hover:bg-slate-900 transition-colors"
+        >
+          {saving ? 'Enregistrement…' : 'Enregistrer'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Composant principal ─────────────────────────────────────────────────────
 
 export default function SuperAdminPage() {
@@ -170,6 +303,7 @@ export default function SuperAdminPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [expandedTenant, setExpandedTenant] = useState<number | null>(null)
+  const [editingTenant, setEditingTenant] = useState<number | null>(null)
   const [newTenantName, setNewTenantName] = useState('')
   const [newTenantSlug, setNewTenantSlug] = useState('')
   const [newTenantPlan, setNewTenantPlan] = useState<Company['subscription_plan']>('starter')
@@ -484,7 +618,24 @@ export default function SuperAdminPage() {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setExpandedTenant(expandedTenant === company.id ? null : company.id)}
+                        onClick={() => {
+                          setEditingTenant(editingTenant === company.id ? null : company.id)
+                          setExpandedTenant(null)
+                        }}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                          editingTenant === company.id
+                            ? 'bg-slate-800 text-white'
+                            : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {editingTenant === company.id ? 'Annuler' : 'Modifier'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setExpandedTenant(expandedTenant === company.id ? null : company.id)
+                          setEditingTenant(null)
+                        }}
                         className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                           expandedTenant === company.id
                             ? 'bg-blue-600 text-white'
@@ -495,6 +646,21 @@ export default function SuperAdminPage() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Panel d'édition pour ce tenant */}
+                  {editingTenant === company.id && (
+                    <div className="px-4 pb-4">
+                      <TenantEditPanel
+                        company={company}
+                        onSaved={(updated) => {
+                          setCompanies(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c))
+                          setEditingTenant(null)
+                          setNotice(`Tenant "${updated.name}" mis à jour.`)
+                        }}
+                        onCancel={() => setEditingTenant(null)}
+                      />
+                    </div>
+                  )}
 
                   {/* Panel d'impersonation pour ce tenant */}
                   {expandedTenant === company.id && (

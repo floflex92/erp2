@@ -3,6 +3,8 @@ import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { listAssets } from '@/lib/services/assetsService'
 import { listPersonsForDirectory } from '@/lib/services/personsService'
+import { SkeletonTable } from '@/components/ui/SkeletonTable'
+import { DataState } from '@/components/ui/DataState'
 import { ST_PLANIFIE, ST_EN_COURS } from '@/lib/transportCourses'
 import type { Tables, TablesInsert } from '@/lib/database.types'
 import { INTERVIEW_STATUS_LABELS, listInterviewsForEmployee, type InterviewRow } from '@/lib/hrInterviewsModule'
@@ -878,11 +880,11 @@ export default function Chauffeurs() {
       {/* Table */}
       <div className="nx-table-shell">
         {loading ? (
-          <div className="p-8 text-center text-slate-400 text-sm">Chargement...</div>
+          <SkeletonTable cols={10} rows={7} colWidths={['18%','12%','9%','9%','9%','13%','9%','9%','7%','5%']} />
         ) : filtered.length === 0 ? (
-          <div className="p-8 text-center text-slate-400 text-sm">
-            {search ? 'Aucun résultat' : 'Aucun conducteur enregistré'}
-          </div>
+          <DataState.Empty
+            label={search ? 'Aucun résultat' : 'Aucun conducteur enregistré.'}
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1160px] text-sm">

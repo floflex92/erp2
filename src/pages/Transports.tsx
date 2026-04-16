@@ -28,13 +28,43 @@ import {
   syncOtLignes,
 } from '@/lib/transportCourses'
 import { addCourseToMission, createMissionFromCourses, removeCourseFromMission } from '@/lib/transportMissions'
+import {
+  TYPES_CHARGEMENT_LABELS,
+  TYPES_PALETTE_LABELS,
+  TYPES_CHARGEMENT_PALETTE,
+  calcRemplissageGroupage,
+  calcMetragePalettes,
+  couleurBarre,
+  couleurTexte,
+  SEUIL_ALERTE_ORANGE,
+} from '@/lib/chargementRules'
+import {
+  validateTrailerAssignment,
+  checkCompatibiliteMetier,
+  filterCompatibleTrailers,
+  TRAILER_TYPES,
+  TRAILER_TYPE_MAP,
+} from '@/lib/trailerValidation'
+import ChargementBars from '@/components/transports/ChargementBars'
 
 type OT = Tables<'ordres_transport'>
 type EtapeMission = Tables<'etapes_mission'>
 type ClientLookup = { id: string; nom: string }
 type ConducteurLookup = { id: string; nom: string; prenom: string }
 type VehiculeLookup = { id: string; immatriculation: string; marque: string | null }
-type RemorqueLookup = { id: string; immatriculation: string }
+type RemorqueLookup = {
+  id: string
+  immatriculation: string
+  type_remorque: string
+  trailer_type_code: string | null
+  categorie_remorque: string | null
+  charge_utile_kg: number | null
+  longueur_m: number | null
+  volume_max_m3: number | null
+  largeur_utile_m: number | null
+  hauteur_utile_m: number | null
+  nb_palettes_max: number | null
+}
 type AffreteurLookup = { id: string; company_name: string }
 type LogisticSite = Tables<'sites_logistiques'>
 type SiteUsageType = 'chargement' | 'livraison' | 'mixte'
@@ -54,6 +84,7 @@ type SiteDraft = {
 
 type OtLigneDraft = {
   libelle: string
+  type_chargement: string | null
   poids_kg: number | null
   metrage_ml: number | null
   nombre_colis: number | null
@@ -92,7 +123,10 @@ const EMPTY_OT: TablesInsert<'ordres_transport'> = {
   donneur_ordre_id: '', est_affretee: false, affreteur_id: null,
   chargement_site_id: null, livraison_site_id: null,
   reference_externe: null,
-  nature_marchandise: null, poids_kg: null, metrage_ml: null, volume_m3: null, nombre_colis: null,
+  nature_marchandise: null, poids_kg: null, tonnage: null, longueur_m: null, metrage_ml: null, volume_m3: null, nombre_colis: null,
+  type_chargement: null, type_palette: null,
+  largeur_m: null, hauteur_m: null, nb_palettes: null,
+  adr: false, temperature_dirigee: false, hors_gabarit: false, charge_indivisible: false,
   date_chargement_prevue: null, date_livraison_prevue: null,
   conducteur_id: null, vehicule_id: null, remorque_id: null,
   prix_ht: null, taux_tva: 20, distance_km: null,
@@ -232,6 +266,7 @@ export default function Transports() {
 
   // Detail panel
   const [selected, setSelected] = useState<OT | null>(null)
+  const [groupageOts, setGroupageOts] = useState<Array<{ poids_kg: number | null; tonnage: number | null; metrage_ml: number | null }>>([])
   const [etapes, setEtapes] = useState<EtapeMission[]>([])
   const [loadingEtapes, setLoadingEtapes] = useState(false)
   const { sites, addSite, updateSite } = useLogisticSites()
@@ -244,7 +279,7 @@ export default function Transports() {
       supabase.from('clients').select('id, nom').order('nom'),
       supabase.from('conducteurs').select('id, nom, prenom').order('nom'),
       supabase.from('vehicules').select('id, immatriculation, marque').order('immatriculation'),
-      supabase.from('remorques').select('id, immatriculation').order('immatriculation'),
+      supabase.from('remorques').select('id, immatriculation, type_remorque, trailer_type_code, categorie_remorque, charge_utile_kg, longueur_m, volume_max_m3, largeur_utile_m, hauteur_utile_m, nb_palettes_max').order('immatriculation'),
     ])
     const nextList = ots.data ?? []
     setList(nextList)
@@ -296,10 +331,18 @@ export default function Transports() {
   function openOT(ot: OT) {
     setSelected(ot)
     setSelectedLots([])
+    setGroupageOts([])
     void loadEtapes(ot.id)
     void loadTransportHistory(ot.id)
     if (['groupage', 'partiel'].includes(ot.type_transport)) {
       void listOtLignes(ot.id).then(rows => setSelectedLots(rows))
+    }
+    if (ot.groupage_id) {
+      void supabase
+        .from('ordres_transport')
+        .select('id, poids_kg, tonnage, metrage_ml')
+        .eq('groupage_id', ot.groupage_id)
+        .then(({ data }) => setGroupageOts(data ?? []))
     }
   }
 
@@ -391,9 +434,13 @@ export default function Transports() {
       reference_externe: ot.reference_externe,
       nature_marchandise: ot.nature_marchandise,
       poids_kg: ot.poids_kg,
+      tonnage: ot.tonnage,
+      longueur_m: ot.longueur_m,
       metrage_ml: ot.metrage_ml,
       volume_m3: ot.volume_m3,
       nombre_colis: ot.nombre_colis,
+      type_chargement: ot.type_chargement,
+      type_palette: ot.type_palette,
       date_chargement_prevue: toDateTimeLocalValue(ot.date_chargement_prevue),
       date_livraison_prevue: toDateTimeLocalValue(ot.date_livraison_prevue),
       conducteur_id: ot.conducteur_id,
@@ -416,6 +463,7 @@ export default function Transports() {
     void listOtLignes(ot.id).then(rows => {
       setLotLines(rows.map(r => ({
         libelle: r.libelle,
+        type_chargement: r.type_chargement,
         poids_kg: r.poids_kg,
         metrage_ml: r.metrage_ml,
         nombre_colis: r.nombre_colis,
@@ -508,6 +556,20 @@ export default function Transports() {
       return
     }
     if (!form.client_id) return
+
+    // Blocage si la remorque sélectionnée est incompatible avec le chargement
+    if (form.remorque_id) {
+      const rem = remorques.find(r => r.id === form.remorque_id)
+      if (rem) {
+        const otData = { type_chargement: form.type_chargement, poids_kg: form.poids_kg, tonnage: form.tonnage, volume_m3: form.volume_m3, longueur_m: form.longueur_m, metrage_ml: form.metrage_ml, adr: (form as Record<string, unknown>).adr as boolean, temperature_dirigee: (form as Record<string, unknown>).temperature_dirigee as boolean, hors_gabarit: (form as Record<string, unknown>).hors_gabarit as boolean, charge_indivisible: (form as Record<string, unknown>).charge_indivisible as boolean }
+        const validation = validateTrailerAssignment(otData, rem)
+        if (validation.status === 'blocked') {
+          setStatusGuardNotice(`Affectation remorque BLOQUÉE : ${validation.errors.map(e => e.message).join(' | ')}`)
+          return
+        }
+      }
+    }
+
     setSaving(true)
     const payload = {
       ...form,
@@ -1144,7 +1206,11 @@ export default function Transports() {
               <Info label="Livraison prévue" value={selected.date_livraison_prevue ? new Date(selected.date_livraison_prevue).toLocaleDateString('fr-FR') : null} />
               <Info label="Livraison réelle" value={selected.date_livraison_reelle ? new Date(selected.date_livraison_reelle).toLocaleDateString('fr-FR') : null} />
               <Info label="Marchandise" value={selected.nature_marchandise} />
+              <Info label="Type de chargement" value={selected.type_chargement ? (TYPES_CHARGEMENT_LABELS[selected.type_chargement] ?? selected.type_chargement) : null} />
+              <Info label="Type de palette" value={selected.type_palette ? (TYPES_PALETTE_LABELS[selected.type_palette] ?? selected.type_palette) : null} />
               <Info label="Poids" value={selected.poids_kg ? `${selected.poids_kg} kg` : null} />
+              <Info label="Tonnage" value={selected.tonnage ? `${selected.tonnage} t` : null} />
+              <Info label="Longueur" value={selected.longueur_m ? `${selected.longueur_m} m` : null} />
               <Info label="Métrage" value={selected.metrage_ml ? `${selected.metrage_ml} ml` : null} />
               <Info label="Volume" value={selected.volume_m3 ? `${selected.volume_m3} m³` : null} />
               <Info label="Nombre de colis" value={selected.nombre_colis?.toString() ?? null} />
@@ -1155,6 +1221,7 @@ export default function Transports() {
                     {selectedLots.map(lot => (
                       <div key={lot.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                         <span className="flex-1 font-medium text-slate-700">{lot.libelle}</span>
+                        {lot.type_chargement && <span className="rounded-full bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-xs text-indigo-700">{TYPES_CHARGEMENT_LABELS[lot.type_chargement] ?? lot.type_chargement}</span>}
                         {lot.poids_kg != null && <span className="text-slate-500">{lot.poids_kg} kg</span>}
                         {lot.metrage_ml != null && <span className="text-slate-500">{lot.metrage_ml} ml</span>}
                         {lot.nombre_colis != null && <span className="text-slate-500">{lot.nombre_colis} col.</span>}
@@ -1171,6 +1238,60 @@ export default function Transports() {
               )}
               <Info label="N° CMR" value={selected.numero_cmr} />
               <Info label="N° BL" value={selected.numero_bl} />
+
+              {/* Barre de remplissage (vue détail) — visible dès qu'une remorque est sélectionnée */}
+              {selected.remorque_id && (() => {
+                const rem = remorques.find(r => r.id === selected.remorque_id)
+                const noCap = !rem?.charge_utile_kg && !rem?.longueur_m
+                const isGroupage = !!selected.groupage_id && groupageOts.length > 1
+                const remplissage = (!noCap && rem)
+                  ? (isGroupage
+                    ? calcRemplissageGroupage(groupageOts, rem.charge_utile_kg, rem.longueur_m)
+                    : calcRemplissage(selected.poids_kg, selected.tonnage, selected.metrage_ml, rem.charge_utile_kg, rem.longueur_m))
+                  : null
+                return (
+                  <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        {isGroupage ? `Remplissage groupage (${groupageOts.length} courses)` : `Remplissage · ${rem?.immatriculation ?? ''}${rem?.type_remorque ? ` · ${rem.type_remorque}` : ''}`}
+                      </span>
+                      {remplissage?.alerte && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">⛔ DÉPASSEMENT</span>}
+                      {remplissage && !remplissage.alerte && (remplissage.global_pct ?? 0) >= SEUIL_ALERTE_ORANGE && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">⚠ QUASI-PLEIN</span>}
+                    </div>
+                    {noCap && (
+                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">Capacité non renseignée sur cette remorque — éditez la fiche remorque pour activer le calcul de remplissage.</p>
+                    )}
+                    {!noCap && remplissage && remplissage.poids_pct === null && remplissage.ml_pct === null && (
+                      <p className="text-xs text-slate-400 italic">Renseignez le poids, le tonnage ou le métrage de la course pour voir le taux de remplissage.</p>
+                    )}
+                    {remplissage?.poids_pct !== null && remplissage?.poids_pct !== undefined && (
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-slate-600">Poids · CU {rem!.charge_utile_kg?.toLocaleString('fr-FR')} kg</span>
+                          <span className={`text-xs font-bold ${couleurTexte(remplissage.poids_pct)}`}>{remplissage.poids_pct}%</span>
+                        </div>
+                        <div className="h-3 w-full rounded-full bg-slate-200">
+                          <div className={`h-3 rounded-full transition-all ${couleurBarre(remplissage.poids_pct)}`} style={{ width: `${Math.min(remplissage.poids_pct, 100)}%` }} />
+                        </div>
+                        {remplissage.poids_libre_kg !== null && <p className="mt-1 text-xs text-slate-500">Libre : <strong className="text-slate-700">{remplissage.poids_libre_kg.toLocaleString('fr-FR')} kg</strong></p>}
+                      </div>
+                    )}
+                    {remplissage?.ml_pct !== null && remplissage?.ml_pct !== undefined && (
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-slate-600">Métrage · L {rem!.longueur_m} m</span>
+                          <span className={`text-xs font-bold ${couleurTexte(remplissage.ml_pct)}`}>{remplissage.ml_pct}%</span>
+                        </div>
+                        <div className="h-3 w-full rounded-full bg-slate-200">
+                          <div className={`h-3 rounded-full transition-all ${couleurBarre(remplissage.ml_pct)}`} style={{ width: `${Math.min(remplissage.ml_pct, 100)}%` }} />
+                        </div>
+                        {remplissage.ml_libre_m !== null && <p className="mt-1 text-xs text-slate-500">Libre : <strong className="text-slate-700">{remplissage.ml_libre_m} m</strong></p>}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
               {selected.instructions && (
                 <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-white p-4">
                   <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Instructions</span>
@@ -1354,7 +1475,18 @@ export default function Transports() {
                           <Field label="Remorque">
                             <select className={inp} value={form.remorque_id ?? ''} onChange={e => setF('remorque_id', e.target.value || null)}>
                               <option value="">— Non affectée</option>
-                              {remorques.map(r => <option key={r.id} value={r.id}>{r.immatriculation}</option>)}
+                              {remorques.map(r => {
+                                const val = validateTrailerAssignment(
+                                  { type_chargement: form.type_chargement, poids_kg: form.poids_kg, tonnage: form.tonnage, volume_m3: form.volume_m3, longueur_m: form.longueur_m, metrage_ml: form.metrage_ml, hors_gabarit: form.hors_gabarit, temperature_dirigee: form.temperature_dirigee, charge_indivisible: form.charge_indivisible, adr: form.adr },
+                                  r,
+                                )
+                                const icon = val.status === 'blocked' ? '⛔ ' : val.status === 'warning' ? '⚠ ' : '✓ '
+                                return (
+                                  <option key={r.id} value={r.id} disabled={val.status === 'blocked'}>
+                                    {icon}{r.immatriculation}{r.type_remorque ? ` · ${r.type_remorque}` : ''}{r.charge_utile_kg ? ` · ${(r.charge_utile_kg / 1000).toFixed(1)}t` : ''}
+                                  </option>
+                                )
+                              })}
                             </select>
                           </Field>
                         </div>
@@ -1370,10 +1502,107 @@ export default function Transports() {
                               <input className={inp} value={form.nature_marchandise ?? ''} onChange={e => setF('nature_marchandise', e.target.value || null)} placeholder="Palette, lot alimentaire, materiel sensible..." />
                             </Field>
                           </div>
+
+                          {/* Type de chargement */}
+                          {(() => {
+                            const rem = remorques.find(r => r.id === form.remorque_id)
+                            const allCodes = [
+                              ...Object.keys(TYPES_CHARGEMENT_LABELS),
+                              'charge_indivisible',
+                            ]
+                            const incompatibles = rem
+                              ? allCodes.filter(k =>
+                                  checkCompatibiliteMetier(rem.trailer_type_code ?? rem.type_remorque, k).niveau === 'incompatible'
+                                )
+                              : []
+                            return (
+                              <>
+                                <Field label="Type de chargement">
+                                  <select className={inp} value={form.type_chargement ?? ''} onChange={e => {
+                                    const val = e.target.value || null
+                                    setF('type_chargement', val)
+                                    if (!val || !TYPES_CHARGEMENT_PALETTE.has(val)) setF('type_palette', null)
+                                  }}>
+                                    <option value="">— Non renseigné</option>
+                                    {allCodes
+                                      .filter(k => !incompatibles.includes(k))
+                                      .map(k => <option key={k} value={k}>{TYPES_CHARGEMENT_LABELS[k] ?? k}</option>)
+                                    }
+                                    {incompatibles.length > 0 && allCodes
+                                      .filter(k => incompatibles.includes(k))
+                                      .map(k => <option key={k} value={k} disabled>⛔ {TYPES_CHARGEMENT_LABELS[k] ?? k}</option>)
+                                    }
+                                  </select>
+                                </Field>
+
+                                {form.type_chargement && TYPES_CHARGEMENT_PALETTE.has(form.type_chargement) && (
+                                  <Field label="Type de palette">
+                                    <select className={inp} value={form.type_palette ?? ''} onChange={e => setF('type_palette', e.target.value || null)}>
+                                      <option value="">— Non précisé</option>
+                                      {Object.entries(TYPES_PALETTE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                                    </select>
+                                  </Field>
+                                )}
+                              </>
+                            )
+                          })()}
+
                           <Field label="Poids (kg)"><input className={inp} type="number" value={form.poids_kg ?? ''} onChange={e => setF('poids_kg', parseFloat(e.target.value) || null)} /></Field>
-                          <Field label="Métrage (ml)"><input className={inp} type="number" step="0.01" value={form.metrage_ml ?? ''} onChange={e => setF('metrage_ml', parseFloat(e.target.value) || null)} /></Field>
-                          <Field label="Volume (m³)"><input className={inp} type="number" value={form.volume_m3 ?? ''} onChange={e => setF('volume_m3', parseFloat(e.target.value) || null)} /></Field>
-                          <Field label="Nombre de colis"><input className={inp} type="number" value={form.nombre_colis ?? ''} onChange={e => setF('nombre_colis', parseInt(e.target.value) || null)} /></Field>
+                          <Field label="Tonnage (t)"><input className={inp} type="number" step="0.001" value={form.tonnage ?? ''} onChange={e => setF('tonnage', parseFloat(e.target.value) || null)} /></Field>
+                          <Field label="Longueur marchandise (m)"><input className={inp} type="number" step="0.01" value={form.longueur_m ?? ''} onChange={e => setF('longueur_m', parseFloat(e.target.value) || null)} /></Field>
+
+                          {/* Métrage avec calcul auto palettes */}
+                          <div>
+                            <Field label="Métrage estimé (ml)">
+                              <input className={inp} type="number" step="0.01" value={form.metrage_ml ?? ''} onChange={e => setF('metrage_ml', parseFloat(e.target.value) || null)} />
+                            </Field>
+                            {form.type_chargement && TYPES_CHARGEMENT_PALETTE.has(form.type_chargement) && form.type_palette && form.nombre_colis && (
+                              <button type="button" className="mt-1.5 text-xs text-indigo-600 hover:text-indigo-800 underline" onClick={() => {
+                                const ml = calcMetragePalettes(form.nombre_colis!, form.type_palette!)
+                                setF('metrage_ml', ml)
+                              }}>
+                                Calculer automatiquement ({calcMetragePalettes(form.nombre_colis!, form.type_palette!)} ml estimés)
+                              </button>
+                            )}
+                          </div>
+
+                          <Field label="Volume (m³)"><input className={inp} type="number" step="0.01" value={form.volume_m3 ?? ''} onChange={e => setF('volume_m3', parseFloat(e.target.value) || null)} /></Field>
+                          <Field label="Largeur marchandise (m)"><input className={inp} type="number" step="0.01" value={(form as Record<string, unknown>).largeur_m as string ?? ''} onChange={e => setF('largeur_m', parseFloat(e.target.value) || null)} /></Field>
+                          <Field label="Hauteur marchandise (m)"><input className={inp} type="number" step="0.01" value={(form as Record<string, unknown>).hauteur_m as string ?? ''} onChange={e => setF('hauteur_m', parseFloat(e.target.value) || null)} /></Field>
+                          <Field label="Nombre de colis / palettes"><input className={inp} type="number" value={form.nombre_colis ?? ''} onChange={e => setF('nombre_colis', parseInt(e.target.value) || null)} /></Field>
+
+                          {/* Contraintes spécifiques */}
+                          <div className="md:col-span-2 xl:col-span-3 flex flex-wrap gap-4">
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <input type="checkbox" className="h-4 w-4 rounded text-indigo-600" checked={!!((form as Record<string, unknown>).adr)} onChange={e => setF('adr', e.target.checked)} />
+                              <span className="text-sm font-medium text-slate-700">ADR (marchandises dangereuses)</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <input type="checkbox" className="h-4 w-4 rounded text-indigo-600" checked={!!((form as Record<string, unknown>).temperature_dirigee)} onChange={e => setF('temperature_dirigee', e.target.checked)} />
+                              <span className="text-sm font-medium text-slate-700">Température dirigée (frigo requis)</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <input type="checkbox" className="h-4 w-4 rounded text-amber-600" checked={!!((form as Record<string, unknown>).hors_gabarit)} onChange={e => setF('hors_gabarit', e.target.checked)} />
+                              <span className="text-sm font-medium text-amber-700">Hors gabarit</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <input type="checkbox" className="h-4 w-4 rounded text-purple-600" checked={!!((form as Record<string, unknown>).charge_indivisible)} onChange={e => setF('charge_indivisible', e.target.checked)} />
+                              <span className="text-sm font-medium text-purple-700">Charge indivisible (convoi exceptionnel possible)</span>
+                            </label>
+                          </div>
+
+                          {/* Barres de remplissage — moteur de validation complet */}
+                          {form.remorque_id && (() => {
+                            const rem = remorques.find(r => r.id === form.remorque_id)
+                            if (!rem) return null
+                            const otData = { type_chargement: form.type_chargement, poids_kg: form.poids_kg, tonnage: form.tonnage, volume_m3: form.volume_m3, longueur_m: form.longueur_m, metrage_ml: form.metrage_ml, largeur_m: (form as Record<string, unknown>).largeur_m as number | null, hauteur_m: (form as Record<string, unknown>).hauteur_m as number | null, adr: (form as Record<string, unknown>).adr as boolean, temperature_dirigee: (form as Record<string, unknown>).temperature_dirigee as boolean, hors_gabarit: (form as Record<string, unknown>).hors_gabarit as boolean, charge_indivisible: (form as Record<string, unknown>).charge_indivisible as boolean }
+                            return (
+                              <div className="md:col-span-2 xl:col-span-3">
+                                <ChargementBars ot={otData} remorque={{ ...rem, immatriculation: rem.immatriculation }} />
+                              </div>
+                            )
+                          })()}
+
                           <div className="space-y-2">
                             <Field label="Distance (km)">
                               <input className={inp} type="number" value={form.distance_km ?? ''} onChange={e => setF('distance_km', parseFloat(e.target.value) || null)} />
@@ -1403,7 +1632,7 @@ export default function Transports() {
                             <p className="text-sm text-slate-600">Décomposez la course en unités opérationnelles quand le groupage ou le partiel l exige.</p>
                             <button
                               type="button"
-                              onClick={() => setLotLines(l => [...l, { libelle: '', poids_kg: null, metrage_ml: null, nombre_colis: null, notes: null }])}
+                              onClick={() => setLotLines(l => [...l, { libelle: '', type_chargement: null, poids_kg: null, metrage_ml: null, nombre_colis: null, notes: null }])}
                               className="rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-100"
                             >
                               Ajouter une ligne
@@ -1415,9 +1644,15 @@ export default function Transports() {
                             <div className="mt-5 space-y-4">
                               {lotLines.map((lot, idx) => (
                                 <div key={idx} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_repeat(3,minmax(120px,1fr))_minmax(0,2fr)_auto] xl:items-end">
+                                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(140px,1fr)_repeat(3,minmax(100px,1fr))_minmax(0,1.5fr)_auto] xl:items-end">
                                     <Field label="Libellé *">
                                       <input className={inp} placeholder="Ex: Palettes bois" value={lot.libelle} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, libelle: e.target.value } : x))} />
+                                    </Field>
+                                    <Field label="Type chargement">
+                                      <select className={inp} value={lot.type_chargement ?? ''} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, type_chargement: e.target.value || null } : x))}>
+                                        <option value="">—</option>
+                                        {Object.entries(TYPES_CHARGEMENT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                                      </select>
                                     </Field>
                                     <Field label="Poids (kg)">
                                       <input className={inp} type="number" placeholder="0" value={lot.poids_kg ?? ''} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, poids_kg: parseFloat(e.target.value) || null } : x))} />
@@ -1443,11 +1678,50 @@ export default function Transports() {
                                 const totalPoids = lotLines.reduce((s, l) => s + (l.poids_kg ?? 0), 0)
                                 const totalMl = lotLines.reduce((s, l) => s + (l.metrage_ml ?? 0), 0)
                                 const totalColis = lotLines.reduce((s, l) => s + (l.nombre_colis ?? 0), 0)
+                                const rem = remorques.find(r => r.id === form.remorque_id)
+                                const remplissage = rem
+                                  ? calcRemplissageGroupage(lotLines, rem.charge_utile_kg, rem.longueur_m)
+                                  : null
                                 return (
-                                  <div className="flex flex-wrap gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-                                    {totalPoids > 0 && <span>Total poids : <strong className="text-slate-900">{totalPoids} kg</strong></span>}
-                                    {totalMl > 0 && <span>Total métrage : <strong className="text-slate-900">{totalMl} ml</strong></span>}
-                                    {totalColis > 0 && <span>Total colis : <strong className="text-slate-900">{totalColis}</strong></span>}
+                                  <div className="space-y-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                                    <div className="flex flex-wrap gap-3 text-sm text-slate-600">
+                                      {totalPoids > 0 && <span>Total poids : <strong className="text-slate-900">{totalPoids} kg</strong></span>}
+                                      {totalMl > 0 && <span>Total métrage : <strong className="text-slate-900">{totalMl} ml</strong></span>}
+                                      {totalColis > 0 && <span>Total colis : <strong className="text-slate-900">{totalColis}</strong></span>}
+                                    </div>
+                                    {remplissage && (remplissage.poids_pct !== null || remplissage.ml_pct !== null) && (
+                                      <div className="space-y-2 pt-2 border-t border-slate-100">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">Remplissage total groupage</span>
+                                          {remplissage.alerte && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">DÉPASSEMENT</span>}
+                                          {!remplissage.alerte && (remplissage.global_pct ?? 0) >= SEUIL_ALERTE_ORANGE && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">QUASI-PLEIN</span>}
+                                        </div>
+                                        {remplissage.poids_pct !== null && (
+                                          <div>
+                                            <div className="flex justify-between mb-0.5">
+                                              <span className="text-xs text-slate-500">Poids · CU {rem!.charge_utile_kg?.toLocaleString('fr-FR')} kg</span>
+                                              <span className={`text-xs font-bold ${couleurTexte(remplissage.poids_pct)}`}>{remplissage.poids_pct}%</span>
+                                            </div>
+                                            <div className="h-2 w-full rounded-full bg-slate-200">
+                                              <div className={`h-2 rounded-full ${couleurBarre(remplissage.poids_pct)}`} style={{ width: `${Math.min(remplissage.poids_pct, 100)}%` }} />
+                                            </div>
+                                            {remplissage.poids_libre_kg !== null && <p className="text-xs text-slate-400">Libre : {remplissage.poids_libre_kg.toLocaleString('fr-FR')} kg</p>}
+                                          </div>
+                                        )}
+                                        {remplissage.ml_pct !== null && (
+                                          <div>
+                                            <div className="flex justify-between mb-0.5">
+                                              <span className="text-xs text-slate-500">Métrage · L {rem!.longueur_m} m</span>
+                                              <span className={`text-xs font-bold ${couleurTexte(remplissage.ml_pct)}`}>{remplissage.ml_pct}%</span>
+                                            </div>
+                                            <div className="h-2 w-full rounded-full bg-slate-200">
+                                              <div className={`h-2 rounded-full ${couleurBarre(remplissage.ml_pct)}`} style={{ width: `${Math.min(remplissage.ml_pct, 100)}%` }} />
+                                            </div>
+                                            {remplissage.ml_libre_m !== null && <p className="text-xs text-slate-400">Libre : {remplissage.ml_libre_m} m</p>}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 )
                               })()}

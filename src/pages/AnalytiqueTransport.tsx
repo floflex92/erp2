@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-
 type Tab = 'synthese' | 'missions' | 'clients' | 'chauffeurs' | 'flotte'
 
 interface MissionAnalytique {
@@ -67,11 +66,11 @@ function exportCSV(headers: string[], rows: string[][], filename: string) {
 
 function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'synthese', label: 'Synthèse' },
-    { key: 'missions', label: 'Missions' },
-    { key: 'clients', label: 'Clients' },
+    { key: 'synthese',   label: 'Synthèse' },
+    { key: 'missions',   label: 'Missions' },
+    { key: 'clients',    label: 'Clients' },
     { key: 'chauffeurs', label: 'Chauffeurs' },
-    { key: 'flotte', label: 'Flotte' },
+    { key: 'flotte',     label: 'Flotte' },
   ]
   return (
     <div className="flex gap-1 mb-6 border-b border-slate-200">
@@ -679,6 +678,8 @@ function FlotteTab({ data, vehicules }: { data: MissionAnalytique[]; vehicules: 
   )
 }
 
+
+
 // ─── Page principale ──────────────────────────────────────────────────────────
 export default function AnalytiqueTransport() {
   const [tab, setTab] = useState<Tab>('synthese')
@@ -713,11 +714,11 @@ export default function AnalytiqueTransport() {
         <div className="text-center py-16 text-slate-400">Chargement des données...</div>
       ) : (
         <>
-          {tab === 'synthese'  && <SyntheseTab data={data} />}
-          {tab === 'missions'  && <MissionsTab data={data} onRefresh={load} />}
-          {tab === 'clients'   && <ClientsTab data={data} />}
+          {tab === 'synthese'   && <SyntheseTab data={data} />}
+          {tab === 'missions'   && <MissionsTab data={data} onRefresh={load} />}
+          {tab === 'clients'    && <ClientsTab data={data} />}
           {tab === 'chauffeurs' && <ChauffeurTab data={data} chauffeurs={chauffeurs} />}
-          {tab === 'flotte'    && <FlotteTab data={data} vehicules={vehicules} />}
+          {tab === 'flotte'     && <FlotteTab data={data} vehicules={vehicules} />}
         </>
       )}
     </div>

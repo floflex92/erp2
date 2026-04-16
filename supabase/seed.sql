@@ -317,18 +317,26 @@ on conflict (id) do update set
   notes = excluded.notes;
 
 insert into public.ordres_transport (
-  id, client_id, conducteur_id, vehicule_id, remorque_id, reference, type_transport, statut,
+  id, client_id, conducteur_id, vehicule_id, remorque_id, reference, type_transport, statut, statut_transport,
   date_chargement_prevue, date_livraison_prevue, distance_km, nature_marchandise, poids_kg,
   volume_m3, nombre_colis, prix_ht, taux_tva, numero_cmr, numero_bl, instructions, notes_internes
 ) values
-  ('70000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', '50000000-0000-0000-0000-000000000001', 'OT-260301', 'complet', 'en_cours', current_date - 1, current_date + 1, 540, 'Produits frais', 18600, 82, 24, 1480, 20, 'CMR-301', 'BL-301', 'Maintenir 4C', 'Priorite client'),
-  ('70000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000002', '50000000-0000-0000-0000-000000000002', 'OT-260302', 'partiel', 'confirme', current_date + 1, current_date + 2, 280, 'Materiaux BTP', 12100, 54, 18, 920, 20, 'CMR-302', 'BL-302', 'Respect RDV 8h', null),
-  ('70000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000006', '40000000-0000-0000-0000-000000000006', '50000000-0000-0000-0000-000000000006', 'OT-260303', 'express', 'en_cours', current_date, current_date + 1, 710, 'Conteneur export', 21000, 67, 12, 1760, 20, 'CMR-303', 'BL-303', 'Passage port avant 16h', 'Coordination maritime'),
-  ('70000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000004', '40000000-0000-0000-0000-000000000004', '50000000-0000-0000-0000-000000000004', 'OT-260304', 'complet', 'livre', current_date - 4, current_date - 2, 460, 'Produits laitiers', 19500, 84, 22, 1560, 20, 'CMR-304', 'BL-304', 'Quai froid', null),
-  ('70000000-0000-0000-0000-000000000005', '20000000-0000-0000-0000-000000000005', '30000000-0000-0000-0000-000000000005', '40000000-0000-0000-0000-000000000007', null, 'OT-260305', 'express', 'brouillon', current_date + 2, current_date + 2, 120, 'Colis express', 2400, 18, 42, 420, 20, 'CMR-305', 'BL-305', 'Mise a quai rapide', 'A valider'),
-  ('70000000-0000-0000-0000-000000000006', '20000000-0000-0000-0000-000000000006', '30000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000003', '50000000-0000-0000-0000-000000000003', 'OT-260306', 'complet', 'facture', current_date - 8, current_date - 6, 690, 'Bobines acier', 22300, 60, 10, 1980, 20, 'CMR-306', 'BL-306', 'Sangles obligatoires', 'Bonne marge'),
-  ('70000000-0000-0000-0000-000000000007', '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', '50000000-0000-0000-0000-000000000001', 'OT-260307', 'groupage', 'confirme', current_date + 3, current_date + 4, 410, 'Produits frais mixtes', 10200, 44, 30, 980, 20, 'CMR-307', 'BL-307', 'Deux points livraison', null),
-  ('70000000-0000-0000-0000-000000000008', '20000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000007', '40000000-0000-0000-0000-000000000008', '50000000-0000-0000-0000-000000000005', 'OT-260308', 'partiel', 'en_cours', current_date - 1, current_date + 1, 230, 'Sec agro', 8600, 40, 14, 790, 20, 'CMR-308', 'BL-308', 'Priorite avant 14h', null)
+  -- OT-260301 : en cours → en_transit (Lille → Rungis, produits frais)
+  ('70000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', '50000000-0000-0000-0000-000000000001', 'OT-260301', 'complet', 'en_cours', 'en_transit', current_date - 1, current_date + 1, 540, 'Produits frais', 18600, 82, 24, 1480, 20, 'CMR-301', 'BL-301', 'Maintenir 4C', 'Priorite client'),
+  -- OT-260302 : confirme → valide (Nancy → Metz, materiaux BTP)
+  ('70000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000002', '50000000-0000-0000-0000-000000000002', 'OT-260302', 'partiel', 'confirme', 'planifie', current_date + 1, current_date + 2, 280, 'Materiaux BTP', 12100, 54, 18, 920, 20, 'CMR-302', 'BL-302', 'Respect RDV 8h', null),
+  -- OT-260303 : en cours → en_livraison (Le Havre → Gennevilliers, conteneur)
+  ('70000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000006', '40000000-0000-0000-0000-000000000006', '50000000-0000-0000-0000-000000000006', 'OT-260303', 'express', 'en_cours', 'en_livraison', current_date, current_date + 1, 710, 'Conteneur export', 21000, 67, 12, 1760, 20, 'CMR-303', 'BL-303', 'Passage port avant 16h', 'Coordination maritime'),
+  -- OT-260304 : livre → termine (Tours → Orleans, produits laitiers)
+  ('70000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000004', '40000000-0000-0000-0000-000000000004', '50000000-0000-0000-0000-000000000004', 'OT-260304', 'complet', 'livre', 'termine', current_date - 4, current_date - 2, 460, 'Produits laitiers', 19500, 84, 22, 1560, 20, 'CMR-304', 'BL-304', 'Quai froid', null),
+  -- OT-260305 : brouillon → en_attente_validation (pas visible sur la Map Live)
+  ('70000000-0000-0000-0000-000000000005', '20000000-0000-0000-0000-000000000005', '30000000-0000-0000-0000-000000000005', '40000000-0000-0000-0000-000000000007', null, 'OT-260305', 'express', 'brouillon', 'en_attente_validation', current_date + 2, current_date + 2, 120, 'Colis express', 2400, 18, 42, 420, 20, 'CMR-305', 'BL-305', 'Mise a quai rapide', 'A valider'),
+  -- OT-260306 : facture → termine (Rennes → Saint-Nazaire, bobines acier)
+  ('70000000-0000-0000-0000-000000000006', '20000000-0000-0000-0000-000000000006', '30000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000003', '50000000-0000-0000-0000-000000000003', 'OT-260306', 'complet', 'facture', 'termine', current_date - 8, current_date - 6, 690, 'Bobines acier', 22300, 60, 10, 1980, 20, 'CMR-306', 'BL-306', 'Sangles obligatoires', 'Bonne marge'),
+  -- OT-260307 : confirme → planifie (Lille groupage)
+  ('70000000-0000-0000-0000-000000000007', '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', '50000000-0000-0000-0000-000000000001', 'OT-260307', 'groupage', 'confirme', 'planifie', current_date + 3, current_date + 4, 410, 'Produits frais mixtes', 10200, 44, 30, 980, 20, 'CMR-307', 'BL-307', 'Deux points livraison', null),
+  -- OT-260308 : en cours → en_transit (Tours, sec agro)
+  ('70000000-0000-0000-0000-000000000008', '20000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000007', '40000000-0000-0000-0000-000000000008', '50000000-0000-0000-0000-000000000005', 'OT-260308', 'partiel', 'en_cours', 'en_chargement', current_date - 1, current_date + 1, 230, 'Sec agro', 8600, 40, 14, 790, 20, 'CMR-308', 'BL-308', 'Priorite avant 14h', null)
 on conflict (id) do update set
   client_id = excluded.client_id,
   conducteur_id = excluded.conducteur_id,
@@ -337,6 +345,7 @@ on conflict (id) do update set
   reference = excluded.reference,
   type_transport = excluded.type_transport,
   statut = excluded.statut,
+  statut_transport = excluded.statut_transport,
   date_chargement_prevue = excluded.date_chargement_prevue,
   date_livraison_prevue = excluded.date_livraison_prevue,
   distance_km = excluded.distance_km,

@@ -763,6 +763,13 @@ export default function MapLive() {
     let missionRows: unknown[] | null = null
     let missionError: { message?: string } | null = null
 
+    // DIAGNOSTIC: compter tous les OT sans filtre statut_transport
+    const diagR = await supabase
+      .from('ordres_transport')
+      .select('id, statut_transport, statut', { count: 'exact' })
+      .limit(50)
+    console.log('[MapLive] DIAG total OT (sans filtre):', diagR.count, '| error:', diagR.error?.message ?? null, '| data sample:', (diagR.data ?? []).slice(0, 5).map((r: Record<string, unknown>) => ({ id: String(r.id).slice(0, 8), st: r.statut_transport, s: r.statut })))
+
     // Essai avec FK joins
     const fullR = await supabase
       .from('ordres_transport')
@@ -784,6 +791,8 @@ export default function MapLive() {
       .order('updated_at', { ascending: false })
       .limit(28)
 
+    console.log('[MapLive] query filtered rows:', fullR.data?.length ?? 0, '| error:', fullR.error?.message ?? null)
+
     if (fullR.error) {
       // Fallback sans FK joins
       const bareR = await supabase
@@ -793,6 +802,7 @@ export default function MapLive() {
         .neq('statut_transport', 'annule')
         .order('updated_at', { ascending: false })
         .limit(28)
+      console.log('[MapLive] bare fallback rows:', bareR.data?.length ?? 0, '| error:', bareR.error?.message ?? null)
       missionRows = bareR.data as unknown[] | null
       missionError = bareR.error
     } else {

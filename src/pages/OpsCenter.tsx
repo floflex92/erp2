@@ -12,6 +12,8 @@ import {
   type TransportStatus,
   setCourseTransportStatus,
 } from '@/lib/transportCourses'
+import { useAlertesTransport } from '@/hooks/useAlertesTransport'
+import { LABELS_TYPE, type AlerteItem, type SeveriteAlerte, type CategorieAlerte } from '@/lib/alertesTransport'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -354,6 +356,67 @@ function EmptyState({ text }: { text: string }) {
   )
 }
 
+// ─── Composants onglet Alertes auto ───────────────────────────────────────────
+
+const ALERTE_SEV_CFG: Record<string, { dot: string; badge: string; border: string }> = {
+  critique: { dot: 'bg-red-500',   badge: 'bg-red-100 text-red-700 border-red-200',     border: 'border-red-100' },
+  warning:  { dot: 'bg-amber-500', badge: 'bg-amber-100 text-amber-700 border-amber-200', border: 'border-amber-100' },
+  info:     { dot: 'bg-blue-400',  badge: 'bg-blue-100 text-blue-700 border-blue-200',   border: 'border-slate-200' },
+}
+
+function AlerteOpsCard({ alerte }: { alerte: AlerteItem }) {
+  const sev = ALERTE_SEV_CFG[alerte.severite] ?? ALERTE_SEV_CFG.info
+  return (
+    <div className={`flex items-start gap-3 rounded-xl border bg-white px-4 py-3 shadow-sm ${sev.border}`}>
+      <span className={`mt-1.5 h-2.5 w-2.5 flex-shrink-0 rounded-full ${sev.dot}`} />
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[13px] font-semibold text-slate-800">{alerte.titre}</span>
+          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${sev.badge}`}>
+            {LABELS_TYPE[alerte.type]}
+          </span>
+          {(alerte.jours_retard ?? 0) > 0 && (
+            <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600">
+              J+{alerte.jours_retard}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-slate-500">{alerte.description}</p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0 text-[11px] text-slate-400">
+          {alerte.client_nom     && <span>Client : <strong className="text-slate-600">{alerte.client_nom}</strong></span>}
+          {alerte.conducteur_nom && <span>· <strong className="text-slate-600">{alerte.conducteur_nom}</strong></span>}
+          {alerte.vehicule_immat && <span>· 🚛 <strong className="text-slate-600">{alerte.vehicule_immat}</strong></span>}
+          {alerte.montant != null && (
+            <span>· <strong className="text-slate-600">{alerte.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</strong></span>
+          )}
+        </div>
+      </div>
+      <Link
+        to={alerte.entity_url}
+        className="flex-shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+        title="Voir"
+      >
+        Voir →
+      </Link>
+    </div>
+  )
+}
+
+function AlerteFilterPill({
+  count, label, color, active, onClick,
+}: {
+  count: number; label: string; color: 'red' | 'amber' | 'blue' | 'slate'; active: boolean; onClick: () => void
+}) {
+  const act: Record<string, string> = { red: 'bg-red-600 text-white border-red-600', amber: 'bg-amber-500 text-white border-amber-500', blue: 'bg-blue-600 text-white border-blue-600', slate: 'bg-slate-700 text-white border-slate-700' }
+  const idle: Record<string, string> = { red: 'bg-red-50 text-red-700 border-red-200', amber: 'bg-amber-50 text-amber-700 border-amber-200', blue: 'bg-blue-50 text-blue-700 border-blue-200', slate: 'bg-slate-50 text-slate-700 border-slate-200' }
+  return (
+    <button type="button" onClick={onClick} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${active ? act[color] : idle[color]}`}>
+      <span className="text-sm font-bold">{count}</span>
+      {label}
+    </button>
+  )
+}
+
 // ─── Composant principal ───────────────────────────────────────────────────────
 
 export default function OpsCenter() {
@@ -383,8 +446,13 @@ export default function OpsCenter() {
   const [warRoomLoading, setWarRoomLoading] = useState(true)
 
   // ── navigation ─────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'missions' | 'imprevu'>('missions')
+  const [activeTab, setActiveTab] = useState<'missions' | 'imprevu' | 'alertes'>('missions')
   useScrollToTopOnChange(activeTab)
+
+  // ── alertes proactives ─────────────────────────────────────────────────────
+  const alertesResult = useAlertesTransport()
+  const [alerteFilterSev, setAlerteFilterSev] = useState<SeveriteAlerte | 'toutes'>('toutes')
+  const [alerteFilterCat, setAlerteFilterCat] = useState<CategorieAlerte | 'toutes'>('toutes')
 
   const channelMissionsRef = useRef<RealtimeChannel | null>(null)
   const channelImprevusRef = useRef<RealtimeChannel | null>(null)
@@ -621,6 +689,12 @@ export default function OpsCenter() {
   const activeImprevus     = imprevus.filter(i => i.statut !== 'clos')
   const closedImprevus     = imprevus.filter(i => i.statut === 'clos')
 
+  const alertesFiltrees = alertesResult.alertes.filter(a => {
+    if (alerteFilterSev !== 'toutes' && a.severite  !== alerteFilterSev)  return false
+    if (alerteFilterCat !== 'toutes' && a.categorie !== alerteFilterCat) return false
+    return true
+  })
+
   // ─── Rendu ────────────────────────────────────────────────────────────────
 
   return (
@@ -648,8 +722,9 @@ export default function OpsCenter() {
       {/* Onglets */}
       <div className="flex-shrink-0 flex items-center gap-0 border-b px-4" style={{ borderColor: 'var(--border)' }}>
         {([
-          { key: 'missions' as const, label: 'Missions actives', badge: missions.length > 0 ? missions.length : null, badgeCls: 'bg-slate-100 text-slate-700' },
-          { key: 'imprevu'  as const, label: 'Alertes',         badge: nbImprevus > 0 ? nbImprevus : null,           badgeCls: 'bg-red-100 text-red-700' },
+          { key: 'missions' as const, label: 'Missions actives', badge: missions.length > 0 ? missions.length : null,            badgeCls: 'bg-slate-100 text-slate-700' },
+          { key: 'imprevu'  as const, label: 'Imprévus',         badge: nbImprevus > 0 ? nbImprevus : null,                      badgeCls: 'bg-red-100 text-red-700' },
+          { key: 'alertes'  as const, label: 'Alertes auto',     badge: alertesResult.total > 0 ? alertesResult.total : null,   badgeCls: alertesResult.totalCritiques > 0 ? 'bg-red-600 text-white' : 'bg-amber-100 text-amber-700' },
         ]).map(tab => (
           <button
             key={tab.key}
@@ -1099,6 +1174,103 @@ export default function OpsCenter() {
                 </div>
 
               </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── ONGLET ALERTES AUTOMATIQUES ── */}
+      {activeTab === 'alertes' && (
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-3xl space-y-4 p-4 md:p-6">
+
+            {/* En-tête */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    { key: 'toutes'    as const, label: 'Toutes',    count: alertesResult.total,          color: 'slate' },
+                    { key: 'critique'  as const, label: 'Critiques', count: alertesResult.totalCritiques, color: 'red'   },
+                    { key: 'warning'   as const, label: 'Attention', count: alertesResult.totalWarnings,  color: 'amber' },
+                    { key: 'info'      as const, label: 'Info',      count: alertesResult.totalInfos,     color: 'blue'  },
+                  ] as const
+                ).map(pill => (
+                  <AlerteFilterPill
+                    key={pill.key}
+                    count={pill.count}
+                    label={pill.label}
+                    color={pill.color}
+                    active={alerteFilterSev === pill.key}
+                    onClick={() => setAlerteFilterSev(pill.key)}
+                  />
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={alertesResult.refresh}
+                disabled={alertesResult.loading}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50 disabled:opacity-50 transition-colors"
+              >
+                <svg className={`h-3.5 w-3.5 ${alertesResult.loading ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 12A9 9 0 1 1 5.6 5.6" /><path d="M3 3v6h6" /></svg>
+                {alertesResult.loading ? 'Actualisation…' : 'Actualiser'}
+              </button>
+            </div>
+
+            {/* Onglets catégorie */}
+            <div className="flex gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+              {(
+                [
+                  { key: 'toutes'      as const, label: 'Toutes',      count: alertesResult.total },
+                  { key: 'transport'   as const, label: 'Transport',   count: alertesResult.alertes.filter(a => a.categorie === 'transport').length },
+                  { key: 'facturation' as const, label: 'Facturation', count: alertesResult.alertes.filter(a => a.categorie === 'facturation').length },
+                ] as const
+              ).map(tab => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setAlerteFilterCat(tab.key)}
+                  className={[
+                    'flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
+                    alerteFilterCat === tab.key
+                      ? 'bg-white text-slate-800 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700',
+                  ].join(' ')}
+                >
+                  {tab.label}
+                  {tab.count > 0 && (
+                    <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${alerteFilterCat === tab.key ? 'bg-slate-100 text-slate-700' : 'bg-slate-200 text-slate-600'}`}>
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Liste */}
+            {alertesResult.loading && alertesResult.alertes.length === 0 ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700" />
+              </div>
+            ) : alertesFiltrees.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 py-12 text-center">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M20 6 9 17l-5-5" /></svg>
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-700">Aucune alerte active</p>
+                  <p className="mt-0.5 text-sm text-slate-400">Tout est nominal</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {alertesFiltrees.map(a => <AlerteOpsCard key={a.id} alerte={a} />)}
+              </div>
+            )}
+
+            {!alertesResult.loading && alertesResult.total > 0 && (
+              <p className="text-center text-[11px] text-slate-400">
+                Actualisé à {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} · Rafraîchissement automatique toutes les 5 min
+              </p>
             )}
           </div>
         </div>

@@ -14,10 +14,30 @@ export type OT = {
   chargement_site_id: string | null; livraison_site_id: string | null
   mission_id: string | null; groupage_fige: boolean
   est_affretee: boolean
+  // Données de chargement pour validation remorque
+  type_chargement?: string | null
+  poids_kg?: number | null
+  tonnage?: number | null
+  volume_m3?: number | null
+  longueur_m?: number | null
+  hors_gabarit?: boolean | null
+  temperature_dirigee?: boolean | null
+  charge_indivisible?: boolean | null
 }
 export type Conducteur = { id: string; nom: string; prenom: string; statut: string }
 export type Vehicule   = { id: string; immatriculation: string; marque: string | null; modele: string | null; statut: string }
-export type Remorque   = { id: string; immatriculation: string; type_remorque: string; statut: string }
+export type Remorque   = {
+  id: string
+  immatriculation: string
+  type_remorque: string
+  statut: string
+  // Capacité pour validation
+  trailer_type_code?: string | null
+  categorie_remorque?: string | null
+  charge_utile_kg?: number | null
+  volume_max_m3?: number | null
+  longueur_m?: number | null
+}
 export type ClientRef  = { id: string; nom: string; actif: boolean | null }
 export type Affectation = {
   id: string
