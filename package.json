@@ -1,7 +1,7 @@
 {
   "name": "nexora-truck",
   "private": true,
-  "version": "1.15.0",
+  "version": "1.15.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,8 @@
     "dev:full": "npm run serv:dev",
     "typecheck": "tsc -b --pretty false",
     "lint:src": "eslint src",
-    "build": "node scripts/generate-sitemap.mjs && tsc -b && vite build",
+    "build": "node scripts/generate-sitemap.mjs && tsc -b && vite build && npm run seo:prerender",
+    "seo:prerender": "node scripts/prerender-seo-routes.mjs",
     "postbuild": "npm run indexnow:submit",
     "indexnow:submit": "node scripts/submit-indexnow.mjs",
     "test": "vitest run",
@@ -27,7 +28,8 @@
     "leaflet": "^1.9.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-router-dom": "^7.13.2"
+    "react-router-dom": "^7.13.2",
+    "recharts": "^3.8.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

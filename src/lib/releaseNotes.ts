@@ -12,6 +12,83 @@ export type ReleaseNote = {
 
 const documentedReleaseNotes: ReleaseNote[] = [
   {
+    version: '1.15.4',
+    date: '2026-04-18',
+    title: 'Cockpit KPI V2.1 par role et finance SQL dediee',
+    summary: 'Livraison du cockpit V2.1 metier avec lisibilite renforcee mobile/contraste et branchement finance sur des vues SQL dediees Supabase.',
+    additions: [
+      'Nouveau cockpit KPI V2.1 par role avec widgets utiles et fallback cockpit historique.',
+      'Vues Supabase finance dediees: vue_finance_kpis_v21, vue_finance_client_perf_v21, vue_finance_charge_breakdown_v21, vue_finance_late_payments_v21.',
+      'Composants dashboard-v21 reutilisables (KPI, alertes, charts lazy, synthese finance, retards paiement).',
+    ],
+    modifications: [
+      'Branchement prioritaire des widgets finance sur les vues SQL avec fallback calcul historique.',
+      'Contrastes et densite mobile ajustes sur les cartes et graphiques V2.1.',
+      'Version portee a 1.15.4 avec synchronisation package et affichage application.',
+      'Espace Developpement mis a jour sur les onglets Developpe / En cours / Features.',
+    ],
+    fixes: [
+      'Corrige : source finance heterogene en cockpit, desormais consolidee par vues SQL dediees.',
+    ],
+  },
+  {
+    version: '1.15.3',
+    date: '2026-04-18',
+    title: 'SEO articles: metas uniques et titres optimisés',
+    summary: 'Amélioration SEO on-page des contenus éditoriaux avec metas spécifiques par article et optimisation de plusieurs titles trop longs.',
+    additions: [
+      'Metadonnees dediees pour chaque page article (title, description, keywords) dans le prerender SEO.',
+      'Couverture route-level etendue pour renforcer la pertinence des snippets Google sur le blog.',
+    ],
+    modifications: [
+      'Optimisation de titles commerciaux depassant la longueur cible pour limiter la troncature SERP.',
+      'Version portee a 1.15.3 avec synchronisation package et affichage application.',
+      'Espace Developpement mis a jour sur les onglets Developpe / En cours / Features.',
+    ],
+    fixes: [
+      'Corrige : descriptions generiques reutilisees sur plusieurs pages articles en HTML initial.',
+    ],
+  },
+  {
+    version: '1.15.2',
+    date: '2026-04-18',
+    title: 'SEO technique: pré-rendu HTML par route publique',
+    summary: 'Mise en place d un pré-rendu SEO statique route-level pour livrer des balises title/meta/canonical différenciées dès la réponse HTML initiale.',
+    additions: [
+      'Nouveau script scripts/prerender-seo-routes.mjs pour générer un index.html par route dans dist.',
+      'Balises SEO injectées par route: title, description, keywords, canonical, Open Graph et Twitter.',
+      'Génération appliquée automatiquement après le build front via npm run seo:prerender.',
+    ],
+    modifications: [
+      'Pipeline build ajusté pour inclure le pré-rendu SEO statique en sortie.',
+      'Version portée à 1.15.2 avec synchronisation package et affichage application.',
+      'Onglet Développement mis à jour pour tracer la livraison SEO route-level.',
+    ],
+    fixes: [
+      'Résolue : HTML initial générique multi-routes en production, limitant la lisibilité SEO sans JavaScript.',
+    ],
+  },
+  {
+    version: '1.15.1',
+    date: '2026-04-18',
+    title: 'Homepage v1.1 conversion SEO et performance perçue',
+    summary: 'Restructuration de la page d accueil en mode amélioration v1.1 avec message clarifié, parcours conversion, SEO métier transport et chargement progressif des sections.',
+    additions: [
+      'Nouvelle architecture homepage: Hero clarifié, Problème marché, Solution, Parcours métier, Modules simplifiés, Preuve ROI, CTA final.',
+      'Lazy loading des sections hors hero avec skeleton pour améliorer la perception de vitesse.',
+      'Nouveaux blocs métier SEO: ERP transport, TMS transport, gestion flotte, optimisation transport, suivi conducteur.',
+    ],
+    modifications: [
+      'Hiérarchie éditoriale simplifiée pour une lecture en moins de 5 secondes et un CTA principal immédiat.',
+      'Espacements et densité visuelle ajustés pour améliorer lisibilité sans changer la direction artistique globale.',
+      'Onglet Développement dans Réglages mis à jour avec la livraison homepage v1.1 et maintien des priorités Features.',
+      'Version portée à 1.15.1 avec synchronisation package, build et affichage site.',
+    ],
+    fixes: [
+      'Observer data-reveal rendu compatible avec les sections montées dynamiquement en lazy loading.',
+    ],
+  },
+  {
     version: '1.15.0',
     date: '2026-04-16',
     title: 'Chargement étendu, remorques, CO2, alertes et optimiseur de routes',

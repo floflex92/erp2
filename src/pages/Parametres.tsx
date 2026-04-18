@@ -123,6 +123,10 @@ const ERP_IN_PROGRESS_CARDS = [
     title: 'Statut partiel',
     subtitle: 'Modules déjà visibles mais encore incomplets côté persistance ou logique métier.',
     items: [
+      'Cockpit KPI V2.1 livré par rôle métier avec lecture prioritaire, fallback historique et composants dashboard-v21 réutilisables.',
+      'Finance cockpit branchée sur vues SQL dédiées Supabase (KPI, clients, charges, retards) avec fallback historique.',
+      'Homepage site public v1.1 livrée : message clarifié, sections conversion et SEO métier transport renforcé.',
+      'SEO technique route-level livré : pré-rendu HTML statique par URL publique avec title/meta/canonical/og différenciés.',
       'Facturation : lignes multi-article, génération auto depuis OT, export comptable intégré à finaliser.',
       'Paie : calcul et import en place, mais bulletins encore stockés localement.',
       'RH : entretiens et absences en base, fiches employés et documents encore locaux.',
@@ -137,6 +141,7 @@ const ERP_IN_PROGRESS_CARDS = [
     title: 'Dette locale restante',
     subtitle: 'Blocs utiles mais encore enfermés dans du localStorage ou du fallback temporaire.',
     items: [
+      'Cockpit V2.1 : ajustements UX rôle par rôle encore en cours (densité mobile, calibrage des seuils et interactions terrain).',
       'Frais : circuit RH-comptable-paie opérationnel, non partagé entre appareils.',
       'Mail : expérience démo complète, pas encore reliée à un vrai client SMTP/IMAP.',
       'Coffre numérique : navigation et signature locale, sans accès multi-appareils.',

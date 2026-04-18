@@ -26,7 +26,7 @@ import { WidgetSyntheseOperationnelle } from '@/components/dashboard/WidgetSynth
 import { WidgetConversationsLive } from '@/components/dashboard/WidgetConversationsLive'
 import { WidgetTrackingOverview } from '@/components/dashboard/WidgetTrackingOverview'
 import { WidgetEtaDecisionCockpit } from '@/components/dashboard/WidgetEtaDecisionCockpit'
-import { RoleCockpitPanel } from '@/components/dashboard/RoleCockpitPanel'
+import { RoleCockpitPanelV21 } from '@/components/dashboard-v21/RoleCockpitPanelV21'
 
 interface WidgetDef {
   id: string
@@ -43,10 +43,10 @@ const WIDGET_REGISTRY: WidgetDef[] = [
   {
     id: 'role-cockpit-panel',
     title: 'Cockpit prioritaire par role',
-    subtitle: 'Synthese metier et alertes pilotage',
+    subtitle: 'Synthese metier V2.1 par role et period',
     colSpan: 'full',
     roles: ['admin', 'super_admin', 'dirigeant', 'exploitant', 'commercial', 'comptable', 'administratif', 'facturation', 'flotte', 'observateur', 'investisseur', 'demo', 'affreteur', 'logisticien', 'maintenance', 'rh', 'mecanicien', 'conducteur', 'conducteur_affreteur', 'client'],
-    component: RoleCockpitPanel,
+    component: RoleCockpitPanelV21,
   },
   {
     id: 'kpi-dirigeant',
