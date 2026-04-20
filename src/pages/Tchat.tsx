@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   countUnreadDemoMessages,
@@ -47,7 +47,7 @@ function mapDemoMessage(message: ReturnType<typeof getDemoMessageRecords>[number
 }
 
 export default function Tchat() {
-  const { profil, role, isDemoSession } = useAuth()
+  const { profil, role, isDemoSession, companyId } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const [conversations, setConversations] = useState<TchatConversation[]>([])
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null)
@@ -65,6 +65,12 @@ export default function Tchat() {
   const [conversationSearchIndex, setConversationSearchIndex] = useState<Record<string, string>>({})
   const [presenceById, setPresenceById] = useState<Record<string, ChatPresenceProfile>>({})
   const [importanceSettings, setImportanceSettings] = useState<CommunicationImportanceSettings>(readCommunicationImportance())
+  const [typingByProfileId, setTypingByProfileId] = useState<Record<string, boolean>>({})
+  const typingExpiryTimersRef = useRef<Record<string, number>>({})
+  const typingChannelRef = useRef<ReturnType<typeof db.channel> | null>(null)
+  const typingSelfActiveRef = useRef(false)
+  const typingSelfLastSentRef = useRef(0)
+  const typingSelfStopTimerRef = useRef<number | null>(null)
   const db = supabase
   const selectedConv = conversations.find(conversation => conversation.id === selectedConvId) ?? null
   const demoMode = Boolean(profil && isDemoProfil(profil) && isDemoSession)
@@ -94,9 +100,13 @@ export default function Tchat() {
       setAllProfils(DEMO_PROFILES.filter(candidate => candidate.id !== profil.id && canChatWith(role as Role, candidate.role)))
       return
     }
-    const { data } = await db.from('profils').select('id, nom, prenom, role').neq('id', profil.id)
+    let query = db.from('profils').select('id, nom, prenom, role').neq('id', profil.id)
+    if (typeof companyId === 'number') {
+      query = query.eq('company_id', companyId)
+    }
+    const { data } = await query
     setAllProfils(((data ?? []) as Profil[]).filter(candidate => canChatWith(role as Role, candidate.role)))
-  }, [db, demoMode, profil, role])
+  }, [companyId, db, demoMode, profil, role])
 
   const loadConversations = useCallback(async () => {
     if (!profil) return
@@ -205,12 +215,63 @@ export default function Tchat() {
         await loadMessages(selectedConvId)
         return
       }
-      await db.from('tchat_messages').insert({ conversation_id: selectedConvId, sender_id: profil.id, content })
+      // Affichage optimiste pour un ressenti instantane de type messagerie live.
+      const optimisticMessage: TchatMessage = {
+        id: `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        conversation_id: selectedConvId,
+        sender_id: profil.id,
+        content,
+        created_at: new Date().toISOString(),
+        read_at: null,
+      }
+      setMessages(previous => [...previous, optimisticMessage])
+      const { error } = await db.from('tchat_messages').insert({ conversation_id: selectedConvId, sender_id: profil.id, content })
+      if (error) {
+        setMessages(previous => previous.filter(message => message.id !== optimisticMessage.id))
+        throw error
+      }
+      setMessages(previous => previous.filter(message => message.id !== optimisticMessage.id))
       await loadConversationSearchIndex()
     } finally {
       setSending(false)
     }
   }
+
+  const publishTypingState = useCallback((isTyping: boolean, force = false) => {
+    if (!selectedConvId || !profil || demoMode) return
+    const channel = typingChannelRef.current
+    if (!channel) return
+
+    const now = Date.now()
+    if (!force && isTyping === typingSelfActiveRef.current && (!isTyping || now - typingSelfLastSentRef.current < 900)) {
+      if (isTyping && typingSelfStopTimerRef.current) {
+        window.clearTimeout(typingSelfStopTimerRef.current)
+        typingSelfStopTimerRef.current = window.setTimeout(() => publishTypingState(false, true), 2600)
+      }
+      return
+    }
+
+    typingSelfActiveRef.current = isTyping
+    typingSelfLastSentRef.current = now
+    void channel.send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: {
+        conversationId: selectedConvId,
+        profileId: profil.id,
+        isTyping,
+        at: new Date().toISOString(),
+      },
+    })
+
+    if (typingSelfStopTimerRef.current) {
+      window.clearTimeout(typingSelfStopTimerRef.current)
+      typingSelfStopTimerRef.current = null
+    }
+    if (isTyping) {
+      typingSelfStopTimerRef.current = window.setTimeout(() => publishTypingState(false, true), 2600)
+    }
+  }, [demoMode, profil, selectedConvId])
 
   const openOrCreateConversation = useCallback(async (targetIds: string[]) => {
     if (!profil) return
@@ -273,18 +334,59 @@ export default function Tchat() {
 
   useEffect(() => {
     if (!selectedConvId || !profil || demoMode) return
-    const channel = db.channel(`tchat_conv_${selectedConvId}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tchat_messages', filter: `conversation_id=eq.${selectedConvId}` }, (payload: { new: TchatMessage }) => {
-      const message = payload.new
-      setMessages(previous => [...previous, message])
-      if (message.sender_id !== profil.id) void db.from('tchat_messages').update({ read_at: new Date().toISOString() }).eq('id', message.id)
-      void loadConversations()
-      void loadConversationSearchIndex()
-    }).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tchat_messages', filter: `conversation_id=eq.${selectedConvId}` }, (payload: { new: TchatMessage }) => {
-      const updated = payload.new
-      setMessages(previous => previous.map(message => message.id === updated.id ? { ...message, read_at: updated.read_at } : message))
-    }).subscribe()
-    return () => { void supabase.removeChannel(channel) }
-  }, [db, demoMode, loadConversationSearchIndex, loadConversations, profil, selectedConvId])
+    setTypingByProfileId({})
+
+    const channel = db
+      .channel(`tchat_conv_${selectedConvId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tchat_messages', filter: `conversation_id=eq.${selectedConvId}` }, (payload: { new: TchatMessage }) => {
+        const message = payload.new
+        setMessages(previous => [...previous, message])
+        if (message.sender_id !== profil.id) void db.from('tchat_messages').update({ read_at: new Date().toISOString() }).eq('id', message.id)
+        setTypingByProfileId(previous => ({ ...previous, [message.sender_id]: false }))
+        void loadConversations()
+        void loadConversationSearchIndex()
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tchat_messages', filter: `conversation_id=eq.${selectedConvId}` }, (payload: { new: TchatMessage }) => {
+        const updated = payload.new
+        setMessages(previous => previous.map(message => message.id === updated.id ? { ...message, read_at: updated.read_at } : message))
+      })
+      .on('broadcast', { event: 'typing' }, (event: { payload?: { profileId?: string; isTyping?: boolean; conversationId?: string } }) => {
+        const typingProfileId = event.payload?.profileId
+        const isTyping = Boolean(event.payload?.isTyping)
+        if (!typingProfileId || typingProfileId === profil.id) return
+
+        setTypingByProfileId(previous => ({ ...previous, [typingProfileId]: isTyping }))
+        if (typingExpiryTimersRef.current[typingProfileId]) {
+          window.clearTimeout(typingExpiryTimersRef.current[typingProfileId])
+          delete typingExpiryTimersRef.current[typingProfileId]
+        }
+        if (isTyping) {
+          typingExpiryTimersRef.current[typingProfileId] = window.setTimeout(() => {
+            setTypingByProfileId(previous => ({ ...previous, [typingProfileId]: false }))
+          }, 3600)
+        }
+      })
+      .subscribe()
+
+    typingChannelRef.current = channel
+
+    return () => {
+      publishTypingState(false, true)
+      typingChannelRef.current = null
+      Object.values(typingExpiryTimersRef.current).forEach(timerId => window.clearTimeout(timerId))
+      typingExpiryTimersRef.current = {}
+      void supabase.removeChannel(channel)
+    }
+  }, [db, demoMode, loadConversationSearchIndex, loadConversations, profil, publishTypingState, selectedConvId])
+
+  useEffect(() => {
+    return () => {
+      if (typingSelfStopTimerRef.current) {
+        window.clearTimeout(typingSelfStopTimerRef.current)
+      }
+      Object.values(typingExpiryTimersRef.current).forEach(timerId => window.clearTimeout(timerId))
+    }
+  }, [])
 
   useEffect(() => {
     if (!profil || demoMode) return
@@ -382,6 +484,12 @@ export default function Tchat() {
 
   const ownPresence = profil ? presenceById[profil.id] ?? null : null
   const hasSelection = Boolean(selectedConvId)
+  const typingNames = useMemo(() => {
+    if (!selectedConv) return []
+    return selectedConv.participants
+      .filter(participant => typingByProfileId[participant.id])
+      .map(displayName)
+  }, [selectedConv, typingByProfileId])
 
   return (
     <div className="space-y-4">
@@ -432,7 +540,9 @@ export default function Tchat() {
           sending={sending}
           searchTerm={searchTerm}
           presenceById={presenceById}
+          typingNames={typingNames}
           onBackToList={hasSelection ? () => setSelectedConvId(null) : undefined}
+          onTypingChange={publishTypingState}
           onSend={sendEnrichedMessage}
         />
       </div>

@@ -27,6 +27,28 @@ import {
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 const SLUG_RE = /^[a-z0-9_-]{2,64}$/
+const TENANT_ROLE_SEED = [
+  { name: 'admin', label: 'Administrateur' },
+  { name: 'super_admin', label: 'Super Administrateur' },
+  { name: 'dirigeant', label: 'Dirigeant' },
+  { name: 'exploitant', label: 'Exploitant' },
+  { name: 'mecanicien', label: 'Mecanicien' },
+  { name: 'commercial', label: 'Commercial' },
+  { name: 'comptable', label: 'Comptable' },
+  { name: 'rh', label: 'Ressources Humaines' },
+  { name: 'conducteur', label: 'Conducteur' },
+  { name: 'conducteur_affreteur', label: 'Conducteur Affreteur' },
+  { name: 'client', label: 'Client' },
+  { name: 'affreteur', label: 'Affreteur' },
+  { name: 'administratif', label: 'Administratif' },
+  { name: 'facturation', label: 'Facturation' },
+  { name: 'flotte', label: 'Flotte' },
+  { name: 'maintenance', label: 'Maintenance' },
+  { name: 'observateur', label: 'Observateur' },
+  { name: 'demo', label: 'Demo' },
+  { name: 'investisseur', label: 'Investisseur' },
+  { name: 'logisticien', label: 'Logisticien' },
+]
 
 function slugify(str) {
   return str
@@ -92,6 +114,21 @@ async function auditLog(serviceClient, userId, email, eventType, targetType, tar
   } catch {
     // non-bloquant
   }
+}
+
+async function seedTenantRoles(serviceClient, companyId) {
+  const rows = TENANT_ROLE_SEED.map(role => ({
+    company_id: companyId,
+    name: role.name,
+    label: role.label,
+    is_system: true,
+  }))
+
+  const { error } = await serviceClient
+    .from('roles')
+    .upsert(rows, { onConflict: 'company_id,name' })
+
+  return error ? error.message : null
 }
 
 // ─── handler principal ───────────────────────────────────────────────────────
@@ -202,21 +239,34 @@ export async function handler(event) {
       return json(500, { error: insertError.message })
     }
 
-    // Cree aussi l'entree erp_v11_tenants correspondante
-    await serviceClient.from('erp_v11_tenants').insert({
-      tenant_key: slug,
-      display_name: name.trim(),
-      company_id: newCompany.id,
-      default_max_concurrent_screens: max_screens ?? 3,
-      allowed_pages: '[]',
-    }).should_not_fail // tentative non-bloquante
+    // Cree aussi l'entree erp_v11_tenants correspondante (non bloquant).
+    try {
+      await serviceClient.from('erp_v11_tenants').upsert({
+        tenant_key: slug,
+        display_name: name.trim(),
+        company_id: newCompany.id,
+        default_max_concurrent_screens: max_screens ?? 3,
+        allowed_pages: [],
+      }, {
+        onConflict: 'tenant_key',
+      })
+    } catch {
+      // Non bloquant: la company est creee, la synchronisation tenant peut etre rejouee.
+    }
+
+    // Seed des roles systeme pour permettre le rattachement tenant_user_roles.
+    const roleSeedError = await seedTenantRoles(serviceClient, newCompany.id)
 
     void auditLog(serviceClient, user.id, admin.email, 'company_created', 'company', newCompany.id, {
       name: newCompany.name,
       slug: newCompany.slug,
+      role_seed_error: roleSeedError,
     })
 
-    return json(201, { company: newCompany })
+    return json(201, {
+      company: newCompany,
+      warnings: roleSeedError ? [`Roles non initialises automatiquement: ${roleSeedError}`] : [],
+    })
   }
 
   // ── PATCH : mettre a jour une company ────────────────────────────────────

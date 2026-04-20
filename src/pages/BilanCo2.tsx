@@ -35,10 +35,6 @@ export default function BilanCo2() {
   const [filterYear, setFilterYear] = useState(new Date().getFullYear().toString())
   const [filterClient, setFilterClient] = useState('')
 
-  useEffect(() => {
-    void load()
-  }, [])
-
   async function load() {
     setLoading(true)
     const [otsRes, clientsRes] = await Promise.all([
@@ -60,6 +56,10 @@ export default function BilanCo2() {
     )
     setLoading(false)
   }
+
+  useEffect(() => {
+    void load()
+  }, [])
 
   const years = useMemo(() => {
     const s = new Set<string>()

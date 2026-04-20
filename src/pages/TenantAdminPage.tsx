@@ -12,6 +12,7 @@ import {
   updateEmailDomain,
   updateEnabledModules,
   getTenantUsers,
+  createTenantUser,
   setUserLoginEnabled,
   setUserForcePasswordReset,
   ALL_TENANT_MODULES,
@@ -294,10 +295,20 @@ function ModulesSection({ company, onSaved }: { company: TenantCompany; onSaved:
 
 // ─── Section utilisateurs ─────────────────────────────────────────────────────
 
-function UsersSection() {
+function UsersSection({ tenantEmailDomain }: { tenantEmailDomain: string | null }) {
   const [users, setUsers]     = useState<TenantUser[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
+  const [createEmail, setCreateEmail] = useState('')
+  const [createNom, setCreateNom] = useState('')
+  const [createPrenom, setCreatePrenom] = useState('')
+  const [createRole, setCreateRole] = useState<Role>('dirigeant')
+  const [createPassword, setCreatePassword] = useState('')
+  const [createForceReset, setCreateForceReset] = useState(true)
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [createSuccess, setCreateSuccess] = useState<string | null>(null)
+  const [tempPassword, setTempPassword] = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
@@ -319,11 +330,136 @@ function UsersSection() {
     if (!err) await load()
   }
 
+  async function handleCreateUser(e: React.FormEvent) {
+    e.preventDefault()
+    setCreating(true)
+    setCreateError(null)
+    setCreateSuccess(null)
+    setTempPassword(null)
+
+    const rawEmail = createEmail.trim().toLowerCase()
+    const normalizedEmail = (!rawEmail.includes('@') && tenantEmailDomain)
+      ? `${rawEmail}@${tenantEmailDomain}`
+      : rawEmail
+
+    const { data, error: err } = await createTenantUser({
+      email: normalizedEmail,
+      nom: createNom.trim(),
+      prenom: createPrenom.trim(),
+      role: createRole,
+      password: createPassword.trim() || undefined,
+      force_password_reset: createForceReset,
+    })
+
+    setCreating(false)
+    if (err) {
+      setCreateError(err)
+      return
+    }
+
+    setCreateEmail('')
+    setCreateNom('')
+    setCreatePrenom('')
+    setCreateRole('dirigeant')
+    setCreatePassword('')
+    setCreateForceReset(true)
+    setCreateSuccess('Utilisateur créé dans le tenant.')
+    if (data?.temp_password) setTempPassword(data.temp_password)
+    await load()
+  }
+
   if (loading) return <SectionCard title="Utilisateurs"><p className="text-sm text-[color:var(--text-muted)]">Chargement…</p></SectionCard>
   if (error)   return <SectionCard title="Utilisateurs"><p className="text-sm text-red-500">{error}</p></SectionCard>
 
   return (
     <SectionCard title={`Utilisateurs (${users.length})`}>
+      <form onSubmit={handleCreateUser} className="mb-4 space-y-3 rounded-xl border bg-[color:var(--surface)] p-3" style={{ borderColor: 'var(--border)' }}>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[color:var(--text-muted)]">Email</label>
+            <input
+              className="w-full rounded-lg border bg-[color:var(--surface)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[color:var(--primary)]"
+              style={{ borderColor: 'var(--border)' }}
+              placeholder={tenantEmailDomain ? `exemple@${tenantEmailDomain}` : 'exemple@domaine.fr'}
+              value={createEmail}
+              onChange={e => setCreateEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[color:var(--text-muted)]">Prénom</label>
+            <input
+              className="w-full rounded-lg border bg-[color:var(--surface)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[color:var(--primary)]"
+              style={{ borderColor: 'var(--border)' }}
+              value={createPrenom}
+              onChange={e => setCreatePrenom(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[color:var(--text-muted)]">Nom</label>
+            <input
+              className="w-full rounded-lg border bg-[color:var(--surface)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[color:var(--primary)]"
+              style={{ borderColor: 'var(--border)' }}
+              value={createNom}
+              onChange={e => setCreateNom(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[color:var(--text-muted)]">Rôle</label>
+            <select
+              className="w-full rounded-lg border bg-[color:var(--surface)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[color:var(--primary)]"
+              style={{ borderColor: 'var(--border)' }}
+              value={createRole}
+              onChange={e => setCreateRole(e.target.value as Role)}
+            >
+              {(Object.entries(ROLE_LABELS) as Array<[Role, string]>).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[color:var(--text-muted)]">Mot de passe (optionnel)</label>
+            <input
+              className="w-full rounded-lg border bg-[color:var(--surface)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[color:var(--primary)]"
+              style={{ borderColor: 'var(--border)' }}
+              type="text"
+              minLength={8}
+              placeholder="Généré automatiquement si vide"
+              value={createPassword}
+              onChange={e => setCreatePassword(e.target.value)}
+            />
+          </div>
+          <div className="flex items-end">
+            <label className="inline-flex items-center gap-2 text-sm text-[color:var(--text)]">
+              <input
+                type="checkbox"
+                checked={createForceReset}
+                onChange={e => setCreateForceReset(e.target.checked)}
+              />
+              Forcer le changement du mot de passe
+            </label>
+          </div>
+        </div>
+        {createError && <p className="text-sm text-red-600">{createError}</p>}
+        {createSuccess && <p className="text-sm text-green-700">{createSuccess}</p>}
+        {tempPassword && (
+          <p className="text-sm text-amber-700">
+            Mot de passe temporaire: <span className="font-semibold">{tempPassword}</span>
+          </p>
+        )}
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={creating}
+            className="rounded-lg bg-[color:var(--primary)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {creating ? 'Création…' : 'Créer un utilisateur'}
+          </button>
+        </div>
+      </form>
+
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -437,7 +573,7 @@ export default function TenantAdminPage() {
       <IdentitySection      company={company} onSaved={reload} />
       <EmailDomainSection   company={company} onSaved={reload} />
       <ModulesSection       company={company} onSaved={reload} />
-      <UsersSection />
+      <UsersSection tenantEmailDomain={company.email_domain} />
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type DragEvent } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState, type DragEvent } from 'react'
 import { ROLE_LABELS, useAuth, type Role } from '@/lib/auth'
 import {
   getDefaultPrefs,
@@ -12,21 +12,24 @@ import {
   type WidgetPrefsMap,
 } from '@/lib/dashboardPrefs'
 import { WidgetShell } from '@/components/dashboard/WidgetShell'
-import { WidgetKpiDirigeant } from '@/components/dashboard/WidgetKpiDirigeant'
-import { WidgetKpiExploitant } from '@/components/dashboard/WidgetKpiExploitant'
-import { WidgetKpiCommercial } from '@/components/dashboard/WidgetKpiCommercial'
-import { WidgetTransportsEnAttente } from '@/components/dashboard/WidgetTransportsEnAttente'
-import { WidgetAlertesChrono } from '@/components/dashboard/WidgetAlertesChrono'
-import { WidgetActiviteRecente } from '@/components/dashboard/WidgetActiviteRecente'
-import { WidgetMiniCarteVehicules } from '@/components/dashboard/WidgetMiniCarteVehicules'
-import { WidgetPipelineProspects } from '@/components/dashboard/WidgetPipelineProspects'
-import { WidgetCarteClients } from '@/components/dashboard/WidgetCarteClients'
-import { WidgetRaccourcisMetier } from '@/components/dashboard/WidgetRaccourcisMetier'
-import { WidgetSyntheseOperationnelle } from '@/components/dashboard/WidgetSyntheseOperationnelle'
-import { WidgetConversationsLive } from '@/components/dashboard/WidgetConversationsLive'
-import { WidgetTrackingOverview } from '@/components/dashboard/WidgetTrackingOverview'
-import { WidgetEtaDecisionCockpit } from '@/components/dashboard/WidgetEtaDecisionCockpit'
-import { RoleCockpitPanelV21 } from '@/components/dashboard-v21/RoleCockpitPanelV21'
+
+const WidgetKpiDirigeant = lazy(() => import('@/components/dashboard/WidgetKpiDirigeant').then(module => ({ default: module.WidgetKpiDirigeant })))
+const WidgetKpiExploitant = lazy(() => import('@/components/dashboard/WidgetKpiExploitant').then(module => ({ default: module.WidgetKpiExploitant })))
+const WidgetKpiCommercial = lazy(() => import('@/components/dashboard/WidgetKpiCommercial').then(module => ({ default: module.WidgetKpiCommercial })))
+const WidgetTransportsEnAttente = lazy(() => import('@/components/dashboard/WidgetTransportsEnAttente').then(module => ({ default: module.WidgetTransportsEnAttente })))
+const WidgetAlertesChrono = lazy(() => import('@/components/dashboard/WidgetAlertesChrono').then(module => ({ default: module.WidgetAlertesChrono })))
+const WidgetActiviteRecente = lazy(() => import('@/components/dashboard/WidgetActiviteRecente').then(module => ({ default: module.WidgetActiviteRecente })))
+const WidgetMiniCarteVehicules = lazy(() => import('@/components/dashboard/WidgetMiniCarteVehicules').then(module => ({ default: module.WidgetMiniCarteVehicules })))
+const WidgetPipelineProspects = lazy(() => import('@/components/dashboard/WidgetPipelineProspects').then(module => ({ default: module.WidgetPipelineProspects })))
+const WidgetCarteClients = lazy(() => import('@/components/dashboard/WidgetCarteClients').then(module => ({ default: module.WidgetCarteClients })))
+const WidgetRaccourcisMetier = lazy(() => import('@/components/dashboard/WidgetRaccourcisMetier').then(module => ({ default: module.WidgetRaccourcisMetier })))
+const WidgetSyntheseOperationnelle = lazy(() => import('@/components/dashboard/WidgetSyntheseOperationnelle').then(module => ({ default: module.WidgetSyntheseOperationnelle })))
+const WidgetConversationsLive = lazy(() => import('@/components/dashboard/WidgetConversationsLive').then(module => ({ default: module.WidgetConversationsLive })))
+const WidgetTrackingOverview = lazy(() => import('@/components/dashboard/WidgetTrackingOverview').then(module => ({ default: module.WidgetTrackingOverview })))
+const WidgetEtaDecisionCockpit = lazy(() => import('@/components/dashboard/WidgetEtaDecisionCockpit').then(module => ({ default: module.WidgetEtaDecisionCockpit })))
+const RoleCockpitPanelV21 = lazy(() => import('@/components/dashboard-v21/RoleCockpitPanelV21').then(module => ({ default: module.RoleCockpitPanelV21 })))
+
+type DashboardWidgetComponent = React.ComponentType<Record<string, never>> | React.LazyExoticComponent<React.ComponentType<Record<string, never>>>
 
 interface WidgetDef {
   id: string
@@ -34,7 +37,7 @@ interface WidgetDef {
   subtitle: string
   colSpan: WidgetSize
   roles: Role[]
-  component: React.ComponentType
+  component: DashboardWidgetComponent
 }
 
 type WidgetPreviewTone = 'blue' | 'green' | 'amber' | 'violet' | 'slate'
@@ -316,9 +319,13 @@ export default function Dashboard() {
     }
 
     if (typeof docWithTransition.startViewTransition === 'function') {
-      docWithTransition.startViewTransition(() => {
+      try {
+        docWithTransition.startViewTransition(() => {
+          action()
+        })
+      } catch {
         action()
-      })
+      }
       return
     }
 
@@ -844,7 +851,9 @@ export default function Dashboard() {
                 isDragging={draggedWidgetId === id}
                 dropPosition={isDropTarget}
               >
-                <Component />
+                <Suspense fallback={<div className="h-28 animate-pulse rounded-xl bg-slate-100" aria-hidden="true" />}>
+                  <Component />
+                </Suspense>
               </WidgetShell>
             )
           })}

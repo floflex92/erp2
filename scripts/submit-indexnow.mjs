@@ -13,7 +13,14 @@ const sitemapPath = resolve(__dirname, '../public/sitemap.xml');
 const DEFAULT_KEY = 'f15d7d2cb7564a7fb4d02664227f2612';
 const key = process.env.INDEXNOW_KEY || DEFAULT_KEY;
 const host = process.env.INDEXNOW_HOST || 'nexora-truck.fr';
-const endpoint = process.env.INDEXNOW_ENDPOINT || 'https://api.indexnow.org/indexnow';
+const rawEndpoints =
+  process.env.INDEXNOW_ENDPOINTS ||
+  process.env.INDEXNOW_ENDPOINT ||
+  'https://yandex.com/indexnow';
+const endpoints = rawEndpoints
+  .split(',')
+  .map(value => value.trim())
+  .filter(Boolean);
 const keyLocation =
   process.env.INDEXNOW_KEY_LOCATION || `https://${host}/${key}.txt`;
 
@@ -49,24 +56,35 @@ async function run() {
     urlList: urls,
   };
 
-  try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-      },
-      body: JSON.stringify(payload),
-    });
+  let successfulSubmissions = 0;
 
-    if (!response.ok) {
-      const body = await response.text();
-      console.warn(`[indexnow] warning: ${response.status} ${response.statusText} ${body}`);
-      return;
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        // Bing can reject domains not verified in Webmaster tools.
+        // Keep this as informational if another endpoint accepts the submission.
+        console.log(`[indexnow] endpoint skipped: ${endpoint} -> ${response.status} ${response.statusText} ${body}`);
+        continue;
+      }
+
+      successfulSubmissions += 1;
+      console.log(`[indexnow] submitted ${urls.length} URLs to ${endpoint}`);
+    } catch (error) {
+      console.log(`[indexnow] endpoint failed: ${endpoint} (${error?.message || error})`);
     }
+  }
 
-    console.log(`[indexnow] submitted ${urls.length} URLs to ${endpoint}`);
-  } catch (error) {
-    console.warn(`[indexnow] warning: request failed (${error?.message || error})`);
+  if (successfulSubmissions === 0) {
+    console.warn('[indexnow] warning: no endpoint accepted the submission');
   }
 }
 

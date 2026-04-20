@@ -195,6 +195,7 @@ function NavGlyph({ type, size = 18 }: { type: string; size?: number }) {
   if (type === 'users')        return <svg {...common}><path d="M16 19a4 4 0 0 0-8 0" /><circle cx="12" cy="9" r="3" /><path d="M19 19a3 3 0 0 0-3-3" /><path d="M18 8a2.5 2.5 0 1 1 0 5" /></svg>
   if (type === 'shield')       return <svg {...common}><path d="M12 3 5 6v6c0 5 3.4 7.7 7 9 3.6-1.3 7-4 7-9V6z" /><path d="m9.5 12 1.8 1.8 3.2-3.3" /></svg>
   if (type === 'doc')          return <svg {...common}><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5M9 12h6M9 16h4" /></svg>
+  if (type === 'logout')       return <svg {...common}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" /></svg>
   // Navigation
   if (type === 'expand')       return <svg {...common}><path d="m9 18 6-6-6-6" /></svg>
   if (type === 'collapse')     return <svg {...common}><path d="m15 18-6-6 6-6" /></svg>
@@ -303,12 +304,12 @@ function useBadgeCount(page: string, profilId: string | null, demoProfil: unknow
         return
       }
 
-      const { data } = await looseSupabase
+      const { count } = await looseSupabase
         .from('tchat_messages')
-        .select('id')
+        .select('*', { count: 'exact', head: true })
         .neq('sender_id', safeProfilId)
         .is('read_at', null)
-      setCount(Array.isArray(data) ? data.length : 0)
+      setCount(count ?? 0)
     }
 
     void load()
@@ -327,10 +328,11 @@ function useBadgeCount(page: string, profilId: string | null, demoProfil: unknow
 }
 
 export default function Sidebar() {
-  const { user, profil, accountProfil, role, isDemoSession, tenantAllowedPages, enabledModules, canUseSessionPicker } = useAuth()
+  const { user, profil, accountProfil, role, isDemoSession, tenantAllowedPages, enabledModules, canUseSessionPicker, signOut } = useAuth()
   const profilId = profil?.id ?? null
   const demoProfil = isDemoSession && profil && isDemoProfil(profil) ? profil : null
   const navigate = useNavigate()
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   const firstName = profil?.prenom?.trim() || accountProfil?.prenom?.trim() || ''
   const lastName = profil?.nom?.trim() || accountProfil?.nom?.trim() || ''
@@ -419,6 +421,17 @@ export default function Sidebar() {
       ...current,
       [sectionKey]: !current[sectionKey],
     }))
+  }
+
+  async function handleSignOut() {
+    if (isSigningOut) return
+    setIsSigningOut(true)
+    try {
+      await signOut()
+      navigate('/login', { replace: true })
+    } finally {
+      setIsSigningOut(false)
+    }
   }
 
   return (
@@ -525,6 +538,17 @@ export default function Sidebar() {
                     </button>
                   </>
                 )}
+                <button
+                  type="button"
+                  onClick={() => void handleSignOut()}
+                  disabled={isSigningOut}
+                  className="flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-[color:var(--sidebar-text)] transition-colors hover:bg-[color:var(--sidebar-item-hover)] hover:text-[color:var(--sidebar-text-strong)] disabled:opacity-60"
+                  style={{ borderColor: 'var(--sidebar-border)' }}
+                  title="Se déconnecter"
+                >
+                  <NavGlyph type="logout" size={17} />
+                  <span className="truncate text-xs font-medium">{isSigningOut ? 'Déconnexion...' : 'Déconnexion'}</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => setCollapsed(true)}

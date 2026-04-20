@@ -11,7 +11,10 @@ export default function ImpersonationBanner() {
 
   if (!isPlatformAdmin || !impersonation) return null
 
-  const timeLeft = Math.max(0, Math.round((new Date(impersonation.expiresAt).getTime() - Date.now()) / 60000))
+  const expiresAtLabel = new Date(impersonation.expiresAt).toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 
   return (
     <div className="sticky top-0 z-[9999] flex items-center justify-between gap-3 bg-amber-500 px-4 py-2 text-sm font-semibold text-amber-950 shadow-lg">
@@ -26,7 +29,7 @@ export default function ImpersonationBanner() {
           <strong className="underline underline-offset-2">{impersonation.roleLabel}</strong>
         </span>
         <span className="rounded-full bg-amber-700/20 px-2 py-0.5 text-xs font-medium">
-          {timeLeft > 0 ? `${timeLeft} min restantes` : 'Expiré'}
+          Expire a {expiresAtLabel}
         </span>
       </div>
       <button

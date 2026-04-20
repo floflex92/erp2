@@ -52,11 +52,11 @@ import {
   ROWS_KEY, BLOCKS_KEY,
   SIMULATION_MODE_KEY, AUTO_HABILLAGE_KEY, AUTO_PAUSE_KEY,
   PLANNING_HEADER_COLLAPSED_KEY, BOTTOM_DOCK_HEIGHT_KEY, BOTTOM_DOCK_COLLAPSED_KEY,
-  PLANNING_SCOPE_KEY, BOTTOM_DOCK_VIEWPORT_OFFSET,
+  PLANNING_SCOPE_KEY,
   COMPLIANCE_RULE_LABELS, DEFAULT_BLOCKING_RULE_CODES,
   loadCustomRows, saveCustomRows, loadCustomBlocks, saveCustomBlocks,
   loadConductorColors, saveConductorColors, loadRowOrder, saveRowOrder,
-  loadShowAffretementAssets, saveShowAffretementAssets,
+  loadShowAffretementAssets,
   loadComplianceBlockMode, saveComplianceBlockMode,
   loadComplianceBlockingRules, saveComplianceBlockingRules,
   loadBooleanSetting, saveBooleanSetting, loadNumberSetting, saveNumberSetting,
@@ -122,6 +122,7 @@ export default function Planning() {
   const [affectations, setAffectations] = useState<Affectation[]>([])
   const [conducteurAbsences, setConducteurAbsences] = useState<Map<string, AbsenceRh[]>>(new Map())
   const [assignModal,  setAssignModal]  = useState<AssignForm | null>(null)
+  const [assignKeepDuration, setAssignKeepDuration] = useState(true)
   const [selected,     setSelected]     = useState<OT | null>(null)
   const [editDraft,    setEditDraft]    = useState<EditDraft | null>(null)
   const [editSiteDrafts, setEditSiteDrafts] = useState<Record<SiteKind, SiteDraft>>({
@@ -224,7 +225,7 @@ export default function Planning() {
   const [colorPickerFor,  setColorPickerFor]  = useState<string | null>(null)
   const [colorMode,       setColorMode]       = useState<ColorMode>('statut')
   const [affretementContracts, setAffretementContracts] = useState<AffretementContract[]>(() => listAffretementContracts())
-  const [showAffretementAssets, setShowAffretementAssets] = useState<boolean>(() => loadShowAffretementAssets())
+  const [showAffretementAssets] = useState<boolean>(() => loadShowAffretementAssets())
   const [blockOnCompliance, setBlockOnCompliance] = useState<boolean>(() => loadComplianceBlockMode())
   const [complianceBlockingRules, setComplianceBlockingRules] = useState<Record<string, boolean>>(() => loadComplianceBlockingRules())
   const [showComplianceRules, setShowComplianceRules] = useState(false)
@@ -658,12 +659,13 @@ export default function Planning() {
     setScanningWeek(false)
     const totalDrivers = Object.keys(results).length
     const blockingDrivers = Object.values(results).filter(r => r.hasBlocking).length
+    const modeLabel = blockOnCompliance ? 'conformite bloquante active' : 'audit non bloquant'
     if (totalDrivers === 0) {
       pushPlanningNotice('Scan CE561 : aucune alerte detectee sur la semaine.')
     } else {
       pushPlanningNotice(
-        `Scan CE561 : ${blockingDrivers} chauffeur(s) en violation bloquante, ${totalDrivers} avec alerte(s).`,
-        blockingDrivers > 0 ? 'error' : 'success',
+        `Scan CE561 (${modeLabel}) : ${blockingDrivers} chauffeur(s) en violation bloquante, ${totalDrivers} avec alerte(s).`,
+        blockOnCompliance && blockingDrivers > 0 ? 'error' : 'success',
       )
     }
   }
@@ -832,19 +834,27 @@ export default function Planning() {
       const newSites = siteR.error ? [] : sortLogisticSites(((siteR.data ?? []) as SiteLoadRow[]).map(mapSiteLoadRow))
       const newAffectations = aR.error ? [] : (aR.data ?? [])
 
-      // Fallback V2: si les tables legacy sont vides (ou non exploitables), hydrater depuis persons/assets.
-      if (newConducteurs.length === 0) {
-        const persons = await listPersonsForDirectory()
-        const personDrivers = persons
-          .filter(p => ['driver', 'conducteur', 'chauffeur'].includes((p.person_type ?? '').toLowerCase()))
-          .filter(p => isDriverActiveStatus(p.status))
+      // Enrichissement V2: fusionner les drivers persons/profils pour garantir la visibilite tenant.
+      const persons = await listPersonsForDirectory()
+      const personDrivers = persons
+        .filter(p => ['driver', 'conducteur', 'chauffeur'].includes((p.person_type ?? '').toLowerCase()))
+        .filter(p => isDriverActiveStatus(p.status))
 
-        newConducteurs = personDrivers.map(p => ({
+      const conducteurIds = new Set(newConducteurs.map(c => c.id))
+      const conducteurKeys = new Set(newConducteurs.map(c => `${c.nom}|${c.prenom}`.toLowerCase()))
+
+      for (const p of personDrivers) {
+        const candidate = {
           id: p.legacy_conducteur_id ?? p.id,
           nom: p.last_name ?? '-',
           prenom: p.first_name ?? '',
           statut: p.status ?? 'active',
-        }))
+        }
+        const key = `${candidate.nom}|${candidate.prenom}`.toLowerCase()
+        if (conducteurIds.has(candidate.id) || conducteurKeys.has(key)) continue
+        newConducteurs.push(candidate)
+        conducteurIds.add(candidate.id)
+        conducteurKeys.add(key)
       }
 
       if (newVehicules.length === 0 || newRemorques.length === 0) {
@@ -1467,7 +1477,7 @@ export default function Planning() {
       lastAuditSummary
         ? `${assignModal.applyToGroupage ? 'Lot programme.' : 'Affectation enregistree.'} ${lastAuditSummary.message}`
         : assignModal.applyToGroupage ? 'Lot programme.' : 'Affectation enregistree.',
-      lastAuditSummary?.hasBlocking ? 'error' : 'success',
+      blockOnCompliance && lastAuditSummary?.hasBlocking ? 'error' : 'success',
     )
   }
 
@@ -1539,7 +1549,7 @@ export default function Planning() {
         members.length > 1
           ? (lastAuditSummary ? `Lot de ${members.length} courses deplace ensemble. ${lastAuditSummary.message}` : `Lot de ${members.length} courses deplace ensemble sans changer leurs dates.`)
           : (lastAuditSummary ? `Ressource mise a jour. ${lastAuditSummary.message}` : 'Ressource mise a jour sans changer les dates de la course.'),
-        lastAuditSummary?.hasBlocking ? 'error' : 'success',
+        blockOnCompliance && lastAuditSummary?.hasBlocking ? 'error' : 'success',
       )
     } finally {
       setSavingOtId(null)
@@ -1784,7 +1794,7 @@ export default function Planning() {
         lastAuditSummary
           ? `${moveTargets.length > 1 ? 'Mission deplacee.' : 'Deplacement enregistre.'} ${lastAuditSummary.message}`
           : moveTargets.length > 1 ? 'Mission deplacee.' : 'Deplacement enregistre.',
-        lastAuditSummary?.hasBlocking ? 'error' : 'success',
+        blockOnCompliance && lastAuditSummary?.hasBlocking ? 'error' : 'success',
       )
     }
     setSavingOtId(null)
@@ -2372,9 +2382,22 @@ export default function Planning() {
   }
 
   function openPlanningEventNearCourse(rowId: string, ot: OT, type: Exclude<PlanningInlineType, 'course'>) {
+    if (!rowId) {
+      pushPlanningNotice('Ligne planning introuvable pour ajouter un bloc.', 'error')
+      return
+    }
     const defaultDuration = type === 'repos' ? 45 : 60
     const interval = otInterval(ot)
-    const anchor = type === 'hlp' ? new Date(interval.start - defaultDuration * 60000) : new Date(interval.end)
+    if (!Number.isFinite(interval.start) || !Number.isFinite(interval.end)) {
+      pushPlanningNotice('Impossible de calculer les horaires de cet OT.', 'error')
+      return
+    }
+    const anchorMs = type === 'hlp' ? interval.start - defaultDuration * 60000 : interval.end
+    const anchor = new Date(anchorMs)
+    if (!Number.isFinite(anchor.getTime())) {
+      pushPlanningNotice('Horaire invalide pour creer le bloc HLP/PAUSE.', 'error')
+      return
+    }
     const startISO = toDateTimeFromDate(anchor)
     openPlanningCreationModal({ rowId, dateStart: startISO, type })
     setPlanningEventDurationParts(defaultDuration)
@@ -2893,6 +2916,102 @@ export default function Planning() {
     if (!assignModal.ot.mission_id) return [assignModal.ot]
     return groupageMembersByGroupId.get(assignModal.ot.mission_id) ?? [assignModal.ot]
   }, [assignModal, groupageMembersByGroupId])
+
+  useEffect(() => {
+    if (!assignModal) return
+    setAssignKeepDuration(true)
+  }, [assignModal?.ot?.id])
+
+  function parseAssignDateTime(dateValue: string, timeValue: string): Date | null {
+    if (!dateValue) return null
+    const date = parseDay(dateValue)
+    const [hourToken = '0', minuteToken = '0'] = (timeValue || '00:00').split(':')
+    const hours = Number(hourToken)
+    const minutes = Number(minuteToken)
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null
+    date.setHours(hours, minutes, 0, 0)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  function toTimeHHmm(value: Date): string {
+    const hh = String(value.getHours()).padStart(2, '0')
+    const mm = String(value.getMinutes()).padStart(2, '0')
+    return `${hh}:${mm}`
+  }
+
+  const assignScheduleMeta = useMemo(() => {
+    if (!assignModal) return { durationMinutes: 0, valid: false }
+    const start = parseAssignDateTime(assignModal.date_chargement, assignModal.time_chargement)
+    const end = parseAssignDateTime(assignModal.date_livraison, assignModal.time_livraison)
+    if (!start || !end) return { durationMinutes: 0, valid: false }
+    const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000)
+    return { durationMinutes, valid: durationMinutes > 0 }
+  }, [assignModal])
+
+  const assignDurationLabel = useMemo(() => {
+    const total = Math.max(0, assignScheduleMeta.durationMinutes)
+    const h = Math.floor(total / 60)
+    const m = total % 60
+    if (h > 0 && m > 0) return `${h}h ${String(m).padStart(2, '0')}`
+    if (h > 0) return `${h}h`
+    return `${m} min`
+  }, [assignScheduleMeta.durationMinutes])
+
+  function updateAssignStart(nextDate: string, nextTime: string) {
+    setAssignModal(current => {
+      if (!current) return current
+      const next: AssignForm = { ...current, date_chargement: nextDate, time_chargement: nextTime }
+      if (!assignKeepDuration) return next
+      const prevStart = parseAssignDateTime(current.date_chargement, current.time_chargement)
+      const prevEnd = parseAssignDateTime(current.date_livraison, current.time_livraison)
+      const newStart = parseAssignDateTime(nextDate, nextTime)
+      if (!prevStart || !prevEnd || !newStart) return next
+      const durationMinutes = Math.round((prevEnd.getTime() - prevStart.getTime()) / 60000)
+      if (durationMinutes <= 0) return next
+      const newEnd = new Date(newStart.getTime() + durationMinutes * 60000)
+      next.date_livraison = toISO(newEnd)
+      next.time_livraison = toTimeHHmm(newEnd)
+      return next
+    })
+  }
+
+  function shiftAssignStart(deltaMinutes: number) {
+    setAssignModal(current => {
+      if (!current) return current
+      const start = parseAssignDateTime(current.date_chargement, current.time_chargement)
+      if (!start) return current
+      const shiftedStart = new Date(start.getTime() + deltaMinutes * 60000)
+      const next: AssignForm = {
+        ...current,
+        date_chargement: toISO(shiftedStart),
+        time_chargement: toTimeHHmm(shiftedStart),
+      }
+      if (!assignKeepDuration) return next
+      const end = parseAssignDateTime(current.date_livraison, current.time_livraison)
+      if (!end) return next
+      const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000)
+      if (durationMinutes <= 0) return next
+      const shiftedEnd = new Date(shiftedStart.getTime() + durationMinutes * 60000)
+      next.date_livraison = toISO(shiftedEnd)
+      next.time_livraison = toTimeHHmm(shiftedEnd)
+      return next
+    })
+  }
+
+  function applyAssignDuration(durationMinutes: number) {
+    if (durationMinutes <= 0) return
+    setAssignModal(current => {
+      if (!current) return current
+      const start = parseAssignDateTime(current.date_chargement, current.time_chargement)
+      if (!start) return current
+      const nextEnd = new Date(start.getTime() + durationMinutes * 60000)
+      return {
+        ...current,
+        date_livraison: toISO(nextEnd),
+        time_livraison: toTimeHHmm(nextEnd),
+      }
+    })
+  }
 
   const planningGroupageCandidates = useMemo(() => {
     if (!selected) return []
@@ -3625,7 +3744,9 @@ export default function Planning() {
       {lastComplianceAudit && (
         <div className={`absolute right-4 top-24 z-[79] w-[26rem] max-h-[45vh] overflow-y-auto rounded-xl border border-amber-500/30 bg-slate-900/95 px-3 py-3 shadow-2xl ${drag ? 'pointer-events-none' : ''}`}>
           <div className="flex items-center justify-between gap-2">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-amber-300">Detail audit CE561</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-amber-300">
+              Detail audit CE561 {blockOnCompliance ? '(mode bloquant)' : '(non bloquant)'}
+            </p>
             <button
               type="button"
               onClick={() => setLastComplianceAudit(null)}
@@ -3634,6 +3755,11 @@ export default function Planning() {
               masquer
             </button>
           </div>
+          {!blockOnCompliance && (
+            <p className="text-[10px] text-emerald-300 mt-1">
+              Audit informatif: vous pouvez affecter, puis activer le mode CE561 bloquant si vous souhaitez imposer la conformite.
+            </p>
+          )}
           <p className="text-[10px] text-slate-400 mt-1">Source regles: {lastComplianceAudit.sourceLabel}</p>
           <div className="mt-2 space-y-1.5">
             {lastComplianceAudit.alerts.map((alert, idx) => {
@@ -3646,7 +3772,9 @@ export default function Planning() {
                     </span>
                     {alert.type === 'bloquant' && (
                       <span className={`text-[9px] px-1.5 py-0.5 rounded ${activeBlock ? 'bg-rose-500/30 text-rose-200' : 'bg-slate-700 text-slate-300'}`}>
-                        {activeBlock ? 'bloque' : 'non bloque'}
+                        {blockOnCompliance
+                          ? (activeBlock ? 'bloque' : 'non bloque')
+                          : (activeBlock ? 'audit seulement' : 'non bloque')}
                       </span>
                     )}
                   </div>
@@ -4378,10 +4506,10 @@ export default function Planning() {
                             <span className="font-mono text-[10px] font-bold truncate flex-1">{ot.reference}</span>
                             {!isRowEditMode && !drag && (
                               <>
-                                <button title="Ajouter HLP avant" className="opacity-0 group-hover/block:opacity-100 transition-opacity flex-shrink-0 rounded px-1 py-0.5 text-[8px] font-bold bg-slate-950/70 hover:bg-slate-950"
-                                  onClick={e => { e.stopPropagation(); openPlanningEventNearCourse(row.id, ot, 'hlp') }}>HLP</button>
-                                <button title="Ajouter pause apres" className="opacity-0 group-hover/block:opacity-100 transition-opacity flex-shrink-0 rounded px-1 py-0.5 text-[8px] font-bold bg-slate-950/70 hover:bg-slate-950"
-                                  onClick={e => { e.stopPropagation(); openPlanningEventNearCourse(row.id, ot, 'repos') }}>PAUSE</button>
+                                <button type="button" title="Ajouter HLP avant" className="opacity-0 group-hover/block:opacity-100 transition-opacity flex-shrink-0 rounded px-1 py-0.5 text-[8px] font-bold bg-slate-950/70 hover:bg-slate-950"
+                                  onClick={e => { e.preventDefault(); e.stopPropagation(); openPlanningEventNearCourse(row.id, ot, 'hlp') }}>HLP</button>
+                                <button type="button" title="Ajouter pause apres" className="opacity-0 group-hover/block:opacity-100 transition-opacity flex-shrink-0 rounded px-1 py-0.5 text-[8px] font-bold bg-slate-950/70 hover:bg-slate-950"
+                                  onClick={e => { e.preventDefault(); e.stopPropagation(); openPlanningEventNearCourse(row.id, ot, 'repos') }}>PAUSE</button>
                               </>
                             )}
                             {!isRowEditMode && (
@@ -4695,10 +4823,18 @@ export default function Planning() {
                             {card.members.map(member => {
                               const isLate = member.statut !== 'facture' && member.date_livraison_prevue && member.date_livraison_prevue.slice(0,10) < today
                               return (
-                                <button
+                                <div
                                   key={member.id}
-                                  type="button"
+                                  role={isRowEditMode ? undefined : 'button'}
+                                  tabIndex={isRowEditMode ? -1 : 0}
                                   onClick={() => !isRowEditMode && openSelected(member)}
+                                  onKeyDown={e => {
+                                    if (isRowEditMode) return
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault()
+                                      openSelected(member)
+                                    }
+                                  }}
                                   onContextMenu={e => { e.preventDefault(); setContextMenu({ x:e.clientX, y:e.clientY, ot:member }) }}
                                   className={`flex min-w-0 flex-col justify-center px-2 text-left transition-colors ${isRowEditMode ? 'cursor-default' : 'cursor-pointer hover:bg-white/5'}`}
                                 >
@@ -4713,12 +4849,12 @@ export default function Planning() {
                                   {!isRowEditMode && (
                                     <span className="mt-1 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                                       <button type="button" className="rounded px-1 py-0.5 text-[8px] font-bold bg-slate-950/70 hover:bg-slate-950"
-                                        onClick={e => { e.stopPropagation(); openPlanningEventNearCourse(row.id, member, 'hlp') }}>HLP</button>
+                                        onClick={e => { e.preventDefault(); e.stopPropagation(); openPlanningEventNearCourse(row.id, member, 'hlp') }}>HLP</button>
                                       <button type="button" className="rounded px-1 py-0.5 text-[8px] font-bold bg-slate-950/70 hover:bg-slate-950"
-                                        onClick={e => { e.stopPropagation(); openPlanningEventNearCourse(row.id, member, 'repos') }}>PAUSE</button>
+                                        onClick={e => { e.preventDefault(); e.stopPropagation(); openPlanningEventNearCourse(row.id, member, 'repos') }}>PAUSE</button>
                                     </span>
                                   )}
-                                </button>
+                                </div>
                               )
                             })}
                           </div>
@@ -4757,10 +4893,10 @@ export default function Planning() {
                               <span className="font-mono font-bold truncate flex-1">{ot.reference}</span>
                               {!isRowEditMode && !drag && (
                                 <>
-                                  <button title="Ajouter HLP avant" className="opacity-0 group-hover/block:opacity-100 transition-opacity flex-shrink-0 rounded px-1 py-0.5 text-[8px] font-bold bg-slate-950/70 hover:bg-slate-950"
-                                    onClick={e => { e.stopPropagation(); openPlanningEventNearCourse(row.id, ot, 'hlp') }}>HLP</button>
-                                  <button title="Ajouter pause apres" className="opacity-0 group-hover/block:opacity-100 transition-opacity flex-shrink-0 rounded px-1 py-0.5 text-[8px] font-bold bg-slate-950/70 hover:bg-slate-950"
-                                    onClick={e => { e.stopPropagation(); openPlanningEventNearCourse(row.id, ot, 'repos') }}>PAUSE</button>
+                                  <button type="button" title="Ajouter HLP avant" className="opacity-0 group-hover/block:opacity-100 transition-opacity flex-shrink-0 rounded px-1 py-0.5 text-[8px] font-bold bg-slate-950/70 hover:bg-slate-950"
+                                    onClick={e => { e.preventDefault(); e.stopPropagation(); openPlanningEventNearCourse(row.id, ot, 'hlp') }}>HLP</button>
+                                  <button type="button" title="Ajouter pause apres" className="opacity-0 group-hover/block:opacity-100 transition-opacity flex-shrink-0 rounded px-1 py-0.5 text-[8px] font-bold bg-slate-950/70 hover:bg-slate-950"
+                                    onClick={e => { e.preventDefault(); e.stopPropagation(); openPlanningEventNearCourse(row.id, ot, 'repos') }}>PAUSE</button>
                                 </>
                               )}
                             </div>
@@ -5916,17 +6052,24 @@ export default function Planning() {
 
       {/* -- Assign modal -------------------------------------------------------- */}
       {assignModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setAssignModal(null)}>
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="p-6 border-b border-slate-800">
-              <h3 className="text-base font-semibold text-white">Placer sur le planning</h3>
-              <p className="text-slate-400 text-sm mt-0.5 flex items-center gap-2">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[160] p-4" onClick={() => setAssignModal(null)}>
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-5xl shadow-2xl max-h-[88vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-slate-800">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-semibold text-white">Reglage course planning</h3>
+                <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-800 text-slate-300">{STATUT_LABEL[assignModal.ot.statut] ?? assignModal.ot.statut}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${assignScheduleMeta.valid ? 'bg-emerald-500/20 text-emerald-200' : 'bg-rose-500/20 text-rose-200'}`}>
+                  Duree: {assignDurationLabel}
+                </span>
+              </div>
+              <p className="text-slate-400 text-sm mt-1 flex flex-wrap items-center gap-2">
                 <span className="font-mono">{assignModal.ot.reference}</span>
                 <span className="text-slate-600">-</span><span>{assignModal.ot.client_nom}</span>
                 {assignModal.ot.prix_ht && <span className="ml-auto text-slate-500">{assignModal.ot.prix_ht.toFixed(0)} EUR HT</span>}
               </p>
             </div>
-            <div className="p-6 space-y-4">
+
+            <div className="p-5 overflow-y-auto space-y-4">
               {assignGroupMembers.length > 1 && (
                 <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-3 space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
@@ -5952,41 +6095,118 @@ export default function Planning() {
                   </p>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label:'Date chargement', type:'date', key:'date_chargement' as const },
-                  { label:'Heure depart',    type:'time', key:'time_chargement' as const },
-                  { label:'Date livraison',  type:'date', key:'date_livraison'  as const },
-                  { label:'Heure arrivee',   type:'time', key:'time_livraison'  as const },
-                ].map(({ label, type, key }) => (
-                  <label key={key} className="block">
-                    <span className="text-xs font-medium text-slate-400">{label}</span>
-                    <input type={type} step={type==='time'?900:undefined} value={assignModal[key]}
-                      onChange={e => setAssignModal(m => m && { ...m, [key]: e.target.value })}
-                      className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-slate-500 transition-colors"/>
-                  </label>
-                ))}
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Planification</p>
+                    <label className="inline-flex items-center gap-2 text-[11px] text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={assignKeepDuration}
+                        onChange={event => setAssignKeepDuration(event.target.checked)}
+                      />
+                      Conserver la duree
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block">
+                      <span className="text-xs font-medium text-slate-400">Date chargement</span>
+                      <input
+                        type="date"
+                        value={assignModal.date_chargement}
+                        onChange={e => updateAssignStart(e.target.value, assignModal.time_chargement)}
+                        className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-slate-500 transition-colors"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-medium text-slate-400">Heure depart</span>
+                      <input
+                        type="time"
+                        step={900}
+                        value={assignModal.time_chargement}
+                        onChange={e => updateAssignStart(assignModal.date_chargement, e.target.value)}
+                        className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-slate-500 transition-colors"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-medium text-slate-400">Date livraison</span>
+                      <input
+                        type="date"
+                        value={assignModal.date_livraison}
+                        onChange={e => setAssignModal(m => m && { ...m, date_livraison: e.target.value })}
+                        className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-slate-500 transition-colors"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-medium text-slate-400">Heure arrivee</span>
+                      <input
+                        type="time"
+                        step={900}
+                        value={assignModal.time_livraison}
+                        onChange={e => setAssignModal(m => m && { ...m, time_livraison: e.target.value })}
+                        className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-slate-500 transition-colors"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-700/70 bg-slate-800/60 p-3 space-y-2">
+                    <p className="text-[11px] font-semibold text-slate-300">Ajustements rapides</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => shiftAssignStart(-30)} className="px-2.5 py-1 rounded-lg text-[11px] border border-slate-600 text-slate-200 hover:border-slate-400">Depart -30 min</button>
+                      <button type="button" onClick={() => shiftAssignStart(30)} className="px-2.5 py-1 rounded-lg text-[11px] border border-slate-600 text-slate-200 hover:border-slate-400">Depart +30 min</button>
+                      <button type="button" onClick={() => shiftAssignStart(60)} className="px-2.5 py-1 rounded-lg text-[11px] border border-slate-600 text-slate-200 hover:border-slate-400">Depart +1h</button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {[120, 240, 480, 600].map(minutes => (
+                        <button
+                          key={minutes}
+                          type="button"
+                          onClick={() => applyAssignDuration(minutes)}
+                          className="px-2.5 py-1 rounded-lg text-[11px] border border-slate-600 text-slate-200 hover:border-slate-400"
+                        >
+                          Duree {minutes >= 60 ? `${Math.floor(minutes / 60)}h` : `${minutes} min`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+
+                <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Ressources</p>
+                  {[
+                    { label:'Conducteur', key:'conducteur_id' as const, items: conducteurs.map(c => {
+                      const isAbsent = assignModal && getConducteurAbsencesForPeriod(c.id, assignModal.date_chargement, assignModal.date_livraison).length > 0
+                      return { id: c.id, label: `${c.prenom} ${c.nom}${isAbsent ? ' ? ABSENT' : ''}`, absent: isAbsent }
+                    }).sort((a, b) => (a.absent ? 1 : 0) - (b.absent ? 1 : 0)), placeholder:'Non affecte' },
+                    { label:'Camion',     key:'vehicule_id'   as const, items: vehicules.map(v  => ({ id:v.id, label:`${v.immatriculation}${v.marque?` - ${v.marque}`:''}`, absent: false })), placeholder:'Non affecte' },
+                    { label:'Remorque',   key:'remorque_id'   as const, items: remorques.map(r  => ({ id:r.id, label:`${r.immatriculation} - ${r.type_remorque}`, absent: false })), placeholder:'Sans remorque' },
+                  ].map(({ label, key, items, placeholder }) => (
+                    <label key={key} className="block">
+                      <span className="text-xs font-medium text-slate-400">{label}</span>
+                      <select value={assignModal[key]}
+                        onChange={e => setAssignModal(m => m && { ...m, [key]: e.target.value })}
+                        className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-slate-500 transition-colors">
+                        <option value="">{placeholder}</option>
+                        {items.map(i => <option key={i.id} value={i.id}>{i.label}</option>)}
+                      </select>
+                    </label>
+                  ))}
+
+                  <div className="rounded-xl border border-slate-700/70 bg-slate-800/60 p-3">
+                    <p className="text-[11px] text-slate-300 font-semibold">Controle planning</p>
+                    <p className={`text-xs mt-1 ${assignScheduleMeta.valid ? 'text-emerald-300' : 'text-rose-300'}`}>
+                      {assignScheduleMeta.valid
+                        ? `Fenetre valide: ${assignDurationLabel} planifiee.`
+                        : 'Fenetre invalide: la livraison doit etre apres le chargement.'}
+                    </p>
+                  </div>
+                </section>
               </div>
-              {[
-                { label:'Conducteur', key:'conducteur_id' as const, items: conducteurs.map(c => {
-                  const isAbsent = assignModal && getConducteurAbsencesForPeriod(c.id, assignModal.date_chargement, assignModal.date_livraison).length > 0
-                  return { id: c.id, label: `${c.prenom} ${c.nom}${isAbsent ? ' ? ABSENT' : ''}`, absent: isAbsent }
-                }).sort((a, b) => (a.absent ? 1 : 0) - (b.absent ? 1 : 0)), placeholder:'Non affecte' },
-                { label:'Camion',     key:'vehicule_id'   as const, items: vehicules.map(v  => ({ id:v.id, label:`${v.immatriculation}${v.marque?` - ${v.marque}`:''}`, absent: false })), placeholder:'Non affecte' },
-                { label:'Remorque',   key:'remorque_id'   as const, items: remorques.map(r  => ({ id:r.id, label:`${r.immatriculation} - ${r.type_remorque}`, absent: false })), placeholder:'Sans remorque' },
-              ].map(({ label, key, items, placeholder }) => (
-                <label key={key} className="block">
-                  <span className="text-xs font-medium text-slate-400">{label}</span>
-                  <select value={assignModal[key]}
-                    onChange={e => setAssignModal(m => m && { ...m, [key]: e.target.value })}
-                    className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-slate-500 transition-colors">
-                    <option value="">{placeholder}</option>
-                    {items.map(i => <option key={i.id} value={i.id}>{i.label}</option>)}
-                  </select>
-                </label>
-              ))}
             </div>
-            <div className="p-6 pt-2 flex gap-3 justify-end">
+
+            <div className="p-5 border-t border-slate-800 flex gap-3 justify-end bg-slate-900/95">
               <button onClick={() => setAssignModal(null)} className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors">Annuler</button>
               <button onClick={saveAssign} disabled={saving}
                 className="px-5 py-2.5 bg-white text-slate-900 text-sm font-semibold rounded-xl hover:bg-slate-100 disabled:opacity-50 transition-colors">
@@ -5999,7 +6219,7 @@ export default function Planning() {
 
       {/* -- Add custom block modal ---------------------------------------------- */}
       {addBlockFor && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setAddBlockFor(null)}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[160] p-4" onClick={() => setAddBlockFor(null)}>
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 w-full max-w-xl shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-sm font-semibold text-white mb-1">{newBlockType === 'course' ? 'Creer une course' : editingCustomBlockId ? 'Modifier un evenement planning' : 'Ajouter un evenement planning'}</h3>
             <p className="text-[11px] text-slate-400 mb-3">
@@ -6284,7 +6504,7 @@ export default function Planning() {
 
       {/* -- Block detail -------------------------------------------------------- */}
       {selected && editDraft && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={closeSelected}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[160] p-4" onClick={closeSelected}>
           <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="p-5 border-b border-slate-800 flex items-start justify-between gap-3">
@@ -6702,7 +6922,7 @@ export default function Planning() {
       )}
 
       {conflictPanelRowId && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setConflictPanelRowId(null)}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[160] p-4" onClick={() => setConflictPanelRowId(null)}>
           <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="p-5 border-b border-slate-800 flex items-center justify-between gap-3">
               <div>
@@ -7029,7 +7249,7 @@ export default function Planning() {
 
       {/* -- Modale Notification client --------------------------------------- */}
       {notifyClientOt && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setNotifyClientOt(null)}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[160] p-4" onClick={() => setNotifyClientOt(null)}>
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-sm font-semibold text-white mb-1">Notifier le client</h3>
             <p className="text-[11px] text-slate-400 mb-3">
@@ -7079,7 +7299,7 @@ export default function Planning() {
 
       {/* Modale D�p�t marchandise */}
       {(relaisModal.mode === 'depot' || relaisModal.mode === 'relais_conducteur') && relaisModal.ot && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[160] p-4"
           onClick={() => setRelaisModal({ mode: null, ot: null, relais: null })}>
           <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl"
             onClick={e => e.stopPropagation()}>
@@ -7186,7 +7406,7 @@ export default function Planning() {
 
       {/* Modale Affectation reprise */}
       {relaisModal.mode === 'assign' && relaisModal.relais && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[160] p-4"
           onClick={() => setRelaisModal({ mode: null, ot: null, relais: null })}>
           <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl"
             onClick={e => e.stopPropagation()}>

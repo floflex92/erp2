@@ -72,7 +72,9 @@ type Props = {
   sending: boolean
   searchTerm: string
   presenceById: Record<string, ChatPresenceProfile>
+  typingNames: string[]
   onBackToList?: () => void
+  onTypingChange: (isTyping: boolean) => void
   onSend: (text: string, attachments: TchatDraftAttachment[], style: TchatTextStyle) => Promise<void>
 }
 
@@ -86,7 +88,9 @@ export function TchatConversationPanel({
   sending,
   searchTerm,
   presenceById,
+  typingNames,
   onBackToList,
+  onTypingChange,
   onSend,
 }: Props) {
   const [showConversationDetails, setShowConversationDetails] = useState(false)
@@ -111,6 +115,14 @@ export function TchatConversationPanel({
     setDraftStyle(DEFAULT_TCHAT_STYLE)
     setComposerError(null)
   }, [conversation?.id])
+
+  useEffect(() => {
+    const isTyping = draftText.trim().length > 0 || draftAttachments.length > 0
+    onTypingChange(isTyping)
+    return () => {
+      onTypingChange(false)
+    }
+  }, [draftAttachments.length, draftText, onTypingChange])
 
   function appendEmoji(emoji: string) {
     setDraftText(current => `${current}${emoji}`)
@@ -366,6 +378,13 @@ export function TchatConversationPanel({
       </div>
 
       <div className="border-t p-3 sm:p-4" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+        {typingNames.length > 0 && (
+          <p className="mb-2 text-xs text-sky-200/90">
+            {typingNames.length === 1
+              ? `${typingNames[0]} est en train d'ecrire...`
+              : `${typingNames.slice(0, 2).join(', ')}${typingNames.length > 2 ? ` +${typingNames.length - 2}` : ''} sont en train d'ecrire...`}
+          </p>
+        )}
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
           <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Texte</span>
           <button type="button" onClick={() => setDraftStyle(current => ({ ...current, bold: !current.bold }))} className={`rounded-lg px-2 py-1 text-xs font-semibold ${draftStyle.bold ? 'bg-blue-500 text-white' : 'bg-white/5 text-slate-300'}`}>Gras</button>

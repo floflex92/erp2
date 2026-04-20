@@ -93,7 +93,7 @@ const VALID_ROLES = new Set([
   'admin', 'super_admin', 'dirigeant', 'exploitant', 'mecanicien',
   'commercial', 'comptable', 'rh', 'conducteur', 'conducteur_affreteur',
   'client', 'affreteur', 'administratif', 'facturation', 'flotte',
-  'maintenance', 'observateur', 'demo',
+  'maintenance', 'observateur', 'demo', 'investisseur', 'logisticien',
 ])
 
 // Regex domaine email (sans http, sans @, ex: nexora-truck.fr)
@@ -101,6 +101,15 @@ const EMAIL_DOMAIN_RE = /^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9
 
 // UUID v4
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function roleLabelFromName(roleName) {
+  const token = String(roleName ?? '').trim().toLowerCase()
+  if (!token) return 'Role'
+  return token
+    .split('_')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
 
 // ─── Guard : tenant admin ou platform admin ─────────────────────────────────
 
@@ -456,6 +465,19 @@ async function handleCreateUser(client, companyId, body, createdByProfileId) {
     return json(500, { error: profilError.message })
   }
 
+  const { error: membershipError } = await ensureTenantMembership({
+    client,
+    companyId,
+    userId: authUser.user.id,
+    role,
+  })
+
+  if (membershipError) {
+    await client.from('profils').delete().eq('id', profil.id)
+    await client.auth.admin.deleteUser(authUser.user.id)
+    return json(500, { error: membershipError })
+  }
+
   return json(201, {
     user: profil,
     temp_password: body.password ? undefined : password,
@@ -685,4 +707,66 @@ function generateTempPassword() {
     rand(chars) +
     rand(upper)
   )
+}
+
+async function ensureTenantMembership({ client, companyId, userId, role }) {
+  const { data: roleRow, error: roleError } = await client
+    .from('roles')
+    .select('id')
+    .eq('company_id', companyId)
+    .eq('name', role)
+    .maybeSingle()
+
+  if (roleError) return { error: roleError.message }
+  let defaultRoleId = roleRow?.id ?? null
+
+  if (!defaultRoleId) {
+    const { data: createdRole, error: createRoleError } = await client
+      .from('roles')
+      .upsert({
+        company_id: companyId,
+        name: role,
+        label: roleLabelFromName(role),
+        is_system: true,
+      }, {
+        onConflict: 'company_id,name',
+      })
+      .select('id')
+      .single()
+
+    if (createRoleError) return { error: createRoleError.message }
+    defaultRoleId = createdRole?.id ?? null
+  }
+
+  const { data: tenantUser, error: tenantUserError } = await client
+    .from('tenant_users')
+    .upsert({
+      tenant_id: companyId,
+      user_id: userId,
+      default_role_id: defaultRoleId,
+      is_active: true,
+    }, {
+      onConflict: 'tenant_id,user_id',
+    })
+    .select('id')
+    .single()
+
+  if (tenantUserError || !tenantUser) {
+    return { error: tenantUserError?.message ?? 'Impossible de creer tenant_users.' }
+  }
+
+  if (!defaultRoleId) return { error: null }
+
+  const { error: roleLinkError } = await client
+    .from('tenant_user_roles')
+    .upsert({
+      tenant_user_id: tenantUser.id,
+      role_id: defaultRoleId,
+      granted_by: null,
+    }, {
+      onConflict: 'tenant_user_id,role_id',
+    })
+
+  if (roleLinkError) return { error: roleLinkError.message }
+  return { error: null }
 }

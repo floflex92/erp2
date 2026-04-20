@@ -32,6 +32,7 @@ import {
   TYPES_CHARGEMENT_LABELS,
   TYPES_PALETTE_LABELS,
   TYPES_CHARGEMENT_PALETTE,
+  calcRemplissage,
   calcRemplissageGroupage,
   calcMetragePalettes,
   couleurBarre,
@@ -41,9 +42,6 @@ import {
 import {
   validateTrailerAssignment,
   checkCompatibiliteMetier,
-  filterCompatibleTrailers,
-  TRAILER_TYPES,
-  TRAILER_TYPE_MAP,
 } from '@/lib/trailerValidation'
 import ChargementBars from '@/components/transports/ChargementBars'
 
@@ -91,6 +89,16 @@ type OtLigneDraft = {
   notes: string | null
 }
 
+type TransportForm = TablesInsert<'ordres_transport'> & {
+  nb_palettes: number | null
+  largeur_m: number | null
+  hauteur_m: number | null
+  adr: boolean
+  temperature_dirigee: boolean
+  hors_gabarit: boolean
+  charge_indivisible: boolean
+}
+
 
 const STATUT_LABELS: Record<string, string> = {
   brouillon: 'Brouillon', confirme: 'Confirmé', en_cours: 'En cours',
@@ -117,7 +125,7 @@ const SITE_USAGE_LABELS: Record<SiteUsageType, string> = {
   mixte: 'Chargement et livraison',
 }
 
-const EMPTY_OT: TablesInsert<'ordres_transport'> = {
+const EMPTY_OT: TransportForm = {
   client_id: '', type_transport: 'complet', statut: 'brouillon',
   source_course: 'manuel', statut_transport: 'en_attente_validation',
   donneur_ordre_id: '', est_affretee: false, affreteur_id: null,
@@ -254,7 +262,7 @@ export default function Transports() {
 
   const [showForm, setShowForm] = useState(false)
   const [editingOtId, setEditingOtId] = useState<string | null>(null)
-  const [form, setForm] = useState<TablesInsert<'ordres_transport'>>(EMPTY_OT)
+  const [form, setForm] = useState<TransportForm>(EMPTY_OT)
   const [calculatingDistance, setCalculatingDistance] = useState(false)
   const [siteDrafts, setSiteDrafts] = useState<Record<SiteKind, SiteDraft>>({
     chargement: { ...EMPTY_SITE_DRAFT },
@@ -279,7 +287,7 @@ export default function Transports() {
       supabase.from('clients').select('id, nom').order('nom'),
       supabase.from('conducteurs').select('id, nom, prenom').order('nom'),
       supabase.from('vehicules').select('id, immatriculation, marque').order('immatriculation'),
-      supabase.from('remorques').select('id, immatriculation, type_remorque, trailer_type_code, categorie_remorque, charge_utile_kg, longueur_m, volume_max_m3, largeur_utile_m, hauteur_utile_m, nb_palettes_max').order('immatriculation'),
+      supabase.from('remorques').select('id, immatriculation, type_remorque, charge_utile_kg, longueur_m, volume_max_m3, largeur_utile_m, hauteur_utile_m, nb_palettes_max').order('immatriculation'),
     ])
     const nextList = ots.data ?? []
     setList(nextList)
@@ -287,7 +295,22 @@ export default function Transports() {
     setClients(cls.data ?? [])
     setConducteurs(conds.data ?? [])
     setVehicules(vehs.data ?? [])
-    setRemorques(rems.data ?? [])
+    const remorqueRows = (rems.data ?? []) as unknown as Array<{
+      id: string
+      immatriculation: string
+      type_remorque: string
+      charge_utile_kg: number | null
+      longueur_m: number | null
+      volume_max_m3: number | null
+      largeur_utile_m: number | null
+      hauteur_utile_m: number | null
+      nb_palettes_max: number | null
+    }>
+    setRemorques(remorqueRows.map(remorque => ({
+      ...remorque,
+      categorie_remorque: null,
+      trailer_type_code: null,
+    })))
     const affList = listAffreteurOnboardings()
       .filter(item => item.status === 'validee')
       .map(item => ({ id: item.id, company_name: item.companyName }))
@@ -395,7 +418,7 @@ export default function Transports() {
       .sort((left, right) => left.reference.localeCompare(right.reference, 'fr-FR'))
   }, [scopedList, selected])
 
-  function setF<K extends keyof TablesInsert<'ordres_transport'>>(k: K, v: TablesInsert<'ordres_transport'>[K]) {
+  function setF<K extends keyof TransportForm>(k: K, v: TransportForm[K]) {
     setForm(f => ({ ...f, [k]: v }))
   }
 
@@ -439,8 +462,15 @@ export default function Transports() {
       metrage_ml: ot.metrage_ml,
       volume_m3: ot.volume_m3,
       nombre_colis: ot.nombre_colis,
+      nb_palettes: (ot as Record<string, unknown>).nb_palettes as number | null,
       type_chargement: ot.type_chargement,
       type_palette: ot.type_palette,
+      largeur_m: (ot as Record<string, unknown>).largeur_m as number | null,
+      hauteur_m: (ot as Record<string, unknown>).hauteur_m as number | null,
+      adr: Boolean((ot as Record<string, unknown>).adr),
+      temperature_dirigee: Boolean((ot as Record<string, unknown>).temperature_dirigee),
+      hors_gabarit: Boolean((ot as Record<string, unknown>).hors_gabarit),
+      charge_indivisible: Boolean((ot as Record<string, unknown>).charge_indivisible),
       date_chargement_prevue: toDateTimeLocalValue(ot.date_chargement_prevue),
       date_livraison_prevue: toDateTimeLocalValue(ot.date_livraison_prevue),
       conducteur_id: ot.conducteur_id,
@@ -561,7 +591,7 @@ export default function Transports() {
     if (form.remorque_id) {
       const rem = remorques.find(r => r.id === form.remorque_id)
       if (rem) {
-        const otData = { type_chargement: form.type_chargement, poids_kg: form.poids_kg, tonnage: form.tonnage, volume_m3: form.volume_m3, longueur_m: form.longueur_m, metrage_ml: form.metrage_ml, adr: (form as Record<string, unknown>).adr as boolean, temperature_dirigee: (form as Record<string, unknown>).temperature_dirigee as boolean, hors_gabarit: (form as Record<string, unknown>).hors_gabarit as boolean, charge_indivisible: (form as Record<string, unknown>).charge_indivisible as boolean }
+        const otData = { type_chargement: form.type_chargement, poids_kg: form.poids_kg, tonnage: form.tonnage, volume_m3: form.volume_m3, longueur_m: form.longueur_m, metrage_ml: form.metrage_ml, adr: form.adr, temperature_dirigee: form.temperature_dirigee, hors_gabarit: form.hors_gabarit, charge_indivisible: form.charge_indivisible }
         const validation = validateTrailerAssignment(otData, rem)
         if (validation.status === 'blocked') {
           setStatusGuardNotice(`Affectation remorque BLOQUÉE : ${validation.errors.map(e => e.message).join(' | ')}`)
@@ -571,8 +601,9 @@ export default function Transports() {
     }
 
     setSaving(true)
-    const payload = {
-      ...form,
+    const { largeur_m: _largeur_m, hauteur_m: _hauteur_m, adr: _adr, temperature_dirigee: _temperature, hors_gabarit: _horsGabarit, charge_indivisible: _chargeIndivisible, ...basePayload } = form
+    const payload: TablesInsert<'ordres_transport'> = {
+      ...basePayload,
       donneur_ordre_id: form.donneur_ordre_id || form.client_id,
     }
 
@@ -1567,26 +1598,26 @@ export default function Transports() {
                           </div>
 
                           <Field label="Volume (m³)"><input className={inp} type="number" step="0.01" value={form.volume_m3 ?? ''} onChange={e => setF('volume_m3', parseFloat(e.target.value) || null)} /></Field>
-                          <Field label="Largeur marchandise (m)"><input className={inp} type="number" step="0.01" value={(form as Record<string, unknown>).largeur_m as string ?? ''} onChange={e => setF('largeur_m', parseFloat(e.target.value) || null)} /></Field>
-                          <Field label="Hauteur marchandise (m)"><input className={inp} type="number" step="0.01" value={(form as Record<string, unknown>).hauteur_m as string ?? ''} onChange={e => setF('hauteur_m', parseFloat(e.target.value) || null)} /></Field>
+                          <Field label="Largeur marchandise (m)"><input className={inp} type="number" step="0.01" value={form.largeur_m ?? ''} onChange={e => setF('largeur_m', parseFloat(e.target.value) || null)} /></Field>
+                          <Field label="Hauteur marchandise (m)"><input className={inp} type="number" step="0.01" value={form.hauteur_m ?? ''} onChange={e => setF('hauteur_m', parseFloat(e.target.value) || null)} /></Field>
                           <Field label="Nombre de colis / palettes"><input className={inp} type="number" value={form.nombre_colis ?? ''} onChange={e => setF('nombre_colis', parseInt(e.target.value) || null)} /></Field>
 
                           {/* Contraintes spécifiques */}
                           <div className="md:col-span-2 xl:col-span-3 flex flex-wrap gap-4">
                             <label className="flex items-center gap-2 cursor-pointer select-none">
-                              <input type="checkbox" className="h-4 w-4 rounded text-indigo-600" checked={!!((form as Record<string, unknown>).adr)} onChange={e => setF('adr', e.target.checked)} />
+                              <input type="checkbox" className="h-4 w-4 rounded text-indigo-600" checked={form.adr} onChange={e => setF('adr', e.target.checked)} />
                               <span className="text-sm font-medium text-slate-700">ADR (marchandises dangereuses)</span>
                             </label>
                             <label className="flex items-center gap-2 cursor-pointer select-none">
-                              <input type="checkbox" className="h-4 w-4 rounded text-indigo-600" checked={!!((form as Record<string, unknown>).temperature_dirigee)} onChange={e => setF('temperature_dirigee', e.target.checked)} />
+                              <input type="checkbox" className="h-4 w-4 rounded text-indigo-600" checked={form.temperature_dirigee} onChange={e => setF('temperature_dirigee', e.target.checked)} />
                               <span className="text-sm font-medium text-slate-700">Température dirigée (frigo requis)</span>
                             </label>
                             <label className="flex items-center gap-2 cursor-pointer select-none">
-                              <input type="checkbox" className="h-4 w-4 rounded text-amber-600" checked={!!((form as Record<string, unknown>).hors_gabarit)} onChange={e => setF('hors_gabarit', e.target.checked)} />
+                              <input type="checkbox" className="h-4 w-4 rounded text-amber-600" checked={form.hors_gabarit} onChange={e => setF('hors_gabarit', e.target.checked)} />
                               <span className="text-sm font-medium text-amber-700">Hors gabarit</span>
                             </label>
                             <label className="flex items-center gap-2 cursor-pointer select-none">
-                              <input type="checkbox" className="h-4 w-4 rounded text-purple-600" checked={!!((form as Record<string, unknown>).charge_indivisible)} onChange={e => setF('charge_indivisible', e.target.checked)} />
+                              <input type="checkbox" className="h-4 w-4 rounded text-purple-600" checked={form.charge_indivisible} onChange={e => setF('charge_indivisible', e.target.checked)} />
                               <span className="text-sm font-medium text-purple-700">Charge indivisible (convoi exceptionnel possible)</span>
                             </label>
                           </div>
@@ -1595,7 +1626,7 @@ export default function Transports() {
                           {form.remorque_id && (() => {
                             const rem = remorques.find(r => r.id === form.remorque_id)
                             if (!rem) return null
-                            const otData = { type_chargement: form.type_chargement, poids_kg: form.poids_kg, tonnage: form.tonnage, volume_m3: form.volume_m3, longueur_m: form.longueur_m, metrage_ml: form.metrage_ml, largeur_m: (form as Record<string, unknown>).largeur_m as number | null, hauteur_m: (form as Record<string, unknown>).hauteur_m as number | null, adr: (form as Record<string, unknown>).adr as boolean, temperature_dirigee: (form as Record<string, unknown>).temperature_dirigee as boolean, hors_gabarit: (form as Record<string, unknown>).hors_gabarit as boolean, charge_indivisible: (form as Record<string, unknown>).charge_indivisible as boolean }
+                            const otData = { type_chargement: form.type_chargement, poids_kg: form.poids_kg, tonnage: form.tonnage, volume_m3: form.volume_m3, longueur_m: form.longueur_m, metrage_ml: form.metrage_ml, largeur_m: form.largeur_m, hauteur_m: form.hauteur_m, adr: form.adr, temperature_dirigee: form.temperature_dirigee, hors_gabarit: form.hors_gabarit, charge_indivisible: form.charge_indivisible }
                             return (
                               <div className="md:col-span-2 xl:col-span-3">
                                 <ChargementBars ot={otData} remorque={{ ...rem, immatriculation: rem.immatriculation }} />
@@ -1680,7 +1711,15 @@ export default function Transports() {
                                 const totalColis = lotLines.reduce((s, l) => s + (l.nombre_colis ?? 0), 0)
                                 const rem = remorques.find(r => r.id === form.remorque_id)
                                 const remplissage = rem
-                                  ? calcRemplissageGroupage(lotLines, rem.charge_utile_kg, rem.longueur_m)
+                                  ? calcRemplissageGroupage(
+                                    lotLines.map(ligne => ({
+                                      poids_kg: ligne.poids_kg,
+                                      tonnage: ligne.poids_kg != null ? Number((ligne.poids_kg / 1000).toFixed(3)) : null,
+                                      metrage_ml: ligne.metrage_ml,
+                                    })),
+                                    rem.charge_utile_kg,
+                                    rem.longueur_m,
+                                  )
                                   : null
                                 return (
                                   <div className="space-y-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">

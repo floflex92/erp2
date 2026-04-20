@@ -135,7 +135,9 @@ export default function AppLayout() {
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (searchRef.current && !searchRef.current.contains(target)) {
         setSearchOpen(false)
       }
     }

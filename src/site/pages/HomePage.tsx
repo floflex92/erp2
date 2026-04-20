@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import useSiteMeta from '@/site/hooks/useSiteMeta'
 import { sitePhotos } from '@/site/lib/sitePhotos'
@@ -439,7 +439,140 @@ function TabIllustration({ tab, onOpenScreenshot }: { tab: FeatureTab['key']; on
 /* ── Shared padding ────────────────────────────────────────── */
 
 const sectionPx: React.CSSProperties = { paddingInline: 'clamp(24px, 8vw, 160px)' }
-const sectionPy: React.CSSProperties = { paddingBlock: 'clamp(24px, 3vw, 56px)' }
+const sectionPy: React.CSSProperties = { paddingBlock: 'clamp(40px, 5vw, 88px)' }
+
+const MARKET_PAINS = [
+  {
+    key: 'planning' as const,
+    title: 'Multi-logiciels qui se contredisent',
+    description: 'Planning, TMS, flotte et facturation vivent dans des outils séparés: vos équipes recollent les informations à la main.',
+  },
+  {
+    key: 'error' as const,
+    title: 'Double saisie quotidienne',
+    description: 'Chaque ordre de transport est ressaisi plusieurs fois, ce qui augmente les erreurs, les retards et les litiges clients.',
+  },
+  {
+    key: 'margin' as const,
+    title: 'Visibilité insuffisante',
+    description: 'Sans lecture temps réel des missions, coûts et statuts, la rentabilité se dégrade avant même d’être visible.',
+  },
+  {
+    key: 'tools' as const,
+    title: 'Communication fragmentée',
+    description: 'Exploitants, dirigeants et conducteurs utilisent des canaux différents. Les décisions arrivent trop tard sur le terrain.',
+  },
+]
+
+const REPLACED_SOFTWARE = [
+  {
+    title: 'TMS transport',
+    description: 'Ordres de transport, affectation, suivi de mission et statuts clients dans un même flux.',
+    link: '/tms-transport',
+  },
+  {
+    title: 'Gestion flotte',
+    description: 'Disponibilités parc, maintenance, alertes atelier et conformité réglementaire reliées à l’exploitation.',
+    link: '/logiciel-gestion-flotte-camion',
+  },
+  {
+    title: 'Suivi conducteur',
+    description: 'Documents, habilitations, conformité et historique mission centralisés sur la fiche conducteur.',
+    link: '/erp-transport',
+  },
+  {
+    title: 'Facturation transport',
+    description: 'De l’ordre validé à la facture, avec relances et exports comptables prêts.',
+    link: '/facturation-transport',
+  },
+  {
+    title: 'Communication opérationnelle',
+    description: 'Échanges terrain et exploitation unifiés pour limiter les ruptures d’information.',
+    link: '/communication',
+  },
+]
+
+const BUSINESS_PATHS = [
+  {
+    title: 'Exploitant',
+    problem: 'Vous subissez des changements de planning en cascade et des informations dispersées.',
+    solution: 'NEXORA relie planning transport, TMS et suivi mission en temps réel dans un seul cockpit.',
+    benefit: 'Bénéfice concret: moins d’urgences subies et des réaffectations plus rapides.',
+  },
+  {
+    title: 'Dirigeant',
+    problem: 'Vous manquez de visibilité instantanée sur la marge, la charge et la performance globale.',
+    solution: 'NEXORA unifie KPIs exploitation, gestion flotte et finance pour piloter par indicateurs fiables.',
+    benefit: 'Bénéfice concret: décisions plus rapides avec une vision claire de la rentabilité.',
+  },
+  {
+    title: 'Conducteur',
+    problem: 'Les consignes changent sans contexte clair et la conformité documentaire est difficile à suivre.',
+    solution: 'NEXORA connecte planning, communication et suivi conducteur dans un espace opérationnel unique.',
+    benefit: 'Bénéfice concret: moins d’incompréhensions, meilleure exécution et conformité maîtrisée.',
+  },
+]
+
+const MODULE_GROUPS = [
+  {
+    title: 'Exploitation',
+    summary: 'Planning transport, ordres de mission, suivi d’exécution et coordination quotidienne.',
+  },
+  {
+    title: 'Flotte',
+    summary: 'Disponibilités véhicules, maintenance, alertes atelier et conformité parc.',
+  },
+  {
+    title: 'RH',
+    summary: 'Dossiers conducteurs, documents obligatoires, habilitations et échéances.',
+  },
+  {
+    title: 'Finance',
+    summary: 'Facturation transport, suivi règlements, relances et pilotage de marge.',
+  },
+  {
+    title: 'Communication',
+    summary: 'Canal unique entre exploitation, terrain et management pour agir plus vite.',
+  },
+]
+
+function LazySection({ children, minHeight = '320px' }: { children: React.ReactNode; minHeight?: string }) {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const [isVisible, setIsVisible] = useState(false)
+
+  useEffect(() => {
+    const node = ref.current
+    if (!node || isVisible) return
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries.some(entry => entry.isIntersecting)) {
+          setIsVisible(true)
+          observer.disconnect()
+        }
+      },
+      { rootMargin: '260px 0px' },
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [isVisible])
+
+  return (
+    <div ref={ref} style={{ minHeight }}>
+      {isVisible ? (
+        children
+      ) : (
+        <section className="w-full" style={{ ...sectionPx, ...sectionPy }} aria-hidden="true">
+          <div className="rounded-[1.6rem] border border-slate-200 bg-white p-6 shadow-[0_12px_32px_rgba(15,23,42,0.07)] sm:p-8">
+            <div className="nx-skeleton h-7 w-40" />
+            <div className="nx-skeleton mt-5 h-10 w-full max-w-3xl" />
+            <div className="nx-skeleton mt-4 h-5 w-full" />
+            <div className="nx-skeleton mt-3 h-5 w-[90%]" />
+          </div>
+        </section>
+      )}
+    </div>
+  )
+}
 
 /* ── Component ─────────────────────────────────────────────── */
 
@@ -449,10 +582,10 @@ export default function HomePage() {
   const [lightboxImage, setLightboxImage] = useState<LightboxImage | null>(null)
 
   useSiteMeta({
-    title: 'ERP transport routier — TMS & flotte | NEXORA Truck',
-    description: 'Pilotez exploitation, flotte et conducteurs depuis un seul ERP transport : planning, TMS, télématique, IA et facturation centralisés pour transporteurs routiers.',
+    title: 'Le système d’exploitation du transport routier',
+    description: 'ERP transport et TMS transport tout-en-un pour exploitation, gestion flotte, optimisation transport, suivi conducteur et facturation sans double saisie.',
     canonicalPath: '/',
-    keywords: 'ERP transport, logiciel transport, TMS transport, gestion flotte, planning transport, exploitation transport, télématique transport, chronotachygraphe, IA transport, NEXORA Truck',
+    keywords: 'ERP transport, TMS transport, gestion flotte, optimisation transport, suivi conducteur, logiciel transport, planning transport, exploitation transport, télématique transport, IA transport, NEXORA Truck',
   })
 
   useEffect(() => {
@@ -536,19 +669,33 @@ export default function HomePage() {
 
   /* Reveal observer */
   useEffect(() => {
-    let obs: IntersectionObserver | undefined
-    const id = requestAnimationFrame(() => {
-      const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal]'))
-      if (!nodes.length) return
-      obs = new IntersectionObserver(
-        entries => entries.forEach(e => {
-          if (e.isIntersecting) { e.target.classList.add('is-in-view'); obs!.unobserve(e.target) }
-        }),
-        { threshold: 0.08 },
-      )
-      nodes.forEach(n => obs!.observe(n))
-    })
-    return () => { cancelAnimationFrame(id); obs?.disconnect() }
+    const observed = new WeakSet<Element>()
+    const obs = new IntersectionObserver(
+      entries => entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-in-view')
+          obs.unobserve(entry.target)
+        }
+      }),
+      { threshold: 0.08 },
+    )
+
+    const observeRevealNodes = () => {
+      document.querySelectorAll<HTMLElement>('[data-reveal]').forEach(node => {
+        if (observed.has(node)) return
+        observed.add(node)
+        obs.observe(node)
+      })
+    }
+
+    observeRevealNodes()
+    const mutationObserver = new MutationObserver(() => observeRevealNodes())
+    mutationObserver.observe(document.body, { childList: true, subtree: true })
+
+    return () => {
+      obs.disconnect()
+      mutationObserver.disconnect()
+    }
   }, [])
 
   const currentTab = useMemo(
@@ -589,21 +736,21 @@ export default function HomePage() {
             className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]"
             style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)', color: '#FFFFFF', letterSpacing: '-0.025em' }}
           >
-            Pilotez exploitation, flotte et conducteurs dans un ERP transport TMS tout-en-un.
+            Le système d’exploitation du transport routier
           </h1>
           <p className="mx-auto mt-6 max-w-2xl" style={{ color: 'rgba(255,255,255,0.8)', fontSize: '20px', lineHeight: 1.6 }}>
-            De la prise d’ordre à la facturation — une seule plateforme pensée par des exploitants.
+            Un seul outil pour piloter exploitation, flotte, conducteurs et performance.
           </p>
           <div className="mt-12 flex flex-wrap items-start justify-center gap-x-5 gap-y-4">
             <div className="flex flex-col items-center">
               <Link
-                to="/connexion-erp"
+                to="/demonstration"
                 className="site-hero-cta"
               >
-                Essai gratuit
+                Demander une démo
               </Link>
               <p className="site-hero-cta-note mt-3 text-sm" style={{ color: 'rgba(255,255,255,0.9)' }}>
-                Accès immédiat. Aucun engagement.
+                Présentation ciblée selon votre activité.
               </p>
             </div>
             <button
@@ -618,469 +765,321 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── 2. PRODUCT REVEAL ── */}
-      <section
-        className="w-full"
-        style={{ background: '#F5F5F7', ...sectionPy }}
-        data-reveal
-        aria-label="Aperçu du logiciel ERP transport NEXORA Truck"
-      >
-        <div className="mx-auto" style={{ width: '100%', maxWidth: '1400px' }}>
-          <div className="overflow-hidden rounded-xl bg-white shadow-[0_20px_80px_rgba(0,0,0,0.08)]">
-            <div className="flex items-center gap-2 border-b px-4 py-3" style={{ borderColor: '#E5E5E5' }}>
-              <span className="h-3 w-3 rounded-full" style={{ background: '#FF5F57' }} />
-              <span className="h-3 w-3 rounded-full" style={{ background: '#FEBC2E' }} />
-              <span className="h-3 w-3 rounded-full" style={{ background: '#28C840' }} />
-              <span className="ml-4 flex-1 rounded-md px-3 py-1 text-xs" style={{ background: '#F5F5F7', color: '#636369' }}>
-                nexora-truck.fr/app/dashboard
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setLightboxImage({ src: '/site/screenshots/accueil-proof.png', alt: 'Aperçu du planning NEXORA Truck' })}
-              className="block w-full cursor-zoom-in"
-              aria-label="Agrandir l'aperçu du planning NEXORA Truck"
-            >
-              <img
-                src="/site/screenshots/accueil-proof.png"
-                alt="Aperçu du planning NEXORA Truck"
-                className="w-full"
-                loading="eager"
-                width="1400"
-                height="840"
-                style={{ display: 'block', maxHeight: '600px', objectFit: 'contain' }}
-              />
-            </button>
-          </div>
-        </div>
-        <p className="mt-6 text-center text-sm" style={{ color: '#636369' }}>
-          Vue exploitation — Planning, carte, KPIs temps réel
-        </p>
-      </section>
-
-      {/* ── 3. SOCIAL PROOF BAR ── */}
-      <section
-        className="w-full bg-white text-center"
-        style={{ ...sectionPx, paddingBlock: 'clamp(28px, 4vw, 56px)' }}
-        data-reveal
-      >
-        <p className="text-sm font-medium tracking-wide flex flex-wrap justify-center gap-x-4 gap-y-1" style={{ color: '#4b4b51' }}>
-          <span>+120 transporteurs</span>
-          <span>4.8/5 satisfaction</span>
-          <span>98,7 % disponibilité</span>
-          <span>Opérationnel en 72 h</span>
-        </p>
-      </section>
-
-      {/* ── 4. PAIN POINTS (no image, 2x2 grid) ── */}
-      <section
-        className="w-full"
-        style={{ background: '#F5F5F7', ...sectionPx, ...sectionPy }}
-        data-reveal
-        aria-labelledby="home-pain-heading"
-      >
-        <h2
-          id="home-pain-heading"
-          className="max-w-3xl font-semibold leading-tight"
-          style={{ fontSize: 'clamp(1.8rem, 4vw, 3rem)', color: '#000000' }}
+      <LazySection minHeight="220px">
+        <section
+          className="w-full bg-white text-center"
+          style={{ ...sectionPx, paddingBlock: 'clamp(24px, 4vw, 44px)' }}
+          data-reveal
+          aria-label="Indicateurs clés NEXORA Truck"
         >
-          Votre exploitation mérite mieux qu’un tableur.
-        </h2>
-        <div className="mt-8 grid gap-x-20 gap-y-8 md:grid-cols-2">
-          {([
-            ['planning', 'Planning éclaté', 'Les changements de mission en cascade vous font perdre du temps et créent du stress.'],
-            ['error', 'Erreurs coûteuses', 'La double saisie génère des litiges, des retards et des coûts cachés évitables.'],
-            ['margin', 'Rentabilité floue', 'Sans vision précise de vos marges, vous pilotez votre exploitation à l’aveugle.'],
-            ['tools', 'Outils dispersés', 'Planning, flotte et finance vivent dans des outils qui ne se parlent pas.'],
-          ] as const).map(([icon, title, desc]) => (
-            <div key={title}>
-              <PainIcon kind={icon} />
-              <h3 className="mt-5 text-xl font-semibold" style={{ color: '#000000' }}>{title}</h3>
-              <p className="mt-2" style={{ color: '#4b4b51' }}>{desc}</p>
-            </div>
-          ))}
-        </div>
-        <p className="mt-8 text-lg font-medium" style={{ color: '#1D1D1F' }}>
-          Vous vous reconnaissez&nbsp;? Il y a une meilleure façon de faire.
-        </p>
-      </section>
+          <p className="text-sm font-semibold tracking-wide" style={{ color: '#1f2937' }}>
+            +120 transporteurs | 4.8/5 satisfaction | 98,7% disponibilité opérationnelle | Opérationnel en 72h
+          </p>
+        </section>
+      </LazySection>
 
-      {/* ── 5. FEATURES TABS ── */}
-      <section
-        id="fonctionnalites"
-        className="w-full bg-white"
-        style={{ ...sectionPx, ...sectionPy }}
-        data-reveal
-        aria-labelledby="home-features-heading"
-      >
-        <h2
-          id="home-features-heading"
-          className="font-semibold"
-          style={{ fontSize: 'clamp(1.8rem, 4vw, 3rem)', color: '#000000' }}
+      <LazySection minHeight="520px">
+        <section
+          className="w-full"
+          style={{ background: '#F5F5F7', ...sectionPx, ...sectionPy }}
+          data-reveal
+          aria-labelledby="home-pain-heading"
         >
-          Fonctionnalités ERP transport
-        </h2>
-
-        <div className="mt-8 flex gap-8 overflow-x-auto border-b" style={{ borderColor: '#E5E5E5' }}>
-          {FEATURE_TABS.map(tab => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              className={`site-tab whitespace-nowrap ${activeTab === tab.key ? 'site-tab-active' : ''}`}
-            >
-              {tab.title.replace(' intelligent', '').replace(' en temps réel', '').replace(' sans friction', '').replace(' et automatisation', '')}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-8 grid items-center gap-8 lg:grid-cols-2">
-          <div>
-            <h3 className="text-2xl font-semibold" style={{ color: '#000000' }}>{currentTab.title}</h3>
-            <p className="mt-4 text-lg leading-8" style={{ color: '#4b4b51' }}>{currentTab.description}</p>
-            <p className="mt-5 text-base font-semibold" style={{ color: '#2563EB' }}>{currentTab.benefit}</p>
-            <ul className="mt-6 space-y-3">
-              {currentTab.highlights.map(item => (
-                <li key={item} className="flex items-start gap-3 text-base leading-7" style={{ color: '#1f2937' }}>
-                  <span className="mt-2.5 h-2.5 w-2.5 shrink-0 rounded-full bg-sky-600" aria-hidden="true" />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-            {currentTab.link && (
-              <Link
-                to={currentTab.link}
-                aria-label={`En savoir plus sur ${currentTab.title}`}
-                className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-sky-700 transition-colors hover:text-sky-900"
-              >
-                En savoir plus
-                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 5l5 5-5 5"/></svg>
-              </Link>
-            )}
-          </div>
-          <div>
-            <TabIllustration key={activeTab} tab={activeTab} onOpenScreenshot={setLightboxImage} />
-          </div>
-        </div>
-      </section>
-
-      {/* ── 6. HOW IT WORKS (horizontal, no image) ── */}
-      <section
-        className="w-full"
-        style={{ background: '#F5F5F7', ...sectionPx, ...sectionPy }}
-        data-reveal
-        aria-labelledby="home-workflow-heading"
-      >
-        <h2
-          id="home-workflow-heading"
-          className="font-semibold leading-tight"
-          style={{ fontSize: 'clamp(1.8rem, 4vw, 3rem)', color: '#000000' }}
-        >
-          Opérationnel en 72 h. Pas en 6 mois.
-        </h2>
-
-        <div className="relative mt-8 grid gap-8 md:grid-cols-3">
-          {/* Connecting line (desktop only) */}
-          <div
-            className="absolute left-[16.67%] right-[16.67%] top-8 hidden h-px md:block"
-            style={{ background: '#E5E5E5' }}
-          />
-
-          {([
-            ['1', 'Configurez', 'Importez véhicules, chauffeurs, clients. 15 minutes.'],
-            ['2', 'Lancez', 'Premiers ordres de transport. Interface guidée.'],
-            ['3', 'Pilotez', 'Dashboard temps réel, facturation en 2 clics.'],
-          ] as const).map(([num, title, desc]) => (
-            <div key={num} className="relative text-center md:text-left">
-              <div
-                className="relative z-10 mx-auto flex h-16 w-16 items-center justify-center rounded-full text-2xl font-bold md:mx-0"
-                style={{ background: '#FFFFFF', border: '1px solid #E5E5E5', color: '#000000' }}
-              >
-                {num}
-              </div>
-              <h3 className="mt-6 text-xl font-semibold" style={{ color: '#000000' }}>{title}</h3>
-              <p className="mt-2" style={{ color: '#4b4b51' }}>{desc}</p>
-            </div>
-          ))}
-        </div>
-
-        <p className="mt-8 text-lg font-medium" style={{ color: '#1D1D1F' }}>
-          Pas de projet IT. Pas de consultant. Vous êtes autonome.
-        </p>
-      </section>
-
-      {/* ── 7. METRICS + TESTIMONIAL ── */}
-      <section
-        className="w-full bg-white"
-        style={{ ...sectionPx, ...sectionPy }}
-        data-reveal
-        aria-label="Résultats mesurés sur l'exploitation transport"
-      >
-        <div className="grid gap-8 text-center md:grid-cols-3">
-          {([
-            ['+14 %', 'marge opérationnelle'],
-            ['1 cockpit', 'pour toute votre exploitation'],
-            ['-60 %', 'temps de facturation'],
-          ] as const).map(([value, label]) => (
-            <div key={value}>
-              <p
-                className="font-extrabold"
-                style={{ fontSize: 'clamp(3rem, 7vw, 6rem)', color: '#000000', lineHeight: 1 }}
-              >
-                {value}
-              </p>
-              <p className="mt-3" style={{ color: '#4b4b51', fontSize: '16px' }}>{label}</p>
-            </div>
-          ))}
-        </div>
-
-        <blockquote className="mx-auto mt-12 max-w-3xl text-center">
-          <p
-            className="font-light italic leading-relaxed"
-            style={{ fontSize: 'clamp(1.3rem, 3vw, 2rem)', color: '#1D1D1F' }}
-          >
-            On est passé de 3 outils à NEXORA en une semaine. Ma facturation sort en 2 clics.
-          </p>
-          <footer className="mt-6 text-base" style={{ color: '#4b4b51' }}>
-            — Karim L., Dirigeant, Transport ALR (42 véhicules)
-          </footer>
-        </blockquote>
-      </section>
-
-      <section
-        className="w-full bg-white"
-        style={{ ...sectionPx, ...sectionPy }}
-        data-reveal
-        aria-labelledby="home-seo-hub-heading"
-      >
-        <h2
-          id="home-seo-hub-heading"
-          className="max-w-4xl font-semibold leading-tight"
-          style={{ fontSize: 'clamp(1.8rem, 4vw, 3rem)', color: '#000000' }}
-        >
-          ERP transport : piloter efficacement son exploitation
-        </h2>
-        <div className="mt-8 max-w-4xl space-y-4" style={{ color: '#4b4b51' }}>
-          <p>
-            Dans une entreprise de transport, la difficulté n’est pas de collecter des informations, mais de les relier au
-            bon moment. Un ERP transport utile rassemble le planning transport, la gestion flotte, les statuts de mission,
-            les contraintes conducteurs et la facturation dans une lecture unique. Quand ces éléments restent dans plusieurs
-            outils, les décisions deviennent lentes, les priorités changent sans trace et les équipes passent plus de temps à
-            vérifier qu’à piloter. Une journée d’exploitation gagne en stabilité quand l’exploitant voit immédiatement ce qui
-            est confirmé, ce qui bloque et ce qui nécessite un arbitrage terrain.
-          </p>
-          <p>
-            Le rôle d’un logiciel transport n’est pas de produire plus d’écrans. Il doit réduire les frictions de
-            coordination. Concrètement, cela signifie éviter la ressaisie entre les modules, sécuriser l’affectation des
-            ressources et garder une continuité claire de l’ordre de transport jusqu’au suivi financier. Cette continuité
-            améliore la qualité de service, limite les retards évitables et donne une base solide pour mesurer la rentabilité
-            mission par mission. Pour les structures qui pilotent déjà de nombreux flux simultanés, la différence est
-            immédiate: moins d’angles morts, moins de corrections de dernière minute et plus de décisions prises avec des
-            données fiables.
-          </p>
-        </div>
-
-        <div className="mt-12 grid gap-8 lg:grid-cols-3">
-          <article className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5">
-            <h3 className="text-2xl font-semibold tracking-tight" style={{ color: '#000000' }}>
-              Planning transport
-            </h3>
-            <p className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
-              Structurer la journée avant qu’elle ne se dèrègle
-            </p>
-            <p className="mt-2 text-sm leading-7" style={{ color: '#4b4b51' }}>
-              Un planning transport efficace doit intégrer la charge réelle, les disponibilités conducteurs, la faisabilité
-              flotte et les contraintes clients. L’objectif n’est pas d’écrire un plan parfait, mais de rendre les
-              réaffectations rapides et lisibles quand la journée bouge.
-            </p>
-          </article>
-
-          <article className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5">
-            <h3 className="text-2xl font-semibold tracking-tight" style={{ color: '#000000' }}>
-              Gestion de flotte
-            </h3>
-            <p className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
-              Relier disponibilité, maintenance et exploitation
-            </p>
-            <p className="mt-2 text-sm leading-7" style={{ color: '#4b4b51' }}>
-              La gestion flotte est vraiment utile lorsqu’elle reste connectée au pilotage opérationnel. Une indisponibilité,
-              un passage atelier ou une contrainte réglementaire doivent être visibles avant l’affectation, pas après le
-              départ de mission.
-            </p>
-          </article>
-
-          <article className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5">
-            <h3 className="text-2xl font-semibold tracking-tight" style={{ color: '#000000' }}>
-              Suivi des opérations
-            </h3>
-            <p className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
-              Décider vite avec des statuts compréhensibles
-            </p>
-            <p className="mt-2 text-sm leading-7" style={{ color: '#4b4b51' }}>
-              Le suivi des opérations doit montrer l’avancement réel, les incidents et les points de blocage sans multiplier
-              les canaux. Cette lecture améliore la relation client et réduit le temps de coordination interne.
-            </p>
-          </article>
-        </div>
-
-        <div className="mt-8 grid gap-8 lg:grid-cols-3">
-          <article className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5">
-            <h3 className="text-2xl font-semibold tracking-tight" style={{ color: '#000000' }}>
-              TMS transport
-            </h3>
-            <p className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
-              Piloter les ordres de transport dans un flux unique
-            </p>
-            <p className="mt-2 text-sm leading-7" style={{ color: '#4b4b51' }}>
-              Un <Link to="/tms-transport" style={{ color: '#2563EB', fontWeight: 600 }}>TMS transport</Link> efficace relie
-              la création de l'ordre à son exécution terrain et à la facturation. Séparé du reste, il produit des données
-              sans les relier à l'exploitation. NEXORA Truck unifie TMS et ERP dans le même environnement.
-            </p>
-          </article>
-
-          <article className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5">
-            <h3 className="text-2xl font-semibold tracking-tight" style={{ color: '#000000' }}>
-              Télématique et chronotachygraphe
-            </h3>
-            <p className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
-              Données terrain et conformité intégrées
-            </p>
-            <p className="mt-2 text-sm leading-7" style={{ color: '#4b4b51' }}>
-              La <Link to="/telematique-transport" style={{ color: '#2563EB', fontWeight: 600 }}>télématique embarquée</Link> remonte
-              position, kilométrage et alertes directement dans l'ERP. Le module{' '}
-              <Link to="/chronotachygraphe" style={{ color: '#2563EB', fontWeight: 600 }}>chronotachygraphe</Link> assure
-              le suivi automatisé des temps de conduite et la conformité réglementaire.
-            </p>
-          </article>
-
-          <article className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5">
-            <h3 className="text-2xl font-semibold tracking-tight" style={{ color: '#000000' }}>
-              IA transport
-            </h3>
-            <p className="mt-4 text-lg font-semibold" style={{ color: '#000000' }}>
-              Optimiser l’exploitation par l’intelligence artificielle
-            </p>
-            <p className="mt-2 text-sm leading-7" style={{ color: '#4b4b51' }}>
-              L'<Link to="/ia-transport" style={{ color: '#2563EB', fontWeight: 600 }}>IA transport</Link> de NEXORA Truck
-              propose des suggestions de planning, détecte les anomalies en temps réel et optimise les tournées pour réduire
-              les kilomètres à vide et améliorer la rentabilité mission.
-            </p>
-          </article>
-        </div>
-
-        <div className="mt-8 max-w-4xl space-y-4" style={{ color: '#4b4b51' }}>
-          <p>
-            Pour approfondir cette logique, consultez la page <Link to="/erp-transport">ERP transport</Link>, la page{' '}
-            <Link to="/logiciel-transport">logiciel transport</Link>, le{' '}
-            <Link to="/tms-transport">TMS transport</Link>, la{' '}
-            <Link to="/logiciel-gestion-flotte-camion">gestion de flotte</Link>, la{' '}
-            <Link to="/telematique-transport">télématique</Link>, le{' '}
-            <Link to="/chronotachygraphe">chronotachygraphe</Link>, l'<Link to="/ia-transport">IA transport</Link>{' '}
-            et la rubrique <Link to="/articles">articles</Link>.
-          </p>
-        </div>
-      </section>
-
-      {/* ── 8. BLOG PREVIEW ── */}
-      <section
-        className="w-full bg-[#F5F5F7]"
-        style={{ ...sectionPx, paddingBlock: 'clamp(28px, 3.5vw, 56px)' }}
-        data-reveal
-        aria-labelledby="home-blog-heading"
-      >
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.32em]" style={{ color: '#2563EB' }}>Blog</p>
+          <div className="max-w-5xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em]" style={{ color: '#2563EB' }}>Problème marché</p>
             <h2
-              id="home-blog-heading"
-              className="mt-3 font-semibold tracking-tight"
-              style={{ fontSize: 'clamp(1.6rem, 3.5vw, 2.4rem)', color: '#000000' }}
+              id="home-pain-heading"
+              className="mt-4 max-w-4xl font-semibold leading-tight"
+              style={{ fontSize: 'clamp(1.95rem, 4.2vw, 3.2rem)', color: '#000000' }}
             >
-              Ressources métier transport
+              Pourquoi les transporteurs perdent du temps et de l’argent
             </h2>
           </div>
-          <Link
-            to="/articles"
-            className="text-sm font-semibold transition-colors shrink-0"
-            style={{ color: '#2563EB' }}
-          >
-            Tous les articles →
+
+          <div className="mt-12 grid gap-6 md:grid-cols-2">
+            {MARKET_PAINS.map(item => (
+              <article key={item.title} className="rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-[0_10px_28px_rgba(15,23,42,0.05)]">
+                <PainIcon kind={item.key} />
+                <h3 className="mt-5 text-2xl font-semibold" style={{ color: '#000000' }}>{item.title}</h3>
+                <p className="mt-3 text-base leading-8" style={{ color: '#374151' }}>{item.description}</p>
+              </article>
+            ))}
+          </div>
+
+          <Link to="/demonstration" className="site-btn-primary mt-10 inline-flex px-6 py-3 text-sm">
+            Voir comment NEXORA corrige ces blocages
           </Link>
-        </div>
+        </section>
+      </LazySection>
 
-        <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {articleIndex.slice(-3).map(article => (
-            <Link
-              key={article.slug}
-              to={`/articles/${article.slug}`}
-              aria-label={`Lire l'article : ${article.title}`}
-              className="group flex flex-col rounded-[1.8rem] border bg-white p-6 transition-all hover:-translate-y-0.5"
-              style={{ borderColor: 'rgba(148,163,184,0.18)', boxShadow: '0 10px 28px rgba(15,23,42,0.06)' }}
+      <LazySection minHeight="640px">
+        <section
+          id="fonctionnalites"
+          className="w-full bg-white"
+          style={{ ...sectionPx, ...sectionPy }}
+          data-reveal
+          aria-labelledby="home-solution-heading"
+        >
+          <div className="max-w-5xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em]" style={{ color: '#2563EB' }}>Solution</p>
+            <h2
+              id="home-solution-heading"
+              className="mt-4 font-semibold leading-tight"
+              style={{ fontSize: 'clamp(1.95rem, 4.2vw, 3.2rem)', color: '#000000' }}
             >
-              <span
-                className="mb-3 inline-block self-start rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.15em]"
-                style={{ background: 'rgba(37,99,235,0.07)', color: '#2563EB' }}
-              >
-                Article
-              </span>
-              <h3
-                className="flex-1 text-base font-semibold leading-snug tracking-tight transition-colors"
-                style={{ color: '#1D1D1F' }}
-              >
-                {article.title}
-              </h3>
-              <p className="mt-3 text-sm leading-6" style={{ color: '#4b4b51' }}>{article.description}</p>
-              <span className="mt-5 text-xs font-semibold transition-colors" style={{ color: '#2563EB' }}>
-                Lire l'article →
-              </span>
-            </Link>
-          ))}
-        </div>
-      </section>
+              NEXORA remplace 5 logiciels
+            </h2>
+            <p className="mt-4 max-w-4xl text-base leading-8" style={{ color: '#374151' }}>
+              Un seul ERP transport pour relier exploitation, TMS transport, gestion flotte, suivi conducteur, finance et communication.
+              Vous éliminez la double saisie et vous gardez une chaîne opérationnelle cohérente de la mission à la facture.
+            </p>
+          </div>
 
-      {/* ── 9. FINAL CTA (with background image) ── */}
-      <section
-        className="relative w-full overflow-hidden text-center"
-        style={{ ...sectionPx, paddingBlock: 'clamp(40px, 5vw, 80px)' }}
-        data-reveal
-        aria-labelledby="home-cta-heading"
-      >
-        <img
-          src={sitePhotos.truckMountainRoad.src(1400)}
-          srcSet={sitePhotos.truckMountainRoad.srcSet([768, 1200, 1400])}
-          sizes="100vw"
-          alt="Camion de transport sur route ouverte sans logo visible"
-          loading="lazy"
-          decoding="async"
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} />
+          <div className="mt-10 grid gap-5 lg:grid-cols-5">
+            {REPLACED_SOFTWARE.map(item => (
+              <article key={item.title} className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-5">
+                <h3 className="text-lg font-semibold" style={{ color: '#000000' }}>{item.title}</h3>
+                <p className="mt-3 text-sm leading-7" style={{ color: '#374151' }}>{item.description}</p>
+                <Link to={item.link} className="mt-4 inline-flex text-sm font-semibold" style={{ color: '#1d4ed8' }}>
+                  En savoir plus
+                </Link>
+              </article>
+            ))}
+          </div>
 
-        <div className="relative">
+          <div className="mt-12 rounded-[1.6rem] border border-slate-200 bg-[#f5f5f7] p-6 sm:p-8">
+            <h3 className="text-2xl font-semibold" style={{ color: '#000000' }}>Exemple concret sur votre exploitation</h3>
+            <div className="mt-6 flex gap-8 overflow-x-auto border-b" style={{ borderColor: '#D1D5DB' }}>
+              {FEATURE_TABS.map(tab => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`site-tab whitespace-nowrap ${activeTab === tab.key ? 'site-tab-active' : ''}`}
+                >
+                  {tab.title.replace(' intelligent', '').replace(' en temps réel', '').replace(' sans friction', '').replace(' et automatisation', '')}
+                </button>
+              ))}
+            </div>
+            <div className="mt-8 grid items-center gap-8 lg:grid-cols-2">
+              <div>
+                <h3 className="text-2xl font-semibold" style={{ color: '#000000' }}>{currentTab.title}</h3>
+                <p className="mt-4 text-base leading-8" style={{ color: '#374151' }}>{currentTab.description}</p>
+                <p className="mt-4 text-base font-semibold" style={{ color: '#1d4ed8' }}>{currentTab.benefit}</p>
+                <ul className="mt-5 space-y-3">
+                  {currentTab.highlights.map(item => (
+                    <li key={item} className="flex items-start gap-3 text-base leading-7" style={{ color: '#1f2937' }}>
+                      <span className="mt-2.5 h-2.5 w-2.5 shrink-0 rounded-full bg-sky-700" aria-hidden="true" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <TabIllustration key={activeTab} tab={activeTab} onOpenScreenshot={setLightboxImage} />
+              </div>
+            </div>
+          </div>
+        </section>
+      </LazySection>
+
+      <LazySection minHeight="560px">
+        <section
+          className="w-full"
+          style={{ background: '#F5F5F7', ...sectionPx, ...sectionPy }}
+          data-reveal
+          aria-labelledby="home-business-path-heading"
+        >
           <h2
-            id="home-cta-heading"
-            className="mx-auto max-w-3xl text-balance font-semibold leading-tight"
-            style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', color: '#FFFFFF' }}
+            id="home-business-path-heading"
+            className="max-w-4xl font-semibold leading-tight"
+            style={{ fontSize: 'clamp(1.95rem, 4.2vw, 3.2rem)', color: '#000000' }}
           >
-            Reprenez le contrôle de votre exploitation. Dès aujourd’hui.
+            Parcours métier: une réponse claire pour chaque rôle
           </h2>
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-            <Link
-              to="/connexion-erp"
-              className="site-btn-primary px-6 py-3 text-sm transition-colors"
+
+          <div className="mt-10 grid gap-6 lg:grid-cols-3">
+            {BUSINESS_PATHS.map(path => (
+              <article key={path.title} className="rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-[0_10px_28px_rgba(15,23,42,0.05)]">
+                <h3 className="text-2xl font-semibold" style={{ color: '#000000' }}>{path.title}</h3>
+                <p className="mt-4 text-sm font-semibold uppercase tracking-[0.14em]" style={{ color: '#1d4ed8' }}>Problème</p>
+                <p className="mt-2 text-base leading-8" style={{ color: '#374151' }}>{path.problem}</p>
+                <p className="mt-4 text-sm font-semibold uppercase tracking-[0.14em]" style={{ color: '#1d4ed8' }}>Solution NEXORA</p>
+                <p className="mt-2 text-base leading-8" style={{ color: '#374151' }}>{path.solution}</p>
+                <p className="mt-4 text-sm font-semibold uppercase tracking-[0.14em]" style={{ color: '#1d4ed8' }}>Bénéfice</p>
+                <p className="mt-2 text-base leading-8" style={{ color: '#111827' }}>{path.benefit}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      </LazySection>
+
+      <LazySection minHeight="500px">
+        <section
+          className="w-full bg-white"
+          style={{ ...sectionPx, ...sectionPy }}
+          data-reveal
+          aria-labelledby="home-modules-heading"
+        >
+          <h2
+            id="home-modules-heading"
+            className="max-w-4xl font-semibold leading-tight"
+            style={{ fontSize: 'clamp(1.95rem, 4.2vw, 3.2rem)', color: '#000000' }}
+          >
+            Modules simplifiés: l’essentiel en 5 blocs
+          </h2>
+          <p className="mt-4 max-w-4xl text-base leading-8" style={{ color: '#374151' }}>
+            NEXORA organise les fonctions clés d’un ERP transport et d’un TMS transport en modules lisibles, pour un pilotage plus rapide et une adoption immédiate.
+          </p>
+
+          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
+            {MODULE_GROUPS.map(group => (
+              <article key={group.title} className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-5">
+                <h3 className="text-xl font-semibold" style={{ color: '#000000' }}>{group.title}</h3>
+                <p className="mt-3 text-sm leading-7" style={{ color: '#374151' }}>{group.summary}</p>
+              </article>
+            ))}
+          </div>
+
+          <Link to="/solution" className="site-btn-primary mt-10 inline-flex px-6 py-3 text-sm">
+            Explorer tous les modules
+          </Link>
+        </section>
+      </LazySection>
+
+      <LazySection minHeight="560px">
+        <section
+          className="w-full"
+          style={{ background: '#F5F5F7', ...sectionPx, ...sectionPy }}
+          data-reveal
+          aria-labelledby="home-roi-heading"
+        >
+          <h2
+            id="home-roi-heading"
+            className="max-w-4xl font-semibold leading-tight"
+            style={{ fontSize: 'clamp(1.95rem, 4.2vw, 3.2rem)', color: '#000000' }}
+          >
+            Preuve et ROI: des gains visibles dès les premières semaines
+          </h2>
+
+          <div className="mt-10 grid gap-6 text-center md:grid-cols-3">
+            {([
+              ['-31%', 'temps passé sur le planning transport'],
+              ['-60%', 'temps de facturation transport'],
+              ['+14%', 'marge opérationnelle moyenne'],
+            ] as const).map(([value, label]) => (
+              <article key={value} className="rounded-[1.5rem] border border-slate-200 bg-white p-6">
+                <p className="font-extrabold" style={{ fontSize: 'clamp(2.5rem, 6vw, 4.5rem)', color: '#000000', lineHeight: 1 }}>{value}</p>
+                <h3 className="mt-3 text-lg font-semibold" style={{ color: '#111827' }}>{label}</h3>
+              </article>
+            ))}
+          </div>
+
+          <div className="mt-10 grid gap-6 lg:grid-cols-2">
+            <article className="rounded-[1.5rem] border border-slate-200 bg-white p-6">
+              <h3 className="text-2xl font-semibold" style={{ color: '#000000' }}>SEO métier transport</h3>
+              <p className="mt-4 text-base leading-8" style={{ color: '#374151' }}>
+                Un ERP transport performant doit couvrir le cycle complet: <strong>ERP transport</strong>, <strong>TMS transport</strong>,
+                <strong> gestion flotte</strong>, <strong>optimisation transport</strong> et <strong>suivi conducteur</strong>. NEXORA relie ces briques
+                dans une seule interface, pour réduire la densité opérationnelle et accélérer la décision.
+              </p>
+              <p className="mt-4 text-base leading-8" style={{ color: '#374151' }}>
+                En centralisant exploitation, communication et finance, les équipes évitent les ruptures d’information et améliorent
+                la qualité de service client.
+              </p>
+            </article>
+            <article className="rounded-[1.5rem] border border-slate-200 bg-white p-6">
+              <h3 className="text-2xl font-semibold" style={{ color: '#000000' }}>Retour terrain</h3>
+              <blockquote className="mt-4 text-lg leading-8 italic" style={{ color: '#111827' }}>
+                On est passé de 3 outils à NEXORA en une semaine. Le planning est plus lisible, le suivi conducteur plus fiable
+                et la facturation sort sans ressaisie.
+              </blockquote>
+              <p className="mt-4 text-sm font-semibold" style={{ color: '#374151' }}>
+                Karim L., dirigeant transport (42 véhicules)
+              </p>
+              <Link to="/roi" className="mt-5 inline-flex text-sm font-semibold" style={{ color: '#1d4ed8' }}>
+                Voir les cas ROI détaillés
+              </Link>
+            </article>
+          </div>
+        </section>
+      </LazySection>
+
+      <LazySection minHeight="420px">
+        <section
+          className="w-full bg-white"
+          style={{ ...sectionPx, ...sectionPy }}
+          data-reveal
+          aria-labelledby="home-blog-heading"
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <h2
+              id="home-blog-heading"
+              className="font-semibold"
+              style={{ fontSize: 'clamp(1.7rem, 3.8vw, 2.4rem)', color: '#000000' }}
             >
-              Essai gratuit
-            </Link>
-            <Link
-              to="/contact"
-              className="text-sm font-semibold transition-colors"
-              style={{ color: '#FFFFFF' }}
-            >
-              Parler à un expert
+              Ressources ERP transport et optimisation transport
+            </h2>
+            <Link to="/articles" className="text-sm font-semibold" style={{ color: '#1d4ed8' }}>
+              Tous les articles
             </Link>
           </div>
-        </div>
-      </section>
+          <div className="mt-8 grid gap-5 md:grid-cols-2">
+            {articleIndex.slice(-2).map(article => (
+              <Link
+                key={article.slug}
+                to={`/articles/${article.slug}`}
+                aria-label={`Lire l'article : ${article.title}`}
+                className="rounded-[1.5rem] border border-slate-200 bg-[#f8fafc] p-6 transition-colors hover:border-slate-300"
+              >
+                <h3 className="text-lg font-semibold" style={{ color: '#000000' }}>{article.title}</h3>
+                <p className="mt-3 text-sm leading-7" style={{ color: '#374151' }}>{article.description}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      </LazySection>
+
+      <LazySection minHeight="420px">
+        <section
+          className="relative w-full overflow-hidden text-center"
+          style={{ ...sectionPx, paddingBlock: 'clamp(56px, 6vw, 96px)' }}
+          data-reveal
+          aria-labelledby="home-cta-heading"
+        >
+          <img
+            src={sitePhotos.truckMountainRoad.src(1400)}
+            srcSet={sitePhotos.truckMountainRoad.srcSet([768, 1200, 1400])}
+            sizes="100vw"
+            alt="Camion de transport sur route ouverte sans logo visible"
+            loading="lazy"
+            decoding="async"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.55)' }} />
+
+          <div className="relative">
+            <h2
+              id="home-cta-heading"
+              className="mx-auto max-w-3xl text-balance font-semibold leading-tight"
+              style={{ fontSize: 'clamp(2rem, 5vw, 3.4rem)', color: '#FFFFFF' }}
+            >
+              Passez de la complexité à un pilotage clair en un seul outil.
+            </h2>
+            <p className="mx-auto mt-5 max-w-2xl text-base leading-8" style={{ color: 'rgba(255,255,255,0.92)' }}>
+              Demandez une démo personnalisée ou testez l’ERP transport NEXORA dès maintenant.
+            </p>
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+              <Link to="/demonstration" className="site-btn-primary px-6 py-3 text-sm transition-colors">
+                Demander une démo
+              </Link>
+              <Link to="/connexion-erp" className="site-hero-cta px-6 py-3 text-sm transition-colors">
+                Tester l’ERP
+              </Link>
+            </div>
+          </div>
+        </section>
+      </LazySection>
 
     </>
   )

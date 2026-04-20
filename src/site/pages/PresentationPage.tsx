@@ -13,6 +13,8 @@ export default function PresentationPage() {
     description: "Téléchargez et consultez la présentation complète de l'ERP TMS NEXORA Truck : modules, fonctionnalités, architecture et bénéfices pour les transporteurs routiers.",
     canonicalPath: '/presentation',
     keywords: 'présentation ERP transport, TMS brochure, logiciel transport routier PDF, NEXORA Truck',
+    ogImage: 'https://nexora-truck.fr/site/logo/nexora-presentation-logo.png',
+    twitterImage: 'https://nexora-truck.fr/site/logo/nexora-presentation-logo.png',
   })
 
   return (
@@ -42,6 +44,24 @@ export default function PresentationPage() {
             <span style={{ fontSize: 12, color: '#a5b4fc', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
               Document officiel
             </span>
+          </div>
+
+          <div style={{ marginBottom: 24 }}>
+            <img
+              src="/site/logo/nexora-presentation-logo.png"
+              alt="Logo NEXORA Truck"
+              width={120}
+              height={120}
+              style={{
+                display: 'inline-block',
+                borderRadius: 14,
+                border: '1px solid rgba(255,255,255,0.2)',
+                boxShadow: '0 10px 28px rgba(0,0,0,0.38)',
+                background: 'rgba(255,255,255,0.06)',
+              }}
+              loading="eager"
+              decoding="async"
+            />
           </div>
 
           <h1

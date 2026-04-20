@@ -4,24 +4,6 @@ import { useAsyncData } from '@/hooks/useAsyncData'
 import { SkeletonKpi } from '@/components/ui/SkeletonKpi'
 import { DataState } from '@/components/ui/DataState'
 
-interface KpiData {
-  ca_mois: number
-  marge_mois: number
-  nb_ot_mois: number
-  nb_ot_retard: number
-  nb_ot_en_cours: number
-  nb_livres: number
-}
-
-interface KpiData {
-  ca_mois: number
-  marge_mois: number
-  nb_ot_mois: number
-  nb_ot_retard: number
-  nb_ot_en_cours: number
-  nb_livres: number
-}
-
 function KpiCard({
   label,
   value,

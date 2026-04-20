@@ -67,6 +67,7 @@ async function createAdminUserRequest(accessToken: string, user: DemoUserSpec) {
     },
     body: JSON.stringify({
       email: user.email,
+      external_email: user.email,
       password: user.password,
       role: user.role,
       nom: user.nom,

@@ -232,20 +232,29 @@ export default function Chauffeurs() {
       let vehicules = (vehRes.data ?? []) as Vehicule[]
       let remorques = (remRes.data ?? []) as Remorque[]
 
-      if (conducteurs.length === 0) {
-        const persons = await listPersonsForDirectory()
-        conducteurs = persons
-          .filter(person => ['driver', 'conducteur', 'chauffeur'].includes((person.person_type ?? '').toLowerCase()))
-          .map(person => ({
-            id: person.legacy_conducteur_id ?? person.id,
-            nom: person.last_name ?? '-',
-            prenom: person.first_name ?? '',
-            telephone: person.phone ?? null,
-            email: person.email ?? null,
-            statut: (person.status as Conducteur['statut']) ?? 'actif',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })) as Conducteur[]
+      const directoryPersons = await listPersonsForDirectory()
+      const driverPersons = directoryPersons.filter(person => ['driver', 'conducteur', 'chauffeur'].includes((person.person_type ?? '').toLowerCase()))
+      const conducteurKeys = new Set(conducteurs.map(c => `${(c.matricule ?? `${c.nom}|${c.prenom}`).toLowerCase()}`))
+      const conducteurIds = new Set(conducteurs.map(c => c.id))
+
+      const mergedFromDirectory = driverPersons
+        .map(person => ({
+          id: person.legacy_conducteur_id ?? person.id,
+          nom: person.last_name ?? '-',
+          prenom: person.first_name ?? '',
+          telephone: person.phone ?? null,
+          email: person.email ?? null,
+          statut: (person.status as Conducteur['statut']) ?? 'actif',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })) as Conducteur[]
+
+      for (const candidate of mergedFromDirectory) {
+        const key = (candidate.matricule ?? `${candidate.nom}|${candidate.prenom}`).toLowerCase()
+        if (conducteurIds.has(candidate.id) || conducteurKeys.has(key)) continue
+        conducteurs.push(candidate)
+        conducteurIds.add(candidate.id)
+        conducteurKeys.add(key)
       }
 
       if (vehicules.length === 0 || remorques.length === 0) {

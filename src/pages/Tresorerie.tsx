@@ -717,6 +717,11 @@ function PrevisionsTab() {
     probabilite: '100',
   })
   const [saving, setSaving] = useState(false)
+  const [projectionStart, setProjectionStart] = useState<string>('')
+
+  useEffect(() => {
+    setProjectionStart(new Date().toISOString().split('T')[0])
+  }, [])
 
   async function load() {
     setLoading(true)
@@ -749,9 +754,12 @@ function PrevisionsTab() {
 
   // Flux agrégés par semaine pour le graphe
   const fluxSemaines = useMemo(() => {
+    if (!projectionStart) return []
+
     const semaines: { label: string; entrees: number; sorties: number; net: number }[] = []
+    const baseDate = new Date(`${projectionStart}T00:00:00`)
     for (let i = 0; i < 13; i++) {
-      const debut = new Date(Date.now() + i * 7 * 86400000)
+      const debut = new Date(baseDate.getTime() + i * 7 * 86400000)
       const fin = new Date(debut.getTime() + 7 * 86400000)
       const dS = debut.toISOString().split('T')[0]
       const dF = fin.toISOString().split('T')[0]
@@ -761,7 +769,7 @@ function PrevisionsTab() {
       semaines.push({ label: `S${i + 1}`, entrees, sorties: Math.abs(sorties), net: entrees + sorties })
     }
     return semaines
-  }, [flux])
+  }, [flux, projectionStart])
 
   // Solde cumulé prévisionnel
   const soldePrev90 = useMemo(() => {

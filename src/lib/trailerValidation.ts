@@ -675,19 +675,31 @@ export function validateTrailerAssignment(
   // ── 2. Capacité poids ─────────────────────────────────────────────────────
   const issuesPoids = checkPoids(ot, rem)
   if (issuesPoids) {
-    issuesPoids.severity === 'error' ? errors.push(issuesPoids) : warnings.push(issuesPoids)
+    if (issuesPoids.severity === 'error') {
+      errors.push(issuesPoids)
+    } else {
+      warnings.push(issuesPoids)
+    }
   }
 
   // ── 3. Capacité volume ────────────────────────────────────────────────────
   const issuesVol = checkVolume(ot, rem)
   if (issuesVol) {
-    issuesVol.severity === 'error' ? errors.push(issuesVol) : warnings.push(issuesVol)
+    if (issuesVol.severity === 'error') {
+      errors.push(issuesVol)
+    } else {
+      warnings.push(issuesVol)
+    }
   }
 
   // ── 4. Longueur ───────────────────────────────────────────────────────────
   const issuesLon = checkLongueur(ot, rem)
   if (issuesLon) {
-    issuesLon.severity === 'error' ? errors.push(issuesLon) : warnings.push(issuesLon)
+    if (issuesLon.severity === 'error') {
+      errors.push(issuesLon)
+    } else {
+      warnings.push(issuesLon)
+    }
   }
 
   // ── 5. Contraintes spécifiques ────────────────────────────────────────────

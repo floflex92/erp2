@@ -19,7 +19,7 @@ export default defineConfig({
   build: {
     target: 'es2022',
     cssCodeSplit: true,
-    chunkSizeWarningLimit: 200,
+    chunkSizeWarningLimit: 160,
     reportCompressedSize: false,
     assetsInlineLimit: 2048,
     rollupOptions: {
@@ -31,6 +31,10 @@ export default defineConfig({
           if (id.includes('node_modules/leaflet/')) return 'vendor-leaflet'
           if (id.includes('node_modules/jspdf/')) return 'vendor-pdf'
           if (id.includes('node_modules/@anthropic-ai/')) return 'vendor-ai'
+          if (id.includes('/src/pages/Planning')) return 'erp-planning'
+          if (id.includes('/src/pages/MapLive')) return 'erp-map-live'
+          if (id.includes('/src/pages/Dashboard')) return 'erp-dashboard-page'
+          if (id.includes('/src/components/dashboard-v21/')) return 'erp-dashboard-v21'
           if (id.includes('/src/site/pages/HomePage')) return 'site-home'
           if (id.includes('/src/site/pages/') || id.includes('/src/site/components/') || id.includes('/src/site/lib/') || id.includes('/src/site/hooks/') || id.includes('/src/site/content/')) return 'site-public'
           return undefined

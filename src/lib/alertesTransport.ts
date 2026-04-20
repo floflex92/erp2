@@ -440,7 +440,6 @@ export async function fetchToutesAlertes(): Promise<AlertesResult> {
  * incluses ici — elles s'affichent dans l'onglet "Alertes auto" uniquement.
  */
 export async function countAlertesActives(): Promise<number> {
-  const ST_EN_COURS_STR = '("en_cours_approche_chargement","en_chargement","en_transit","en_livraison")'
   const ST_TERMINE_ANNULE = '("termine","annule")'
 
   const [r1, r2, r3] = await Promise.allSettled([

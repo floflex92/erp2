@@ -377,17 +377,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfilLoading(true)
 
     try {
-      // Vérifie si l'utilisateur est un platform admin (DB check)
-      const platformAdminResult = await checkIsPlatformAdmin().catch(() => false)
+      const [platformAdminResult, data] = await Promise.all([
+        checkIsPlatformAdmin().catch(() => false),
+        withTimeout(fetchProfileRow(user.id), PROFILE_TIMEOUT_MS, 'profile load'),
+      ])
+
       setIsPlatformAdminState(platformAdminResult)
 
-      // Charge la session d'impersonation active si platform admin
       if (platformAdminResult) {
-        const imp = await getActiveImpersonation().catch(() => null)
-        setImpersonation(imp)
+        void getActiveImpersonation()
+          .then(imp => setImpersonation(imp))
+          .catch(() => setImpersonation(null))
+      } else {
+        setImpersonation(null)
       }
-
-      const data = await withTimeout(fetchProfileRow(user.id), PROFILE_TIMEOUT_MS, 'profile load')
           // MULTI-TENANT Phase 1 : company_id ajouté au select
 
       // Si aucun profil en base, on en crée un via le RPC sécurisé (SECURITY DEFINER).
@@ -417,24 +420,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       let tenantAllowedPages: string[] | null = null
       let enabledModules: TenantModule[] | null = null
 
-      if (profileData?.tenant_key) {
-        const { data: tenantData } = await supabase
-          .from('erp_v11_tenants')
-          .select('allowed_pages')
-          .eq('tenant_key', profileData.tenant_key)
-          .maybeSingle()
-        tenantAllowedPages = normalizeAllowedPages(tenantData?.allowed_pages ?? null)
-      }
-
-      // Charge les modules actifs depuis companies (cached : lecture seule, pas de mise a jour)
       const companyIdForLoad = profileData?.company_id ?? 1
+
+      const tenantPromise = profileData?.tenant_key
+        ? supabase
+            .from('erp_v11_tenants')
+            .select('allowed_pages')
+            .eq('tenant_key', profileData.tenant_key)
+            .maybeSingle()
+        : Promise.resolve({ data: null as { allowed_pages?: unknown } | null })
+
+      const companyPromise = companyIdForLoad
+        ? supabase
+            .from('companies')
+            .select('enabled_modules')
+            .eq('id', companyIdForLoad)
+            .maybeSingle()
+        : Promise.resolve({ data: null as { enabled_modules?: unknown } | null })
+
+      const [tenantResult, companyResult] = await Promise.all([tenantPromise, companyPromise])
+      tenantAllowedPages = normalizeAllowedPages(tenantResult.data?.allowed_pages ?? null)
       if (companyIdForLoad) {
-        const { data: companyData } = await supabase
-          .from('companies')
-          .select('enabled_modules')
-          .eq('id', companyIdForLoad)
-          .maybeSingle()
-        enabledModules = normalizeEnabledModules(companyData?.enabled_modules)
+        enabledModules = normalizeEnabledModules(companyResult.data?.enabled_modules)
       }
 
       const metadataRole = normalizeRole(user.app_metadata?.role ?? user.user_metadata?.role ?? null)

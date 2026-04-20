@@ -34,10 +34,6 @@ function formatDuration(min: number): string {
   return `${h}h${m > 0 ? String(m).padStart(2, '0') : ''}`
 }
 
-function toDateValue(isoOrDate: string): string {
-  return isoOrDate.split('T')[0]
-}
-
 const TYPE_COLORS: Record<string, string> = {
   chargement: 'bg-blue-800 text-blue-100',
   livraison: 'bg-emerald-800 text-emerald-100',

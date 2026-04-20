@@ -242,10 +242,13 @@ export default function Rh() {
   const filteredWorkforce = useMemo(() => {
     const q = workforceSearch.trim().toLowerCase()
     return workforce.filter(member => {
-      if (workforceFilter === 'conducteurs' && member.source !== 'conducteur') return false
-      if (workforceFilter === 'exploitants' && member.source !== 'exploitant') return false
+      const metier = member.metier.toLowerCase()
+      const isConducteurLike = member.source === 'conducteur' || metier.includes('conducteur')
+      const isExploitantLike = member.source === 'exploitant' || metier.includes('exploitant')
+      if (workforceFilter === 'conducteurs' && !isConducteurLike) return false
+      if (workforceFilter === 'exploitants' && !isExploitantLike) return false
       if (workforceFilter === 'mecaniciens' && !member.metier.toLowerCase().includes('mecan')) return false
-      if (workforceFilter === 'autres' && (member.source === 'conducteur' || member.source === 'exploitant' || member.metier.toLowerCase().includes('mecan'))) return false
+      if (workforceFilter === 'autres' && (isConducteurLike || isExploitantLike || metier.includes('mecan'))) return false
       if (!q) return true
       return [member.nomComplet, member.metier, member.matricule ?? '', member.email ?? '', member.statut]
         .join(' ')
@@ -253,6 +256,33 @@ export default function Rh() {
         .includes(q)
     })
   }, [workforce, workforceFilter, workforceSearch])
+
+  useEffect(() => {
+    void (async () => {
+      setIsLoadingAbsences(true)
+      const data = await fetchAbsencesRh()
+      setAbsences(data)
+      setIsLoadingAbsences(false)
+    })()
+  }, [])
+
+  useEffect(() => {
+    if (!absenceFilterEmploye) { setSolde(null); return }
+    void (async () => {
+      const s = await fetchSoldeAbsences(absenceFilterEmploye, soldeAnnee)
+      setSolde(s)
+      if (s) {
+        setSoldeDraft({
+          cp_acquis: String(s.cp_acquis),
+          cp_pris: String(s.cp_pris),
+          rtt_acquis: String(s.rtt_acquis),
+          rtt_pris: String(s.rtt_pris),
+        })
+      } else {
+        setSoldeDraft({ cp_acquis: '0', cp_pris: '0', rtt_acquis: '0', rtt_pris: '0' })
+      }
+    })()
+  }, [absenceFilterEmploye, soldeAnnee])
 
   if (!profil) return null
   const actor = profil
@@ -402,33 +432,6 @@ export default function Rh() {
   }
 
   // ── Absences handlers ───────────────────────────────────────────────────────
-
-  useEffect(() => {
-    void (async () => {
-      setIsLoadingAbsences(true)
-      const data = await fetchAbsencesRh()
-      setAbsences(data)
-      setIsLoadingAbsences(false)
-    })()
-  }, [])
-
-  useEffect(() => {
-    if (!absenceFilterEmploye) { setSolde(null); return }
-    void (async () => {
-      const s = await fetchSoldeAbsences(absenceFilterEmploye, soldeAnnee)
-      setSolde(s)
-      if (s) {
-        setSoldeDraft({
-          cp_acquis: String(s.cp_acquis),
-          cp_pris: String(s.cp_pris),
-          rtt_acquis: String(s.rtt_acquis),
-          rtt_pris: String(s.rtt_pris),
-        })
-      } else {
-        setSoldeDraft({ cp_acquis: '0', cp_pris: '0', rtt_acquis: '0', rtt_pris: '0' })
-      }
-    })()
-  }, [absenceFilterEmploye, soldeAnnee])
 
   function resetAbsenceForm() {
     setEditingAbsenceId(null)

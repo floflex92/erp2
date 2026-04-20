@@ -187,7 +187,11 @@ function KpiPill({
 // ─── Page principale ────────────────────────────────────────────────────────────
 
 export default function Alertes() {
-  usePageMeta({ title: 'Alertes — Nexora Truck' })
+  usePageMeta({
+    title: 'Alertes',
+    description: 'Tableau des alertes proactives transport et facturation.',
+    canonical: '/alertes',
+  })
 
   const { alertes, totalCritiques, totalWarnings, totalInfos, total, loading, error, refresh } =
     useAlertesTransport()

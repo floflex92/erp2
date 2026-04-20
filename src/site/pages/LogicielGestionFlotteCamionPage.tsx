@@ -50,20 +50,20 @@ export default function LogicielGestionFlotteCamionPage() {
     breadcrumbs: [{ name: 'Gestion flotte camion', path: '/logiciel-gestion-flotte-camion' }],
     faqItems: [
       {
-        question: "Qu’est-ce qu’un logiciel de gestion de flotte camion ?",
-        answer: "Un logiciel de gestion de flotte camion centralise le suivi des véhicules poids lourds : disponibilités, localisation GPS, alertes de maintenance (CT, VGP, révisions), documents réglementaires et intégration avec le planning transport pour optimiser les affectations.",
+        question: "Qu’est-ce qu’un logiciel de gestion de flotte camion ?",
+        answer: "Un logiciel de gestion de flotte camion centralise le suivi des véhicules poids lourds : disponibilités, localisation GPS, alertes de maintenance (CT, VGP, révisions), documents réglementaires et intégration avec le planning transport pour optimiser les affectations.",
       },
       {
-        question: "Comment éviter les immobilisations non planifiées dans un parc poids lourd ?",
-        answer: "En connectant la maintenance préventive au planning : NEXORA Truck alerte l’exploitant avant qu’un CT ou une révision devienne bloquant, et déconseille automatiquement l’affectation d’un véhicule non conforme.",
+        question: "Comment éviter les immobilisations non planifiées dans un parc poids lourd ?",
+        answer: "En connectant la maintenance préventive au planning : NEXORA Truck alerte l’exploitant avant qu’un CT ou une révision devienne bloquant, et déconseille automatiquement l’affectation d’un véhicule non conforme.",
       },
       {
-        question: "Un logiciel flotte camion peut-il fonctionner sans GPS ?",
+        question: "Un logiciel flotte camion peut-il fonctionner sans GPS ?",
         answer: "Oui. Les disponibilités véhicules, les statuts de maintenance et les documents sont gérés manuellement ou via l’application conducteur. L’intégration GPS enrichit le suivi mais n’est pas obligatoire.",
       },
       {
-        question: "Quelle différence entre un logiciel flotte et un TMS transport ?",
-        answer: "Le logiciel flotte gère le parc véhicules (maintenance, disponibilités, conformité). Le TMS gère les ordres de transport et le dispatch. NEXORA Truck intègre les deux : la disponibilité réelle du camion est visible au moment de l’affectation de la mission.",
+        question: "Quelle différence entre un logiciel flotte et un TMS transport ?",
+        answer: "Le logiciel flotte gère le parc véhicules (maintenance, disponibilités, conformité). Le TMS gère les ordres de transport et le dispatch. NEXORA Truck intègre les deux : la disponibilité réelle du camion est visible au moment de l’affectation de la mission.",
       },
     ],
   ogImage: 'https://nexora-truck.fr/site/screenshots/map-live-vehicles.png',
@@ -77,7 +77,7 @@ export default function LogicielGestionFlotteCamionPage() {
           Logiciel gestion flotte camion : suivez chaque véhicule, anticipez la maintenance, évitez les immobilisations
         </h1>
         <p className="mt-5 max-w-3xl text-base leading-8 text-[var(--site-text-secondary)]">
-          Une immobilisation découverte au départ, un CT / VGP manqué ou une disponibilité mal évaluée : voilà les pannes silencieuses de l’exploitation. NEXORA Truck centralise la gestion flotte camion dans le même outil que le planning transport — disponibilités, alertes maintenance et géolocalisation visibles avant chaque affectation.
+          Une immobilisation découverte au départ, un CT / VGP manqué ou une disponibilité mal évaluée : voila les pannes silencieuses de l’exploitation. NEXORA Truck centralise la gestion flotte camion dans le même outil que le planning transport — disponibilités, alertes maintenance et géolocalisation visibles avant chaque affectation.
         </p>
         <div className="mt-7 flex flex-wrap gap-3">
           <Link to="/connexion-erp" className="site-btn-primary px-5 py-3 text-sm transition-colors">
@@ -110,7 +110,7 @@ export default function LogicielGestionFlotteCamionPage() {
         </div>
       </SiteSection>
 
-      <SiteSection eyebrow="Fonctionnalités clés" title="Le cockpit flotte NEXORA en pratique" description="Chaque module répond à une situation concrète de la gestion quotidienne d’un parc de poids lourds.">
+      <SiteSection eyebrow="Fonctionnalités clés" title="Le cockpit flotte NEXORA en pratique" description="Chaque module répond a une situation concrète de la gestion quotidienne d’un parc de poids lourds.">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {keyFeatures.map(feature => (
             <article key={feature.title} className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5">
@@ -125,15 +125,15 @@ export default function LogicielGestionFlotteCamionPage() {
         <div className="space-y-6 text-sm leading-7 text-[var(--site-text-secondary)] sm:text-base">
           <div>
             <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">CT / VGP manqué découvert au départ</h3>
-            <p className="mt-2">Sans alerte proactive, le véhicule est affecté la veille et l’échéance du contrôle technique n’est connue que le matin du départ. Résultat : réaffectation d’urgence, mission retardée, client prévenu en dernier. Avec NEXORA Truck, l’alerte CT / VGP remonte 10 jours avant l’échéance dans le cockpit flotte. L’exploitant programme l’intervention atelier avant que le véhicule ne soit affronté au planning.</p>
+            <p className="mt-2">Sans alerte proactive, le véhicule est affecté la veille et l’échéance du contrôle technique n’est connue que le matin du départ. Résultat : réaffectation d’urgence, mission retardée, client prévenu en dernier. Avec NEXORA Truck, l’alerte CT / VGP remonte 10 jours avant l’échéance dans le cockpit flotte. L’exploitant programme l’intervention atelier avant que le véhicule ne soit affronté au planning.</p>
           </div>
           <div>
             <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Coût total de possession (TCO) par véhicule</h3>
-            <p className="mt-2">Un véhicule consomme 28 000 € / an en carburant, 4 200 € en pneus et 6 800 € en maintenance. Si ces données restent dans trois fichiers Excel distincts, il est impossible de savoir quels camions sont les plus rentables. NEXORA Truck centralise le TCO flotte par véhicule : coût au km, intervalle de révision et impact sur la marge mission peuvent être visualisés en temps réel.</p>
+            <p className="mt-2">Un véhicule consomme 28 000 € / an en carburant, 4 200 € en pneus et 6 800 € en maintenance. Si ces données restent dans trois fichiers Excel distincts, il est impossible de savoir quels camions sont les plus rentables. NEXORA Truck centralise le TCO flotte par véhicule : coût au km, intervalle de révision et impact sur la marge mission peuvent être visualisés en temps réel.</p>
           </div>
           <div>
             <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Affectation véhicule–conducteur avec contraintes réelles</h3>
-            <p className="mt-2">Un conducteur à 35 tonnes ne peut pas prendre une semi chargée si son permis est en cours de renouvellement. Un véhicule référencé « indétermine » dans le système reste invisible à l’affectation. Dans NEXORA Truck, chaque véhicule porte ses contraintes techniques et documentaires — l’affectation est validée au moment de la confirmation, pas découverte au départ. Ce contrôle est 100 % natif, sans module à part, directement relié au <Link to="/tms-transport" className="font-semibold text-[#2563EB]">TMS transport</Link> et au <Link to="/chronotachygraphe" className="font-semibold text-[#2563EB]">suivi des temps de conduite</Link>.</p>
+            <p className="mt-2">Un conducteur a 35 tonnes ne peut pas prendre une semi chargée si son permis est en cours de renouvellement. Un véhicule référencé « indétermine » dans le système reste invisible a l’affectation. Dans NEXORA Truck, chaque véhicule porte ses contraintes techniques et documentaires — l’affectation est validée au moment de la confirmation, pas découverte au départ. Ce contrôle est 100 % natif, sans module a part, directement relié au <Link to="/tms-transport" className="font-semibold text-[#2563EB]">TMS transport</Link> et au <Link to="/chronotachygraphe" className="font-semibold text-[#2563EB]">suivi des temps de conduite</Link>.</p>
           </div>
           <div>
             <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Géolocalisation intégrée : position réelle dans la fiche véhicule</h3>
@@ -148,7 +148,7 @@ export default function LogicielGestionFlotteCamionPage() {
           caption="Insérez ici une capture de la vue flotte avec statuts véhicules, affectations et alertes atelier."
           format="16:9"
           label="Gestion flotte"
-          status="Prêt à remplacer"
+          status="Prêt   remplacer"
           highlights={[
             'Disponibilité flotte en direct',
             'Affectations planning transport',
@@ -157,7 +157,7 @@ export default function LogicielGestionFlotteCamionPage() {
         />
       </SiteSection>
 
-      <SiteSection eyebrow="Lien principal" title="Pages complémentaires" description="Approfondir les sujets reliés à la gestion de flotte." muted>
+      <SiteSection eyebrow="Lien principal" title="Pages complémentaires" description="Approfondir les sujets reliés   la gestion de flotte." muted>
         <div className="flex flex-wrap gap-3">
           <Link to="/erp-transport-routier" className="inline-flex rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-[var(--site-text)] transition-colors hover:bg-slate-50">
             ERP transport routier
@@ -176,3 +176,4 @@ export default function LogicielGestionFlotteCamionPage() {
     </div>
   )
 }
+

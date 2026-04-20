@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import * as L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import type * as Leaflet from 'leaflet'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
@@ -18,7 +17,7 @@ type MissionRow = {
   distance_km: number | null
   nature_marchandise: string | null
   clients: { nom: string } | { nom: string }[] | null
-  conducteurs: { prenom: string; nom: string; statut: string | null } | { prenom: string; nom: string; statut: string | null }[] | null
+  conducteurs: { id: string; prenom: string; nom: string; statut: string | null } | { id: string; prenom: string; nom: string; statut: string | null }[] | null
   vehicules: { immatriculation: string; marque: string | null; statut: string | null } | { immatriculation: string; marque: string | null; statut: string | null }[] | null
 }
 
@@ -98,6 +97,14 @@ type DriverLivePayload = {
   timestamp: string | null
   lat: number | null
   lng: number | null
+}
+
+type DriverPositionRow = {
+  conducteur_id: string
+  latitude: number | null
+  longitude: number | null
+  captured_at: string | null
+  created_at: string | null
 }
 
 type IncidentAiInsight = {
@@ -413,12 +420,12 @@ function interpolateRoute(points: GeoPoint[], progress: number): GeoPoint {
   return points[points.length - 1]
 }
 
-function createTruckIcon(alertLevel: LiveMission['alertLevel'], selected: boolean, label: string) {
+function createTruckIcon(leaflet: typeof import('leaflet'), alertLevel: LiveMission['alertLevel'], selected: boolean, label: string) {
   const fill = alertLevel === 'critical' ? '#e11d48' : alertLevel === 'warning' ? '#f59e0b' : '#0ea5e9'
   const ring = selected ? '#f8fafc' : 'rgba(255,255,255,0.78)'
   const shadow = selected ? '0 12px 30px rgba(15,23,42,0.42)' : '0 10px 24px rgba(15,23,42,0.28)'
 
-  return L.divIcon({
+  return leaflet.divIcon({
     className: '',
     iconSize: [62, 54],
     iconAnchor: [31, 27],
@@ -439,8 +446,8 @@ function createTruckIcon(alertLevel: LiveMission['alertLevel'], selected: boolea
   })
 }
 
-function createStopIcon(color: string) {
-  return L.divIcon({
+function createStopIcon(leaflet: typeof import('leaflet'), color: string) {
+  return leaflet.divIcon({
     className: '',
     iconSize: [18, 18],
     iconAnchor: [9, 9],
@@ -544,6 +551,47 @@ function parseDriverHistoryRow(row: DriverHistoryRow): DriverLivePayload | null 
     timestamp,
     lat,
     lng,
+  }
+}
+
+function parseDriverPositionRow(row: DriverPositionRow): DriverLivePayload | null {
+  const lat = safeNumber(row.latitude)
+  const lng = safeNumber(row.longitude)
+  const timestamp = row.captured_at ?? row.created_at ?? null
+
+  if (lat == null || lng == null) return null
+  return {
+    stepLabel: null,
+    timestamp,
+    lat,
+    lng,
+  }
+}
+
+function toTimestampValue(value: string | null | undefined): number {
+  if (!value) return -1
+  const parsed = new Date(value).getTime()
+  return Number.isFinite(parsed) ? parsed : -1
+}
+
+function mergeDriverLivePayload(
+  historyPayload: DriverLivePayload | null,
+  heartbeatPayload: DriverLivePayload | null,
+): DriverLivePayload | null {
+  if (!historyPayload && !heartbeatPayload) return null
+  if (!historyPayload) return heartbeatPayload
+  if (!heartbeatPayload) return historyPayload
+
+  const historyTs = toTimestampValue(historyPayload.timestamp)
+  const heartbeatTs = toTimestampValue(heartbeatPayload.timestamp)
+  const latest = heartbeatTs >= historyTs ? heartbeatPayload : historyPayload
+
+  return {
+    // Le heartbeat mobile ne porte pas d'etape; on conserve l'etape metier si disponible.
+    stepLabel: historyPayload.stepLabel ?? heartbeatPayload.stepLabel ?? null,
+    timestamp: latest.timestamp,
+    lat: latest.lat,
+    lng: latest.lng,
   }
 }
 
@@ -690,16 +738,17 @@ export default function MapLive() {
   const [routingSmokeRunning, setRoutingSmokeRunning] = useState(false)
   const [routingSmokeResult, setRoutingSmokeResult] = useState<RoutingSmokeResult | null>(null)
   const [routingSmokeError, setRoutingSmokeError] = useState<string | null>(null)
+  const [leafletLib, setLeafletLib] = useState<typeof import('leaflet') | null>(null)
   const requestedOtId = searchParams.get('ot')
   const requestedRef = (searchParams.get('ref') ?? '').trim().toUpperCase()
   const requestedFilter = searchParams.get('filter')
 
   const mapFrameRef = useRef<HTMLDivElement | null>(null)
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
-  const mapRef = useRef<L.Map | null>(null)
-  const routeLayerRef = useRef<L.LayerGroup | null>(null)
-  const markerLayerRef = useRef<L.LayerGroup | null>(null)
-  const stopLayerRef = useRef<L.LayerGroup | null>(null)
+  const mapRef = useRef<Leaflet.Map | null>(null)
+  const routeLayerRef = useRef<Leaflet.LayerGroup | null>(null)
+  const markerLayerRef = useRef<Leaflet.LayerGroup | null>(null)
+  const stopLayerRef = useRef<Leaflet.LayerGroup | null>(null)
   const focusKeyRef = useRef<string>('')
   const aiFingerprintRef = useRef<Record<string, string>>({})
   const incidentAiRef = useRef<Record<string, IncidentAiInsight>>({})
@@ -783,7 +832,7 @@ export default function MapLive() {
         distance_km,
         nature_marchandise,
         clients!ordres_transport_client_id_fkey(nom),
-        conducteurs(prenom, nom, statut),
+        conducteurs(id, prenom, nom, statut),
         vehicules(immatriculation, marque, statut)
       `)
       .in('statut_transport', [...ST_PLANIFIE, ...ST_EN_COURS, ...ST_TERMINE])
@@ -844,6 +893,7 @@ export default function MapLive() {
     const accessToken = sessionData.session?.access_token ?? null
     const missionList = (missionRows ?? []) as MissionRow[]
     const latestDriverByMission = new Map<string, DriverLivePayload>()
+    const latestDriverByConducteur = new Map<string, DriverLivePayload>()
 
     if (missionList.length > 0) {
       const { data: historyRows, error: historyError } = await supabase
@@ -858,6 +908,35 @@ export default function MapLive() {
           const parsed = parseDriverHistoryRow(row)
           if (!parsed) continue
           latestDriverByMission.set(row.ot_id, parsed)
+        }
+      }
+    }
+
+    if (missionList.length > 0) {
+      const conducteurIds = [...new Set(
+        missionList
+          .map(mission => pickSingle(mission.conducteurs)?.id ?? null)
+          .filter((id): id is string => Boolean(id)),
+      )]
+
+      if (conducteurIds.length > 0) {
+        const { data: positionRows, error: positionError } = await looseSupabase
+          .from('conducteur_positions')
+          .select('conducteur_id, latitude, longitude, captured_at, created_at')
+          .in('conducteur_id', conducteurIds)
+          .order('captured_at', { ascending: false })
+          .order('created_at', { ascending: false })
+
+        if (positionError) {
+          // RLS peut restreindre la lecture selon le role; on garde les autres sources de tracking.
+          console.warn('[MapLive] conducteur_positions non lisible:', positionError.message)
+        } else if (positionRows) {
+          for (const row of positionRows as DriverPositionRow[]) {
+            if (latestDriverByConducteur.has(row.conducteur_id)) continue
+            const parsed = parseDriverPositionRow(row)
+            if (!parsed) continue
+            latestDriverByConducteur.set(row.conducteur_id, parsed)
+          }
         }
       }
     }
@@ -888,12 +967,17 @@ export default function MapLive() {
     const nextMissions = missionList
       .map(row => {
         const enrichment = enrichments.get(row.id)
+        const conducteur = pickSingle(row.conducteurs)
+        const mergedDriverLive = mergeDriverLivePayload(
+          latestDriverByMission.get(row.id) ?? null,
+          conducteur?.id ? (latestDriverByConducteur.get(conducteur.id) ?? null) : null,
+        )
         return buildMission(
           row,
           stepsByMission.get(row.id) ?? [],
           enrichment?.tracking ?? null,
           enrichment?.eta ?? null,
-          latestDriverByMission.get(row.id) ?? null,
+          mergedDriverLive,
         )
       })
       .filter(mission => mission.routePoints.length > 0 || mission.driverHasGps)
@@ -911,6 +995,26 @@ export default function MapLive() {
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  useEffect(() => {
+    let active = true
+
+    void (async () => {
+      try {
+        const [leaflet] = await Promise.all([
+          import('leaflet'),
+          import('leaflet/dist/leaflet.css'),
+        ])
+        if (active) setLeafletLib(leaflet)
+      } catch {
+        if (active) setLeafletLib(null)
+      }
+    })()
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   useEffect(() => {
     const key = requestedFilter as (typeof FILTERS)[number]['key'] | null
@@ -949,6 +1053,7 @@ export default function MapLive() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ordres_transport' }, scheduleReload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'etapes_mission' }, scheduleReload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'historique_statuts' }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conducteur_positions' }, scheduleReload)
       .subscribe()
 
     return () => {
@@ -1068,32 +1173,34 @@ export default function MapLive() {
   }, [filtered.length, renderMode])
 
   useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current) return
+    if (!leafletLib || !mapContainerRef.current || mapRef.current) return
 
-    const map = L.map(mapContainerRef.current, {
+    const leaflet = leafletLib
+
+    const map = leaflet.map(mapContainerRef.current, {
       zoomControl: true,
       attributionControl: false,
       preferCanvas: true,
     }).setView([46.6034, 1.8883], 6)
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    leaflet.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       maxZoom: 19,
       subdomains: 'abcd',
       attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
     }).addTo(map)
 
-    L.control.attribution({ position: 'bottomright', prefix: false }).addAttribution('&copy; OpenStreetMap contributors &copy; CARTO').addTo(map)
+    leaflet.control.attribution({ position: 'bottomright', prefix: false }).addAttribution('&copy; OpenStreetMap contributors &copy; CARTO').addTo(map)
 
-    routeLayerRef.current = L.layerGroup().addTo(map)
-    markerLayerRef.current = L.layerGroup().addTo(map)
-    stopLayerRef.current = L.layerGroup().addTo(map)
+    routeLayerRef.current = leaflet.layerGroup().addTo(map)
+    markerLayerRef.current = leaflet.layerGroup().addTo(map)
+    stopLayerRef.current = leaflet.layerGroup().addTo(map)
     mapRef.current = map
 
     return () => {
       map.remove()
       mapRef.current = null
     }
-  }, [])
+  }, [leafletLib])
 
   useEffect(() => {
     function handleFullscreenChange() {
@@ -1113,6 +1220,9 @@ export default function MapLive() {
   }, [isFullscreen])
 
   useEffect(() => {
+    if (!leafletLib) return
+    const leaflet = leafletLib
+
     const map = mapRef.current
     const routeLayer = routeLayerRef.current
     const markerLayer = markerLayerRef.current
@@ -1126,16 +1236,16 @@ export default function MapLive() {
 
     if (!filtered.length) return
 
-    const allBounds = L.latLngBounds([])
+    const allBounds = leaflet.latLngBounds([])
     const drawRoutes = renderMode === 'itineraires' && filtered.length <= 12
 
     for (const mission of filtered) {
       const isSelected = selected?.id === mission.id
       const color = mission.alertLevel === 'critical' ? '#e11d48' : mission.alertLevel === 'warning' ? '#f59e0b' : '#0ea5e9'
-      const routeCoords: L.LatLngExpression[] = mission.routePoints.map(point => [point.lat, point.lng])
+      const routeCoords: Leaflet.LatLngExpression[] = mission.routePoints.map(point => [point.lat, point.lng])
 
       if (drawRoutes && routeCoords.length >= 2) {
-        L.polyline(routeCoords, {
+        leaflet.polyline(routeCoords, {
           color,
           weight: isSelected ? 6 : 4,
           opacity: isSelected ? 0.92 : 0.48,
@@ -1148,8 +1258,8 @@ export default function MapLive() {
       }
       allBounds.extend([mission.livePosition.lat, mission.livePosition.lng])
 
-      const marker = L.marker([mission.livePosition.lat, mission.livePosition.lng], {
-        icon: createTruckIcon(mission.alertLevel, isSelected, mission.reference),
+      const marker = leaflet.marker([mission.livePosition.lat, mission.livePosition.lng], {
+        icon: createTruckIcon(leaflet, mission.alertLevel, isSelected, mission.reference),
         zIndexOffset: isSelected ? 1000 : 100,
       }).addTo(markerLayer)
 
@@ -1176,18 +1286,18 @@ export default function MapLive() {
       const lastPoint = selected.routePoints[selected.routePoints.length - 1]
 
       if (drawRoutes && firstPoint) {
-        L.marker([firstPoint.lat, firstPoint.lng], { icon: createStopIcon('#0f172a') })
+        leaflet.marker([firstPoint.lat, firstPoint.lng], { icon: createStopIcon(leaflet, '#0f172a') })
           .bindTooltip(`Depart - ${firstPoint.label}`, { direction: 'right', opacity: 0.94 })
           .addTo(stopLayer)
       }
 
       if (drawRoutes && lastPoint) {
-        L.marker([lastPoint.lat, lastPoint.lng], { icon: createStopIcon('#16a34a') })
+        leaflet.marker([lastPoint.lat, lastPoint.lng], { icon: createStopIcon(leaflet, '#16a34a') })
           .bindTooltip(`Arrivee - ${lastPoint.label}`, { direction: 'left', opacity: 0.94 })
           .addTo(stopLayer)
       }
 
-      const selectedBounds = L.latLngBounds([])
+      const selectedBounds = leaflet.latLngBounds([])
       for (const point of selected.routePoints) {
         selectedBounds.extend([point.lat, point.lng])
       }
@@ -1206,7 +1316,7 @@ export default function MapLive() {
       map.flyToBounds(allBounds.pad(0.22), { duration: 0.65 })
       focusKeyRef.current = focusKey
     }
-  }, [filter, filtered, renderMode, selected])
+  }, [filter, filtered, leafletLib, renderMode, selected])
 
   async function toggleFullscreen() {
     if (!mapFrameRef.current) return

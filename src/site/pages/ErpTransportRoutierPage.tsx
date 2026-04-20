@@ -5,15 +5,15 @@ import useSiteMeta from '@/site/hooks/useSiteMeta'
 
 const problems = [
   'Réaffectation d’urgence en moins d’une heure : impossible sans centralisation des disponibilités véhicule, conducteur et mission dans le même système.',
-  'La facturation de fin de mois prend 3 à 5 jours de ressaisie car les écarts entre plannning et réalité terrain ne se consolident pas automatiquement.',
-  'L’exploitant ne sait pas en temps réel combien coûte une mission jusqu’à la lettre de voiture validée — la marge reste opaque jusqu’en fin de mois.',
+  'La facturation de fin de mois prend 3 a 5 jours de ressaisie car les écarts entre plannning et réalité terrain ne se consolident pas automatiquement.',
+  'L’exploitant ne sait pas en temps réel combien coûte une mission jusqu’a la lettre de voiture validée — la marge reste opaque jusqu’en fin de mois.',
   'Cinq applications différentes pour piloter : un tableur planning, un logiciel carburant, un outil RH, un système facturation, et un outil GPS. Chaque écart se gère manuellement.',
 ]
 
 const solutionPillars = [
   {
     title: 'Planning dispatch en temps réel',
-    body: 'Affectation conducteur–véhicule–mission validée en un glisser-déposer, avec vérification automatique des contraintes RSE, CT / VGP et permis.',
+    body: 'Affectation conducteur–véhicule–mission validée en un glisser-déposer, avec vérification automatique des contraintes RSE, CT / VGP et permis.',
   },
   {
     title: 'Flotte et exploitation synchronisées',
@@ -32,11 +32,11 @@ const solutionPillars = [
 const keyFeatures = [
   {
     title: 'Dispatch et OT',
-    body: 'Création d’ordre de transport, affectation conducteur–véhicule–mission et suivi statut de prise en charge à livraison en un seul environnement.',
+    body: 'Création d’ordre de transport, affectation conducteur–véhicule–mission et suivi statut de prise en charge a livraison en un seul environnement.',
   },
   {
     title: 'Cockpit flotte intégré',
-    body: 'Disponibilités véhicules, alertes CT / VGP, entretien atelier et géolocalisation reliés directement au planning dispatch.',
+    body: 'Disponibilités véhicules, alertes CT / VGP, entretien atelier et géolocalisation reliés directement au planning dispatch.',
   },
   {
     title: 'Gestion conducteurs RSE',
@@ -44,7 +44,7 @@ const keyFeatures = [
   },
   {
     title: 'Marge prévisionnelle et réelle',
-    body: 'Coût de revient estimé à la prise d’ordre, puis marge réelle calculée après livraison depuis les données terrain consolidées.',
+    body: 'Coût de revient estimé a la prise d’ordre, puis marge réelle calculée après livraison depuis les données terrain consolidées.',
   },
   {
     title: 'Facturation et BL',
@@ -56,7 +56,7 @@ export default function ErpTransportRoutierPage() {
   useSiteMeta({
     title: 'ERP transport routier : planning, flotte et facturation',
     description:
-      'ERP transport routier tout-en-un : de la prise d’ordre à la facturation, NEXORA Truck centralise planning, flotte, conducteurs et marges sans outil satellite.',
+      'ERP transport routier tout-en-un : de la prise d’ordre a la facturation, NEXORA Truck centralise planning, flotte, conducteurs et marges sans outil satellite.',
     canonicalPath: '/erp-transport-routier',
     keywords:
       'ERP transport routier, logiciel transport routier, gestion flotte camion, planning transport, TMS transport, automatisation API transport, logiciel exploitation transport, gestion parc poids lourds',
@@ -65,19 +65,19 @@ export default function ErpTransportRoutierPage() {
     breadcrumbs: [{ name: 'ERP transport routier', path: '/erp-transport-routier' }],
     faqItems: [
       {
-        question: "Qu’est-ce qu’un ERP transport routier ?",
-        answer: "Un ERP transport routier est un logiciel intégré couvrant toutes les opérations d’une entreprise de transport : prise d’ordre, planning, dispatch, suivi flotte, conducteurs, facturation et reporting dans un seul outil.",
+        question: "Qu’est-ce qu’un ERP transport routier ?",
+        answer: "Un ERP transport routier est un logiciel intégré couvrant toutes les opérations d’une entreprise de transport : prise d’ordre, planning, dispatch, suivi flotte, conducteurs, facturation et reporting dans un seul outil.",
       },
       {
-        question: "Pourquoi choisir un ERP dédié au transport routier plutôt qu’un ERP généraliste ?",
-        answer: "Un ERP transport routier intègre des fonctions métier absentes des ERP généralistes : gestion tachygraphe, suivi temps réel des missions, communication conducteurs, groupage de tournées et conformité transport. Prise en main beaucoup plus rapide pour les équipes exploitation.",
+        question: "Pourquoi choisir un ERP dédié au transport routier plutôt qu’un ERP généraliste ?",
+        answer: "Un ERP transport routier intègre des fonctions métier absentes des ERP généralistes : gestion tachygraphe, suivi temps réel des missions, communication conducteurs, groupage de tournées et conformité transport. Prise en main beaucoup plus rapide pour les équipes exploitation.",
       },
       {
-        question: "Un ERP transport routier peut-il gérer plusieurs agences ?",
+        question: "Un ERP transport routier peut-il gérer plusieurs agences ?",
         answer: "Oui. NEXORA Truck est multi-agences et multi-entités. Chaque agence dispose de son propre espace de planning tout en partageant une vue consolidée des indicateurs pour la direction.",
       },
       {
-        question: "Combien faut-il de véhicules pour justifier un ERP transport routier ?",
+        question: "Combien faut-il de véhicules pour justifier un ERP transport routier ?",
         answer: "À partir de 5 véhicules, un ERP transport routier fait gagner du temps chaque jour. L’automatisation de la facturation, du suivi conducteurs et du planning devient rentable très rapidement.",
       },
     ],
@@ -92,7 +92,7 @@ export default function ErpTransportRoutierPage() {
           ERP transport routier tout-en-un : planning, flotte, conducteurs et facturation sans outil satellite
         </h1>
         <p className="mt-5 max-w-3xl text-base leading-8 text-[var(--site-text-secondary)]">
-          Le planning, la flotte, les conducteurs et la facturation dans des outils séparés : chaque changement de mission se traduit par des appels, des messages et des doubles saisies. NEXORA Truck centralise tout dans un même environnement : l’exploitant voit l’ensemble du flux en temps réel, communique directement avec les conducteurs et les clients, et pilote sans outil satellite.
+          Le planning, la flotte, les conducteurs et la facturation dans des outils séparés : chaque changement de mission se traduit par des appels, des messages et des doubles saisies. NEXORA Truck centralise tout dans un même environnement : l’exploitant voit l’ensemble du flux en temps réel, communique directement avec les conducteurs et les clients, et pilote sans outil satellite.
         </p>
         <div className="mt-7 flex flex-wrap gap-3">
           <Link to="/connexion-erp" className="site-btn-primary px-5 py-3 text-sm transition-colors">
@@ -160,7 +160,7 @@ export default function ErpTransportRoutierPage() {
           </div>
           <div>
             <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Avec NEXORA Truck : une modification, tout se répercute</h3>
-            <p className="mt-2">La réaffectation est faite dans le <Link to="/tms-transport" className="font-semibold text-[#2563EB]">TMS transport</Link> : le conducteur reçoit la mission sur son terminal, la <Link to="/telematique-transport" className="font-semibold text-[#2563EB]">télématique</Link> suit le nouveau véhicule, et la lettre de voiture est générée automatiquement. En fin de journée, les données réelles (km, heures, péages) alimentent la facturation sans copier-coller.</p>
+            <p className="mt-2">La réaffectation est faite dans le <Link to="/tms-transport" className="font-semibold text-[#2563EB]">TMS transport</Link> : le conducteur reçoit la mission sur son terminal, la <Link to="/telematique-transport" className="font-semibold text-[#2563EB]">télématique</Link> suit le nouveau véhicule, et la lettre de voiture est générée automatiquement. En fin de journée, les données réelles (km, heures, péages) alimentent la facturation sans copier-coller.</p>
           </div>
           <div>
             <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">Contrôle de la marge dès la prise de commande</h3>
@@ -183,7 +183,7 @@ export default function ErpTransportRoutierPage() {
           caption="Insérez ici une capture du cockpit exploitation avec planning, flotte et statuts transport."
           format="16:9"
           label="ERP transport routier"
-          status="Prêt à remplacer"
+          status="Prêt a remplacer"
           highlights={[
             'Planning transport unifié',
             'Visibilité flotte et conducteurs',
@@ -205,13 +205,13 @@ export default function ErpTransportRoutierPage() {
           </Link>
           <Link to="/tms-transport" className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5 transition-colors hover:bg-slate-50">
             <h3 className="text-lg font-semibold tracking-tight text-[var(--site-text)]">TMS transport</h3>
-            <p className="mt-2 text-sm leading-7 text-[var(--site-text-secondary)]">Voir la page dédiée au pilotage TMS et au suivi exécution jusqu’à la facturation.</p>
+            <p className="mt-2 text-sm leading-7 text-[var(--site-text-secondary)]">Voir la page dédiée au pilotage TMS et au suivi exécution jusqu’a la facturation.</p>
           </Link>
         </div>
       </SiteSection>
 
       <section className="site-on-dark rounded-[2rem] border border-white/70 bg-[linear-gradient(145deg,#0f172a,#111827)] px-6 py-8 text-white shadow-[0_28px_80px_rgba(15,23,42,0.2)] sm:px-8 sm:py-10">
-        <h2 className="text-3xl font-semibold tracking-tight sm:text-[2.45rem]">Passez d’une gestion réactive à un pilotage fiable</h2>
+        <h2 className="text-3xl font-semibold tracking-tight sm:text-[2.45rem]">Passez d’une gestion réactive a un pilotage fiable</h2>
         <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300 sm:text-base">
           NEXORA Truck structure votre ERP transport routier pour accélérer l’exploitation et sécuriser la croissance.
         </p>
@@ -227,3 +227,4 @@ export default function ErpTransportRoutierPage() {
     </div>
   )
 }
+

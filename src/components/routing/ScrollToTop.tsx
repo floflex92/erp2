@@ -17,7 +17,11 @@ export default function ScrollToTop({
   const routeKey = `${pathname}${includeSearch ? search : ''}${includeHash ? hash : ''}`
 
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior })
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior })
+    } catch {
+      window.scrollTo(0, 0)
+    }
   }, [routeKey, behavior])
 
   return null
