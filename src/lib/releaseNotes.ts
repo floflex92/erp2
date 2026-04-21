@@ -12,6 +12,19 @@ export type ReleaseNote = {
 
 const documentedReleaseNotes: ReleaseNote[] = [
   {
+    version: '1.15.18',
+    date: '2026-04-21',
+    title: 'Push prod: maintenance espace Developpement et Features prioritaires',
+    summary: 'Push Netlify de maintenance avec mise a jour de la version et de l espace Developpement (Developpe / En cours de developpement / Features).',
+    additions: [],
+    modifications: [
+      'Version portee a 1.15.18 avec synchronisation package, appVersion et environnement Netlify.',
+      'Onglet Developpement: rappel des onglets Developpe, En cours de developpement, Features.',
+      'Features prioritaires maintenues: connectivite/discussion inter-ERP, planning affreteur dedie, groupage multi-courses figeable/deliable avec courses independantes.',
+    ],
+    fixes: [],
+  },
+  {
     version: '1.15.17',
     date: '2026-04-21',
     title: 'Favicon NEXORA: pack ICO multi-tailles et SVG cassé supprimé',
