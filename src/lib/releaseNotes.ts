@@ -12,6 +12,28 @@ export type ReleaseNote = {
 
 const documentedReleaseNotes: ReleaseNote[] = [
   {
+    version: '1.15.16',
+    date: '2026-04-21',
+    title: 'Favicon NEXORA: pack complet et invalidation cache',
+    summary: 'Le favicon onglet et le favicon utilise par les moteurs de recherche sont realignes sur le nouveau pack NEXORA, avec invalidation cache forcee (head, manifest, service worker).',
+    additions: [
+      'Tags icon supplementaires en 192x192 et 512x512 dans le head pour mieux servir les crawlers et navigateurs mobiles.',
+      'Balise shortcut icon explicite vers /favicon.ico pour Google Search et navigateurs anciens.',
+    ],
+    modifications: [
+      'Regeneration des PNG android-chrome 192/512 et pwa 192/512 depuis le nouveau logo NEXORA carre.',
+      'Cache-bust des references favicon/manifest passe a v=1.16.1 pour forcer le rafraichissement client.',
+      'Service worker bumpe en v1-6-12 pour invalider l ancien cache d icones.',
+      'Version portee a 1.15.16 avec synchronisation package, appVersion et environnement Netlify.',
+      'Espace Developpement maintenu sur les onglets Developpe, En cours de developpement, Features.',
+      'Features prioritaires maintenues: connectivite/discussion inter-ERP, planning affreteur dedie, groupage multi-courses figeable/deliable.',
+    ],
+    fixes: [
+      'Corrige : favicon NEXORA absent dans l onglet navigateur et dans les resultats de recherche apres la refonte logo.',
+      'Corrige : icones android/PWA encore servies depuis l ancien pack en 192x192 et 512x512.',
+    ],
+  },
+  {
     version: '1.15.15',
     date: '2026-04-21',
     title: 'Refonte globale UI/UX: vitrine, ERP et identite visuelle',
