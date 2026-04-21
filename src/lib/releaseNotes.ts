@@ -12,6 +12,30 @@ export type ReleaseNote = {
 
 const documentedReleaseNotes: ReleaseNote[] = [
   {
+    version: '1.15.19',
+    date: '2026-04-21',
+    title: 'Favicon NEXORA: pack carre + rond + maskable regenere depuis le logo solo',
+    summary: 'Regeneration complete du pack favicon/PWA a partir du vrai logo NEXORA (logo solo.png): icones carrees (16 a 1024), icones rondes, maskable Android, apple-touch-icon, tuiles MS et ICO multi-tailles. Manifest mis a jour avec icones maskable dediees.',
+    additions: [
+      'Icones carrees regenerees: 16, 32, 48, 64, 96, 128, 180, 192, 256, 384, 512, 1024.',
+      'Icones rondes dediees: 64, 128, 192, 256, 512 (cercle plein + logo centre).',
+      'Icones maskable PWA 192 et 512 avec safe-zone Android 80%.',
+      'Tuiles Microsoft mstile 150x150 et 270x270.',
+      'Script scripts/generate-favicons.mjs relançable pour toute future mise a jour du logo.',
+    ],
+    modifications: [
+      'favicon.ico regenere en multi-tailles 16/32/48 a partir du logo solo.',
+      'Manifest: icones "maskable" separees des "any" (meilleure compatibilite Android).',
+      'index.html: cache-bust favicon/manifest passe a v=1.16.3, ajout du lien favicon-48x48.',
+      'Version portee a 1.15.19 avec synchronisation package, appVersion et environnement Netlify.',
+      'Espace Developpement maintenu sur les onglets Developpe, En cours de developpement, Features.',
+      'Features prioritaires maintenues: connectivite/discussion inter-ERP, planning affreteur dedie, groupage multi-courses figeable/deliable avec courses independantes.',
+    ],
+    fixes: [
+      'Corrige : favicons precedents generes depuis la mauvaise image source.',
+    ],
+  },
+  {
     version: '1.15.18',
     date: '2026-04-21',
     title: 'Push prod: maintenance espace Developpement et Features prioritaires',

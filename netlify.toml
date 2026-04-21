@@ -10,7 +10,7 @@
 
 [build.environment]
   NODE_VERSION = "20"
-  VITE_APP_VERSION = "1.15.18"
+  VITE_APP_VERSION = "1.15.19"
   # Ollama n'est pas accessible depuis Netlify en production (service local).
   # Ces valeurs servent de fallback non-fonctionnel ; la fonctionnalité IA
   # locale est désactivée en production (cf. OllamaError dans le composant).
