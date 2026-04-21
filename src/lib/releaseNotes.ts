@@ -12,6 +12,28 @@ export type ReleaseNote = {
 
 const documentedReleaseNotes: ReleaseNote[] = [
   {
+    version: '1.15.17',
+    date: '2026-04-21',
+    title: 'Favicon NEXORA: pack ICO multi-tailles et SVG cassé supprimé',
+    summary: 'Regeneration complete du pack favicon a partir du nouveau logo NEXORA carre haute resolution. Suppression du favicon.svg qui pointait vers un PNG externe (ignore par les navigateurs en favicon SVG) et generation d un vrai .ico multi-resolutions (16/32/48/64).',
+    additions: [
+      'Nouveau favicon.ico multi-resolutions (16/32/48/64) genere depuis le logo NEXORA 1254x1254.',
+      'Tous les PNG favicon (16/32/180/192/512 + pwa 192/512) regeneres en haute qualite (HighQualityBicubic).',
+    ],
+    modifications: [
+      'Suppression du link rel=icon type=image/svg+xml et du fichier public/favicon.svg (SVG referencant un PNG externe non supporte).',
+      'Cache-bust passe a v=1.16.2 sur tous les liens favicon/manifest.',
+      'Service worker bumpe en v1-6-13 et favicon.svg retire de l app shell.',
+      'Version portee a 1.15.17 avec synchronisation package, appVersion et environnement Netlify.',
+      'Espace Developpement maintenu sur les onglets Developpe, En cours de developpement, Features.',
+      'Features prioritaires maintenues: connectivite/discussion inter-ERP, planning affreteur dedie, groupage multi-courses figeable/deliable.',
+    ],
+    fixes: [
+      'Corrige : favicon NEXORA invisible dans l onglet navigateur (Chrome/Firefox prenaient prioritairement le favicon.svg vide).',
+      'Corrige : favicon non remonte par Google Search a cause de l ICO mal forme et du SVG bloquant.',
+    ],
+  },
+  {
     version: '1.15.16',
     date: '2026-04-21',
     title: 'Favicon NEXORA: pack complet et invalidation cache',
