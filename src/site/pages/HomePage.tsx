@@ -511,6 +511,18 @@ const BUSINESS_PATHS = [
     solution: 'NEXORA connecte planning, communication et suivi conducteur dans un espace opérationnel unique.',
     benefit: 'Bénéfice concret: moins d’incompréhensions, meilleure exécution et conformité maîtrisée.',
   },
+  {
+    title: 'Affréteur',
+    problem: 'Vous jonglez entre disponibilité partenaire, statut OT et échanges multicanaux.',
+    solution: 'NEXORA synchronise l’espace affrètement, les statuts mission et la coordination inter-ERP.',
+    benefit: 'Bénéfice concret: moins de latence de coordination et plus de fiabilité sur les engagements.',
+  },
+  {
+    title: 'Client',
+    problem: 'Vous manquez de visibilité fiable sur l’avancement réel et les délais de livraison.',
+    solution: 'NEXORA connecte l’espace client, le suivi opérationnel et les preuves d’exécution.',
+    benefit: 'Bénéfice concret: information claire, moins de relances et meilleure confiance sur la livraison.',
+  },
 ]
 
 const MODULE_GROUPS = [
@@ -600,9 +612,9 @@ export default function HomePage() {
       url: 'https://nexora-truck.fr',
       logo: {
         '@type': 'ImageObject',
-        url: 'https://nexora-truck.fr/pwa-192.png',
-        width: 192,
-        height: 192,
+        url: 'https://nexora-truck.fr/site/logo/brand/nexora-logo-dark.png',
+        width: 512,
+        height: 512,
       },
       description: 'ERP transport routier pour planning, flotte, conducteurs, finance et automatisation.',
       areaServed: ['FR', 'BE', 'CH', 'CA'],
@@ -657,9 +669,9 @@ export default function HomePage() {
         name: 'NEXORA Truck',
         logo: {
           '@type': 'ImageObject',
-          url: 'https://nexora-truck.fr/pwa-192.png',
-          width: 192,
-          height: 192,
+          url: 'https://nexora-truck.fr/site/logo/brand/nexora-logo-dark.png',
+          width: 512,
+          height: 512,
         },
       },
     })
@@ -729,37 +741,47 @@ export default function HomePage() {
 
         <div className="relative">
           <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.7)' }}>
-            ERP Transport Routier
+            ERP + TMS + IA
           </p>
           <h1
             id="home-hero-heading"
             className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]"
             style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)', color: '#FFFFFF', letterSpacing: '-0.025em' }}
           >
-            Le système d’exploitation du transport routier
+            L’all-in-one transport pour piloter exploitation, flotte et rentabilité
           </h1>
           <p className="mx-auto mt-6 max-w-2xl" style={{ color: 'rgba(255,255,255,0.8)', fontSize: '20px', lineHeight: 1.6 }}>
-            Un seul outil pour piloter exploitation, flotte, conducteurs et performance.
+            En 3 secondes: planning, OT, feuille de route, KPI, facturation et communication réunis dans un seul produit.
+          </p>
+          <p className="mx-auto mt-4 max-w-3xl text-sm font-semibold uppercase tracking-[0.16em]" style={{ color: 'rgba(229,231,235,0.92)' }}>
+            Déploiement rapide • Sans double saisie • Lecture métier immédiate
           </p>
           <div className="mt-12 flex flex-wrap items-start justify-center gap-x-5 gap-y-4">
             <div className="flex flex-col items-center">
               <Link
-                to="/demonstration"
+                to="/connexion-erp"
                 className="site-hero-cta"
               >
-                Demander une démo
+                Tester l’ERP maintenant
               </Link>
               <p className="site-hero-cta-note mt-3 text-sm" style={{ color: 'rgba(255,255,255,0.9)' }}>
-                Présentation ciblée selon votre activité.
+                Accès immédiat à un environnement de test guidé.
               </p>
             </div>
+            <Link
+              to="/demonstration"
+              className="self-center inline-flex min-h-[48px] items-center rounded-xl border px-5 py-3 text-sm font-semibold transition-colors"
+              style={{ borderColor: 'rgba(229,231,235,0.48)', color: '#E5E7EB', background: 'rgba(2,6,23,0.35)' }}
+            >
+              Réserver une démo ciblée
+            </Link>
             <button
               type="button"
               onClick={() => setVideoOpen(true)}
               className="self-center text-sm font-semibold transition-colors"
-              style={{ color: '#93C5FD' }}
+              style={{ color: '#86EFAC' }}
             >
-              Voir la démo ▶
+              Voir la démo vidéo ▶
             </button>
           </div>
         </div>

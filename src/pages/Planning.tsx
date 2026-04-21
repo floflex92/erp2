@@ -38,7 +38,7 @@ import type {
   RelaisModal, RelaisDepotForm, RelaisAssignForm,
   RetourChargeSuggestion, RetourChargeForm,
   SiteUsageType, SiteKind, SiteDraft, SiteLoadRow,
-  GeneratedInlineEvent, PlanningUrgence,
+  GeneratedInlineEvent,
 } from './planning/planningTypes'
 import {
   getUpdateFailureReason, ACTIVE_AFFRETEMENT_STATUSES,
@@ -62,9 +62,60 @@ import {
   loadBooleanSetting, saveBooleanSetting, loadNumberSetting, saveNumberSetting,
   uid,
 } from './planning/planningUtils'
+import {
+  applyAssignDurationFromStart,
+  formatAssignDurationLabel,
+  getAssignScheduleMeta,
+  shiftAssignStartKeepingDuration,
+  updateAssignStartKeepingDuration,
+} from './planning/planningAssignUtils'
+import {
+  buildRowConflicts,
+  findOverlapTargetInRow,
+  getOtInterval,
+} from './planning/planningConflictUtils'
+import { buildPlanningUrgences } from './planning/planningUrgenceUtils'
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'nexora_sidebar_collapsed_v2'
 const SIDEBAR_COLLAPSED_EVENT = 'nexora:sidebar-collapsed-change'
+const EXPLOITANT_FEATURES_KEY = 'nexora_planning_exploitant_features_v1'
+
+type ExploitantFeatureKey =
+  | 'tab_urgences'
+  | 'tab_non_affectees'
+  | 'tab_conflits'
+  | 'tab_affretement'
+  | 'tab_groupages'
+  | 'tab_non_programmees'
+  | 'tab_annulees'
+  | 'tab_entrepots'
+  | 'tab_relais'
+  | 'tab_retour_charge'
+  | 'action_affecter'
+  | 'action_groupage'
+  | 'action_relais'
+  | 'action_notifier_client'
+  | 'action_optimize_tour'
+  | 'action_resoudre_conflits'
+
+const EXPLOITANT_FEATURE_DEFAULTS: Record<ExploitantFeatureKey, boolean> = {
+  tab_urgences: true,
+  tab_non_affectees: true,
+  tab_conflits: true,
+  tab_affretement: true,
+  tab_groupages: true,
+  tab_non_programmees: true,
+  tab_annulees: true,
+  tab_entrepots: true,
+  tab_relais: true,
+  tab_retour_charge: true,
+  action_affecter: true,
+  action_groupage: true,
+  action_relais: true,
+  action_notifier_client: true,
+  action_optimize_tour: true,
+  action_resoudre_conflits: true,
+}
 
 function normalizeResourceStatus(value: string | null | undefined): string {
   return (value ?? '').trim().toLowerCase()
@@ -257,6 +308,16 @@ export default function Planning() {
   const [bottomDockHeight, setBottomDockHeight] = useState<number>(() => loadNumberSetting(BOTTOM_DOCK_HEIGHT_KEY, 260))
   const [bottomDockCollapsed, setBottomDockCollapsed] = useState<boolean>(() => loadBooleanSetting(BOTTOM_DOCK_COLLAPSED_KEY, false))
   const [isResizingBottomDock, setIsResizingBottomDock] = useState(false)
+  const [showExploitantControls, setShowExploitantControls] = useState(false)
+  const [exploitantFeatures, setExploitantFeatures] = useState<Record<ExploitantFeatureKey, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem(EXPLOITANT_FEATURES_KEY)
+      const parsed = raw ? JSON.parse(raw) as Partial<Record<ExploitantFeatureKey, boolean>> : {}
+      return { ...EXPLOITANT_FEATURE_DEFAULTS, ...parsed }
+    } catch {
+      return { ...EXPLOITANT_FEATURE_DEFAULTS }
+    }
+  })
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1'
@@ -388,6 +449,10 @@ export default function Planning() {
   }, [bottomDockCollapsed])
 
   useEffect(() => {
+    localStorage.setItem(EXPLOITANT_FEATURES_KEY, JSON.stringify(exploitantFeatures))
+  }, [exploitantFeatures])
+
+  useEffect(() => {
     function syncSidebarState() {
       try {
         setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1')
@@ -433,6 +498,29 @@ export default function Planning() {
     saveBooleanSetting(PLANNING_HEADER_COLLAPSED_KEY, planningHeaderCollapsed)
     window.dispatchEvent(new Event('nexora:planning-header-visibility-change'))
   }, [planningHeaderCollapsed])
+
+  const isFeatureEnabled = useCallback((key: ExploitantFeatureKey) => exploitantFeatures[key] ?? true, [exploitantFeatures])
+
+  const toggleExploitantFeature = useCallback((key: ExploitantFeatureKey) => {
+    setExploitantFeatures(current => ({ ...current, [key]: !(current[key] ?? true) }))
+  }, [])
+
+  const applyExploitantPreset = useCallback((preset: 'leger' | 'complet') => {
+    if (preset === 'complet') {
+      setExploitantFeatures({ ...EXPLOITANT_FEATURE_DEFAULTS })
+      return
+    }
+    setExploitantFeatures({
+      ...EXPLOITANT_FEATURE_DEFAULTS,
+      tab_affretement: false,
+      tab_annulees: false,
+      tab_entrepots: false,
+      tab_relais: false,
+      tab_retour_charge: false,
+      action_relais: false,
+      action_optimize_tour: false,
+    })
+  }, [])
 
   function buildGeneratedInlineEvents(ot: OT, rowId: string): GeneratedInlineEvent[] {
     if (!autoHabillage) return []
@@ -1801,14 +1889,7 @@ export default function Planning() {
   }
 
   function findOverlapTarget(rowId: string, startISO: string, endISO: string, movingOtIds: string[]): OT | null {
-    const start = new Date(startISO).getTime()
-    const end = Math.max(start + 15 * 60 * 1000, new Date(endISO).getTime())
-    return rowOTs(rowId)
-      .filter(item => !movingOtIds.includes(item.id))
-      .find(item => {
-        const interval = otInterval(item)
-        return Math.min(end, interval.end) > Math.max(start, interval.start)
-      }) ?? null
+    return findOverlapTargetInRow(rowOTs(rowId), startISO, endISO, movingOtIds)
   }
 
   async function linkCoursesToGroupage(source: OT, target: OT) {
@@ -2735,33 +2816,7 @@ export default function Planning() {
         next[row.id] = []
         continue
       }
-      const segments = rowOTs(row.id)
-        .map(ot => {
-          const fallbackStart = isoToDate(ot.date_chargement_prevue)
-          const fallbackEnd = isoToDate(ot.date_livraison_prevue ?? ot.date_chargement_prevue)
-          const start = toTimeValue(ot.date_chargement_prevue, fallbackStart)
-          const endRaw = toTimeValue(ot.date_livraison_prevue ?? ot.date_chargement_prevue, fallbackEnd)
-          const end = Math.max(endRaw, start + 15 * 60 * 1000)
-          return { ot, start, end }
-        })
-        .filter(seg => seg.end >= viewStart && seg.start <= viewEnd)
-        .sort((a, b) => a.start - b.start)
-
-      const conflicts: RowConflict[] = []
-      for (let i = 0; i < segments.length; i += 1) {
-        for (let j = i + 1; j < segments.length; j += 1) {
-          if (segments[j].start >= segments[i].end) break
-          if (sharesSameGroupage(segments[i].ot, segments[j].ot)) continue
-          const overlapMs = Math.max(0, Math.min(segments[i].end, segments[j].end) - Math.max(segments[i].start, segments[j].start))
-          if (overlapMs <= 0) continue
-          conflicts.push({
-            first: segments[i].ot,
-            second: segments[j].ot,
-            overlapMinutes: Math.round(overlapMs / 60000),
-          })
-        }
-      }
-      next[row.id] = conflicts
+      next[row.id] = buildRowConflicts(rowOTs(row.id), viewStart, viewEnd)
     }
     return next
   })()
@@ -2922,79 +2977,25 @@ export default function Planning() {
     setAssignKeepDuration(true)
   }, [assignModal?.ot?.id])
 
-  function parseAssignDateTime(dateValue: string, timeValue: string): Date | null {
-    if (!dateValue) return null
-    const date = parseDay(dateValue)
-    const [hourToken = '0', minuteToken = '0'] = (timeValue || '00:00').split(':')
-    const hours = Number(hourToken)
-    const minutes = Number(minuteToken)
-    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null
-    date.setHours(hours, minutes, 0, 0)
-    return Number.isNaN(date.getTime()) ? null : date
-  }
-
-  function toTimeHHmm(value: Date): string {
-    const hh = String(value.getHours()).padStart(2, '0')
-    const mm = String(value.getMinutes()).padStart(2, '0')
-    return `${hh}:${mm}`
-  }
-
   const assignScheduleMeta = useMemo(() => {
-    if (!assignModal) return { durationMinutes: 0, valid: false }
-    const start = parseAssignDateTime(assignModal.date_chargement, assignModal.time_chargement)
-    const end = parseAssignDateTime(assignModal.date_livraison, assignModal.time_livraison)
-    if (!start || !end) return { durationMinutes: 0, valid: false }
-    const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000)
-    return { durationMinutes, valid: durationMinutes > 0 }
+    return getAssignScheduleMeta(assignModal)
   }, [assignModal])
 
   const assignDurationLabel = useMemo(() => {
-    const total = Math.max(0, assignScheduleMeta.durationMinutes)
-    const h = Math.floor(total / 60)
-    const m = total % 60
-    if (h > 0 && m > 0) return `${h}h ${String(m).padStart(2, '0')}`
-    if (h > 0) return `${h}h`
-    return `${m} min`
+    return formatAssignDurationLabel(assignScheduleMeta.durationMinutes)
   }, [assignScheduleMeta.durationMinutes])
 
   function updateAssignStart(nextDate: string, nextTime: string) {
     setAssignModal(current => {
       if (!current) return current
-      const next: AssignForm = { ...current, date_chargement: nextDate, time_chargement: nextTime }
-      if (!assignKeepDuration) return next
-      const prevStart = parseAssignDateTime(current.date_chargement, current.time_chargement)
-      const prevEnd = parseAssignDateTime(current.date_livraison, current.time_livraison)
-      const newStart = parseAssignDateTime(nextDate, nextTime)
-      if (!prevStart || !prevEnd || !newStart) return next
-      const durationMinutes = Math.round((prevEnd.getTime() - prevStart.getTime()) / 60000)
-      if (durationMinutes <= 0) return next
-      const newEnd = new Date(newStart.getTime() + durationMinutes * 60000)
-      next.date_livraison = toISO(newEnd)
-      next.time_livraison = toTimeHHmm(newEnd)
-      return next
+      return updateAssignStartKeepingDuration(current, nextDate, nextTime, assignKeepDuration)
     })
   }
 
   function shiftAssignStart(deltaMinutes: number) {
     setAssignModal(current => {
       if (!current) return current
-      const start = parseAssignDateTime(current.date_chargement, current.time_chargement)
-      if (!start) return current
-      const shiftedStart = new Date(start.getTime() + deltaMinutes * 60000)
-      const next: AssignForm = {
-        ...current,
-        date_chargement: toISO(shiftedStart),
-        time_chargement: toTimeHHmm(shiftedStart),
-      }
-      if (!assignKeepDuration) return next
-      const end = parseAssignDateTime(current.date_livraison, current.time_livraison)
-      if (!end) return next
-      const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000)
-      if (durationMinutes <= 0) return next
-      const shiftedEnd = new Date(shiftedStart.getTime() + durationMinutes * 60000)
-      next.date_livraison = toISO(shiftedEnd)
-      next.time_livraison = toTimeHHmm(shiftedEnd)
-      return next
+      return shiftAssignStartKeepingDuration(current, deltaMinutes, assignKeepDuration)
     })
   }
 
@@ -3002,14 +3003,7 @@ export default function Planning() {
     if (durationMinutes <= 0) return
     setAssignModal(current => {
       if (!current) return current
-      const start = parseAssignDateTime(current.date_chargement, current.time_chargement)
-      if (!start) return current
-      const nextEnd = new Date(start.getTime() + durationMinutes * 60000)
-      return {
-        ...current,
-        date_livraison: toISO(nextEnd),
-        time_livraison: toTimeHHmm(nextEnd),
-      }
+      return applyAssignDurationFromStart(current, durationMinutes)
     })
   }
 
@@ -3375,12 +3369,7 @@ export default function Planning() {
   }
 
   function otInterval(ot: OT): { start: number; end: number } {
-    const fallbackStart = isoToDate(ot.date_chargement_prevue)
-    const fallbackEnd = isoToDate(ot.date_livraison_prevue ?? ot.date_chargement_prevue)
-    const start = toTimeValue(ot.date_chargement_prevue, fallbackStart)
-    const endRaw = toTimeValue(ot.date_livraison_prevue ?? ot.date_chargement_prevue, fallbackEnd)
-    const end = Math.max(endRaw, start + 15 * 60 * 1000)
-    return { start, end }
+    return getOtInterval(ot)
   }
 
   async function resolveConflictsForRow(rowId: string) {
@@ -3434,62 +3423,82 @@ export default function Planning() {
     .filter(ot => viewMode === 'semaine' ? blockPos(ot, weekStart) !== null : isoToDate(ot.date_chargement_prevue) === selectedDay)
 
   const bottomDockUrgences = useMemo(() => {
-    const now = Date.now()
-    const in24h = now + 24 * 60 * 60 * 1000
-    const urgences: PlanningUrgence[] = []
-
-    for (const ot of ganttOTs) {
-      const endTs = new Date(ot.date_livraison_prevue ?? ot.date_chargement_prevue ?? 0).getTime()
-      if (!Number.isFinite(endTs)) continue
-      if (ot.statut !== 'facture' && endTs < now) {
-        const minutesLate = Math.max(0, Math.round((now - endTs) / 60000))
-        urgences.push({
-          id: `late-${ot.id}`,
-          level: minutesLate >= 180 ? 'critique' : 'haute',
-          source: 'retard',
-          label: ot.reference,
-          detail: `Retard livraison ${formatMinutes(minutesLate)}`,
-          otId: ot.id,
-          score: 200 + Math.min(minutesLate, 600),
-        })
-      }
-    }
-
-    for (const ot of unresourced) {
-      const startTs = new Date(ot.date_chargement_prevue ?? ot.date_livraison_prevue ?? 0).getTime()
-      if (!Number.isFinite(startTs)) continue
-      if (startTs >= now && startTs <= in24h) {
-        const minutesToStart = Math.max(0, Math.round((startTs - now) / 60000))
-        urgences.push({
-          id: `unresourced-${ot.id}`,
-          level: minutesToStart <= 240 ? 'critique' : 'haute',
-          source: 'non_affectee',
-          label: ot.reference,
-          detail: `Depart dans ${formatMinutes(minutesToStart)} sans ressource`,
-          otId: ot.id,
-          score: 180 + Math.max(0, 300 - minutesToStart),
-        })
-      }
-    }
-
-    for (const conflict of bottomDockConflicts) {
-      const overlap = conflict.pairs.reduce((sum, pair) => sum + pair.overlapMinutes, 0)
-      if (overlap <= 0) continue
-      urgences.push({
-        id: `conflict-${conflict.rowId}`,
-        level: overlap >= 120 ? 'critique' : 'moyenne',
-        source: 'conflit',
-        label: conflict.rowLabel,
-        detail: `${conflict.pairs.length} conflit(s), chevauchement cumule ${formatMinutes(overlap)}`,
-        rowId: conflict.rowId,
-        score: 120 + overlap,
-      })
-    }
-
-    return urgences
-      .sort((left, right) => right.score - left.score)
-      .slice(0, 40)
+    return buildPlanningUrgences({
+      nowTs: Date.now(),
+      ganttOTs,
+      unresourced,
+      conflicts: bottomDockConflicts,
+      formatMinutes,
+      limit: 40,
+    })
   }, [bottomDockConflicts, ganttOTs, unresourced])
+
+  const bottomDockTabs = useMemo(() => ([
+    { key: 'missions' as BottomDockTab, label: 'Missions', count: bottomDockMissions.length, featureKey: null as ExploitantFeatureKey | null },
+    { key: 'urgences' as BottomDockTab, label: 'Alertes', count: bottomDockUrgences.length, featureKey: 'tab_urgences' as ExploitantFeatureKey },
+    { key: 'non_affectees' as BottomDockTab, label: 'Non affectees (vue)', count: unresourced.length, featureKey: 'tab_non_affectees' as ExploitantFeatureKey },
+    { key: 'conflits' as BottomDockTab, label: 'Conflits', count: bottomDockConflicts.reduce((sum, item) => sum + item.pairs.length, 0), featureKey: 'tab_conflits' as ExploitantFeatureKey },
+    { key: 'affretement' as BottomDockTab, label: 'Affretement', count: activeAffretementContracts.length, featureKey: 'tab_affretement' as ExploitantFeatureKey },
+    { key: 'groupages' as BottomDockTab, label: 'Groupages', count: bottomDockGroupages.length, featureKey: 'tab_groupages' as ExploitantFeatureKey },
+    { key: 'non_programmees' as BottomDockTab, label: 'Non programmees', count: bottomDockNonProgrammees.length, featureKey: 'tab_non_programmees' as ExploitantFeatureKey },
+    { key: 'annulees' as BottomDockTab, label: 'Annulees', count: bottomDockAnnulees.length, featureKey: 'tab_annulees' as ExploitantFeatureKey },
+    { key: 'entrepots' as BottomDockTab, label: 'Entrepots', count: relaisList.filter(r => r.type_relais === 'depot_marchandise' && r.statut === 'en_attente').length, featureKey: 'tab_entrepots' as ExploitantFeatureKey },
+    { key: 'relais' as BottomDockTab, label: 'Relais conducteur', count: relaisList.filter(r => r.type_relais === 'relais_conducteur' && (r.statut === 'en_attente' || r.statut === 'assigne')).length, featureKey: 'tab_relais' as ExploitantFeatureKey },
+    { key: 'retour_charge' as BottomDockTab, label: 'Retour en charge IA', count: retourChargeSuggestions.length, featureKey: 'tab_retour_charge' as ExploitantFeatureKey },
+  ]), [
+    activeAffretementContracts.length,
+    bottomDockAnnulees.length,
+    bottomDockConflicts,
+    bottomDockGroupages.length,
+    bottomDockMissions.length,
+    bottomDockNonProgrammees.length,
+    bottomDockUrgences.length,
+    relaisList,
+    retourChargeSuggestions.length,
+    unresourced.length,
+  ])
+
+  const visibleBottomDockTabs = useMemo(
+    () => bottomDockTabs.filter(item => !item.featureKey || isFeatureEnabled(item.featureKey)),
+    [bottomDockTabs, isFeatureEnabled],
+  )
+
+  useEffect(() => {
+    if (visibleBottomDockTabs.some(item => item.key === bottomDockTab)) return
+    setBottomDockTab(visibleBottomDockTabs[0]?.key ?? 'missions')
+  }, [bottomDockTab, visibleBottomDockTabs])
+
+  const exploitantTabOptions = useMemo(() => ([
+    { key: 'tab_urgences' as ExploitantFeatureKey, label: 'Alertes', count: bottomDockUrgences.length },
+    { key: 'tab_non_affectees' as ExploitantFeatureKey, label: 'Non affectees', count: unresourced.length },
+    { key: 'tab_conflits' as ExploitantFeatureKey, label: 'Conflits', count: bottomDockConflicts.reduce((sum, item) => sum + item.pairs.length, 0) },
+    { key: 'tab_affretement' as ExploitantFeatureKey, label: 'Affretement', count: activeAffretementContracts.length },
+    { key: 'tab_groupages' as ExploitantFeatureKey, label: 'Groupages', count: bottomDockGroupages.length },
+    { key: 'tab_non_programmees' as ExploitantFeatureKey, label: 'Non programmees', count: bottomDockNonProgrammees.length },
+    { key: 'tab_annulees' as ExploitantFeatureKey, label: 'Annulees', count: bottomDockAnnulees.length },
+    { key: 'tab_entrepots' as ExploitantFeatureKey, label: 'Entrepots', count: relaisList.filter(r => r.type_relais === 'depot_marchandise' && r.statut === 'en_attente').length },
+    { key: 'tab_relais' as ExploitantFeatureKey, label: 'Relais', count: relaisList.filter(r => r.type_relais === 'relais_conducteur' && (r.statut === 'en_attente' || r.statut === 'assigne')).length },
+    { key: 'tab_retour_charge' as ExploitantFeatureKey, label: 'Retour IA', count: retourChargeSuggestions.length },
+  ]), [
+    activeAffretementContracts.length,
+    bottomDockAnnulees.length,
+    bottomDockConflicts,
+    bottomDockGroupages.length,
+    bottomDockNonProgrammees.length,
+    bottomDockUrgences.length,
+    relaisList,
+    retourChargeSuggestions.length,
+    unresourced.length,
+  ])
+
+  const exploitantActionOptions: Array<{ key: ExploitantFeatureKey; label: string }> = [
+    { key: 'action_affecter', label: 'Affectation / programmation' },
+    { key: 'action_groupage', label: 'Actions de groupage' },
+    { key: 'action_resoudre_conflits', label: 'Resolution auto des conflits' },
+    { key: 'action_relais', label: 'Depots & relais conducteur' },
+    { key: 'action_notifier_client', label: 'Notification client' },
+    { key: 'action_optimize_tour', label: 'Optimisation de tournee' },
+  ]
 
   const canMove = (ot: OT) => {
     const st = (ot.statut_transport ?? ot.statut ?? '').trim().toLowerCase()
@@ -5162,19 +5171,7 @@ export default function Planning() {
                 <div className="border-t border-slate-800 bg-slate-950/95 flex-shrink-0 overflow-hidden" style={{ height: `${bottomDockHeight}px` }}>
               <div className="flex h-full min-h-0 flex-col">
               <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-slate-800/80 overflow-x-auto overflow-y-hidden flex-shrink-0">
-            {([
-              { key: 'missions' as BottomDockTab, label: 'Missions', count: bottomDockMissions.length },
-              { key: 'urgences' as BottomDockTab, label: 'Alertes', count: bottomDockUrgences.length },
-              { key: 'non_affectees' as BottomDockTab, label: 'Non affectees (vue)', count: unresourced.length },
-              { key: 'conflits' as BottomDockTab, label: 'Conflits', count: bottomDockConflicts.reduce((sum, item) => sum + item.pairs.length, 0) },
-              { key: 'affretement' as BottomDockTab, label: 'Affretement', count: activeAffretementContracts.length },
-              { key: 'groupages' as BottomDockTab, label: 'Groupages', count: bottomDockGroupages.length },
-              { key: 'non_programmees' as BottomDockTab, label: 'Non programmees', count: bottomDockNonProgrammees.length },
-              { key: 'annulees' as BottomDockTab, label: 'Annulees', count: bottomDockAnnulees.length },
-              { key: 'entrepots' as BottomDockTab, label: 'Entrepots', count: relaisList.filter(r => r.type_relais === 'depot_marchandise' && r.statut === 'en_attente').length },
-              { key: 'relais' as BottomDockTab, label: 'Relais conducteur', count: relaisList.filter(r => r.type_relais === 'relais_conducteur' && (r.statut === 'en_attente' || r.statut === 'assigne')).length },
-              { key: 'retour_charge' as BottomDockTab, label: 'Retour en charge IA', count: retourChargeSuggestions.length },
-            ]).map(item => (
+            {visibleBottomDockTabs.map(item => (
               <button
                 key={item.key}
                 type="button"
@@ -5198,24 +5195,28 @@ export default function Planning() {
             ))}
 
             <div className="flex flex-wrap items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setBottomDockTab('urgences')}
-                className="px-2.5 py-1 rounded-full text-[10px] font-bold border border-rose-700 bg-rose-600 text-white hover:bg-rose-500 transition-colors whitespace-nowrap"
-              >
-                Focus alertes
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setOptimizerConducteurId(null)
-                  setShowRouteOptimizer(true)
-                }}
-                className="px-2.5 py-1 rounded-full text-[10px] font-bold border border-blue-600 bg-blue-700 text-white hover:bg-blue-600 transition-colors whitespace-nowrap"
-                title="Optimiser la séquence de livraisons d'un conducteur"
-              >
-                🗺 Optimiser tournée
-              </button>
+              {isFeatureEnabled('tab_urgences') && (
+                <button
+                  type="button"
+                  onClick={() => setBottomDockTab('urgences')}
+                  className="px-2.5 py-1 rounded-full text-[10px] font-bold border border-rose-700 bg-rose-600 text-white hover:bg-rose-500 transition-colors whitespace-nowrap"
+                >
+                  Focus alertes
+                </button>
+              )}
+              {isFeatureEnabled('action_optimize_tour') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOptimizerConducteurId(null)
+                    setShowRouteOptimizer(true)
+                  }}
+                  className="px-2.5 py-1 rounded-full text-[10px] font-bold border border-blue-600 bg-blue-700 text-white hover:bg-blue-600 transition-colors whitespace-nowrap"
+                  title="Optimiser la séquence de livraisons d'un conducteur"
+                >
+                  🗺 Optimiser tournée
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -5278,8 +5279,66 @@ export default function Planning() {
               >
                 Replier panneau
               </button>
+              <button
+                type="button"
+                onClick={() => setShowExploitantControls(value => !value)}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${showExploitantControls ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-100' : 'border-slate-700 text-slate-300 hover:text-white'}`}
+              >
+                Parametres exploitant
+              </button>
             </div>
-          </div>
+            {showExploitantControls && (
+              <div className="w-full rounded-xl border border-slate-700/70 bg-slate-900/70 px-3 py-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Mode planning</p>
+                  <button
+                    type="button"
+                    onClick={() => applyExploitantPreset('leger')}
+                    className="rounded-full border border-emerald-500/60 bg-emerald-500/20 px-2.5 py-1 text-[10px] font-semibold text-emerald-100 hover:bg-emerald-500/30"
+                  >
+                    Preset leger
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyExploitantPreset('complet')}
+                    className="rounded-full border border-blue-500/60 bg-blue-500/20 px-2.5 py-1 text-[10px] font-semibold text-blue-100 hover:bg-blue-500/30"
+                  >
+                    Preset complet
+                  </button>
+                </div>
+                <div className="mt-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Onglets du panneau</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {exploitantTabOptions.map(option => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => toggleExploitantFeature(option.key)}
+                        className={`rounded-full border px-2 py-1 text-[10px] font-semibold transition-colors ${isFeatureEnabled(option.key) ? 'border-emerald-500/55 bg-emerald-500/20 text-emerald-100' : 'border-slate-700 text-slate-400 hover:text-slate-200'}`}
+                      >
+                        {option.label} {option.count > 0 ? `(${option.count})` : ''}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Actions operateur</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {exploitantActionOptions.map(option => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => toggleExploitantFeature(option.key)}
+                        className={`rounded-full border px-2 py-1 text-[10px] font-semibold transition-colors ${isFeatureEnabled(option.key) ? 'border-blue-500/55 bg-blue-500/20 text-blue-100' : 'border-slate-700 text-slate-400 hover:text-slate-200'}`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            </div>
 
           <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-auto px-4 py-3 xl:grid-cols-[1.5fr_1fr]">
             <div className="rounded-xl border border-slate-800 bg-slate-900/70 overflow-hidden">
@@ -5372,16 +5431,20 @@ export default function Planning() {
                                 Ouvrir conflits
                               </button>
                             ) : item.source === 'non_affectee' ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const ot = item.otId ? findOTById(item.otId) : null
-                                  if (ot) openAssign(ot)
-                                }}
-                                className="text-indigo-300 hover:text-indigo-200"
-                              >
-                                Affecter
-                              </button>
+                              isFeatureEnabled('action_affecter') ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const ot = item.otId ? findOTById(item.otId) : null
+                                    if (ot) openAssign(ot)
+                                  }}
+                                  className="text-indigo-300 hover:text-indigo-200"
+                                >
+                                  Affecter
+                                </button>
+                              ) : (
+                                <span className="text-slate-500">Affectation desactivee</span>
+                              )
                             ) : (
                               <button
                                 type="button"
@@ -5441,7 +5504,13 @@ export default function Planning() {
                             </div>
                           </td>
                           <td className="px-3 py-2 text-slate-400">{isoToDate(ot.date_chargement_prevue)} {isoToTime(ot.date_chargement_prevue)}</td>
-                          <td className="px-3 py-2"><button type="button" onClick={() => openAssign(ot)} className="text-indigo-300 hover:text-indigo-200">Affecter</button></td>
+                          <td className="px-3 py-2">
+                            {isFeatureEnabled('action_affecter') ? (
+                              <button type="button" onClick={() => openAssign(ot)} className="text-indigo-300 hover:text-indigo-200">Affecter</button>
+                            ) : (
+                              <span className="text-slate-500">Desactivee</span>
+                            )}
+                          </td>
                         </tr>
                         )
                       })}
@@ -5602,7 +5671,13 @@ export default function Planning() {
                             </div>
                           </td>
                           <td className="px-3 py-2"><span className={`text-[10px] px-1.5 py-0.5 rounded-full ${BADGE_CLS[ot.statut] ?? 'bg-slate-700 text-slate-300'}`}>{STATUT_LABEL[ot.statut] ?? ot.statut}</span></td>
-                          <td className="px-3 py-2"><button type="button" onClick={() => openAssign(ot)} className="text-indigo-300 hover:text-indigo-200">Programmer</button></td>
+                          <td className="px-3 py-2">
+                            {isFeatureEnabled('action_affecter') ? (
+                              <button type="button" onClick={() => openAssign(ot)} className="text-indigo-300 hover:text-indigo-200">Programmer</button>
+                            ) : (
+                              <span className="text-slate-500">Desactivee</span>
+                            )}
+                          </td>
                         </tr>
                         )
                       })}
@@ -6930,7 +7005,7 @@ export default function Planning() {
                 <p className="text-xs text-slate-400 mt-0.5">{conflictRow?.primary ?? 'Ressource'} - {activeRowConflicts.length} chevauchement{activeRowConflicts.length > 1 ? 's' : ''}</p>
               </div>
               <div className="flex items-center gap-2">
-                {conflictRow && !conflictRow.isCustom && !conflictRow.isAffretementAsset && activeRowConflicts.length > 0 && (
+                {conflictRow && !conflictRow.isCustom && !conflictRow.isAffretementAsset && activeRowConflicts.length > 0 && isFeatureEnabled('action_resoudre_conflits') && (
                   <button
                     type="button"
                     onClick={() => resolveConflictsForRow(conflictPanelRowId)}
@@ -6973,22 +7048,28 @@ export default function Planning() {
                             : 'Proposer un groupage deliable ou valider un lot verrouille pour cette paire.'}
                         </p>
                         <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => { void applyConflictGroupage(conflict, false) }}
-                            disabled={sameGroupage || conflictActionKey !== null}
-                            className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-emerald-500/35 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50 disabled:hover:bg-emerald-500/10 transition-colors"
-                          >
-                            {conflictActionKey === linkActionKey ? 'Creation...' : sameGroupage ? 'Deja groupees' : 'Proposer groupage'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { void applyConflictGroupage(conflict, true) }}
-                            disabled={frozenGroupage || conflictActionKey !== null}
-                            className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-indigo-500/35 bg-indigo-500/10 text-indigo-200 hover:bg-indigo-500/20 disabled:opacity-50 disabled:hover:bg-indigo-500/10 transition-colors"
-                          >
-                            {conflictActionKey === freezeActionKey ? 'Validation...' : frozenGroupage ? 'Lot verrouille' : sameGroupage ? 'Verrouiller le lot' : 'Valider et verrouiller'}
-                          </button>
+                          {isFeatureEnabled('action_groupage') ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => { void applyConflictGroupage(conflict, false) }}
+                                disabled={sameGroupage || conflictActionKey !== null}
+                                className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-emerald-500/35 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50 disabled:hover:bg-emerald-500/10 transition-colors"
+                              >
+                                {conflictActionKey === linkActionKey ? 'Creation...' : sameGroupage ? 'Deja groupees' : 'Proposer groupage'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { void applyConflictGroupage(conflict, true) }}
+                                disabled={frozenGroupage || conflictActionKey !== null}
+                                className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-indigo-500/35 bg-indigo-500/10 text-indigo-200 hover:bg-indigo-500/20 disabled:opacity-50 disabled:hover:bg-indigo-500/10 transition-colors"
+                              >
+                                {conflictActionKey === freezeActionKey ? 'Validation...' : frozenGroupage ? 'Lot verrouille' : sameGroupage ? 'Verrouiller le lot' : 'Valider et verrouiller'}
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-[11px] text-slate-500">Actions de groupage desactivees</span>
+                          )}
                         </div>
                       </div>
                     )
@@ -7051,14 +7132,16 @@ export default function Planning() {
               {contextMenu.ot.mission_id ? 'Details mission / statut' : 'Details / statut operationnel'}
             </button>
 
-            <button
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-left"
-              onClick={() => { setContextMenu(null); openAssign(contextMenu.ot) }}>
-              <svg className="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-              </svg>
-              Modifier dates / ressources
-            </button>
+            {isFeatureEnabled('action_affecter') && (
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-left"
+                onClick={() => { setContextMenu(null); openAssign(contextMenu.ot) }}>
+                <svg className="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                Modifier dates / ressources
+              </button>
+            )}
 
             {(ST_EN_COURS.includes((contextMenu.ot.statut_transport ?? '') as never) || contextMenu.ot.statut_transport === 'termine') && (
               <button
@@ -7075,7 +7158,7 @@ export default function Planning() {
               </button>
             )}
 
-            {contextMenu.ot.mission_id && !contextMenu.ot.groupage_fige && (
+            {isFeatureEnabled('action_groupage') && contextMenu.ot.mission_id && !contextMenu.ot.groupage_fige && (
               <button
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-amber-300 hover:bg-amber-900/20 hover:text-amber-200 transition-colors text-left"
                 onClick={() => {
@@ -7090,7 +7173,7 @@ export default function Planning() {
               </button>
             )}
 
-            {contextMenu.ot.mission_id && (
+            {isFeatureEnabled('action_groupage') && contextMenu.ot.mission_id && (
               <button
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-indigo-300 hover:bg-indigo-900/20 hover:text-indigo-200 transition-colors text-left"
                 onClick={() => {
@@ -7109,7 +7192,7 @@ export default function Planning() {
             <div className="border-t border-slate-800 my-1"/>
 
             {/* D�poser en d�p�t */}
-            {(['planifie','en_cours','livre','confirme'].includes(contextMenu.ot.statut)) && (
+            {isFeatureEnabled('action_relais') && (['planifie','en_cours','livre','confirme'].includes(contextMenu.ot.statut)) && (
               <button
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-amber-300 hover:bg-amber-900/20 hover:text-amber-200 transition-colors text-left"
                 onClick={() => openRelaisDepot(contextMenu.ot, 'depot_marchandise')}>
@@ -7121,7 +7204,7 @@ export default function Planning() {
             )}
 
             {/* Relais conducteur */}
-            {(['planifie','en_cours'].includes(contextMenu.ot.statut)) && (
+            {isFeatureEnabled('action_relais') && (['planifie','en_cours'].includes(contextMenu.ot.statut)) && (
               <button
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-violet-300 hover:bg-violet-900/20 hover:text-violet-200 transition-colors text-left"
                 onClick={() => openRelaisDepot(contextMenu.ot, 'relais_conducteur')}>
@@ -7135,18 +7218,20 @@ export default function Planning() {
             <div className="border-t border-slate-800 my-1"/>
 
             {/* Notification client */}
-            <button
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-sky-300 hover:bg-sky-900/20 hover:text-sky-200 transition-colors text-left"
-              onClick={() => { setContextMenu(null); openNotifyClient(contextMenu.ot) }}>
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
-              </svg>
-              Notifier le client
-            </button>
+            {isFeatureEnabled('action_notifier_client') && (
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-sky-300 hover:bg-sky-900/20 hover:text-sky-200 transition-colors text-left"
+                onClick={() => { setContextMenu(null); openNotifyClient(contextMenu.ot) }}>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+                </svg>
+                Notifier le client
+              </button>
+            )}
 
             <div className="border-t border-slate-800 my-1"/>
 
-            {canUnlock(contextMenu.ot) && (
+            {isFeatureEnabled('action_affecter') && canUnlock(contextMenu.ot) && (
               <button
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-rose-400 hover:bg-rose-900/20 hover:text-rose-300 transition-colors text-left"
                 onClick={() => unassign(contextMenu.ot)}>

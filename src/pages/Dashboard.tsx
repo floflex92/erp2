@@ -53,8 +53,8 @@ const WIDGET_REGISTRY: WidgetDef[] = [
   },
   {
     id: 'kpi-dirigeant',
-    title: 'Tableau de bord financier',
-    subtitle: 'CA, marge et OT ce mois',
+    title: 'Cockpit dirigeant',
+    subtitle: 'Vision 360 — finance, ops, flotte, clients',
     colSpan: 'full',
     roles: ['dirigeant', 'admin', 'super_admin', 'comptable', 'administratif', 'facturation', 'observateur', 'investisseur'],
     component: WidgetKpiDirigeant,

@@ -13,18 +13,18 @@ export default function PresentationPage() {
     description: "Téléchargez et consultez la présentation complète de l'ERP TMS NEXORA Truck : modules, fonctionnalités, architecture et bénéfices pour les transporteurs routiers.",
     canonicalPath: '/presentation',
     keywords: 'présentation ERP transport, TMS brochure, logiciel transport routier PDF, NEXORA Truck',
-    ogImage: 'https://nexora-truck.fr/site/logo/nexora-presentation-logo.png',
-    twitterImage: 'https://nexora-truck.fr/site/logo/nexora-presentation-logo.png',
+    ogImage: 'https://nexora-truck.fr/site/logo/brand/nexora-logo-dark.png',
+    twitterImage: 'https://nexora-truck.fr/site/logo/brand/nexora-logo-dark.png',
   })
 
   return (
-    <main style={{ background: 'var(--site-bg, #0f1117)', minHeight: '100vh' }}>
+    <main style={{ background: 'var(--site-bg, #f7f8fa)', minHeight: '100vh' }}>
       {/* Hero */}
       <section
         style={{
           ...sectionPx,
           paddingBlock: 'clamp(60px, 10vw, 120px)',
-          background: 'linear-gradient(135deg, #0f1117 0%, #1a2035 100%)',
+          background: 'linear-gradient(135deg, #0b1f3a 0%, #1f4e8c 58%, #0ea5e9 100%)',
           borderBottom: '1px solid rgba(255,255,255,0.07)',
         }}
       >
@@ -46,18 +46,21 @@ export default function PresentationPage() {
             </span>
           </div>
 
-          <div style={{ marginBottom: 24 }}>
+          <div style={{ marginBottom: 32 }}>
             <img
-              src="/site/logo/nexora-presentation-logo.png"
+              src="/site/logo/brand/nexora-logo-light.png"
               alt="Logo NEXORA Truck"
-              width={120}
+              width={460}
               height={120}
               style={{
                 display: 'inline-block',
-                borderRadius: 14,
-                border: '1px solid rgba(255,255,255,0.2)',
-                boxShadow: '0 10px 28px rgba(0,0,0,0.38)',
-                background: 'rgba(255,255,255,0.06)',
+                width: 'min(460px, 80vw)',
+                height: 'auto',
+                borderRadius: 16,
+                border: '1px solid rgba(255,255,255,0.18)',
+                boxShadow: '0 18px 42px rgba(0,0,0,0.32)',
+                background: 'rgba(255,255,255,0.10)',
+                padding: '18px 24px',
               }}
               loading="eager"
               decoding="async"

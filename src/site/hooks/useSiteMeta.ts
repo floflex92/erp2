@@ -64,7 +64,7 @@ export default function useSiteMeta({
   robots = 'index,follow',
   keywords,
   ogType = 'website',
-  ogImage = 'https://nexora-truck.fr/site/screenshots/planning-dark.png',
+  ogImage = 'https://nexora-truck.fr/site/logo/brand/nexora-logo-dark.png',
   ogImageAlt,
   ogImageWidth = '1200',
   ogImageHeight = '630',

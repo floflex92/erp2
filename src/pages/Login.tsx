@@ -127,14 +127,14 @@ export default function Login() {
   }
 
   const inputStyle: React.CSSProperties = {
-    border: '1px solid #E5E5E5',
-    borderRadius: '8px',
-    color: '#1D1D1F',
+    border: '1px solid #DBE2EC',
+    borderRadius: '10px',
+    color: '#1B1B1B',
     background: '#FFFFFF',
   }
 
   return (
-    <div className="flex min-h-screen" style={{ background: '#FFFFFF' }}>
+    <div className="flex min-h-screen" style={{ background: '#F7F8FA' }}>
       {/* ── Left: Image ── */}
       <div className="relative hidden w-1/2 lg:block">
         <img
@@ -162,18 +162,24 @@ export default function Login() {
       <div className="flex w-full flex-col items-center justify-center px-6 lg:w-1/2" style={{ paddingInline: 'clamp(24px, 6vw, 80px)' }}>
         <div className="w-full max-w-sm">
           {/* Logo */}
-          <Link to="/" className="text-2xl font-bold tracking-tight" style={{ fontFamily: 'Outfit, Inter, sans-serif', color: '#000000' }}>
-            NEXORA
+          <Link to="/" className="inline-flex items-center" aria-label="NEXORA accueil">
+            <img
+              src="/site/logo/brand/nexora-logo-dark.png"
+              alt="NEXORA"
+              className="h-9 w-auto object-contain"
+              loading="eager"
+              decoding="async"
+            />
           </Link>
-          <p className="mt-1 text-sm" style={{ color: '#86868B' }}>Plateforme de gestion transport</p>
+          <p className="mt-1 text-sm" style={{ color: '#64748B' }}>Plateforme de gestion transport</p>
 
           {showDemo ? (
             /* ── Panneau Essai gratuit ──────────────────────────────────────── */
             <>
-              <h1 className="mt-10 text-3xl font-bold" style={{ color: '#000000' }}>
+              <h1 className="mt-10 text-3xl font-bold" style={{ color: '#0B1F3A' }}>
                 Accès démo
               </h1>
-              <p className="mt-2" style={{ color: '#6E6E73', fontSize: '16px' }}>
+              <p className="mt-2" style={{ color: '#475569', fontSize: '16px' }}>
                 Entrez votre email pour accéder à l'ERP en mode découverte — sans mot de passe.
               </p>
 
@@ -185,7 +191,7 @@ export default function Login() {
               ) : (
                 <form onSubmit={handleDemoSubmit} className="mt-10 grid gap-4">
                   <label className="grid gap-1.5">
-                    <span className="text-sm font-medium" style={{ color: '#1D1D1F' }}>Adresse email</span>
+                    <span className="text-sm font-medium" style={{ color: '#1B1B1B' }}>Adresse email</span>
                     <input
                       type="email"
                       value={demoEmail}
@@ -194,7 +200,7 @@ export default function Login() {
                       autoComplete="email"
                       autoFocus
                       placeholder="vous@entreprise.fr"
-                      className="w-full px-4 py-3 text-base outline-none transition-colors focus:border-[#2563EB]"
+                      className="w-full px-4 py-3 text-base outline-none transition-colors focus:border-[#1F4E8C]"
                       style={inputStyle}
                       disabled={demoStatus === 'loading'}
                     />
@@ -210,7 +216,7 @@ export default function Login() {
                     type="submit"
                     disabled={demoStatus === 'loading'}
                     className="mt-2 w-full py-3 text-sm font-semibold text-white transition-colors disabled:opacity-50"
-                    style={{ background: '#2563EB', borderRadius: '8px' }}
+                    style={{ background: 'linear-gradient(135deg, #0B1F3A 0%, #1F4E8C 54%, #0EA5E9 100%)', borderRadius: '10px' }}
                   >
                     {demoStatus === 'loading' ? 'Accès en cours…' : 'Accéder à la démo'}
                   </button>
@@ -222,7 +228,7 @@ export default function Login() {
                   type="button"
                   onClick={() => { setShowDemo(false); setDemoEmail(''); setDemoStatus('idle'); setDemoError(null) }}
                   className="text-sm transition-colors hover:text-[#1D1D1F]"
-                  style={{ color: '#6E6E73' }}
+                  style={{ color: '#64748B' }}
                 >
                   ← Retour à la connexion
                 </button>
@@ -231,10 +237,10 @@ export default function Login() {
           ) : (
             /* ── Formulaire de connexion normal ─────────────────────────────── */
             <>
-              <h1 className="mt-10 text-3xl font-bold" style={{ color: '#000000' }}>
+              <h1 className="mt-10 text-3xl font-bold" style={{ color: '#0B1F3A' }}>
                 Connexion
               </h1>
-              <p className="mt-2" style={{ color: '#6E6E73', fontSize: '16px' }}>
+              <p className="mt-2" style={{ color: '#475569', fontSize: '16px' }}>
                 Accédez à votre espace de gestion NEXORA Truck.
               </p>
 
@@ -261,15 +267,15 @@ export default function Login() {
 
               {/* Divider */}
               <div className="my-6 flex items-center gap-4">
-                <div className="h-px flex-1" style={{ background: '#E5E5E5' }} />
-                <span className="text-xs" style={{ color: '#86868B' }}>ou</span>
-                <div className="h-px flex-1" style={{ background: '#E5E5E5' }} />
+                <div className="h-px flex-1" style={{ background: '#DBE2EC' }} />
+                <span className="text-xs" style={{ color: '#64748B' }}>ou</span>
+                <div className="h-px flex-1" style={{ background: '#DBE2EC' }} />
               </div>
 
               {/* Email/Password form */}
               <form onSubmit={handleSubmit} className="grid gap-4">
                 <label className="grid gap-1.5">
-                  <span className="text-sm font-medium" style={{ color: '#1D1D1F' }}>Adresse email</span>
+                  <span className="text-sm font-medium" style={{ color: '#1B1B1B' }}>Adresse email</span>
                   <input
                     type="email"
                     value={email}
@@ -277,13 +283,13 @@ export default function Login() {
                     required
                     autoComplete="email"
                     placeholder="vous@entreprise.fr"
-                    className="w-full px-4 py-3 text-base outline-none transition-colors focus:border-[#2563EB]"
+                    className="w-full px-4 py-3 text-base outline-none transition-colors focus:border-[#1F4E8C]"
                     style={inputStyle}
                   />
                 </label>
 
                 <label className="grid gap-1.5">
-                  <span className="text-sm font-medium" style={{ color: '#1D1D1F' }}>Mot de passe</span>
+                  <span className="text-sm font-medium" style={{ color: '#1B1B1B' }}>Mot de passe</span>
                   <input
                     type="password"
                     value={password}
@@ -291,7 +297,7 @@ export default function Login() {
                     required
                     autoComplete="current-password"
                     placeholder="••••••••"
-                    className="w-full px-4 py-3 text-base outline-none transition-colors focus:border-[#2563EB]"
+                    className="w-full px-4 py-3 text-base outline-none transition-colors focus:border-[#1F4E8C]"
                     style={inputStyle}
                   />
                 </label>
@@ -306,7 +312,7 @@ export default function Login() {
                   type="submit"
                   disabled={submitting}
                   className="mt-2 w-full py-3 text-sm font-semibold text-white transition-colors disabled:opacity-50"
-                  style={{ background: '#2563EB', borderRadius: '8px' }}
+                  style={{ background: 'linear-gradient(135deg, #0B1F3A 0%, #1F4E8C 54%, #0EA5E9 100%)', borderRadius: '10px' }}
                 >
                   {submitting ? 'Connexion en cours...' : 'Se connecter'}
                 </button>
@@ -314,13 +320,13 @@ export default function Login() {
 
               {/* Footer links */}
               <div className="mt-8 text-center">
-                <p className="text-sm" style={{ color: '#6E6E73' }}>
+                <p className="text-sm" style={{ color: '#64748B' }}>
                   Pas encore de compte ?{' '}
                   <button
                     type="button"
                     onClick={() => setShowDemo(true)}
                     className="font-semibold transition-colors hover:underline"
-                    style={{ color: '#2563EB' }}
+                    style={{ color: '#1F4E8C' }}
                   >
                     Essai gratuit
                   </button>
@@ -329,7 +335,7 @@ export default function Login() {
             </>
           )}
 
-          <div className="mt-10 grid gap-2 text-center text-xs" style={{ color: '#86868B' }}>
+          <div className="mt-10 grid gap-2 text-center text-xs" style={{ color: '#64748B' }}>
             <p>NEXORA Truck — Accès sécurisé</p>
             <div className="flex justify-center gap-3">
               <Link to="/mentions-legales-public" className="underline underline-offset-2 transition-colors hover:text-[#1D1D1F]">

@@ -12,6 +12,30 @@ export type ReleaseNote = {
 
 const documentedReleaseNotes: ReleaseNote[] = [
   {
+    version: '1.15.15',
+    date: '2026-04-21',
+    title: 'Refonte globale UI/UX: vitrine, ERP et identite visuelle',
+    summary: 'Lot de refonte transversale issue de l audit du 21/04/2026: vitrine recentree sur la promesse ERP+TMS+IA all-in-one, rail d actions rapides par role dans l ERP, harmonisation des tokens de marque et bascule sur le nouveau pack logo/favicon.',
+    additions: [
+      'Nouveau pack logo et favicon (brand) deploye sur le site, l ERP et les assets PWA.',
+      'Cockpit dirigeant: nouveau widget KPI et composants cockpit dedies dans le dashboard.',
+      'Planning: utilitaires extraits et testes (assignation, conflits, urgence, regles communes) pour fiabiliser les actions critiques.',
+    ],
+    modifications: [
+      'Vitrine: hero reformule sur la promesse "ERP + TMS + IA all-in-one", CTA principal bascule sur le test ERP, parcours metier etendu a 5 roles.',
+      'ERP: rail Actions rapides par role dans le header pour reduire le temps d action exploitant/dirigeant/conducteur/affreteur/client.',
+      'Harmonisation des tokens de marque (palette, gradient, contrastes) sur layout, login, dashboard, planning et pages site.',
+      'Prerendu SEO et sitemap regeneres avec les nouveaux assets de marque.',
+      'Version portee a 1.15.15 avec synchronisation package, appVersion, index et environnement Netlify.',
+      'Espace Developpement maintenu sur les onglets Developpe, En cours de developpement, Features.',
+      'Features prioritaires maintenues: connectivite/discussion inter-ERP, planning affreteur dedie, groupage multi-courses figeable/deliable.',
+    ],
+    fixes: [
+      'Corrige : incoherences chromatiques residuelles entre vitrine et ERP suite aux anciens assets de marque.',
+      'Corrige : references favicon/manifest dispersees entre dossiers historiques et nouveau pack brand.',
+    ],
+  },
+  {
     version: '1.15.14',
     date: '2026-04-20',
     title: 'Planning fiabilise: navigation, CE561 et fenetre de reglage courses',

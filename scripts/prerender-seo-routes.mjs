@@ -13,7 +13,7 @@ if (!existsSync(distIndexPath)) {
 }
 
 const BASE_URL = 'https://nexora-truck.fr'
-const DEFAULT_OG_IMAGE = `${BASE_URL}/site/screenshots/planning-dark.png`
+const DEFAULT_OG_IMAGE = `${BASE_URL}/site/logo/brand/nexora-logo-dark.png`
 const DEFAULT_META = {
   title: 'ERP transport | NEXORA Truck',
   description:

@@ -174,6 +174,7 @@ export default function App() {
                 <Route path="solution" element={<SolutionPage />} />
                 <Route path="planning-intelligent" element={<PlanningIntelligentPage />} />
                 <Route path="avantages-roi" element={<RoiPage />} />
+                <Route path="roi" element={<Navigate to="/avantages-roi" replace />} />
                 <Route path="secteur-transport" element={<SecteurTransportPage />} />
                 <Route path="a-propos" element={<AboutPage />} />
                 <Route path="erp-transport" element={<SeoErpTransportPage />} />
@@ -192,7 +193,8 @@ export default function App() {
                 <Route path="produit" element={<Navigate to="/solution" replace />} />
                 <Route path="fonctionnalites" element={<FeaturesPage />} />
                 <Route path="toutes-les-fonctionnalites" element={<AllFeaturesPage />} />
-                <Route path="demo" element={<Navigate to="/demonstration" replace />} />                <Route path="tms-transport" element={<TmsTransportPage />} />
+                <Route path="demo" element={<Navigate to="/demonstration" replace />} />
+                <Route path="tms-transport" element={<TmsTransportPage />} />
                 <Route path="erp-transport-routier" element={<ErpTransportRoutierPage />} />
                 <Route path="logiciel-gestion-flotte-camion" element={<LogicielGestionFlotteCamionPage />} />
                 <Route path="gestion-flotte" element={<Navigate to="/logiciel-gestion-flotte-camion" replace />} />
@@ -202,7 +204,9 @@ export default function App() {
                 <Route path="facturation-transport" element={<FacturationTransportPage />} />
                 <Route path="affretement-transport" element={<AffretementTransportPage />} />
                 <Route path="integrations" element={<IntegrationsPage />} />
-              <Route path="mentions-legales-public" element={<MentionsLegales />} />                <Route path="presentation" element={<PresentationPage />} />              </Route>
+                <Route path="mentions-legales-public" element={<MentionsLegales />} />
+                <Route path="presentation" element={<PresentationPage />} />
+              </Route>
               <Route path="/login" element={<Login />} />
               <Route element={<RequireAuth />}>
                 <Route path="demo-access" element={<DemoAccess />} />

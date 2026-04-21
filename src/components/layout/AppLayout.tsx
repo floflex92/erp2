@@ -79,6 +79,34 @@ const ROLE_QUICK_ACTION: Record<string, { label: string; to: string; onlyOnPage?
   logisticien:    { label: 'Voir entrepôts',      to: '/entrepots' },
 }
 
+const ROLE_FOCUS_ACTIONS: Record<string, Array<{ label: string; to: string }>> = {
+  exploitant: [
+    { label: 'Planning', to: '/planning' },
+    { label: 'Creer un OT', to: '/transports' },
+    { label: 'Ops Center', to: '/ops-center' },
+  ],
+  dirigeant: [
+    { label: 'Dashboard', to: '/dashboard' },
+    { label: 'Analytique', to: '/analytique-transport' },
+    { label: 'Tresorerie', to: '/tresorerie' },
+  ],
+  conducteur: [
+    { label: 'Mon planning', to: '/planning-conducteur' },
+    { label: 'Feuille de route', to: '/feuille-route' },
+    { label: 'Saisie frais', to: '/frais-rapide' },
+  ],
+  affreteur: [
+    { label: 'Espace affreteur', to: '/espace-affreteur' },
+    { label: 'Planning', to: '/planning' },
+    { label: 'Map live', to: '/map-live' },
+  ],
+  client: [
+    { label: 'Espace client', to: '/espace-client' },
+    { label: 'Demandes clients', to: '/demandes-clients' },
+    { label: 'Messagerie', to: '/tchat' },
+  ],
+}
+
 
 function BellIcon() {
   return <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6.5 8.5a5.5 5.5 0 1 1 11 0c0 5.5 2 6.5 2 6.5h-15s2-1 2-6.5Z" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>
@@ -180,6 +208,11 @@ export default function AppLayout() {
   const quickLinks = Object.entries(PAGE_TITLES)
     .map(([to, label]) => ({ to, label, page: to.slice(1) }))
     .filter(link => canAccess(role, link.page, tenantAllowedPages))
+  const roleFocusActions = role
+    ? (ROLE_FOCUS_ACTIONS[role] ?? [])
+        .filter(action => canAccess(role, action.to.replace(/^\//, ''), tenantAllowedPages))
+        .slice(0, 3)
+    : []
 
   const normalizedQuery = searchQuery.trim().toLowerCase()
   const filteredQuickLinks = (normalizedQuery
@@ -359,6 +392,27 @@ export default function AppLayout() {
             </div>
 
           </div>
+          {roleFocusActions.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--text-discreet)' }}>
+                Actions rapides
+              </span>
+              {roleFocusActions.map(action => (
+                <Link
+                  key={action.to}
+                  to={action.to}
+                  className="inline-flex min-h-[40px] items-center rounded-xl border px-3 py-2 text-sm font-semibold transition-colors"
+                  style={{
+                    borderColor: 'color-mix(in srgb, var(--primary) 35%, var(--border))',
+                    color: 'var(--text)',
+                    background: 'color-mix(in srgb, var(--primary-soft) 45%, var(--surface))',
+                  }}
+                >
+                  {action.label}
+                </Link>
+              ))}
+            </div>
+          )}
           </header>
         )}
 
