@@ -32,3 +32,9 @@ dist-ssr
 supabase/.temp/
 supabase/.branches/
 .claude/
+
+# Local SQL dumps / temp planning
+.tmp_public_*.sql
+tmp_public_*.sql
+refonte_v2_data_dump.sql
+diff_planning.txt
