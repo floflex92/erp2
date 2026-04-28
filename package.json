@@ -1,7 +1,7 @@
 {
   "name": "nexora-truck",
   "private": true,
-  "version": "1.15.19",
+  "version": "1.15.20",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,7 @@
     "dev:full": "npm run serv:dev",
     "typecheck": "tsc -b --pretty false",
     "lint:src": "eslint src",
-    "build": "node scripts/generate-sitemap.mjs && tsc -b && vite build && npm run seo:prerender",
+    "build": "node scripts/generate-sitemap.mjs && tsc -b && vite build && vite build --ssr src/site/entry-server.tsx --outDir dist-ssr && npm run seo:prerender",
     "seo:prerender": "node scripts/prerender-seo-routes.mjs",
     "postbuild": "npm run indexnow:submit",
     "indexnow:submit": "node scripts/submit-indexnow.mjs",

@@ -57,6 +57,12 @@ function upsertCanonical(canonicalUrl: string) {
   link.href = canonicalUrl
 }
 
+function normalizeCanonicalPath(path: string) {
+  if (path === '/') return path
+  const cleanPath = path.split('#')[0]?.split('?')[0] ?? path
+  return cleanPath.endsWith('/') ? cleanPath : `${cleanPath}/`
+}
+
 export default function useSiteMeta({
   title,
   description,
@@ -77,7 +83,7 @@ export default function useSiteMeta({
     document.title = `${title} | NEXORA Truck`
 
     const baseUrl = 'https://nexora-truck.fr'
-    const resolvedPath = canonicalPath ?? window.location.pathname
+    const resolvedPath = normalizeCanonicalPath(canonicalPath ?? window.location.pathname)
     const canonicalUrl = new URL(resolvedPath, baseUrl).toString()
 
     setMetaByName('description', description)

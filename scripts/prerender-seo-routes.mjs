@@ -1,14 +1,21 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const distDir = resolve(__dirname, '../dist')
+const distSsrDir = resolve(__dirname, '../dist-ssr')
 const distIndexPath = resolve(distDir, 'index.html')
 const sitemapPath = resolve(distDir, 'sitemap.xml')
+const distServerEntryPath = resolve(distSsrDir, 'entry-server.js')
 
 if (!existsSync(distIndexPath)) {
   console.error('[seo-prerender] dist/index.html introuvable. Lancez d\'abord vite build.')
+  process.exit(1)
+}
+
+if (!existsSync(distServerEntryPath)) {
+  console.error('[seo-prerender] bundle SSR introuvable. Lancez d\'abord le build SSR.')
   process.exit(1)
 }
 
@@ -130,6 +137,34 @@ const ROUTE_META = {
       'Une solution ERP transport qui unifie exploitation, planning, flotte, conducteurs et facturation dans un seul outil.',
     keywords: 'solution ERP transport, logiciel exploitation transport, TMS transport',
   },
+  '/plateforme-erp-transport': {
+    title: 'Plateforme ERP transport : exploitation, planning et flotte | NEXORA Truck',
+    description:
+      'Plateforme ERP transport NEXORA Truck pour centraliser exploitation, planning, flotte, conformite, documents et facturation dans un seul systeme.',
+    keywords:
+      'plateforme ERP transport, logiciel exploitation transport, ERP flotte transport, planning transport routier',
+  },
+  '/erp-transport-tms': {
+    title: 'ERP transport TMS : guide complet pour PME transport | NEXORA Truck',
+    description:
+      'Guide ERP transport TMS pour comprendre comment relier dispatch, planning, flotte, conducteurs et facturation dans un seul systeme adapte aux PME transport.',
+    keywords:
+      'ERP transport TMS, guide ERP transport, TMS pour PME transport, logiciel exploitation transport, ERP TMS transport routier',
+  },
+  '/tarifs-erp-transport': {
+    title: 'Tarifs ERP transport : comment se construit le prix | NEXORA Truck',
+    description:
+      'Tarifs ERP transport NEXORA Truck : comprendre comment se construit le prix selon la flotte, les modules, les integrations et le niveau d accompagnement.',
+    keywords:
+      'tarifs ERP transport, prix logiciel transport, prix TMS transport, cout ERP transport routier, devis ERP transport',
+  },
+  '/comparatif-erp-transport': {
+    title: 'Comparatif ERP transport : quoi comparer en 2026 | NEXORA Truck',
+    description:
+      'Comparatif ERP transport pour PME et TPE transport : quoi comparer entre ERP generaliste, TMS isole et plateforme metier orientee exploitation.',
+    keywords:
+      'comparatif ERP transport, comparer logiciel transport, ERP transport vs TMS, meilleur ERP transport routier, comparatif TMS transport',
+  },
   '/versions': {
     title: 'Historique des versions ERP transport NEXORA | NEXORA Truck',
     description:
@@ -203,6 +238,12 @@ const ROUTE_META = {
       'Demandez une demonstration NEXORA Truck et visualisez un ERP transport complet adapte a vos operations.',
     keywords: 'demonstration ERP transport, demo TMS transport, essai ERP',
   },
+  '/connexion-erp': {
+    title: 'Essai gratuit ERP transport | NEXORA Truck',
+    description:
+      'Testez NEXORA Truck gratuitement pendant 14 jours et accedez a l ensemble de la plateforme ERP transport.',
+    keywords: 'essai gratuit ERP transport, demo ERP transport, test logiciel transport, essai TMS transport',
+  },
   '/contact': {
     title: 'Contact NEXORA Truck | ERP transport routier',
     description: 'Parlons de votre projet ERP transport : demonstration, cadrage besoin et feuille de route de deploiement.',
@@ -219,6 +260,18 @@ const ROUTE_META = {
     description:
       'Integrations API pour connecter telematique, tachygraphe, portails et ecosysteme transport a NEXORA Truck.',
     keywords: 'integrations API transport, interconnexion ERP TMS, API telematique',
+  },
+  '/presentation': {
+    title: 'Presentation ERP TMS NEXORA Truck | NEXORA Truck',
+    description:
+      'Consultez la presentation ERP TMS NEXORA Truck avec les modules, l architecture et les benefices pour les transporteurs routiers.',
+    keywords: 'presentation ERP transport, brochure TMS, PDF logiciel transport, NEXORA Truck',
+  },
+  '/versions': {
+    title: 'Historique des versions ERP transport NEXORA | NEXORA Truck',
+    description:
+      'Consultez l historique des versions NEXORA Truck avec les ajouts, modifications et corrections de chaque release.',
+    keywords: 'versions ERP transport, changelog NEXORA Truck, releases produit',
   },
 }
 
@@ -242,6 +295,11 @@ function readRoutesFromSitemap() {
     routes.add(route)
   }
   return [...routes]
+}
+
+function normalizeMetaRoute(route) {
+  if (route === '/') return route
+  return route.replace(/\/+$/, '')
 }
 
 function escapeHtml(value) {
@@ -321,6 +379,14 @@ function applySeoMeta(template, route, meta) {
   return html
 }
 
+function injectAppHtml(template, appHtml) {
+  const html = template.replace(
+    /<div id="root"><\/div>/i,
+    `<div id="root" data-ssr="true">${appHtml}</div>`,
+  )
+  return html.replace(/\s*<noscript>\s*<section>[\s\S]*?<\/section>\s*<\/noscript>/i, '')
+}
+
 function fallbackMeta(route) {
   if (route === '/') return DEFAULT_META
   const slug = route
@@ -339,13 +405,16 @@ function fallbackMeta(route) {
   }
 }
 
+const { render } = await import(new URL('../dist-ssr/entry-server.js', import.meta.url))
 const template = readFileSync(distIndexPath, 'utf8')
 const routes = readRoutesFromSitemap()
 let generatedCount = 0
 
 for (const route of routes) {
-  const meta = ROUTE_META[route] ?? ARTICLE_ROUTE_META[route] ?? fallbackMeta(route)
-  const html = applySeoMeta(template, route, meta)
+  const metaRoute = normalizeMetaRoute(route)
+  const meta = ROUTE_META[metaRoute] ?? ARTICLE_ROUTE_META[metaRoute] ?? fallbackMeta(metaRoute)
+  const appHtml = render(route)
+  const html = applySeoMeta(injectAppHtml(template, appHtml), route, meta)
   const outputPath =
     route === '/'
       ? distIndexPath
@@ -355,5 +424,7 @@ for (const route of routes) {
   writeFileSync(outputPath, html, 'utf8')
   generatedCount += 1
 }
+
+rmSync(distSsrDir, { recursive: true, force: true })
 
 console.log(`[seo-prerender] HTML SEO statique genere pour ${generatedCount} routes`)

@@ -10,7 +10,7 @@
 
 [build.environment]
   NODE_VERSION = "20"
-  VITE_APP_VERSION = "1.15.19"
+  VITE_APP_VERSION = "1.15.20"
   # Ollama n'est pas accessible depuis Netlify en production (service local).
   # Ces valeurs servent de fallback non-fonctionnel ; la fonctionnalité IA
   # locale est désactivée en production (cf. OllamaError dans le composant).
@@ -50,6 +50,276 @@
     Access-Control-Allow-Headers = "Authorization, Content-Type, X-Tenant-Key"
 
 [[redirects]]
-  from = "/*"
+  from = "/erp"
+  to = "/erp-transport"
+  status = 301
+
+[[redirects]]
+  from = "/roi"
+  to = "/avantages-roi"
+  status = 301
+
+[[redirects]]
+  from = "/produit"
+  to = "/plateforme-erp-transport"
+  status = 301
+
+[[redirects]]
+  from = "/demo"
+  to = "/demonstration"
+  status = 301
+
+[[redirects]]
+  from = "/gestion-flotte"
+  to = "/logiciel-gestion-flotte-camion"
+  status = 301
+
+[[redirects]]
+  from = "/nexora"
+  to = "/"
+  status = 301
+
+[[redirects]]
+  from = "/nexora-truck"
+  to = "/"
+  status = 301
+
+[[redirects]]
+  from = "/login"
   to = "/index.html"
   status = 200
+
+[[redirects]]
+  from = "/demo-access"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/session-picker"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/super-admin"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/tenant-admin"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/dashboard"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/tasks"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/chauffeurs"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/vehicules"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/remorques"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/equipements"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/maintenance"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/transports"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/entrepots"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/clients"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/facturation"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/reglements"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/tresorerie"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/analytique-transport"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/bilan-co2"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/comptabilite"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/paie"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/frais"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/prospection"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/tachygraphe"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/amendes"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/map-live"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/feuille-route"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/planning"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/espace-client"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/compte-client-db"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/espace-affreteur"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/demandes-clients"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/utilisateurs"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/rh"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/entretiens-salaries"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/parametres"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/communication"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/inter-erp"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/tchat"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/mail"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/coffre"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/mentions-legales"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/ops-center"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/dashboard-conducteur"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/planning-conducteur"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/frais-rapide"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/404.html"
+  status = 404
