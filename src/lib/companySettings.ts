@@ -65,11 +65,16 @@ function defaultSettings(): CompanySettings {
 }
 
 function saveState(settings: CompanySettings) {
+  if (typeof window === 'undefined') return
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
   window.dispatchEvent(new CustomEvent(EVENT_NAME))
 }
 
 export function readCompanySettings() {
+  if (typeof window === 'undefined') {
+    return defaultSettings()
+  }
+
   const raw = window.localStorage.getItem(STORAGE_KEY)
   if (!raw) {
     const fallback = defaultSettings()
@@ -120,6 +125,8 @@ export function updateCompanySettings(patch: Partial<CompanySettings>) {
 }
 
 export function subscribeCompanySettings(listener: () => void) {
+  if (typeof window === 'undefined') return () => undefined
+
   const handleUpdate = () => listener()
   window.addEventListener(EVENT_NAME, handleUpdate)
   window.addEventListener('storage', handleUpdate)
