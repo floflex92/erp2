@@ -91,9 +91,9 @@ export default function FeaturesPage() {
               className="mt-6 font-extrabold leading-[0.98] tracking-tight"
               style={{ fontSize: 'clamp(2.5rem, 6vw, 4.6rem)', color: '#0B1B3B', letterSpacing: '-0.02em' }}
             >
-              Tout ce dont votre exploitation a besoin.
+              Fonctionnalités ERP transport.
               <br />
-              <span className="site-hero-gradient-text">En un seul outil.</span>
+              <span className="site-hero-gradient-text">Planning, flotte, facturation.</span>
             </h1>
             <p className="mt-6 max-w-xl" style={{ color: '#334155', fontSize: 'clamp(1rem, 1.15vw, 1.1rem)', lineHeight: 1.7 }}>
               12 modules intégrés pour piloter planning, flotte, conducteurs, facturation et conformité — sans jamais changer d’écran.

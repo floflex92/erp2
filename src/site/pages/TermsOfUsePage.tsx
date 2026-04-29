@@ -25,7 +25,7 @@ export default function TermsOfUsePage() {
           className="mt-4 max-w-4xl font-bold leading-[1.08]"
           style={{ fontSize: 'clamp(2rem, 4.5vw, 3.5rem)', color: '#000000', letterSpacing: '-0.02em' }}
         >
-          Conditions générales d'utilisation du site et de la plateforme NEXORA Truck
+          Conditions générales d'utilisation ERP transport NEXORA Truck
         </h1>
         <p className="mt-4 max-w-3xl" style={{ color: '#6E6E73' }}>
           Les présentes conditions encadrent l'accès au site public, aux formulaires de contact et à la plateforme ERP accessible aux utilisateurs habilités.

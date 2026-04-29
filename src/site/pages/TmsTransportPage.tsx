@@ -39,7 +39,7 @@ const keyFeatures = [
 
 export default function TmsTransportPage() {
   useSiteMeta({
-    title: 'TMS transport : pilotage des ordres, dispatch et facturation',
+    title: 'TMS transport dispatch et facturation',
     description:
       'TMS transport NEXORA Truck : pilotez chaque ordre de mission du dispatch à la facturation. Statuts en temps réel, zéro ressaisie, conducteurs et flotte connectés.',
     canonicalPath: '/tms-transport',

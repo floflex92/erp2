@@ -50,7 +50,7 @@ export default function VersionsPage() {
         <div className="relative max-w-5xl">
           <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.72)' }}>Historique produit</p>
           <h1 className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]" style={{ fontSize: 'clamp(2.4rem, 6vw, 4.8rem)', color: '#FFFFFF', letterSpacing: '-0.025em' }}>
-            Toutes les versions de NEXORA, avec les ajouts, modifications et rectifications.
+            Historique des versions ERP transport NEXORA Truck.
           </h1>
           <p className="mx-auto mt-6 max-w-3xl text-lg leading-8" style={{ color: 'rgba(255,255,255,0.84)' }}>
             Cette page sert de référence publique sur l évolution du produit. Le numéro de version courante est injecté automatiquement au build, ce qui permet de refléter le dernier déploiement Netlify.

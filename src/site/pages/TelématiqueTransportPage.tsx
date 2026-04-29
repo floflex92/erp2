@@ -39,7 +39,7 @@ const keyFeatures = [
 
 export default function TelématiqueTransportPage() {
   useSiteMeta({
-    title: 'Télématique transport : GPS intégré ERP/TMS, alertes et kilométrage',
+    title: 'Télématique transport GPS',
     description:
       'Télématique transport NEXORA Truck : géolocalisation en temps réel, alertes comportement conduite, kilométrage automatique et intégration ERP/TMS.',
     canonicalPath: '/telematique-transport',

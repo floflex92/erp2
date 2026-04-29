@@ -39,7 +39,7 @@ const keyFeatures = [
 
 export default function ChronotachygraphePage() {
   useSiteMeta({
-    title: 'Chronotachygraphe : suivi conduite, conformité RSE et exports DREAL',
+    title: 'Chronotachygraphe conformité',
     description:
       'Gestion chronotachygraphe NEXORA Truck : téléchargement automatisé, alertes avant dépassement légal, indisponibilités conducteurs dans le planning et exports DREAL en 1 clic.',
     canonicalPath: '/chronotachygraphe',

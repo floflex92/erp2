@@ -209,7 +209,7 @@ export default function IntegrationsPage() {
       <section className="rounded-[2.2rem] border border-white/80 bg-white px-6 py-8 shadow-[0_24px_80px_rgba(15,23,42,0.1)] sm:px-8 sm:py-10">
         <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-sky-800">Connectivité</p>
         <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight text-[var(--site-text)] sm:text-[3.2rem] sm:leading-[1.04]">
-          Intégrations API — ce qu'on connecte, dans quel ordre, et pourquoi.
+          Intégrations API ERP transport : télématique, tachygraphe et portails
         </h1>
         <p className="mt-5 max-w-3xl text-base leading-8 text-[var(--site-text-secondary)]">
           Un ERP transport n'est utile que s'il parle aux outils déjà en place dans votre exploitation :

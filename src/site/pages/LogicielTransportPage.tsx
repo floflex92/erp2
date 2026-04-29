@@ -7,7 +7,7 @@ const inlineLinkClassName = 'font-semibold text-[#2563EB]'
 
 export default function LogicielTransportPage() {
   useSiteMeta({
-    title: 'Logiciel transport routier : choisir un ERP TMS opérationnel',
+    title: 'Logiciel transport opérationnel',
     description:
       'Comment choisir un logiciel transport routier vraiment utile : critères concrets sur le planning, la flotte, l’exécution et la continuité jusqu’à la facturation.',
     canonicalPath: '/logiciel-transport',

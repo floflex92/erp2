@@ -37,7 +37,7 @@ export default function SecteurTransportPage() {
         <div className="relative">
           <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.7)' }}>Secteur transport</p>
           <h1 className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]" style={{ fontSize: 'clamp(2.2rem, 5vw, 4rem)', color: '#FFFFFF', letterSpacing: '-0.025em' }}>
-            Une industrie en mutation rapide qui cherche enfin des outils à la hauteur
+            Secteur transport routier : moderniser le pilotage des PME
           </h1>
           <p className="mx-auto mt-6 max-w-2xl" style={{ color: 'rgba(255,255,255,0.8)', fontSize: '20px', lineHeight: 1.6 }}>
             Le transport routier francophone fait face à une équation complexe : plus d'exigences, plus de pression et des outils encore trop éclatés.

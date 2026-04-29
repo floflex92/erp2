@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { readCompanySettings } from '@/lib/companySettings'
 import { supabase } from '@/lib/supabase'
+import useSiteMeta from '@/site/hooks/useSiteMeta'
 
 const sectionPx: React.CSSProperties = { paddingInline: 'clamp(24px, 8vw, 160px)' }
 const sectionPy: React.CSSProperties = { paddingBlock: 'clamp(60px, 8vw, 120px)' }
@@ -48,6 +49,12 @@ function shouldDisplayLegalValue(value: string, hiddenSentinel: string) {
 
 export default function MentionsLegales() {
   const company = readCompanySettings()
+  useSiteMeta({
+    title: 'Mentions légales NEXORA Truck',
+    description: 'Mentions légales du site NEXORA Truck, ERP transport routier pour exploitation, planning, flotte et facturation.',
+    canonicalPath: '/mentions-legales-public',
+    keywords: 'mentions légales NEXORA Truck, éditeur ERP transport',
+  })
   const [legalConfig, setLegalConfig] = useState<LegalConfig>({
     companyName: company.companyName || DEFAULT_COMPANY_NAME,
     legalForm: DEFAULT_LEGAL_FORM,
@@ -104,7 +111,7 @@ export default function MentionsLegales() {
           className="mt-4 max-w-3xl font-bold leading-[1.08]"
           style={{ fontSize: 'clamp(2rem, 4.5vw, 3.5rem)', color: '#000000', letterSpacing: '-0.02em' }}
         >
-          Mentions légales
+          Mentions légales NEXORA Truck
         </h1>
         <p className="mt-4 max-w-2xl" style={{ color: '#6E6E73' }}>
           Informations légales relatives au site vitrine et à la plateforme ERP {legalConfig.companyName}.

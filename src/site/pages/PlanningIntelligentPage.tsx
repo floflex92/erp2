@@ -35,7 +35,7 @@ export default function PlanningIntelligentPage() {
         <div className="relative">
           <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.7)' }}>Planning intelligent</p>
           <h1 className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]" style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)', color: '#FFFFFF', letterSpacing: '-0.025em' }}>
-            Le cœur du système pour orchestrer chaque mission sans friction
+            Planning transport intelligent pour orchestrer chaque mission
           </h1>
           <p className="mx-auto mt-6 max-w-2xl" style={{ color: 'rgba(255,255,255,0.8)', fontSize: '20px', lineHeight: 1.6 }}>
             Visualisez la charge, anticipez les conflits et réorganisez l'exploitation en quelques clics, même sous pression.

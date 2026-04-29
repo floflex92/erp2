@@ -84,7 +84,7 @@ export default function DemoPage() {
             className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]"
             style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)', color: '#FFFFFF', letterSpacing: '-0.025em' }}
           >
-            Découvrez NEXORA Truck en action.
+            Démonstration ERP transport NEXORA Truck.
           </h1>
           <p className="mx-auto mt-6 max-w-2xl" style={{ color: 'rgba(255,255,255,0.8)', fontSize: '20px', lineHeight: 1.6 }}>
             Accédez à la plateforme complète gratuitement ou réservez une démonstration personnalisée avec notre équipe.

@@ -61,19 +61,19 @@ const ARTICLE_ROUTE_META = {
     keywords: 'rentabilite transport, marge transport, optimisation couts transport',
   },
   '/articles/reduire-les-kilometres-a-vide-dans-le-transport-routier': {
-    title: 'Reduire les kilometres a vide : guide transport | NEXORA Truck',
+    title: 'Kilometres a vide transport | NEXORA Truck',
     description:
       'Methodes operationnelles pour reduire les kilometres a vide et ameliorer la marge du transport routier.',
     keywords: 'kilometres a vide, optimisation transport routier, marge transport',
   },
   '/articles/otif-transport-comment-fiabiliser-la-livraison-client': {
-    title: 'OTIF transport : fiabiliser la livraison client | NEXORA Truck',
+    title: 'OTIF transport et livraison client | NEXORA Truck',
     description:
       'Guide pratique pour ameliorer l OTIF transport avec un suivi mission fiable et des arbitrages plus rapides.',
     keywords: 'OTIF transport, livraison client, suivi operations transport',
   },
   '/articles/transport-routier-systeme-coherent': {
-    title: 'Transport routier : construire un systeme coherent | NEXORA Truck',
+    title: 'Transport routier : systeme coherent | NEXORA Truck',
     description:
       'Pourquoi les transporteurs ont besoin d un systeme coherent pour connecter planning, flotte et execution.',
     keywords: 'transport routier, systeme coherent, ERP transport',
@@ -97,7 +97,7 @@ const ARTICLE_ROUTE_META = {
     keywords: 'couts transport routier, reduction couts transport, optimisation exploitation',
   },
   '/articles/conformite-transport-routier-reglementation': {
-    title: 'Conformite transport routier : 5 obligations cles | NEXORA Truck',
+    title: 'Conformite transport routier PME | NEXORA Truck',
     description:
       'Les obligations reglementaires transport routier que les PME sous-estiment et comment s y conformer.',
     keywords: 'conformite transport routier, reglementation transport, obligations PME transport',
@@ -126,7 +126,7 @@ const ROUTE_META = {
       'fonctionnalités ERP transport, planning transport, gestion flotte, facturation transport, TMS transport',
   },
   '/toutes-les-fonctionnalites': {
-    title: 'Toutes les fonctionnalites ERP transport NEXORA | NEXORA Truck',
+    title: 'Fonctionnalites ERP transport NEXORA | NEXORA Truck',
     description:
       'Vue complète des fonctionnalités NEXORA Truck : développé, en cours de développement et fonctionnalités à venir.',
     keywords: 'roadmap ERP transport, fonctionnalités TMS transport, évolution produit transport',
@@ -136,6 +136,18 @@ const ROUTE_META = {
     description:
       'Une solution ERP transport qui unifie exploitation, planning, flotte, conducteurs et facturation dans un seul outil.',
     keywords: 'solution ERP transport, logiciel exploitation transport, TMS transport',
+  },
+  '/planning-intelligent': {
+    title: 'Planning transport intelligent | NEXORA Truck',
+    description:
+      'Planning intelligent NEXORA Truck : affectations dynamiques, groupage maîtrise et pilotage en temps réel des opérations transport.',
+    keywords: 'planning transport intelligent, optimisation tournees transport, planning chauffeurs camions, groupage transport',
+  },
+  '/secteur-transport': {
+    title: 'Secteur transport routier | NEXORA Truck',
+    description:
+      'Analyse du secteur transport routier francophone : défis, pression opérationnelle et modernisation par ERP transport.',
+    keywords: 'secteur transport routier, marche transport francophone, transformation digitale transport, ERP transport',
   },
   '/plateforme-erp-transport': {
     title: 'Plateforme ERP transport pour PME | NEXORA Truck',
@@ -147,7 +159,7 @@ const ROUTE_META = {
   '/erp-transport-tms': {
     title: 'ERP transport TMS pour PME | NEXORA Truck',
     description:
-      'Guide ERP transport TMS pour comprendre comment relier dispatch, planning, flotte, conducteurs et facturation dans un seul système adapté aux PME transport.',
+      'Guide ERP transport TMS pour relier dispatch, planning, flotte, conducteurs et facturation dans un système PME transport.',
     keywords:
       'ERP transport TMS, guide ERP transport, TMS pour PME transport, logiciel exploitation transport, ERP TMS transport routier',
   },
@@ -159,7 +171,7 @@ const ROUTE_META = {
       'tarifs ERP transport, prix logiciel transport, prix TMS transport, cout ERP transport routier, devis ERP transport',
   },
   '/comparatif-erp-transport': {
-    title: 'Comparatif ERP transport : quoi comparer en 2026 | NEXORA Truck',
+    title: 'Comparatif ERP transport 2026 | NEXORA Truck',
     description:
       'Comparatif ERP transport pour PME et TPE transport : quoi comparer entre ERP généraliste, TMS isolé et plateforme métier orientée exploitation.',
     keywords:
@@ -179,13 +191,13 @@ const ROUTE_META = {
       'ERP transport, ERP transport routier, logiciel transport routier, TMS transport, gestion flotte',
   },
   '/tms-transport': {
-    title: 'TMS transport : pilotage dispatch et facturation | NEXORA Truck',
+    title: 'TMS transport dispatch et facturation | NEXORA Truck',
     description:
       'TMS transport NEXORA Truck : pilotez chaque ordre de mission du dispatch a la facturation avec statuts en temps reel.',
     keywords: 'TMS transport, logiciel TMS, dispatch transport, ordres de transport, ERP transport',
   },
   '/logiciel-transport': {
-    title: 'Logiciel transport : choisir un outil opérationnel | NEXORA Truck',
+    title: 'Logiciel transport opérationnel | NEXORA Truck',
     description:
       'Comment choisir un logiciel transport vraiment utile pour l\'exploitation, le planning, la flotte et la facturation.',
     keywords: 'logiciel transport, ERP transport, planning transport, gestion flotte',
@@ -197,13 +209,13 @@ const ROUTE_META = {
     keywords: 'gestion flotte camion, logiciel flotte poids lourd, maintenance transport',
   },
   '/telematique-transport': {
-    title: 'Télématique transport : GPS et données terrain | NEXORA Truck',
+    title: 'Télématique transport GPS | NEXORA Truck',
     description:
       'Télématique transport connectée à l\'ERP : géolocalisation, alertes conduite, kilométrage et suivi en temps réel.',
     keywords: 'télématique transport, gps poids lourd, suivi flotte transport',
   },
   '/chronotachygraphe': {
-    title: 'Chronotachygraphe : conformité et suivi conduite | NEXORA Truck',
+    title: 'Chronotachygraphe conformité | NEXORA Truck',
     description:
       'Chronotachygraphe intégré à l\'ERP transport pour suivre les temps de conduite et la conformité réglementaire.',
     keywords: 'chronotachygraphe, temps de conduite, conformité transport routier',
@@ -261,6 +273,18 @@ const ROUTE_META = {
       'Consultez la présentation ERP TMS NEXORA Truck avec les modules, l architecture et les bénéfices pour les transporteurs routiers.',
     keywords: 'présentation ERP transport, brochure TMS, PDF logiciel transport, NEXORA Truck',
   },
+  '/conditions-generales-utilisation': {
+    title: 'CGU NEXORA Truck | ERP transport',
+    description:
+      'Conditions générales d utilisation du site public et de la plateforme ERP transport NEXORA Truck.',
+    keywords: 'CGU NEXORA Truck, conditions utilisation ERP transport',
+  },
+  '/mentions-legales-public': {
+    title: 'Mentions légales NEXORA Truck',
+    description:
+      'Mentions légales du site NEXORA Truck, ERP transport routier pour exploitation, planning, flotte et facturation.',
+    keywords: 'mentions legales NEXORA Truck, editeur ERP transport',
+  },
   '/versions': {
     title: 'Historique des versions ERP transport NEXORA | NEXORA Truck',
     description:
@@ -302,6 +326,10 @@ function escapeHtml(value) {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
+}
+
+function escapeJsonForScript(value) {
+  return JSON.stringify(value).replaceAll('</script', '<\\/script')
 }
 
 function upsertTag(html, pattern, buildTag) {
@@ -368,6 +396,32 @@ function applySeoMeta(template, route, meta) {
     html,
     /<meta[^>]*name="twitter:image"[^>]*>/i,
     `<meta name="twitter:image" content="${DEFAULT_OG_IMAGE}" />`,
+  )
+
+  const webPageJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    '@id': `${canonical}#webpage`,
+    url: canonical,
+    name: meta.title.replace(/\s*\|\s*NEXORA Truck$/, ''),
+    description: meta.description,
+    inLanguage: 'fr-FR',
+    isPartOf: {
+      '@type': 'WebSite',
+      '@id': `${BASE_URL}/#website`,
+      name: 'NEXORA Truck',
+      url: `${BASE_URL}/`,
+    },
+    publisher: {
+      '@type': 'Organization',
+      '@id': `${BASE_URL}/#organization`,
+      name: 'NEXORA Truck',
+      url: `${BASE_URL}/`,
+    },
+  }
+  html = html.replace(
+    '</head>',
+    `  <script type="application/ld+json" data-route-schema="webpage">${escapeJsonForScript(webPageJsonLd)}</script>\n  </head>`,
   )
 
   return html
