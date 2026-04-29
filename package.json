@@ -1,0 +1,7 @@
+{
+  "name": "erp2-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "cd erp2 && npm run dev"
+  }
+}

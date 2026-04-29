@@ -1,0 +1,32 @@
+<component name="libraryTable">
+  <library name="functions">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/v11-tenant-admin.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/v11-admin-config.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/v11-eta.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/v11-tachy.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/v11-ai.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/v11-routing.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/v11-driver-groups.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/employee-vault-process-exit.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/screen-session.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/employee-vault-sign-document.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/v11-driver-session.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/v11-tracking.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/v11-transport-relay.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/public-project-access.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/admin-erp-clients.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/v11-companies.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/demo-magic-link.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/employee-vault-list-documents.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/v11-logistic-sites.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/admin-users.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/v11-chat.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/v11-ai-placement.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/v11-client-portal.zip!/" />
+      <root url="jar://$PROJECT_DIR$/erp2/.netlify/functions/demo-access-signup.zip!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

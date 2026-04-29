@@ -1,0 +1,74 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "npm run dev": true,
+        "npm run build": true,
+        "New-Object": true,
+        "Out-Null": true,
+        "Set-ValidationList": true,
+        "SetList": true,
+        "npx supabase": true,
+        "/^node -e \"const fs=require\\('fs'\\);const c=fs\\.readFileSync\\('src/site/pages/PlanningIntelligentPage\\.tsx','utf8'\\);const idx=c\\.indexOf\\('useSiteMeta\\('\\);console\\.log\\(c\\.substring\\(idx,idx\\+400\\)\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "console.log('done')": true,
+        "/^node scripts/patch-hero-sections\\.mjs$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node -e \"const s = require\\('fs'\\)\\.readFileSync\\('src/site/pages/FeaturesPage\\.tsx','utf8'\\); const i = s\\.indexOf\\('relative flex min-h'\\); console\\.log\\('found at', i\\); console\\.log\\(JSON\\.stringify\\(s\\.slice\\(Math\\.max\\(0,i-30\\), i\\+200\\)\\)\\);\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node -e \"const s = require\\('fs'\\)\\.readFileSync\\('src/site/pages/FeaturesPage\\.tsx','utf8'\\); const i = s\\.indexOf\\('HERO'\\); console\\.log\\('HERO at', i\\); console\\.log\\(JSON\\.stringify\\(s\\.slice\\(i-10, i\\+20\\)\\)\\);\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node -e \"const s = require\\('fs'\\)\\.readFileSync\\('src/site/pages/FeaturesPage\\.tsx','utf8'\\); const i = s\\.indexOf\\('HERO'\\); const c = s\\.slice\\(i-10,i\\); for\\(let x of c\\) process\\.stdout\\.write\\(x\\.charCodeAt\\(0\\)\\.toString\\(16\\)\\+' '\\); console\\.log\\(\\);\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node -e \"const s = require\\('fs'\\)\\.readFileSync\\('src/site/pages/RoiPage\\.tsx','utf8'\\); const i = s\\.indexOf\\('relative flex min-h'\\); console\\.log\\(JSON\\.stringify\\(s\\.slice\\(Math\\.max\\(0,i-5\\), i\\+900\\)\\)\\);\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node -e \"const s = require\\('fs'\\)\\.readFileSync\\('src/site/pages/RoiPage\\.tsx','utf8'\\); const i = s\\.indexOf\\('piloter la croissance'\\); console\\.log\\(JSON\\.stringify\\(s\\.slice\\(i, i\\+200\\)\\)\\);\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node -e \"const s = require\\('fs'\\)\\.readFileSync\\('src/site/pages/SecteurTransportPage\\.tsx','utf8'\\); const i = s\\.indexOf\\('relative flex min-h'\\); console\\.log\\(JSON\\.stringify\\(s\\.slice\\(Math\\.max\\(0,i-5\\), i\\+900\\)\\)\\);\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node -e \"const s = require\\('fs'\\)\\.readFileSync\\('src/site/pages/SecteurTransportPage\\.tsx','utf8'\\); const i = s\\.indexOf\\('trop éclatés'\\); console\\.log\\(JSON\\.stringify\\(s\\.slice\\(i, i\\+200\\)\\)\\);\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "Get-Item": true,
+        "npm run serv:dev": true,
+        "node_modules\\.bin\\tsc": true,
+        "/^node \\./node_modules/typescript/bin/tsc -b 2>&1$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "Group-Object": true,
+        "npx vite": true,
+        "git add": true,
+        "git commit": true,
+        "Set-Content": true,
+        "npx netlify": true,
+        "ForEach-Object": true,
+        "npx tsc": true,
+        "supabase": true,
+        "/^node scripts/generate-mcd-excel\\.mjs$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "Start-Process": true,
+        "/^node --check \\.\\\\netlify\\\\functions\\\\v11-companies\\.js$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "git push": true
+    }
+}
