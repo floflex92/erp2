@@ -22,6 +22,7 @@ export default function ProductPage() {
       <SiteSection
         eyebrow="Le produit"
         title="Une plateforme ERP transport pour piloter l'exploitation, la flotte et les equipes"
+        headingLevel={1}
         description="NEXORA Truck centralise ce que les transporteurs routiers gerent souvent dans plusieurs outils: ordres de transport, planning, chauffeurs, flotte, conformite, documents et facturation. Dans un seul cockpit."
         actions={
           <>

@@ -49,6 +49,51 @@
     Access-Control-Allow-Methods = "GET, POST, PATCH, DELETE, OPTIONS"
     Access-Control-Allow-Headers = "Authorization, Content-Type, X-Tenant-Key"
 
+[[headers]]
+  for = "/connexion-erp"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/connexion-erp/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/login"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/login/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/demo-access"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/session-picker"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/super-admin"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/tenant-admin"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/dashboard"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
 [[redirects]]
   from = "/erp"
   to = "/erp-transport"
@@ -83,6 +128,16 @@
   from = "/nexora-truck"
   to = "/"
   status = 301
+
+[[redirects]]
+  from = "/connexion-erp"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/connexion-erp/"
+  to = "/index.html"
+  status = 200
 
 [[redirects]]
   from = "/login"

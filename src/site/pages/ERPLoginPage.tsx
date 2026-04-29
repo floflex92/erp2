@@ -9,6 +9,8 @@ export default function ERPLoginPage() {
   useSiteMeta({
     title: 'Essai gratuit — NEXORA Truck',
     description: 'Testez NEXORA Truck gratuitement pendant 14 jours. Aucune carte bancaire requise. Accédez à l\'ensemble de la plateforme ERP transport.',
+    canonicalPath: '/connexion-erp',
+    robots: 'noindex,nofollow',
   })
 
   return (
