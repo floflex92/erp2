@@ -55,7 +55,7 @@ export const siteNav: SiteNavItem[] = [
   { label: 'Secteur transport', to: '/secteur-transport' },
   { label: 'Démonstration', to: '/demonstration' },
   { label: 'À propos', to: '/a-propos' },
-  { label: 'SEO ERP', to: '/erp-transport-tms' },
+  { label: 'SEO ERP', to: '/erp-transport' },
   { label: 'Contact', to: '/contact' },
 ]
 

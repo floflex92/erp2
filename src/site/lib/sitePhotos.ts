@@ -19,6 +19,7 @@ export const sitePhotos = {
   mainPageHero: localPhoto('main-page'),
   featuresHero: localPhoto('features-hero'),
   contactHero: localPhoto('contact-hero'),
+  loginHero: localPhoto('login-hero'),
   aboutHero: localPhoto('about-hero'),
   aboutHeroSecondary: localPhoto('about-hero-2'),
   truckRoadWide: localPhoto('truck-road'),

@@ -18,11 +18,8 @@ const NAV_ITEMS = [
 
 // Pages avec un hero photo sombre (overlay rgba(0,0,0,0.45)) → nav blanche quand non-scrollé
 const DARK_HERO_PATHS = new Set([
-  '/',
-  '/fonctionnalites',
   '/toutes-les-fonctionnalites',
   '/demonstration',
-  '/a-propos',
   '/contact',
   '/connexion-erp',
   '/avantages-roi',
@@ -166,6 +163,10 @@ export default function SiteLayout() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--site-text-discreet)' }}>Solutions</p>
               <div className="mt-3 grid gap-2.5">
                 <Link to="/erp-transport" className="site-footer-link">ERP transport</Link>
+                <Link to="/erp-transport-tms" className="site-footer-link">Guide ERP transport TMS</Link>
+                <Link to="/plateforme-erp-transport" className="site-footer-link">Plateforme ERP</Link>
+                <Link to="/tarifs-erp-transport" className="site-footer-link">Tarifs ERP transport</Link>
+                <Link to="/comparatif-erp-transport" className="site-footer-link">Comparatif ERP transport</Link>
                 <Link to="/tms-transport" className="site-footer-link">TMS transport</Link>
                 <Link to="/logiciel-transport" className="site-footer-link">Logiciel transport</Link>
                 <Link to="/logiciel-gestion-flotte-camion" className="site-footer-link">Gestion flotte</Link>

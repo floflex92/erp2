@@ -12,6 +12,28 @@ export type ReleaseNote = {
 
 const documentedReleaseNotes: ReleaseNote[] = [
   {
+    version: '1.15.20',
+    date: '2026-04-22',
+    title: 'Refonte page Connexion, nouveaux logos NEXORA et lisibilite page A propos',
+    summary: 'Refonte complete de la page de connexion (panneau sombre immersif + nouvelle photo convoi NEXORA avec nouveau logo X degrade bleu/vert, suppression Google OAuth, lisibilite renforcee). Deploiement des nouveaux logos NEXORA (texte + X degrade) sur tout le site public. Correction navbar invisible sur la page A propos refaite en fond clair.',
+    additions: [
+      'Page /login: panneau gauche sombre immersif avec photo convoi NEXORA, pill plateforme, titre "En toute simplicite" en degrade cyan, 4 proof items en cartes glass sombres (Performance optimisee, Donnees securisees, Equipe connectee, Gain de temps).',
+      'Page /login: panneau droit epure avec formulaire email/mot de passe, toggle oeil sur le mot de passe, "Se souvenir de moi", "Mot de passe oublie", bouton Se connecter avec fleche, trust strip 3 items (Acces securise, Disponibilite 24/7, Support reactif).',
+      'Nouveau asset login-hero 1400 et 768 genere a partir du mockup convoi Scania NEXORA.',
+    ],
+    modifications: [
+      'Page /login: bouton "Continuer avec Google" et handler signInWithOAuth retires, divider "ou" retire, formulaire email/mot de passe unique chemin de connexion.',
+      'Deploiement des nouveaux logos NEXORA (texte + X degrade bleu vers vert) dans public/site/logo/brand: nexora-logo-dark.png et nexora-logo-light.png remplacent les anciens logos cercle reseau.',
+      'UI/UX page /login: image assombrie (brightness 0.58), triple overlay (voile global + degrade colonne gauche + vignette), text-shadow double sur le titre, couleurs #E2E8F0 sur sous-textes.',
+      'Version portee a 1.15.20 avec synchronisation package, appVersion et environnement Netlify.',
+      'Espace Developpement maintenu sur les onglets Developpe, En cours de developpement, Features.',
+      'Features prioritaires maintenues: connectivite/discussion inter-ERP, planning affreteur dedie, groupage multi-courses figeable/deliable avec courses independantes.',
+    ],
+    fixes: [
+      'Corrige : navbar invisible sur la page /a-propos refaite en fond clair (texte blanc sur fond blanc). Chemin retire de DARK_HERO_PATHS pour retour au texte fonce + logo dark.',
+    ],
+  },
+  {
     version: '1.15.19',
     date: '2026-04-21',
     title: 'Favicon NEXORA: pack carre + rond + maskable regenere depuis le logo solo',

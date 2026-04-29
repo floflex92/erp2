@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { firstPage, useAuth } from '@/lib/auth'
+import { sitePhotos } from '@/site/lib/sitePhotos'
 
 type DemoStatus = 'idle' | 'loading' | 'success' | 'error'
 
@@ -13,9 +14,10 @@ export default function Login() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [googleLoading, setGoogleLoading] = useState(false)
 
   // ── Mode démo ──────────────────────────────────────────────────────────────
   const [showDemo, setShowDemo] = useState(false)
@@ -109,23 +111,6 @@ export default function Login() {
     if (signInError) setError(signInError)
   }
 
-  async function handleGoogleSignIn() {
-    setError(null)
-    setGoogleLoading(true)
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        // Après auth Google, Supabase redirige ici → onAuthStateChange(SIGNED_IN) → firstPage(role)
-        redirectTo: `${window.location.origin}/login`,
-      },
-    })
-    if (oauthError) {
-      setError(oauthError.message)
-      setGoogleLoading(false)
-    }
-    // Pas de setGoogleLoading(false) si succès — la page sera remplacée par la redirection Google
-  }
-
   const inputStyle: React.CSSProperties = {
     border: '1px solid #DBE2EC',
     borderRadius: '10px',
@@ -135,32 +120,140 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen" style={{ background: '#F7F8FA' }}>
-      {/* ── Left: Image ── */}
-      <div className="relative hidden w-1/2 lg:block">
+      {/* ── Left: Dark immersive panel with truck image ── */}
+      <div
+        className="relative hidden w-1/2 overflow-hidden lg:block"
+        style={{ background: 'linear-gradient(180deg,#0A1024 0%,#0B132B 55%,#0A1024 100%)' }}
+      >
+        {/* Background truck image (darkened) */}
         <img
-          src="https://images.unsplash.com/photo-1580674285054-bed31e145f59?auto=format&fit=crop&w=1200&q=80"
-          alt="Flotte de camions sur la route"
+          src={sitePhotos.loginHero.src(1600)}
+          srcSet={sitePhotos.loginHero.srcSet([768, 1200, 1600])}
+          sizes="50vw"
+          alt=""
+          aria-hidden="true"
           className="absolute inset-0 h-full w-full object-cover"
+          style={{ filter: 'brightness(0.58) saturate(1.05)' }}
         />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.03) 0%, rgba(0,0,0,0.25) 100%)' }} />
-        <div className="absolute left-12 top-10">
-          <Link to="/" className="text-sm font-medium text-white/80 transition-colors hover:text-white">
-            ← Accueil
+        {/* Global dark veil */}
+        <div className="absolute inset-0" style={{ background: 'rgba(6,11,24,0.55)' }} />
+        {/* Left-column strong gradient for text area */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(90deg, rgba(6,11,24,0.92) 0%, rgba(6,11,24,0.78) 35%, rgba(6,11,24,0.35) 65%, rgba(6,11,24,0.55) 100%)',
+          }}
+        />
+        {/* Top/bottom vignette */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(180deg, rgba(6,11,24,0.55) 0%, rgba(6,11,24,0) 20%, rgba(6,11,24,0) 70%, rgba(6,11,24,0.75) 100%)',
+          }}
+        />
+
+        {/* Logo + back link */}
+        <div className="absolute left-12 top-10 flex items-center gap-6">
+          <Link to="/" aria-label="NEXORA accueil" className="inline-flex items-center">
+            <img
+              src="/site/logo/brand/nexora-logo-light.png"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/site/logo/brand/nexora-logo-dark.png' }}
+              alt="NEXORA"
+              className="h-9 w-auto object-contain"
+            />
           </Link>
         </div>
-        <div className="absolute bottom-12 left-12 right-12">
-          <p className="text-3xl font-bold leading-tight text-white" style={{ textShadow: '0 2px 20px rgba(0,0,0,0.3)' }}>
-            Pilotez votre exploitation.{'\n'}Simplement.
-          </p>
-          <p className="mt-3 text-base text-white/80">
+
+        {/* Headline */}
+        <div className="relative flex h-full flex-col justify-between px-12 py-12">
+          <div className="mt-24 max-w-lg">
+            {/* Pill */}
+            <span
+              className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em]"
+              style={{
+                background: 'rgba(15,23,42,0.7)',
+                color: '#E2E8F0',
+                border: '1px solid rgba(148,163,184,0.35)',
+                backdropFilter: 'blur(8px)',
+              }}
+            >
+              Plateforme de gestion transport
+            </span>
+            <h2
+              className="mt-6 font-bold leading-[1.05] text-white"
+              style={{ fontSize: 'clamp(2.4rem, 3.6vw, 3.2rem)', letterSpacing: '-0.02em', textShadow: '0 2px 28px rgba(0,0,0,0.85), 0 1px 3px rgba(0,0,0,0.6)' }}
+            >
+              Pilotez votre exploitation.{' '}
+              <span
+                style={{
+                  background: 'linear-gradient(90deg,#38BDF8 0%,#60A5FA 55%,#22D3EE 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  filter: 'drop-shadow(0 2px 12px rgba(34,211,238,0.35))',
+                }}
+              >
+                En toute simplicité.
+              </span>
+            </h2>
+            <p className="mt-5 text-base leading-relaxed" style={{ color: '#E2E8F0', textShadow: '0 1px 8px rgba(0,0,0,0.6)' }}>
+              Accédez à votre espace de gestion NEXORA Truck et gardez le contrôle de votre activité en temps réel.
+            </p>
+
+            {/* Proof list vertical with icon tiles (glass cards) */}
+            <ul className="mt-8 grid gap-3">
+              {([
+                ['Performance optimisée', 'Suivez vos indicateurs clés en temps réel.', (<><path d="M4 18l5-5 3 3 6-7" /><path d="M14 9h4v4" /></>)],
+                ['Données sécurisées', 'Vos informations sont protégées avec les plus hauts standards.', (<><path d="M12 3l8 3v6c0 4.5-3.2 8.2-8 9-4.8-.8-8-4.5-8-9V6z" /><path d="M9 12l2 2 4-4" /></>)],
+                ['Équipe connectée', 'Collaborez facilement avec vos équipes et partenaires.', (<><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M3 20c0-3 3-5 6-5s6 2 6 5M14 20c0-2.5 2-4 4-4s4 1.5 4 4" /></>)],
+                ['Gain de temps', 'Automatisez vos tâches et concentrez-vous sur l\'essentiel.', (<><path d="M13 2L4 14h7l-1 8 9-12h-7z" /></>)],
+              ] as const).map(([title, desc, icon]) => (
+                <li
+                  key={title}
+                  className="flex items-start gap-4 rounded-xl px-4 py-3"
+                  style={{
+                    background: 'rgba(15,23,42,0.55)',
+                    border: '1px solid rgba(148,163,184,0.18)',
+                    backdropFilter: 'blur(8px)',
+                    WebkitBackdropFilter: 'blur(8px)',
+                  }}
+                >
+                  <div
+                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(56,189,248,0.22), rgba(34,211,238,0.15))',
+                      border: '1px solid rgba(56,189,248,0.35)',
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="#7DD3FC" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                      {icon}
+                    </svg>
+                  </div>
+                  <div className="pt-0.5">
+                    <p className="text-[14px] font-bold text-white">{title}</p>
+                    <p className="mt-0.5 text-[12.5px] leading-[1.55]" style={{ color: '#CBD5E1' }}>{desc}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Trust footer */}
+          <div className="mt-10 flex items-center gap-2 text-[12.5px] font-medium" style={{ color: '#E2E8F0', textShadow: '0 1px 6px rgba(0,0,0,0.6)' }}>
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="#7DD3FC" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 3l8 3v6c0 4.5-3.2 8.2-8 9-4.8-.8-8-4.5-8-9V6z" />
+              <path d="M9 12l2 2 4-4" />
+            </svg>
             +120 transporteurs font confiance à NEXORA Truck.
-          </p>
+          </div>
         </div>
       </div>
 
       {/* ── Right: Form ── */}
-      <div className="flex w-full flex-col items-center justify-center px-6 lg:w-1/2" style={{ paddingInline: 'clamp(24px, 6vw, 80px)' }}>
-        <div className="w-full max-w-sm">
+      <div className="flex w-full flex-col items-center justify-center px-6 py-10 lg:w-1/2" style={{ paddingInline: 'clamp(24px, 5vw, 72px)', background: '#F5F7FA' }}>
+        <div className="w-full max-w-md">
           {/* Logo */}
           <Link to="/" className="inline-flex items-center" aria-label="NEXORA accueil">
             <img
@@ -244,63 +337,82 @@ export default function Login() {
                 Accédez à votre espace de gestion NEXORA Truck.
               </p>
 
-              {/* Google Sign In */}
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={googleLoading}
-                className="mt-8 flex w-full items-center justify-center gap-3 py-3 text-sm font-medium transition-colors disabled:opacity-60"
-                style={{ ...inputStyle, color: '#1D1D1F' }}
-              >
-                {googleLoading ? (
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700" />
-                ) : (
-                  <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                  </svg>
-                )}
-                {googleLoading ? 'Redirection vers Google…' : 'Continuer avec Google'}
-              </button>
-
-              {/* Divider */}
-              <div className="my-6 flex items-center gap-4">
-                <div className="h-px flex-1" style={{ background: '#DBE2EC' }} />
-                <span className="text-xs" style={{ color: '#64748B' }}>ou</span>
-                <div className="h-px flex-1" style={{ background: '#DBE2EC' }} />
-              </div>
-
               {/* Email/Password form */}
-              <form onSubmit={handleSubmit} className="grid gap-4">
+              <form onSubmit={handleSubmit} className="mt-8 grid gap-4">
                 <label className="grid gap-1.5">
                   <span className="text-sm font-medium" style={{ color: '#1B1B1B' }}>Adresse email</span>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    required
-                    autoComplete="email"
-                    placeholder="vous@entreprise.fr"
-                    className="w-full px-4 py-3 text-base outline-none transition-colors focus:border-[#1F4E8C]"
-                    style={inputStyle}
-                  />
+                  <div className="relative">
+                    <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2" fill="none" stroke="#94A3B8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <rect x="3" y="5" width="18" height="14" rx="2" />
+                      <path d="M3 7l9 6 9-6" />
+                    </svg>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      required
+                      autoComplete="email"
+                      placeholder="Votre adresse email"
+                      className="w-full pl-10 pr-4 py-3 text-base outline-none transition-colors focus:border-[#1F4E8C]"
+                      style={inputStyle}
+                    />
+                  </div>
                 </label>
 
                 <label className="grid gap-1.5">
                   <span className="text-sm font-medium" style={{ color: '#1B1B1B' }}>Mot de passe</span>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    required
-                    autoComplete="current-password"
-                    placeholder="••••••••"
-                    className="w-full px-4 py-3 text-base outline-none transition-colors focus:border-[#1F4E8C]"
-                    style={inputStyle}
-                  />
+                  <div className="relative">
+                    <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2" fill="none" stroke="#94A3B8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <rect x="4" y="10" width="16" height="11" rx="2" />
+                      <path d="M8 10V7a4 4 0 118 0v3" />
+                    </svg>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      required
+                      autoComplete="current-password"
+                      placeholder="Votre mot de passe"
+                      className="w-full pl-10 pr-12 py-3 text-base outline-none transition-colors focus:border-[#1F4E8C]"
+                      style={inputStyle}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(v => !v)}
+                      aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 transition-colors hover:text-[#1F4E8C]"
+                      style={{ color: '#94A3B8' }}
+                    >
+                      {showPassword ? (
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M17.94 17.94A10 10 0 0112 20c-7 0-10-8-10-8a18.5 18.5 0 014.22-5.94M9.9 4.24A10 10 0 0112 4c7 0 10 8 10 8a18.5 18.5 0 01-2.16 3.19M1 1l22 22" />
+                          <path d="M14.12 14.12a3 3 0 01-4.24-4.24" />
+                        </svg>
+                      ) : (
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M1 12s3-8 11-8 11 8 11 8-3 8-11 8S1 12 1 12z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                 </label>
+
+                {/* Remember + forgot */}
+                <div className="flex items-center justify-between">
+                  <label className="inline-flex cursor-pointer items-center gap-2 text-sm" style={{ color: '#475569' }}>
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={e => setRememberMe(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 accent-[#1F4E8C]"
+                    />
+                    Se souvenir de moi
+                  </label>
+                  <Link to="/contact" className="text-sm font-semibold transition-colors hover:underline" style={{ color: '#1F4E8C' }}>
+                    Mot de passe oublié ?
+                  </Link>
+                </div>
 
                 {error && (
                   <div className="rounded-lg px-4 py-3 text-sm" style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA' }}>
@@ -311,10 +423,15 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="mt-2 w-full py-3 text-sm font-semibold text-white transition-colors disabled:opacity-50"
-                  style={{ background: 'linear-gradient(135deg, #0B1F3A 0%, #1F4E8C 54%, #0EA5E9 100%)', borderRadius: '10px' }}
+                  className="mt-2 inline-flex w-full items-center justify-center gap-2 py-3 text-sm font-semibold text-white transition-colors disabled:opacity-50"
+                  style={{ background: 'linear-gradient(135deg, #0B1F3A 0%, #1F4E8C 54%, #0EA5E9 100%)', borderRadius: '10px', boxShadow: '0 8px 24px -8px rgba(11,31,58,0.55)' }}
                 >
-                  {submitting ? 'Connexion en cours...' : 'Se connecter'}
+                  <span>{submitting ? 'Connexion en cours...' : 'Se connecter'}</span>
+                  {!submitting && (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M5 12h14M13 6l6 6-6 6" />
+                    </svg>
+                  )}
                 </button>
               </form>
 
@@ -335,7 +452,31 @@ export default function Login() {
             </>
           )}
 
-          <div className="mt-10 grid gap-2 text-center text-xs" style={{ color: '#64748B' }}>
+          {/* Trust strip */}
+          <div
+            className="mt-10 rounded-2xl px-5 py-4"
+            style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 1px 2px rgba(15,23,42,0.04)' }}
+          >
+            <div className="grid grid-cols-3 gap-4">
+              {([
+                ['Accès sécurisé', 'Vos données sont protégées.', (<><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 118 0v3" /></>)],
+                ['Disponibilité 24/7', 'Accédez à votre activité à tout moment.', (<><path d="M4 14a8 8 0 1016 0A8 8 0 004 14z" /><path d="M12 10v4l2 2" /></>)],
+                ['Support réactif', 'Notre équipe est là pour vous aider.', (<><path d="M4 14v-2a8 8 0 0116 0v2" /><rect x="3" y="14" width="4" height="6" rx="1.5" /><rect x="17" y="14" width="4" height="6" rx="1.5" /></>)],
+              ] as const).map(([title, desc, icon]) => (
+                <div key={title} className="flex items-start gap-2.5">
+                  <svg viewBox="0 0 24 24" className="mt-0.5 h-4 w-4 flex-shrink-0" fill="none" stroke="#1F4E8C" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    {icon}
+                  </svg>
+                  <div>
+                    <p className="text-[11.5px] font-semibold leading-tight" style={{ color: '#0B1F3A' }}>{title}</p>
+                    <p className="mt-0.5 text-[10.5px] leading-[1.45]" style={{ color: '#64748B' }}>{desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-2 text-center text-xs" style={{ color: '#64748B' }}>
             <p>NEXORA Truck — Accès sécurisé</p>
             <div className="flex justify-center gap-3">
               <Link to="/mentions-legales-public" className="underline underline-offset-2 transition-colors hover:text-[#1D1D1F]">

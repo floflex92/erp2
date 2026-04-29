@@ -92,20 +92,6 @@ const FEATURE_TABS: FeatureTab[] = [
   },
 ]
 
-/* ── Icons (line style, #1D1D1F) ──────────────────────────── */
-
-function PainIcon({ kind }: { kind: 'planning' | 'error' | 'margin' | 'tools' }) {
-  const cls = 'h-12 w-12'
-  const style = { color: '#1D1D1F' }
-  if (kind === 'planning')
-    return <svg viewBox="0 0 24 24" className={cls} style={style} fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2.5" /><path d="M8 2v4M16 2v4M3 9h18M8 13h3M13 13h3M8 17h3" /></svg>
-  if (kind === 'error')
-    return <svg viewBox="0 0 24 24" className={cls} style={style} fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M12 3l9 16H3z" /><path d="M12 9v4M12 17h.01" /></svg>
-  if (kind === 'margin')
-    return <svg viewBox="0 0 24 24" className={cls} style={style} fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M4 19V5M4 19h16" /><path d="M7 15l3-3 3 2 4-5" /></svg>
-  return <svg viewBox="0 0 24 24" className={cls} style={style} fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M9 3h6l1 3h4v5l-2 2 2 2v5h-4l-1 3H9l-1-3H4v-5l2-2-2-2V6h4z" /><circle cx="12" cy="12" r="3" /></svg>
-}
-
 /* ── Video Lightbox ────────────────────────────────────────── */
 
 function VideoLightbox({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -441,29 +427,6 @@ function TabIllustration({ tab, onOpenScreenshot }: { tab: FeatureTab['key']; on
 const sectionPx: React.CSSProperties = { paddingInline: 'clamp(24px, 8vw, 160px)' }
 const sectionPy: React.CSSProperties = { paddingBlock: 'clamp(40px, 5vw, 88px)' }
 
-const MARKET_PAINS = [
-  {
-    key: 'planning' as const,
-    title: 'Multi-logiciels qui se contredisent',
-    description: 'Planning, TMS, flotte et facturation vivent dans des outils séparés: vos équipes recollent les informations à la main.',
-  },
-  {
-    key: 'error' as const,
-    title: 'Double saisie quotidienne',
-    description: 'Chaque ordre de transport est ressaisi plusieurs fois, ce qui augmente les erreurs, les retards et les litiges clients.',
-  },
-  {
-    key: 'margin' as const,
-    title: 'Visibilité insuffisante',
-    description: 'Sans lecture temps réel des missions, coûts et statuts, la rentabilité se dégrade avant même d’être visible.',
-  },
-  {
-    key: 'tools' as const,
-    title: 'Communication fragmentée',
-    description: 'Exploitants, dirigeants et conducteurs utilisent des canaux différents. Les décisions arrivent trop tard sur le terrain.',
-  },
-]
-
 const REPLACED_SOFTWARE = [
   {
     title: 'TMS transport',
@@ -550,7 +513,10 @@ const MODULE_GROUPS = [
 
 function LazySection({ children, minHeight = '320px' }: { children: React.ReactNode; minHeight?: string }) {
   const ref = useRef<HTMLDivElement | null>(null)
-  const [isVisible, setIsVisible] = useState(false)
+  const [isVisible, setIsVisible] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return document.getElementById('root')?.dataset.ssr === 'true'
+  })
 
   useEffect(() => {
     const node = ref.current
@@ -722,68 +688,165 @@ export default function HomePage() {
 
       {/* ── 1. HERO ── */}
       <section
-        className="relative flex min-h-[76vh] w-full flex-col items-center justify-center overflow-hidden text-center"
-        style={{ ...sectionPx, ...sectionPy }}
+        className="relative w-full overflow-hidden"
+        style={{
+          ...sectionPx,
+          paddingTop: 'clamp(110px, 13vw, 160px)',
+          paddingBottom: 'clamp(40px, 5vw, 72px)',
+          background: 'linear-gradient(180deg, #E6F0FA 0%, #EEF5FB 45%, #F7FAFD 100%)',
+        }}
         aria-labelledby="home-hero-heading"
       >
-        {/* Background image + overlay */}
-        <img
-          src={sitePhotos.mainPageHero.src(1600)}
-          srcSet={sitePhotos.mainPageHero.srcSet([768, 1200, 1600])}
-          sizes="100vw"
-          alt="Camions en ville de nuit dans une ambiance urbaine cinématographique"
-          loading="eager"
-          fetchPriority="high"
-          decoding="async"
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} />
-
-        <div className="relative">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.7)' }}>
-            ERP + TMS + IA
-          </p>
-          <h1
-            id="home-hero-heading"
-            className="mx-auto mt-6 max-w-4xl text-balance font-bold leading-[1.05]"
-            style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)', color: '#FFFFFF', letterSpacing: '-0.025em' }}
-          >
-            L’all-in-one transport pour piloter exploitation, flotte et rentabilité
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl" style={{ color: 'rgba(255,255,255,0.8)', fontSize: '20px', lineHeight: 1.6 }}>
-            En 3 secondes: planning, OT, feuille de route, KPI, facturation et communication réunis dans un seul produit.
-          </p>
-          <p className="mx-auto mt-4 max-w-3xl text-sm font-semibold uppercase tracking-[0.16em]" style={{ color: 'rgba(229,231,235,0.92)' }}>
-            Déploiement rapide • Sans double saisie • Lecture métier immédiate
-          </p>
-          <div className="mt-12 flex flex-wrap items-start justify-center gap-x-5 gap-y-4">
-            <div className="flex flex-col items-center">
+        <div className="grid items-center gap-10 lg:grid-cols-[1.05fr_1fr]">
+          {/* Left column — title & CTA */}
+          <div className="relative">
+            <h1
+              id="home-hero-heading"
+              className="font-extrabold leading-[0.95] tracking-tight"
+              style={{ fontSize: 'clamp(3rem, 7.6vw, 6rem)', color: '#0B1B3B', letterSpacing: '-0.02em' }}
+            >
+              AVANÇONS
+              <br />
+              <span className="site-hero-gradient-text">ENSEMBLE.</span>
+            </h1>
+            <p
+              className="mt-7 max-w-xl"
+              style={{ color: '#334155', fontSize: 'clamp(1rem, 1.25vw, 1.15rem)', lineHeight: 1.65 }}
+            >
+              Nexora est la solution tout-en-un pour piloter vos opérations de transport,
+              en temps réel, de manière simple, connectée et performante.
+            </p>
+            <div
+              className="mt-6 h-[3px] w-28 rounded-full"
+              style={{ background: 'linear-gradient(90deg,#0ea5e9 0%, #22c55e 100%)' }}
+              aria-hidden="true"
+            />
+            <div className="mt-8 flex flex-wrap items-center gap-4">
               <Link
-                to="/connexion-erp"
-                className="site-hero-cta"
+                to="/solution"
+                className="site-hero-cta uppercase"
+                style={{ letterSpacing: '0.08em' }}
               >
-                Tester l’ERP maintenant
+                Découvrir nos solutions
+                <span aria-hidden="true" className="ml-3 text-lg leading-none">→</span>
               </Link>
-              <p className="site-hero-cta-note mt-3 text-sm" style={{ color: 'rgba(255,255,255,0.9)' }}>
-                Accès immédiat à un environnement de test guidé.
-              </p>
+              <button
+                type="button"
+                onClick={() => setVideoOpen(true)}
+                className="inline-flex min-h-[44px] items-center text-sm font-semibold"
+                style={{ color: '#1e3a8a' }}
+              >
+                Voir la démo vidéo ▶
+              </button>
             </div>
-            <Link
-              to="/demonstration"
-              className="self-center inline-flex min-h-[48px] items-center rounded-xl border px-5 py-3 text-sm font-semibold transition-colors"
-              style={{ borderColor: 'rgba(229,231,235,0.48)', color: '#E5E7EB', background: 'rgba(2,6,23,0.35)' }}
-            >
-              Réserver une démo ciblée
-            </Link>
-            <button
-              type="button"
-              onClick={() => setVideoOpen(true)}
-              className="self-center text-sm font-semibold transition-colors"
-              style={{ color: '#86EFAC' }}
-            >
-              Voir la démo vidéo ▶
-            </button>
           </div>
+
+          {/* Right column — visual + floating KPI card */}
+          <div className="relative">
+            <div className="relative overflow-hidden rounded-[2rem] shadow-[0_30px_80px_rgba(15,23,42,0.18)]">
+              <img
+                src={sitePhotos.truckRoadWide.src(1400)}
+                srcSet={sitePhotos.truckRoadWide.srcSet([768, 1400])}
+                sizes="(min-width: 1024px) 48vw, 92vw"
+                alt="Camion NEXORA sur la route — pilotage transport en temps réel"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                className="block h-full w-full object-cover"
+                style={{ aspectRatio: '4/3' }}
+              />
+            </div>
+
+            {/* KPI card */}
+            <div
+              className="absolute left-[-4%] top-[-6%] w-[68%] max-w-[360px] rounded-2xl border border-slate-100 bg-white/95 p-4 backdrop-blur-sm sm:p-5"
+              style={{ boxShadow: '0 24px 60px rgba(15,23,42,0.18)' }}
+            >
+              <p className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: '#0B1B3B' }}>
+                Pilotage en temps réel
+              </p>
+              <p className="mt-1 text-[11px]" style={{ color: '#64748B' }}>
+                Vue d’ensemble de votre activité
+              </p>
+              <div className="mt-4 grid grid-cols-3 gap-3">
+                {([
+                  { label: 'Livraisons', value: '128', delta: '+12%' },
+                  { label: 'Taux de service', value: '98,6%', delta: '+2,1%' },
+                  { label: 'Coût / km', value: '0,98 €', delta: '-4%' },
+                ] as const).map(kpi => (
+                  <div key={kpi.label}>
+                    <p className="text-[9px] font-medium" style={{ color: '#64748B' }}>{kpi.label}</p>
+                    <p className="mt-0.5 text-base font-bold leading-tight" style={{ color: '#0B1B3B' }}>{kpi.value}</p>
+                    <p className="text-[10px] font-semibold" style={{ color: '#16A34A' }}>{kpi.delta}</p>
+                  </div>
+                ))}
+              </div>
+              <svg viewBox="0 0 300 60" className="mt-3 h-10 w-full" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M0 48 L50 34 L100 40 L150 20 L200 28 L250 14 L300 22" fill="none" stroke="#0ea5e9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M0 52 L50 44 L100 48 L150 36 L200 40 L250 30 L300 36" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom features strip */}
+        <div className="mt-14 grid gap-8 border-t pt-10 sm:grid-cols-2 lg:grid-cols-4" style={{ borderColor: 'rgba(15,23,42,0.08)' }}>
+          {[
+            {
+              title: 'Pilotez en temps réel',
+              desc: 'Gardez le contrôle sur vos opérations.',
+              icon: (
+                <svg viewBox="0 0 24 24" className="h-10 w-10" fill="none" stroke="#0ea5e9" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 7v5l3 2" />
+                </svg>
+              ),
+            },
+            {
+              title: 'Optimisez vos ressources',
+              desc: 'Moins de coûts, plus de performance.',
+              icon: (
+                <svg viewBox="0 0 24 24" className="h-10 w-10" fill="none" stroke="#22c55e" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="3" y="10" width="4" height="4" rx="1" />
+                  <rect x="17" y="10" width="4" height="4" rx="1" />
+                  <rect x="10" y="4" width="4" height="4" rx="1" />
+                  <rect x="10" y="16" width="4" height="4" rx="1" />
+                  <path d="M7 12h3M14 12h3M12 8v2M12 14v2" />
+                </svg>
+              ),
+            },
+            {
+              title: 'Prenez les bonnes décisions',
+              desc: 'Des données fiables pour un pilotage intelligent.',
+              icon: (
+                <svg viewBox="0 0 24 24" className="h-10 w-10" fill="none" stroke="#0ea5e9" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M4 20V10M10 20V4M16 20v-8M22 20H2" />
+                </svg>
+              ),
+            },
+            {
+              title: 'Gagnez en fiabilité et en sérénité',
+              desc: 'Un partenaire engagé à vos côtés.',
+              icon: (
+                <svg viewBox="0 0 24 24" className="h-10 w-10" fill="none" stroke="#22c55e" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 3l8 3v6c0 4.5-3.2 8.2-8 9-4.8-.8-8-4.5-8-9V6z" />
+                  <path d="M9 12l2 2 4-4" />
+                </svg>
+              ),
+            },
+          ].map(f => (
+            <div key={f.title} className="flex items-start gap-4">
+              <div className="shrink-0">{f.icon}</div>
+              <div>
+                <p className="text-sm font-extrabold uppercase tracking-[0.06em]" style={{ color: '#0B1B3B' }}>
+                  {f.title}
+                </p>
+                <p className="mt-1 text-sm leading-6" style={{ color: '#475569' }}>
+                  {f.desc}
+                </p>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -802,35 +865,256 @@ export default function HomePage() {
 
       <LazySection minHeight="520px">
         <section
-          className="w-full"
-          style={{ background: '#F5F5F7', ...sectionPx, ...sectionPy }}
+          className="w-full overflow-hidden"
+          style={{
+            background: 'linear-gradient(180deg, #FFFFFF 0%, #F3F6FA 100%)',
+            ...sectionPx,
+            ...sectionPy,
+          }}
           data-reveal
           aria-labelledby="home-pain-heading"
         >
-          <div className="max-w-5xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em]" style={{ color: '#2563EB' }}>Problème marché</p>
-            <h2
-              id="home-pain-heading"
-              className="mt-4 max-w-4xl font-semibold leading-tight"
-              style={{ fontSize: 'clamp(1.95rem, 4.2vw, 3.2rem)', color: '#000000' }}
-            >
-              Pourquoi les transporteurs perdent du temps et de l’argent
-            </h2>
-          </div>
+          <div className="grid items-center gap-12 lg:grid-cols-[1fr_1.05fr]">
+            {/* Left — title + bullets */}
+            <div>
+              <h2
+                id="home-pain-heading"
+                className="font-extrabold leading-[0.98] tracking-tight"
+                style={{ fontSize: 'clamp(2.3rem, 5.4vw, 4.2rem)', color: '#0B1B3B', letterSpacing: '-0.02em' }}
+              >
+                TROP D’OUTILS.
+                <br />
+                <span className="site-hero-gradient-text">TROP DE PERTE.</span>
+              </h2>
+              <p className="mt-6 max-w-xl text-base leading-8" style={{ color: '#334155', fontSize: 'clamp(1rem, 1.15vw, 1.1rem)' }}>
+                Informations éparpillées, tâches manuelles, manque de visibilité, erreurs, retards…
+                <br />
+                Vos opérations méritent mieux.
+              </p>
 
-          <div className="mt-12 grid gap-6 md:grid-cols-2">
-            {MARKET_PAINS.map(item => (
-              <article key={item.title} className="rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-[0_10px_28px_rgba(15,23,42,0.05)]">
-                <PainIcon kind={item.key} />
-                <h3 className="mt-5 text-2xl font-semibold" style={{ color: '#000000' }}>{item.title}</h3>
-                <p className="mt-3 text-base leading-8" style={{ color: '#374151' }}>{item.description}</p>
-              </article>
-            ))}
-          </div>
+              <ul className="mt-8 space-y-4">
+                {[
+                  {
+                    label: 'Données dispersées et non fiables',
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="#0ea5e9" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <ellipse cx="12" cy="6" rx="8" ry="3" />
+                        <path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6" />
+                        <path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
+                      </svg>
+                    ),
+                  },
+                  {
+                    label: 'Suivi des livraisons complexe',
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="#0ea5e9" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M3 7h11v8H3zM14 10h4l3 3v2h-7z" />
+                        <circle cx="7" cy="17" r="2" />
+                        <circle cx="17" cy="17" r="2" />
+                      </svg>
+                    ),
+                  },
+                  {
+                    label: 'Communication fragmentée',
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="#0ea5e9" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <rect x="3" y="5" width="18" height="14" rx="2" />
+                        <path d="M3 7l9 6 9-6" />
+                      </svg>
+                    ),
+                  },
+                  {
+                    label: 'Décisions ralenties, performance impactée',
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="#0ea5e9" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M4 20V10M10 20V4M16 20v-8M22 20H2" />
+                      </svg>
+                    ),
+                  },
+                ].map(item => (
+                  <li key={item.label} className="flex items-center gap-4">
+                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ background: 'rgba(14,165,233,0.10)' }}>
+                      {item.icon}
+                    </span>
+                    <span className="text-base font-medium" style={{ color: '#1F2937' }}>
+                      {item.label}
+                    </span>
+                  </li>
+                ))}
+              </ul>
 
-          <Link to="/demonstration" className="site-btn-primary mt-10 inline-flex px-6 py-3 text-sm">
-            Voir comment NEXORA corrige ces blocages
-          </Link>
+              <div className="mt-10">
+                <p className="text-lg font-bold" style={{ color: '#0B1B3B' }}>Le chaos vous coûte cher.</p>
+                <Link
+                  to="/solution"
+                  className="site-hero-gradient-text mt-1 inline-block text-lg font-bold"
+                >
+                  Reprenez le contrôle.
+                </Link>
+                <div
+                  className="mt-3 h-[3px] w-28 rounded-full"
+                  style={{ background: 'linear-gradient(90deg,#0ea5e9 0%, #22c55e 100%)' }}
+                  aria-hidden="true"
+                />
+              </div>
+            </div>
+
+            {/* Right — chaos mock UI */}
+            <div className="relative mx-auto w-full max-w-[640px]" style={{ aspectRatio: '5/4' }} aria-hidden="true">
+              {/* Dashed connectors */}
+              <svg viewBox="0 0 600 480" className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
+                <g stroke="#94A3B8" strokeWidth="1" strokeDasharray="4 4" fill="none" opacity="0.7">
+                  <path d="M300 260 C 220 200, 180 140, 150 90" />
+                  <path d="M300 260 C 360 200, 400 150, 430 90" />
+                  <path d="M300 260 C 380 230, 470 200, 520 160" />
+                  <path d="M300 260 C 230 290, 180 340, 140 400" />
+                  <path d="M300 260 C 350 320, 410 360, 470 400" />
+                  <path d="M300 260 C 260 230, 240 210, 220 200" />
+                </g>
+              </svg>
+
+              {/* Center: overwhelmed person silhouette card */}
+              <div className="absolute left-1/2 top-[42%] -translate-x-1/2 -translate-y-1/2">
+                <div className="flex h-40 w-40 items-center justify-center rounded-full border border-slate-200 bg-white shadow-[0_20px_40px_rgba(15,23,42,0.08)]">
+                  <svg viewBox="0 0 64 64" className="h-24 w-24" fill="none" stroke="#64748B" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="32" cy="22" r="10" />
+                    <path d="M14 56c0-10 8-16 18-16s18 6 18 16" />
+                    <path d="M24 20c-1-2-3-3-5-3M40 20c1-2 3-3 5-3" />
+                    <path d="M26 26c-2 2-4 2-6 1M38 26c2 2 4 2 6 1" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Card: Planning.xlsx */}
+              <div className="absolute left-[6%] top-[4%] w-[46%] rounded-xl border border-slate-200 bg-white p-3 shadow-[0_16px_32px_rgba(15,23,42,0.10)]">
+                <div className="flex items-center gap-2 border-b pb-2 text-[10px] font-semibold" style={{ borderColor: '#E2E8F0', color: '#0B1B3B' }}>
+                  <span className="inline-block h-3 w-3 rounded-sm" style={{ background: '#16A34A' }} />
+                  PLANNING.xlsx
+                  <span className="ml-auto text-slate-400">×</span>
+                </div>
+                <div className="mt-2 grid grid-cols-4 gap-1 text-[8px]" style={{ color: '#475569' }}>
+                  {['Date', 'Origine', 'Destination', 'Statut'].map(h => (
+                    <span key={h} className="font-semibold" style={{ color: '#0B1B3B' }}>{h}</span>
+                  ))}
+                  {[
+                    ['12/05', 'Lyon', 'Paris', 'En cours'],
+                    ['12/05', 'Marseille', 'Lille', 'En attente'],
+                    ['12/05', 'Nantes', 'Lyon', 'En cours'],
+                    ['12/05', 'Bordeaux', 'Paris', 'En attente'],
+                  ].flat().map((c, i) => (
+                    <span key={i}>{c}</span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Card: Suivi GPS */}
+              <div className="absolute right-[18%] top-[6%] w-[34%] rounded-xl border border-slate-200 bg-white p-3 shadow-[0_16px_32px_rgba(15,23,42,0.10)]">
+                <div className="flex items-center gap-2 border-b pb-2 text-[10px] font-semibold" style={{ borderColor: '#E2E8F0', color: '#0B1B3B' }}>
+                  SUIVI GPS
+                  <span className="ml-auto text-slate-400">×</span>
+                </div>
+                <div className="mt-2 h-16 rounded-md" style={{ background: 'linear-gradient(135deg,#E0F2FE,#DCFCE7)' }}>
+                  <svg viewBox="0 0 120 60" className="h-full w-full" preserveAspectRatio="none">
+                    <path d="M10 50 C 30 10, 50 40, 70 25 S 110 10, 115 20" stroke="#0ea5e9" strokeWidth="2" fill="none" strokeLinecap="round" />
+                    <circle cx="80" cy="22" r="3" fill="#0ea5e9" />
+                  </svg>
+                </div>
+                <p className="mt-2 text-[9px]" style={{ color: '#475569' }}>
+                  Statut : <span className="font-semibold" style={{ color: '#0ea5e9' }}>En cours</span>
+                </p>
+              </div>
+
+              {/* Card: Boîte de réception */}
+              <div className="absolute right-[2%] top-[2%] w-[34%] rounded-xl border border-slate-200 bg-white p-3 shadow-[0_16px_32px_rgba(15,23,42,0.10)]">
+                <div className="flex items-center gap-2 border-b pb-2 text-[10px] font-semibold" style={{ borderColor: '#E2E8F0', color: '#0B1B3B' }}>
+                  <span>✉</span> Boîte de réception
+                  <span className="ml-auto flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-bold text-white" style={{ background: '#EF4444' }}>23</span>
+                </div>
+                <ul className="mt-2 space-y-1 text-[9px]" style={{ color: '#475569' }}>
+                  {[
+                    ['Nouveau mail', '09:15'],
+                    ['RE: Livraison urgente', '09:07'],
+                    ['Problème camion', 'Hier'],
+                    ['Documents à envoyer', 'Hier'],
+                  ].map(([l, t]) => (
+                    <li key={l} className="flex items-center justify-between">
+                      <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-sky-500" />{l}</span>
+                      <span className="text-slate-400">{t}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Card: Appel fournisseur */}
+              <div className="absolute left-[2%] top-[46%] w-[30%] rounded-xl border border-slate-200 bg-white p-3 shadow-[0_16px_32px_rgba(15,23,42,0.10)]">
+                <p className="text-[9px] font-bold uppercase tracking-[0.14em]" style={{ color: '#0B1B3B' }}>Appel fournisseur</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full" style={{ background: '#16A34A', color: '#fff' }}>
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor"><path d="M6.6 10.8a15 15 0 006.6 6.6l2.2-2.2a1 1 0 011-.24c1.1.37 2.3.58 3.6.58a1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.3.2 2.5.58 3.6a1 1 0 01-.24 1z" /></svg>
+                  </span>
+                  <span className="text-xs font-bold" style={{ color: '#0B1B3B' }}>02:34</span>
+                </div>
+                <svg viewBox="0 0 100 20" className="mt-2 h-5 w-full" preserveAspectRatio="none" aria-hidden="true">
+                  {Array.from({ length: 28 }).map((_, i) => (
+                    <rect key={i} x={i * 3.6} y={8 - Math.abs(Math.sin(i) * 6)} width="2" height={Math.abs(Math.sin(i) * 12) + 2} fill="#16A34A" opacity="0.8" />
+                  ))}
+                </svg>
+              </div>
+
+              {/* Card: Tâches */}
+              <div className="absolute left-[34%] top-[50%] w-[26%] rounded-xl border border-slate-200 bg-white p-3 shadow-[0_16px_32px_rgba(15,23,42,0.10)]">
+                <p className="text-[9px] font-bold uppercase tracking-[0.14em]" style={{ color: '#0B1B3B' }}>Tâches</p>
+                <ul className="mt-2 space-y-1 text-[9px]" style={{ color: '#475569' }}>
+                  {['Appeler client', 'Envoyer document', 'Vérifier livraison', 'Relancer chauffeur'].map(t => (
+                    <li key={t} className="flex items-center gap-1">
+                      <span className="h-2.5 w-2.5 rounded-sm border" style={{ borderColor: '#CBD5E1' }} />
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Card: WhatsApp */}
+              <div className="absolute right-[12%] top-[46%] w-[30%] rounded-xl border border-slate-200 bg-white p-3 shadow-[0_16px_32px_rgba(15,23,42,0.10)]">
+                <div className="flex items-center gap-2 text-[10px] font-semibold" style={{ color: '#0B1B3B' }}>
+                  <span className="flex h-4 w-4 items-center justify-center rounded-full text-[8px] text-white" style={{ background: '#16A34A' }}>W</span>
+                  WHATSAPP
+                </div>
+                <div className="mt-2 space-y-1 text-[9px]">
+                  <p className="inline-block rounded-lg bg-slate-100 px-2 py-1" style={{ color: '#334155' }}>Où en est la livraison ?</p>
+                  <p className="block text-right"><span className="inline-block rounded-lg px-2 py-1 text-[#052e16]" style={{ background: '#DCFCE7' }}>Je regarde</span></p>
+                  <p className="inline-block rounded-lg bg-slate-100 px-2 py-1" style={{ color: '#334155' }}>Merci !</p>
+                </div>
+              </div>
+
+              {/* Card: Documents */}
+              <div className="absolute right-[2%] bottom-[4%] w-[32%] rounded-xl border border-slate-200 bg-white p-3 shadow-[0_16px_32px_rgba(15,23,42,0.10)]">
+                <p className="text-[9px] font-bold uppercase tracking-[0.14em]" style={{ color: '#0B1B3B' }}>Documents</p>
+                <ul className="mt-2 space-y-1 text-[10px]" style={{ color: '#475569' }}>
+                  {['Contrats', 'Bons de livraison', 'Factures'].map(d => (
+                    <li key={d} className="flex items-center gap-2">
+                      <span className="text-amber-500">📁</span>{d}
+                    </li>
+                  ))}
+                </ul>
+                <svg viewBox="0 0 24 24" className="ml-auto mt-1 h-5 w-5" fill="none" stroke="#0ea5e9" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M6 18a4 4 0 010-8 6 6 0 0111.5-1 4.5 4.5 0 01.5 9H6z" />
+                  <path d="M12 12v6M9 15l3-3 3 3" />
+                </svg>
+              </div>
+
+              {/* Red alert pills */}
+              <div className="absolute left-[48%] top-[22%] rounded-md px-2 py-1 text-[9px] font-semibold text-white shadow-md" style={{ background: '#0B1B3B' }}>
+                <span className="mr-1" style={{ color: '#EF4444' }}>⚠</span>Données non à jour
+              </div>
+              <div className="absolute left-[22%] top-[60%] rounded-md px-2 py-1 text-[9px] font-semibold text-white shadow-md" style={{ background: '#0B1B3B' }}>
+                <span className="mr-1" style={{ color: '#EF4444' }}>⚠</span>Manque de visibilité
+              </div>
+              <div className="absolute right-[2%] top-[54%] rounded-md px-2 py-1 text-[9px] font-semibold text-white shadow-md" style={{ background: '#0B1B3B' }}>
+                <span className="mr-1" style={{ color: '#EF4444' }}>⚠</span>Erreurs et retards
+              </div>
+            </div>
+          </div>
         </section>
       </LazySection>
 
@@ -1064,38 +1348,63 @@ export default function HomePage() {
 
       <LazySection minHeight="420px">
         <section
-          className="relative w-full overflow-hidden text-center"
-          style={{ ...sectionPx, paddingBlock: 'clamp(56px, 6vw, 96px)' }}
+          className="relative w-full overflow-hidden"
+          style={{
+            ...sectionPx,
+            paddingBlock: 'clamp(64px, 7vw, 112px)',
+            background: 'linear-gradient(180deg, #F7FAFD 0%, #EAF2FB 100%)',
+          }}
           data-reveal
           aria-labelledby="home-cta-heading"
         >
-          <img
-            src={sitePhotos.truckMountainRoad.src(1400)}
-            srcSet={sitePhotos.truckMountainRoad.srcSet([768, 1200, 1400])}
-            sizes="100vw"
-            alt="Camion de transport sur route ouverte sans logo visible"
-            loading="lazy"
-            decoding="async"
-            className="absolute inset-0 h-full w-full object-cover"
+          {/* Decorative gradient blob */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full opacity-40 blur-3xl"
+            style={{ background: 'radial-gradient(circle,#22c55e 0%, transparent 70%)' }}
           />
-          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.55)' }} />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -left-24 bottom-0 h-80 w-80 rounded-full opacity-30 blur-3xl"
+            style={{ background: 'radial-gradient(circle,#0ea5e9 0%, transparent 70%)' }}
+          />
 
-          <div className="relative">
+          <div className="relative mx-auto max-w-5xl text-center">
+            <p className="text-[11px] font-bold uppercase tracking-[0.28em]" style={{ color: '#0ea5e9' }}>
+              NEXORA Truck
+            </p>
             <h2
               id="home-cta-heading"
-              className="mx-auto max-w-3xl text-balance font-semibold leading-tight"
-              style={{ fontSize: 'clamp(2rem, 5vw, 3.4rem)', color: '#FFFFFF' }}
+              className="mx-auto mt-5 max-w-4xl text-balance font-extrabold leading-[1.05] tracking-tight"
+              style={{ fontSize: 'clamp(2rem, 5.2vw, 3.6rem)', color: '#0B1B3B', letterSpacing: '-0.02em' }}
             >
-              Passez de la complexité à un pilotage clair en un seul outil.
+              Passez de la complexité à un{' '}
+              <span className="site-hero-gradient-text">pilotage clair</span>
+              <br className="hidden sm:block" />
+              {' '}en un seul outil.
             </h2>
-            <p className="mx-auto mt-5 max-w-2xl text-base leading-8" style={{ color: 'rgba(255,255,255,0.92)' }}>
+            <p className="mx-auto mt-6 max-w-2xl text-base leading-8" style={{ color: '#334155', fontSize: 'clamp(1rem, 1.15vw, 1.1rem)' }}>
               Demandez une démo personnalisée ou testez l’ERP transport NEXORA dès maintenant.
             </p>
+            <div
+              className="mx-auto mt-6 h-[3px] w-28 rounded-full"
+              style={{ background: 'linear-gradient(90deg,#0ea5e9 0%, #22c55e 100%)' }}
+              aria-hidden="true"
+            />
             <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-              <Link to="/demonstration" className="site-btn-primary px-6 py-3 text-sm transition-colors">
+              <Link
+                to="/demonstration"
+                className="site-hero-cta uppercase"
+                style={{ letterSpacing: '0.08em' }}
+              >
                 Demander une démo
+                <span aria-hidden="true" className="ml-3 text-lg leading-none">→</span>
               </Link>
-              <Link to="/connexion-erp" className="site-hero-cta px-6 py-3 text-sm transition-colors">
+              <Link
+                to="/connexion-erp"
+                className="inline-flex min-h-[48px] items-center rounded-xl border px-6 py-3 text-sm font-semibold uppercase tracking-[0.08em] transition-colors"
+                style={{ borderColor: '#0B1B3B', color: '#0B1B3B', background: '#FFFFFF' }}
+              >
                 Tester l’ERP
               </Link>
             </div>
