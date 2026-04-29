@@ -22,7 +22,7 @@ const capabilityBlocks = [
 const evaluationPoints = [
   'Temps passe a revalider les memes donnees entre planning, dispatch et finance.',
   'Capacite a reaffecter une mission urgente sans casser la journee.',
-  'Visibilite reelle sur la disponibilite flotte et la conformite conducteur avant validation.',
+  'Visibilité réelle sur la disponibilité flotte et la conformité conducteur avant validation.',
   'Qualite de la trace laissee par chaque arbitrage et chaque incident terrain.',
 ]
 
@@ -30,7 +30,7 @@ export default function ErpTransportTmsPage() {
   useSiteMeta({
     title: 'ERP transport TMS pour PME',
     description:
-      'Guide ERP transport TMS pour comprendre comment relier dispatch, planning, flotte, conducteurs et facturation dans un seul systeme adapte aux PME transport.',
+      'Guide ERP transport TMS pour comprendre comment relier dispatch, planning, flotte, conducteurs et facturation dans un seul système adapté aux PME transport.',
     canonicalPath: '/erp-transport-tms',
     keywords:
       'ERP transport TMS, guide ERP transport, TMS pour PME transport, logiciel exploitation transport, ERP TMS transport routier',
@@ -41,7 +41,7 @@ export default function ErpTransportTmsPage() {
       {
         question: 'ERP transport TMS : quelle difference ?',
         answer:
-          'Un TMS couvre surtout les ordres de transport et le dispatch. Un ERP transport relie en plus la flotte, les conducteurs, la conformite et la facturation. Un ERP transport TMS combine ces deux niveaux dans un seul systeme.',
+          'Un TMS couvre surtout les ordres de transport et le dispatch. Un ERP transport relie en plus la flotte, les conducteurs, la conformité et la facturation. Un ERP transport TMS combine ces deux niveaux dans un seul système.',
       },
       {
         question: 'Quand une PME transport a-t-elle besoin d un ERP transport TMS ?',
@@ -51,7 +51,7 @@ export default function ErpTransportTmsPage() {
       {
         question: 'Peut-on deployer un ERP transport TMS sans projet informatique lourd ?',
         answer:
-          'Oui, si la solution est pensee pour l exploitation et si elle permet de demarrer sur un socle utile: missions, planning, flotte, conformite et finance, avec une progression module par module.',
+          'Oui, si la solution est pensée pour l exploitation et si elle permet de démarrer sur un socle utile: missions, planning, flotte, conformité et finance, avec une progression module par module.',
       },
     ],
   })

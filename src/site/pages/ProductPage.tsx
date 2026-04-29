@@ -11,7 +11,7 @@ export default function ProductPage() {
   useSiteMeta({
     title: 'Plateforme ERP transport pour PME',
     description:
-      'Plateforme ERP transport NEXORA Truck pour centraliser exploitation, planning, flotte, conformite, documents et facturation dans un seul systeme.',
+      'Plateforme ERP transport NEXORA Truck pour centraliser exploitation, planning, flotte, conformité, documents et facturation dans un seul système.',
     canonicalPath: '/plateforme-erp-transport',
     keywords:
       'plateforme ERP transport, logiciel exploitation transport, ERP flotte transport, planning transport routier, logiciel transport',
@@ -21,16 +21,16 @@ export default function ProductPage() {
     <div className="space-y-8">
       <SiteSection
         eyebrow="Le produit"
-        title="Une plateforme ERP transport pour piloter l'exploitation, la flotte et les equipes"
+        title="Une plateforme ERP transport pour piloter l'exploitation, la flotte et les équipes"
         headingLevel={1}
-        description="NEXORA Truck centralise ce que les transporteurs routiers gerent souvent dans plusieurs outils: ordres de transport, planning, chauffeurs, flotte, conformite, documents et facturation. Dans un seul cockpit."
+        description="NEXORA Truck centralise ce que les transporteurs routiers gèrent souvent dans plusieurs outils: ordres de transport, planning, chauffeurs, flotte, conformité, documents et facturation. Dans un seul cockpit."
         actions={
           <>
             <Link to="/demonstration" className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800">
               Voir le logiciel
             </Link>
             <Link to="/fonctionnalites" className="rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-[var(--site-text)] hover:bg-white">
-              Toutes les fonctionnalites
+              Toutes les fonctionnalités
             </Link>
           </>
         }
@@ -83,7 +83,7 @@ export default function ProductPage() {
       <SiteSection
         eyebrow="Plateforme"
         title="Les quatre piliers du socle NEXORA Truck"
-        description="Le produit est structure en quatre grandes zones: cockpit exploitation, planning ressources, conformite RH et ouverture financiere et API."
+        description="Le produit est structuré en quatre grandes zones: cockpit exploitation, planning ressources, conformité RH et ouverture financière et API."
       >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {platformModules.map(item => (
@@ -99,7 +99,7 @@ export default function ProductPage() {
       <SiteSection
         eyebrow="Modules"
         title="Ce que la plateforme couvre aujourd'hui"
-        description="Les domaines suivants sont actifs ou en cours de developpement dans l'application."
+        description="Les domaines suivants sont actifs ou en cours de développement dans l'application."
         muted
       >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

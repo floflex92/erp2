@@ -11,7 +11,7 @@ const pricingFactors = [
   },
   {
     title: 'Modules actives',
-    body: 'Exploitation, planning, flotte, conformite, documents, finance ou integrations n ont pas tous le meme niveau de couverture.',
+    body: 'Exploitation, planning, flotte, conformité, documents, finance ou intégrations n ont pas tous le même niveau de couverture.',
   },
   {
     title: 'Niveau d accompagnement',
@@ -22,7 +22,7 @@ const pricingFactors = [
 const commonQuestions = [
   'A partir de combien de chauffeurs la centralisation devient-elle rentable ?',
   'Quel volume de ressaisie voulez-vous supprimer entre exploitants et facturation ?',
-  'La telematique et les contraintes conformite doivent-elles remonter dans le meme flux ?',
+  'La télématique et les contraintes conformité doivent-elles remonter dans le même flux ?',
   'Le projet vise-t-il seulement le dispatch ou une plateforme plus large de pilotage ?',
 ]
 
@@ -30,7 +30,7 @@ export default function PricingPage() {
   useSiteMeta({
     title: 'Tarifs ERP transport : comprendre le prix',
     description:
-      'Tarifs ERP transport NEXORA Truck : comprendre comment se construit le prix selon la flotte, les modules, les integrations et le niveau d accompagnement.',
+      'Tarifs ERP transport NEXORA Truck : comprendre comment se construit le prix selon la flotte, les modules, les intégrations et le niveau d accompagnement.',
     canonicalPath: '/tarifs-erp-transport',
     keywords:
       'tarifs ERP transport, prix logiciel transport, prix TMS transport, cout ERP transport routier, devis ERP transport',
@@ -41,17 +41,17 @@ export default function PricingPage() {
       {
         question: 'Pourquoi les tarifs ERP transport sont-ils souvent sur devis ?',
         answer:
-          'Parce que le cout depend du nombre d utilisateurs, du perimetre fonctionnel, des integrations et du niveau d accompagnement necessaire au deploiement.',
+          'Parce que le coût dépend du nombre d utilisateurs, du périmètre fonctionnel, des intégrations et du niveau d accompagnement nécessaire au déploiement.',
       },
       {
         question: 'Que faut-il comparer dans un tarif ERP transport ?',
         answer:
-          'Il faut comparer le perimetre reel couvert: exploitation, planning, flotte, conducteurs, conformite, documents, facturation, ainsi que les ressaisies qui restent ou disparaissent.',
+          'Il faut comparer le périmètre réel couvert: exploitation, planning, flotte, conducteurs, conformité, documents, facturation, ainsi que les ressaisies qui restent ou disparaissent.',
       },
       {
         question: 'Le moins cher est-il le plus rentable ?',
         answer:
-          'Pas forcement. Une solution moins chere mais fragmentee peut couter plus en coordination, erreurs et temps perdu qu un systeme mieux integre.',
+          'Pas forcément. Une solution moins chère mais fragmentée peut coûter plus en coordination, erreurs et temps perdu qu un système mieux intégré.',
       },
     ],
   })

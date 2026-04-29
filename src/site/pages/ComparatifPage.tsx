@@ -35,7 +35,7 @@ export default function ComparatifPage() {
   useSiteMeta({
     title: 'Comparatif ERP transport : quoi comparer en 2026',
     description:
-      'Comparatif ERP transport pour PME et TPE transport : quoi comparer entre ERP generaliste, TMS isole et plateforme metier orientee exploitation.',
+      'Comparatif ERP transport pour PME et TPE transport : quoi comparer entre ERP généraliste, TMS isolé et plateforme métier orientée exploitation.',
     canonicalPath: '/comparatif-erp-transport',
     keywords:
       'comparatif ERP transport, comparer logiciel transport, ERP transport vs TMS, meilleur ERP transport routier, comparatif TMS transport',
@@ -46,12 +46,12 @@ export default function ComparatifPage() {
       {
         question: 'Que faut-il comparer entre deux ERP transport ?',
         answer:
-          'Il faut comparer la capacite a garder un flux continu entre mission, planning, flotte, conducteurs, conformite et facturation, pas seulement une liste de modules.',
+          'Il faut comparer la capacité à garder un flux continu entre mission, planning, flotte, conducteurs, conformité et facturation, pas seulement une liste de modules.',
       },
       {
-        question: 'ERP generaliste ou TMS specialise : que choisir ?',
+        question: 'ERP généraliste ou TMS spécialisé : que choisir ?',
         answer:
-          'Un ERP generaliste peut couvrir plus large mais etre moins adapte au terrain transport. Un TMS specialise peut etre tres bon sur le dispatch mais rester coupe du reste. L enjeu est la continuite de pilotage.',
+          'Un ERP généraliste peut couvrir plus large mais être moins adapté au terrain transport. Un TMS spécialisé peut être très bon sur le dispatch mais rester coupé du reste. L enjeu est la continuité de pilotage.',
       },
       {
         question: 'Comment eviter un mauvais comparatif logiciel transport ?',
