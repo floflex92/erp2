@@ -28,7 +28,7 @@ const evaluationPoints = [
 
 export default function ErpTransportTmsPage() {
   useSiteMeta({
-    title: 'ERP transport TMS : guide complet pour PME transport',
+    title: 'ERP transport TMS pour PME',
     description:
       'Guide ERP transport TMS pour comprendre comment relier dispatch, planning, flotte, conducteurs et facturation dans un seul systeme adapte aux PME transport.',
     canonicalPath: '/erp-transport-tms',

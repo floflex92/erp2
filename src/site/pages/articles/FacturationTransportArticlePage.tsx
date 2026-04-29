@@ -5,7 +5,7 @@ import SiteSection from '@/site/components/SiteSection'
 export default function FacturationTransportArticlePage() {
   return (
     <ArticleShell
-      title="Facturation transport : comment automatiser sans perdre le contrôle"
+      title="Facturation transport automatisée"
       description="Automatiser la facturation transport ne signifie pas perdre de la rigueur. Voici comment passer de la retranscription manuelle à un flux bout en bout."
       canonicalPath="/articles/facturation-transport-automatiser"
       keywords="facturation transport automatique, automatiser facturation transport routier, logiciel facturation transport, ERP facturation transport, facturation depuis ordre de transport"

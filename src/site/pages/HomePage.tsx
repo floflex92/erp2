@@ -560,7 +560,7 @@ export default function HomePage() {
   const [lightboxImage, setLightboxImage] = useState<LightboxImage | null>(null)
 
   useSiteMeta({
-    title: 'Le système d’exploitation du transport routier',
+    title: 'ERP transport routier : planning et flotte',
     description: 'ERP transport et TMS transport tout-en-un pour exploitation, gestion flotte, optimisation transport, suivi conducteur et facturation sans double saisie.',
     canonicalPath: '/',
     keywords: 'ERP transport, TMS transport, gestion flotte, optimisation transport, suivi conducteur, logiciel transport, planning transport, exploitation transport, télématique transport, IA transport, NEXORA Truck',
@@ -705,16 +705,16 @@ export default function HomePage() {
               className="font-extrabold leading-[0.95] tracking-tight"
               style={{ fontSize: 'clamp(3rem, 7.6vw, 6rem)', color: '#0B1B3B', letterSpacing: '-0.02em' }}
             >
-              AVANÇONS
+              ERP TRANSPORT
               <br />
-              <span className="site-hero-gradient-text">ENSEMBLE.</span>
+              <span className="site-hero-gradient-text">ROUTIER.</span>
             </h1>
             <p
               className="mt-7 max-w-xl"
               style={{ color: '#334155', fontSize: 'clamp(1rem, 1.25vw, 1.15rem)', lineHeight: 1.65 }}
             >
-              Nexora est la solution tout-en-un pour piloter vos opérations de transport,
-              en temps réel, de manière simple, connectée et performante.
+              Nexora est la solution tout-en-un pour piloter planning, flotte,
+              conducteurs, facturation et opérations transport en temps réel.
             </p>
             <div
               className="mt-6 h-[3px] w-28 rounded-full"

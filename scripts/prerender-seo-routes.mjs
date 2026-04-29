@@ -79,7 +79,7 @@ const ARTICLE_ROUTE_META = {
     keywords: 'transport routier, systeme coherent, ERP transport',
   },
   '/articles/facturation-transport-automatiser': {
-    title: 'Facturation transport : automatiser sans perdre le controle | NEXORA Truck',
+    title: 'Facturation transport automatisee | NEXORA Truck',
     description:
       'Comment automatiser la facturation transport de bout en bout tout en gardant rigueur et tracabilite.',
     keywords: 'facturation transport, automatisation facture, ERP transport finance',
@@ -103,7 +103,7 @@ const ARTICLE_ROUTE_META = {
     keywords: 'conformite transport routier, reglementation transport, obligations PME transport',
   },
   '/articles/digitalisation-transport-routier-2026': {
-    title: 'Digitalisation transport routier 2026 : etat des lieux | NEXORA Truck',
+    title: 'Digitalisation transport 2026 | NEXORA Truck',
     description:
       'Etat des lieux de la digitalisation des PME transport en 2026 : outils adoptes, freins persistants, prochaines etapes.',
     keywords: 'digitalisation transport routier 2026, PME transport, transformation digitale transport',
@@ -112,16 +112,16 @@ const ARTICLE_ROUTE_META = {
 
 const ROUTE_META = {
   '/': {
-    title: 'Le systeme d\'exploitation du transport routier | NEXORA Truck',
+    title: 'ERP transport routier : planning et flotte | NEXORA Truck',
     description:
       'ERP transport et TMS transport tout-en-un pour exploitation, gestion flotte, optimisation transport, suivi conducteur et facturation sans double saisie.',
     keywords:
       'ERP transport, TMS transport, gestion flotte, optimisation transport, suivi conducteur, logiciel transport, planning transport',
   },
   '/fonctionnalites': {
-    title: 'Fonctionnalites ERP transport : planning et flotte | NEXORA Truck',
+    title: 'Fonctionnalites ERP transport | NEXORA Truck',
     description:
-      'Decouvrez les fonctionnalites de l\'ERP transport NEXORA Truck : planning intelligent, gestion flotte, suivi conducteurs, facturation transport, telematique, IA et API.',
+      'Fonctionnalites ERP transport NEXORA Truck : planning, flotte, conducteurs, facturation, telematique, IA et API.',
     keywords:
       'fonctionnalites ERP transport, planning transport, gestion flotte, facturation transport, TMS transport',
   },
@@ -138,21 +138,21 @@ const ROUTE_META = {
     keywords: 'solution ERP transport, logiciel exploitation transport, TMS transport',
   },
   '/plateforme-erp-transport': {
-    title: 'Plateforme ERP transport : exploitation, planning et flotte | NEXORA Truck',
+    title: 'Plateforme ERP transport pour PME | NEXORA Truck',
     description:
       'Plateforme ERP transport NEXORA Truck pour centraliser exploitation, planning, flotte, conformite, documents et facturation dans un seul systeme.',
     keywords:
       'plateforme ERP transport, logiciel exploitation transport, ERP flotte transport, planning transport routier',
   },
   '/erp-transport-tms': {
-    title: 'ERP transport TMS : guide complet pour PME transport | NEXORA Truck',
+    title: 'ERP transport TMS pour PME | NEXORA Truck',
     description:
       'Guide ERP transport TMS pour comprendre comment relier dispatch, planning, flotte, conducteurs et facturation dans un seul systeme adapte aux PME transport.',
     keywords:
       'ERP transport TMS, guide ERP transport, TMS pour PME transport, logiciel exploitation transport, ERP TMS transport routier',
   },
   '/tarifs-erp-transport': {
-    title: 'Tarifs ERP transport : comment se construit le prix | NEXORA Truck',
+    title: 'Tarifs ERP transport : comprendre le prix | NEXORA Truck',
     description:
       'Tarifs ERP transport NEXORA Truck : comprendre comment se construit le prix selon la flotte, les modules, les integrations et le niveau d accompagnement.',
     keywords:
@@ -237,12 +237,6 @@ const ROUTE_META = {
     description:
       'Demandez une demonstration NEXORA Truck et visualisez un ERP transport complet adapte a vos operations.',
     keywords: 'demonstration ERP transport, demo TMS transport, essai ERP',
-  },
-  '/connexion-erp': {
-    title: 'Essai gratuit ERP transport | NEXORA Truck',
-    description:
-      'Testez NEXORA Truck gratuitement pendant 14 jours et accedez a l ensemble de la plateforme ERP transport.',
-    keywords: 'essai gratuit ERP transport, demo ERP transport, test logiciel transport, essai TMS transport',
   },
   '/contact': {
     title: 'Contact NEXORA Truck | ERP transport routier',

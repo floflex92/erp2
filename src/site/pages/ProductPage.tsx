@@ -9,7 +9,7 @@ import { coreCapabilities, platformModules, productPillars, workflowSteps } from
 
 export default function ProductPage() {
   useSiteMeta({
-    title: 'Plateforme ERP transport : exploitation, planning et flotte',
+    title: 'Plateforme ERP transport pour PME',
     description:
       'Plateforme ERP transport NEXORA Truck pour centraliser exploitation, planning, flotte, conformite, documents et facturation dans un seul systeme.',
     canonicalPath: '/plateforme-erp-transport',

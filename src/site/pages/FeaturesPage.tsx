@@ -28,8 +28,8 @@ const extras = [
 
 export default function FeaturesPage() {
   useSiteMeta({
-    title: 'Fonctionnalités ERP transport : planning, flotte, facturation, API',
-    description: 'Découvrez les fonctionnalités de l’ERP transport NEXORA Truck : planning intelligent, gestion flotte, suivi conducteurs, facturation transport, télématique, chronotachygraphe, IA et API.',
+    title: 'Fonctionnalités ERP transport',
+    description: 'Fonctionnalités ERP transport NEXORA Truck : planning, flotte, conducteurs, facturation, télématique, chronotachygraphe, IA et API.',
     canonicalPath: '/fonctionnalites',
     keywords: 'fonctionnalités ERP transport, planning transport, gestion flotte, facturation transport, conformité conducteurs, TMS transport, logiciel exploitation transport, IA transport',
   })

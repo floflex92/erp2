@@ -54,7 +54,6 @@ const pages = [
   { loc: '/articles/digitalisation-transport-routier-2026',                   lastmod: today,      changefreq: 'monthly', priority: '0.84' },
   { loc: '/a-propos',                                                          lastmod: today,      changefreq: 'monthly', priority: '0.75' },
   { loc: '/demonstration',                                                     lastmod: today,      changefreq: 'weekly',  priority: '0.92' },
-  { loc: '/connexion-erp',                                                     lastmod: today,      changefreq: 'weekly',  priority: '0.78' },
   { loc: '/contact',                                                           lastmod: today,      changefreq: 'weekly',  priority: '0.8'  },
   { loc: '/presentation',                                                      lastmod: today,      changefreq: 'monthly', priority: '0.7'  },
   { loc: '/politique-confidentialite',                                         lastmod: LEGAL_DATE, changefreq: 'monthly', priority: '0.42' },

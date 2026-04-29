@@ -5,7 +5,7 @@ import SiteSection from '@/site/components/SiteSection'
 export default function DigitalisationTransportArticlePage() {
   return (
     <ArticleShell
-      title="Digitalisation transport routier en 2026 : où en sont vraiment les PME&nbsp;?"
+      title="Digitalisation transport routier 2026"
       description="État des lieux de la digitalisation dans les PME du transport routier français en 2026 : outils adoptés, freins persistants et prochaines étapes."
       canonicalPath="/articles/digitalisation-transport-routier-2026"
       keywords="digitalisation transport routier 2026, transformation digitale transport, ERP transport PME, logiciel transport routier 2026, numérique transport routier français"

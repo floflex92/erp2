@@ -28,7 +28,7 @@ const commonQuestions = [
 
 export default function PricingPage() {
   useSiteMeta({
-    title: 'Tarifs ERP transport : comment se construit le prix',
+    title: 'Tarifs ERP transport : comprendre le prix',
     description:
       'Tarifs ERP transport NEXORA Truck : comprendre comment se construit le prix selon la flotte, les modules, les integrations et le niveau d accompagnement.',
     canonicalPath: '/tarifs-erp-transport',
