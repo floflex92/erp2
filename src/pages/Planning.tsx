@@ -79,6 +79,7 @@ import { buildPlanningUrgences } from './planning/planningUrgenceUtils'
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'nexora_sidebar_collapsed_v2'
 const SIDEBAR_COLLAPSED_EVENT = 'nexora:sidebar-collapsed-change'
 const EXPLOITANT_FEATURES_KEY = 'nexora_planning_exploitant_features_v1'
+const ASSIGNMENT_IMPOSSIBLE_BLOCK_KEY = 'nexora_planning_assignment_impossible_block_v1'
 
 type ExploitantFeatureKey =
   | 'tab_urgences'
@@ -278,6 +279,7 @@ export default function Planning() {
   const [affretementContracts, setAffretementContracts] = useState<AffretementContract[]>(() => listAffretementContracts())
   const [showAffretementAssets] = useState<boolean>(() => loadShowAffretementAssets())
   const [blockOnCompliance, setBlockOnCompliance] = useState<boolean>(() => loadComplianceBlockMode())
+  const [blockImpossibleAssignments, setBlockImpossibleAssignments] = useState<boolean>(() => loadBooleanSetting(ASSIGNMENT_IMPOSSIBLE_BLOCK_KEY, true))
   const [complianceBlockingRules, setComplianceBlockingRules] = useState<Record<string, boolean>>(() => loadComplianceBlockingRules())
   const [showComplianceRules, setShowComplianceRules] = useState(false)
   const [lastComplianceAudit, setLastComplianceAudit] = useState<{
@@ -344,6 +346,7 @@ export default function Planning() {
   const [retourChargeSuggestions, setRetourChargeSuggestions] = useState<RetourChargeSuggestion[]>([])
   const [retourChargeLoading, setRetourChargeLoading] = useState(false)
   const [retourChargeError, setRetourChargeError] = useState<string | null>(null)
+  const [retourChargeIaConnected, setRetourChargeIaConnected] = useState(false)
 
   // -- Radar km � vide ---------------------------------------------------------
   const [kmVideSynthese, setKmVideSynthese] = useState<Map<string, { taux_charge_pct: number | null; total_km_vide_estime: number | null }>>(new Map())
@@ -376,6 +379,7 @@ export default function Planning() {
 
   // Menu contextuel
   const [contextMenu, setContextMenu] = useState<ContextMenu>(null)
+  const [driverPrintMenu, setDriverPrintMenu] = useState<{ x: number; y: number; rowId: string; rowLabel: string } | null>(null)
 
   // Ordre des lignes
   const [rowOrder,      setRowOrder]      = useState<RowOrderMap>(() => loadRowOrder())
@@ -522,6 +526,125 @@ export default function Planning() {
     })
   }, [])
 
+  function clampInt(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, Math.round(value)))
+  }
+
+  function buildInlineFallbackPrediction(ot: OT, rowId: string): {
+    hlpBeforeMinutes: number
+    maintenanceAfterMinutes: number
+    pauseOffsetMinutes: number
+    pauseDurationMinutes: number
+  } {
+    const startMs = new Date(ot.date_chargement_prevue ?? '').getTime()
+    const endMs = new Date(ot.date_livraison_prevue ?? ot.date_chargement_prevue ?? '').getTime()
+    const durationMinutes = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs
+      ? Math.round((endMs - startMs) / 60000)
+      : 240
+
+    const distanceKm = ot.distance_km && ot.distance_km > 0
+      ? ot.distance_km
+      : Math.max(45, Math.round(durationMinutes * 0.9))
+
+    const rowDensity = ganttOTs
+      .filter(item => resolveRowId(item) === rowId && item.id !== ot.id && !customOTIds.has(item.id))
+      .filter(item => {
+        const itemStart = new Date(item.date_chargement_prevue ?? '').getTime()
+        const itemEnd = new Date(item.date_livraison_prevue ?? item.date_chargement_prevue ?? '').getTime()
+        if (!Number.isFinite(itemStart) || !Number.isFinite(itemEnd)) return false
+        const overlapWindow = 8 * 60 * 60 * 1000
+        return Math.abs(itemStart - startMs) <= overlapWindow || Math.abs(itemEnd - endMs) <= overlapWindow
+      }).length
+
+    const transportType = (ot.type_transport ?? '').toLowerCase()
+    const typeBonus = transportType.includes('groupage') ? 8 : transportType.includes('express') ? 4 : 0
+
+    const hlpBeforeMinutes = clampInt(14 + (distanceKm * 0.045) + (rowDensity * 3) + typeBonus, 15, 95)
+    const maintenanceAfterMinutes = clampInt(10 + (durationMinutes / 210) * 5 + (rowDensity * 2), 10, 55)
+    const pauseOffsetMinutes = clampInt(Math.min(270, (durationMinutes * 0.46) - (rowDensity * 6)), 120, 270)
+
+    return {
+      hlpBeforeMinutes,
+      maintenanceAfterMinutes,
+      pauseOffsetMinutes,
+      pauseDurationMinutes: 45,
+    }
+  }
+
+  function buildFallbackRetourChargeSuggestions(form: RetourChargeForm): RetourChargeSuggestion[] {
+    const startBoundary = new Date(`${form.date_debut}T00:00:00`).getTime()
+    const endBoundary = new Date(`${form.date_fin}T23:59:59`).getTime()
+    const hasDateWindow = Number.isFinite(startBoundary) && Number.isFinite(endBoundary)
+    if (!hasDateWindow) return []
+
+    const retourDepotLimitMs = form.retour_depot_avant
+      ? new Date(form.retour_depot_avant).getTime()
+      : null
+
+    const allCandidates = [...pool, ...ganttOTs]
+    const uniqueById = new Map<string, OT>()
+    for (const ot of allCandidates) {
+      if (!uniqueById.has(ot.id)) uniqueById.set(ot.id, ot)
+    }
+
+    const suggestions = Array.from(uniqueById.values())
+      .filter(ot => {
+        const transportStatus = (ot.statut_transport ?? '').trim().toLowerCase()
+        const legacyStatus = (ot.statut ?? '').trim().toLowerCase()
+        const isTerminal = transportStatus === 'termine' || transportStatus === 'annule'
+          || legacyStatus === 'livre' || legacyStatus === 'facture' || legacyStatus === 'annule'
+        if (isTerminal) return false
+        if (ot.vehicule_id && ot.vehicule_id !== form.vehicule_id) return false
+
+        const pickupMs = new Date(ot.date_chargement_prevue ?? '').getTime()
+        if (!Number.isFinite(pickupMs)) return false
+        if (pickupMs < startBoundary || pickupMs > endBoundary) return false
+        return true
+      })
+      .map<RetourChargeSuggestion | null>(ot => {
+        const distanceKm = ot.distance_km && ot.distance_km > 0 ? ot.distance_km : 180
+        const estimatedEmptyKm = clampInt((distanceKm * 0.22) + ((ot.type_transport ?? '').toLowerCase().includes('groupage') ? 24 : 0), 8, Math.max(20, form.rayon_km * 2))
+        if (estimatedEmptyKm > Math.max(form.rayon_km * 1.25, form.rayon_km + 35)) return null
+
+        const revenue = ot.prix_ht ?? 0
+        const estimatedCost = (distanceKm * 0.92) + (estimatedEmptyKm * 0.88)
+        const grossMargin = revenue - estimatedCost
+        const distancePenalty = Math.max(0, estimatedEmptyKm - 45) * 0.18
+        const marginScore = clampInt((grossMargin / Math.max(300, revenue || 700)) * 100 + 45 - distancePenalty, 0, 100)
+
+        const pickupMs = new Date(ot.date_chargement_prevue ?? '').getTime()
+        const deliveryMs = new Date(ot.date_livraison_prevue ?? '').getTime()
+        const loadedDurationMinutes = Number.isFinite(deliveryMs) && deliveryMs > pickupMs
+          ? Math.max(60, Math.round((deliveryMs - pickupMs) / 60000))
+          : clampInt((distanceKm / 62) * 60 + 55, 90, 720)
+        const estimatedEmptyDurationHours = Math.round(((estimatedEmptyKm / 62) * 10)) / 10
+        const predictedFinishMs = pickupMs + (loadedDurationMinutes * 60000) + Math.round(estimatedEmptyDurationHours * 3600000)
+        const retourDepotOk = !retourDepotLimitMs || !Number.isFinite(retourDepotLimitMs) || predictedFinishMs <= retourDepotLimitMs
+        const finalScore = clampInt(marginScore + (retourDepotOk ? 8 : -22), 0, 100)
+
+        return {
+          id: ot.id,
+          reference: ot.reference,
+          client_nom: ot.client_nom,
+          date_chargement_prevue: ot.date_chargement_prevue,
+          date_livraison_prevue: ot.date_livraison_prevue,
+          nature_marchandise: ot.nature_marchandise,
+          prix_ht: ot.prix_ht,
+          distance_km: ot.distance_km,
+          dist_vide_km: estimatedEmptyKm,
+          score_rentabilite: finalScore,
+          duree_vide_estimee_h: estimatedEmptyDurationHours,
+          retour_depot_ok: retourDepotOk,
+          explication_ia: 'Prediction locale optimisee (fallback hors connexion IA).',
+          ia_provider: 'local-heuristique',
+        }
+      })
+      .filter((item): item is RetourChargeSuggestion => Boolean(item))
+      .sort((left, right) => right.score_rentabilite - left.score_rentabilite)
+
+    return suggestions.slice(0, 15)
+  }
+
   function buildGeneratedInlineEvents(ot: OT, rowId: string): GeneratedInlineEvent[] {
     if (!autoHabillage) return []
     const startISO = ot.date_chargement_prevue
@@ -532,8 +655,17 @@ export default function Planning() {
     const end = new Date(endISO)
     if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) return []
 
+    const inlinePrediction = retourChargeIaConnected
+      ? {
+          hlpBeforeMinutes: 20,
+          maintenanceAfterMinutes: 15,
+          pauseOffsetMinutes: 270,
+          pauseDurationMinutes: 45,
+        }
+      : buildInlineFallbackPrediction(ot, rowId)
+
     const events: GeneratedInlineEvent[] = []
-    const beforeStart = new Date(start.getTime() - 20 * 60000)
+    const beforeStart = new Date(start.getTime() - inlinePrediction.hlpBeforeMinutes * 60000)
     events.push({
       id: `hlp-before-${ot.id}`,
       rowId,
@@ -544,7 +676,7 @@ export default function Planning() {
       kind: 'hlp',
     })
 
-    const afterEnd = new Date(end.getTime() + 15 * 60000)
+    const afterEnd = new Date(end.getTime() + inlinePrediction.maintenanceAfterMinutes * 60000)
     events.push({
       id: `maint-after-${ot.id}`,
       rowId,
@@ -568,9 +700,9 @@ export default function Planning() {
           .filter(o => Number.isFinite(o.start) && Number.isFinite(o.end))
           .sort((a, b) => a.start - b.start)
 
-        const idealOffsetMs = Math.min(270, Math.floor(durationMinutes / 2)) * 60000
+        const idealOffsetMs = Math.min(inlinePrediction.pauseOffsetMinutes, Math.floor(durationMinutes / 2)) * 60000
         let pauseStart = new Date(start.getTime() + idealOffsetMs)
-        const pauseDuration = 45 * 60000
+        const pauseDuration = inlinePrediction.pauseDurationMinutes * 60000
 
         // V�rifier si le cr�neau id�al chevauche un autre OT; sinon trouver le premier gap libre
         const conflicts = rowItems.some(item =>
@@ -605,7 +737,7 @@ export default function Planning() {
         events.push({
           id: `pause-${ot.id}`,
           rowId,
-          label: `Pause 45 min ${ot.reference}`,
+          label: `Pause ${inlinePrediction.pauseDurationMinutes} min ${ot.reference}`,
           dateStart: toDateTimeFromDate(pauseStart),
           dateEnd: toDateTimeFromDate(pauseEnd),
           color: INLINE_EVENT_COLORS.repos,
@@ -816,6 +948,17 @@ export default function Planning() {
     document.addEventListener('scroll', close, true)
     return () => { document.removeEventListener('click', close); document.removeEventListener('scroll', close, true) }
   }, [contextMenu])
+
+  useEffect(() => {
+    if (!driverPrintMenu) return
+    function close() { setDriverPrintMenu(null) }
+    document.addEventListener('click', close)
+    document.addEventListener('scroll', close, true)
+    return () => {
+      document.removeEventListener('click', close)
+      document.removeEventListener('scroll', close, true)
+    }
+  }, [driverPrintMenu])
 
   useEffect(() => {
     const reloadAffretement = () => setAffretementContracts(listAffretementContracts())
@@ -1506,7 +1649,7 @@ export default function Planning() {
           charge_indivisible: firstOt.charge_indivisible,
         }
         const validation = validateTrailerAssignment(otData, rem)
-        if (validation.status === 'blocked') {
+        if (validation.status === 'blocked' && blockImpossibleAssignments) {
           setSaving(false)
           isMutatingRef.current = false
           pushPlanningNotice(
@@ -1514,6 +1657,12 @@ export default function Planning() {
             'error',
           )
           return
+        }
+        if (validation.status === 'blocked' && !blockImpossibleAssignments) {
+          pushPlanningNotice(
+            `Affectation normalement bloquee (mode permissif actif) : ${validation.errors.map(e => e.message).join(' | ')}`,
+            'success',
+          )
         }
         if (validation.status === 'warning') {
           const msg = validation.warnings.map(w => w.message).join('\n')
@@ -1576,9 +1725,9 @@ export default function Planning() {
     return { startISO, endISO }
   }
 
-  async function assignCourseToResourceWithoutTimelineMove(ot: OT, resourceId: string) {
-    if (!ensureWriteAllowed('Affectation par glisser-deposer')) return
-    if (!ensureGroupageEditable(ot, 'Affectation')) return
+  async function assignCourseToResourceWithoutTimelineMove(ot: OT, resourceId: string): Promise<boolean> {
+    if (!ensureWriteAllowed('Affectation par glisser-deposer')) return false
+    if (!ensureGroupageEditable(ot, 'Affectation')) return false
 
     const members = getGroupageMembersForOt(ot)
     for (const member of members) {
@@ -1586,7 +1735,7 @@ export default function Planning() {
       if (!schedule) {
         openAssign(member, resourceId)
         pushPlanningNotice('Cette course doit etre reglee depuis sa fiche pour definir debut et fin avant positionnement sur le planning.', 'error')
-        return
+        return false
       }
     }
 
@@ -1606,7 +1755,7 @@ export default function Planning() {
         lastAuditSummary = auditSummary
         if (blockOnCompliance && auditSummary?.hasBlocking) {
           pushPlanningNotice(`Affectation du lot bloquee sur ${member.reference}. ${auditSummary.message}`, 'error')
-          return
+          return false
         }
       }
 
@@ -1622,7 +1771,7 @@ export default function Planning() {
 
       if (result.error) {
         pushPlanningNotice(`Affectation impossible: ${result.error.message}`, 'error')
-        return
+        return false
       }
 
       setCustomBlocks(prev => {
@@ -1639,6 +1788,7 @@ export default function Planning() {
           : (lastAuditSummary ? `Ressource mise a jour. ${lastAuditSummary.message}` : 'Ressource mise a jour sans changer les dates de la course.'),
         blockOnCompliance && lastAuditSummary?.hasBlocking ? 'error' : 'success',
       )
+      return true
     } finally {
       setSavingOtId(null)
     }
@@ -2000,6 +2150,36 @@ export default function Planning() {
     pushPlanningNotice('Course deliee du groupage.')
   }
 
+  function getNextOtStatus(currentStatus: string): string {
+    const statusCycle = ['brouillon', 'confirme', 'planifie', 'en_cours', 'livre', 'facture', 'annule']
+    const currentIndex = statusCycle.indexOf(currentStatus)
+    if (currentIndex === -1) return 'brouillon'
+    return statusCycle[(currentIndex + 1) % statusCycle.length]
+  }
+
+  async function updateOtStatusFromPlanning(ot: OT, nextStatus: string) {
+    if (ot.statut === nextStatus) {
+      pushPlanningNotice(`Statut deja defini sur ${STATUT_LABEL[nextStatus] ?? nextStatus}.`)
+      return
+    }
+    if (!ensureWriteAllowed('Mise a jour du statut')) return
+    if (!ensureGroupageEditable(ot, 'Mise a jour du statut')) return
+
+    const result = await supabase
+      .from('ordres_transport')
+      .update({ statut: nextStatus })
+      .eq('id', ot.id)
+
+    if (result.error) {
+      pushPlanningNotice(`Mise a jour statut impossible: ${result.error.message}`, 'error')
+      return
+    }
+
+    setContextMenu(null)
+    await loadAll()
+    pushPlanningNotice(`Statut mis a jour: ${STATUT_LABEL[nextStatus] ?? nextStatus}.`)
+  }
+
   async function toggleGroupageFreeze(ot: OT, nextFrozen: boolean) {
     if (!ot.mission_id) return
     if (!ensureWriteAllowed(nextFrozen ? 'Figeage de groupage' : 'Defigeage de groupage')) return
@@ -2104,12 +2284,21 @@ export default function Planning() {
     e.preventDefault()
     e.stopPropagation()
     e.dataTransfer.dropEffect = 'move'
-    const clientX = e.clientX
-    const rect = e.currentTarget.getBoundingClientRect()
-    const relX = clientX - rect.left
-    const next = viewMode === 'semaine'
-      ? { rowId, dayIdx: Math.max(0, Math.min(6, Math.floor(relX / rect.width * 7))), timeMin: 0 }
-      : { rowId, dayIdx: 0, timeMin: snapToQuarter(Math.max(DAY_START_MIN, Math.min(DAY_START_MIN + DAY_TOTAL_MIN - 15, DAY_START_MIN + (relX / rect.width) * DAY_TOTAL_MIN))) }
+    const activeDrag = dragRef.current
+    const isCustomDrag = activeDrag?.kind === 'custom'
+
+    let next: { rowId: string; dayIdx: number; timeMin: number }
+    if (!isCustomDrag) {
+      // OT drag (pool/block): only the target row matters; avoid per-frame timeline updates.
+      next = { rowId, dayIdx: 0, timeMin: 0 }
+    } else {
+      const clientX = e.clientX
+      const rect = e.currentTarget.getBoundingClientRect()
+      const relX = clientX - rect.left
+      next = viewMode === 'semaine'
+        ? { rowId, dayIdx: Math.max(0, Math.min(6, Math.floor(relX / rect.width * 7))), timeMin: 0 }
+        : { rowId, dayIdx: 0, timeMin: snapToQuarter(Math.max(DAY_START_MIN, Math.min(DAY_START_MIN + DAY_TOTAL_MIN - 15, DAY_START_MIN + (relX / rect.width) * DAY_TOTAL_MIN))) }
+    }
     const prev = hoverRowRef.current
     // Skip setState if nothing changed (avoid per-frame re-renders)
     if (prev && prev.rowId === next.rowId && prev.dayIdx === next.dayIdx && prev.timeMin === next.timeMin) return
@@ -2121,11 +2310,22 @@ export default function Planning() {
     })
   }
   function onRowDragLeave(e: React.DragEvent) {
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-      hoverRowRef.current = null
-      if (dragOverRafRef.current !== null) { cancelAnimationFrame(dragOverRafRef.current); dragOverRafRef.current = null }
-      setHoverRow(null)
-    }
+    const nextTarget = e.relatedTarget as Node | null
+    if (nextTarget && e.currentTarget.contains(nextTarget)) return
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const pointerOutside =
+      e.clientX < rect.left ||
+      e.clientX > rect.right ||
+      e.clientY < rect.top ||
+      e.clientY > rect.bottom
+
+    // Some browsers emit dragleave with null relatedTarget while still inside the row.
+    if (!pointerOutside && !nextTarget) return
+
+    hoverRowRef.current = null
+    if (dragOverRafRef.current !== null) { cancelAnimationFrame(dragOverRafRef.current); dragOverRafRef.current = null }
+    setHoverRow(null)
   }
 
   async function onRowDrop(e: React.DragEvent, rowId: string, isCustomRow = false) {
@@ -2194,8 +2394,14 @@ export default function Planning() {
             if (shouldCreateGroupage) {
               const linked = await linkCoursesToGroupage(activeDrag.ot, overlapTarget)
               if (linked) {
-                await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
-                pushPlanningNotice(`Groupage cree avec ${overlapTarget.reference}.`)
+                const assignmentOk = await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
+                await loadAll()
+                pushPlanningNotice(
+                  assignmentOk
+                    ? `Groupage cree avec ${overlapTarget.reference}.`
+                    : `Groupage cree avec ${overlapTarget.reference}, mais l'affectation n'a pas pu etre appliquee.`,
+                  assignmentOk ? 'success' : 'error',
+                )
                 setDrag(null)
                 return
               }
@@ -2212,34 +2418,30 @@ export default function Planning() {
           setDrag(null)
           return
         }
-        // Snap au jour survol� en conservant l'heure d'origine du bloc
-        const dayIdx = Math.max(0, Math.min(6, Math.floor(relX / rect.width * 7)))
-        const targetDay = addDays(weekStart, dayIdx)
-        const origStart = activeDrag.ot.date_chargement_prevue ? new Date(activeDrag.ot.date_chargement_prevue) : new Date(weekStart)
-        const durationMs = activeDrag.durationMinutes * 60 * 1000
-        const newStartDate = new Date(targetDay)
-        newStartDate.setHours(origStart.getHours(), origStart.getMinutes(), 0, 0)
-        const newEndDate = new Date(newStartDate.getTime() + durationMs)
-        const newStartISO = toDateTimeFromDate(newStartDate)
-        const newEndISO = toDateTimeFromDate(newEndDate)
-        const overlapTarget = findOverlapTarget(rowId, newStartISO, newEndISO, movingOtIds)
+        const overlapTarget = findOverlapTarget(rowId, currentSchedule.startISO, currentSchedule.endISO, movingOtIds)
         if (overlapTarget) {
           const shouldCreateGroupage = await showConfirm(`Superposition detectee avec ${overlapTarget.reference}. Voulez-vous creer un groupage deliable ?`)
           if (shouldCreateGroupage) {
             const linked = await linkCoursesToGroupage(activeDrag.ot, overlapTarget)
             if (linked) {
-              await moveBlock(activeDrag.ot, rowId, newStartISO, newEndISO)
+              const assignmentOk = await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
+              await loadAll()
               if (activeDrag.customBlockId) {
                 const upd = customBlocks.filter(b => b.id !== activeDrag.customBlockId)
                 if (upd.length !== customBlocks.length) { setCustomBlocks(upd); saveCustomBlocks(upd) }
               }
-              pushPlanningNotice(`Groupage cree avec ${overlapTarget.reference}.`)
+              pushPlanningNotice(
+                assignmentOk
+                  ? `Groupage cree avec ${overlapTarget.reference}.`
+                  : `Groupage cree avec ${overlapTarget.reference}, mais l'affectation n'a pas pu etre appliquee.`,
+                assignmentOk ? 'success' : 'error',
+              )
               setDrag(null)
               return
             }
           }
         }
-        await moveBlock(activeDrag.ot, rowId, newStartISO, newEndISO)
+        await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
         if (activeDrag.customBlockId) {
           const upd = customBlocks.filter(b => b.id !== activeDrag.customBlockId)
           if (upd.length !== customBlocks.length) { setCustomBlocks(upd); saveCustomBlocks(upd) }
@@ -2267,8 +2469,14 @@ export default function Planning() {
             if (shouldCreateGroupage) {
               const linked = await linkCoursesToGroupage(activeDrag.ot, overlapTarget)
               if (linked) {
-                await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
-                pushPlanningNotice(`Groupage cree avec ${overlapTarget.reference}.`)
+                const assignmentOk = await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
+                await loadAll()
+                pushPlanningNotice(
+                  assignmentOk
+                    ? `Groupage cree avec ${overlapTarget.reference}.`
+                    : `Groupage cree avec ${overlapTarget.reference}, mais l'affectation n'a pas pu etre appliquee.`,
+                  assignmentOk ? 'success' : 'error',
+                )
                 setDrag(null)
                 return
               }
@@ -2285,31 +2493,30 @@ export default function Planning() {
           setDrag(null)
           return
         }
-        // Calculer la nouvelle heure depuis la position du curseur
-        const timeMin = snapToQuarter(Math.max(DAY_START_MIN, Math.min(DAY_START_MIN + DAY_TOTAL_MIN - 15, DAY_START_MIN + Math.round((relX / rect.width) * DAY_TOTAL_MIN))))
-        const newStartDate = parseDay(selectedDay)
-        newStartDate.setHours(Math.floor(timeMin / 60), timeMin % 60, 0, 0)
-        const durationMs = activeDrag.durationMinutes * 60 * 1000
-        const newStartISO = toDateTimeFromDate(newStartDate)
-        const newEndISO = toDateTimeFromDate(new Date(newStartDate.getTime() + durationMs))
-        const overlapTarget = findOverlapTarget(rowId, newStartISO, newEndISO, movingOtIds)
+        const overlapTarget = findOverlapTarget(rowId, currentSchedule.startISO, currentSchedule.endISO, movingOtIds)
         if (overlapTarget) {
           const shouldCreateGroupage = await showConfirm(`Superposition detectee avec ${overlapTarget.reference}. Voulez-vous creer un groupage deliable ?`)
           if (shouldCreateGroupage) {
             const linked = await linkCoursesToGroupage(activeDrag.ot, overlapTarget)
             if (linked) {
-              await moveBlock(activeDrag.ot, rowId, newStartISO, newEndISO)
+              const assignmentOk = await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
+              await loadAll()
               if (activeDrag.customBlockId) {
                 const upd = customBlocks.filter(b => b.id !== activeDrag.customBlockId)
                 if (upd.length !== customBlocks.length) { setCustomBlocks(upd); saveCustomBlocks(upd) }
               }
-              pushPlanningNotice(`Groupage cree avec ${overlapTarget.reference}.`)
+              pushPlanningNotice(
+                assignmentOk
+                  ? `Groupage cree avec ${overlapTarget.reference}.`
+                  : `Groupage cree avec ${overlapTarget.reference}, mais l'affectation n'a pas pu etre appliquee.`,
+                assignmentOk ? 'success' : 'error',
+              )
               setDrag(null)
               return
             }
           }
         }
-        await moveBlock(activeDrag.ot, rowId, newStartISO, newEndISO)
+        await assignCourseToResourceWithoutTimelineMove(activeDrag.ot, rowId)
         if (activeDrag.customBlockId) {
           const upd = customBlocks.filter(b => b.id !== activeDrag.customBlockId)
           if (upd.length !== customBlocks.length) { setCustomBlocks(upd); saveCustomBlocks(upd) }
@@ -2469,14 +2676,24 @@ export default function Planning() {
     }
     const defaultDuration = type === 'repos' ? 45 : 60
     const interval = otInterval(ot)
-    if (!Number.isFinite(interval.start) || !Number.isFinite(interval.end)) {
-      pushPlanningNotice('Impossible de calculer les horaires de cet OT.', 'error')
-      return
-    }
-    const anchorMs = type === 'hlp' ? interval.start - defaultDuration * 60000 : interval.end
+    const hasValidInterval = Number.isFinite(interval.start) && Number.isFinite(interval.end)
+    const fallbackStartMs = new Date(ot.date_chargement_prevue ?? ot.date_livraison_prevue ?? `${selectedDay}T08:00`).getTime()
+    const safeStartMs = hasValidInterval ? interval.start : (Number.isFinite(fallbackStartMs) ? fallbackStartMs : new Date(`${selectedDay}T08:00`).getTime())
+    const safeEndMs = hasValidInterval
+      ? interval.end
+      : (Number.isFinite(new Date(ot.date_livraison_prevue ?? '').getTime())
+        ? new Date(ot.date_livraison_prevue as string).getTime()
+        : safeStartMs + defaultDuration * 60000)
+
+    const anchorMs = type === 'hlp' ? safeStartMs - defaultDuration * 60000 : Math.max(safeEndMs, safeStartMs + 15 * 60000)
     const anchor = new Date(anchorMs)
     if (!Number.isFinite(anchor.getTime())) {
-      pushPlanningNotice('Horaire invalide pour creer le bloc HLP/PAUSE.', 'error')
+      const fallbackAnchor = new Date(`${selectedDay}T08:00`)
+      openPlanningCreationModal({ rowId, dateStart: toDateTimeFromDate(fallbackAnchor), type })
+      setPlanningEventDurationParts(defaultDuration)
+      setPlanningEventStart(toDateTimeFromDate(fallbackAnchor))
+      setNewBlockLabel(`${INLINE_EVENT_LABELS[type]} ${ot.reference}`)
+      pushPlanningNotice('Horaire OT incomplet: un horaire par defaut a ete propose pour le bloc.')
       return
     }
     const startISO = toDateTimeFromDate(anchor)
@@ -3065,14 +3282,14 @@ export default function Planning() {
       .filter(ot => {
         if (viewMode === 'semaine') return blockPos(ot, weekStart) !== null
         if (viewMode === 'mois') {
-          // OTs sans dates ? visibles (brouillons � planifier)
-          if (!ot.date_chargement_prevue && !ot.date_livraison_prevue) return true
+          // Vue mois: afficher uniquement les OT qui se croisent avec la periode ouverte.
+          if (!ot.date_chargement_prevue && !ot.date_livraison_prevue) return false
           const start = (ot.date_chargement_prevue ?? ot.date_livraison_prevue!).slice(0, 10)
           const end   = (ot.date_livraison_prevue  ?? ot.date_chargement_prevue!).slice(0, 10)
           return start <= viewPeriodEndISO && end >= viewPeriodStartISO
         }
         // mode 'jour'
-        return isoToDate(ot.date_chargement_prevue) === selectedDay
+        return getDayBlockMetrics(ot.date_chargement_prevue, ot.date_livraison_prevue, selectedDay) !== null
       })
     if (poolSearch) {
       const q = poolSearch.toLowerCase()
@@ -3501,25 +3718,23 @@ export default function Planning() {
   ]
 
   const canMove = (ot: OT) => {
-    const st = (ot.statut_transport ?? ot.statut ?? '').trim().toLowerCase()
-    return (ST_PLANIFIE.includes(st as never) || ST_CONFIRME.includes(st as never)) && !ot.groupage_fige
+    // Un OT place doit rester deplacable entre lignes tant que le lot n'est pas fige.
+    return !ot.groupage_fige
   }
   const canUnlock = canMove
 
   function ghostPos(rowId: string): React.CSSProperties | null {
     if (!hoverRow || hoverRow.rowId !== rowId || !drag) return null
-    if (drag.kind === 'pool') {
-      // Pool drag: la course garde sa position sur la timeline, seule la ressource change
-      if (!drag.ot) return null
+    if ((drag.kind === 'pool' || drag.kind === 'block') && drag.ot) {
+      // OT drag: la course garde toujours sa position sur la timeline; seule la ressource change.
       if (viewMode === 'semaine') {
         const metrics = getWeekBlockMetrics(drag.ot, weekStart)
         if (!metrics) return null
         return { position:'absolute', top:'6px', height:'40px', left:`calc(${metrics.leftPct}% + 2px)`, width:`calc(${metrics.widthPct}% - 4px)`, zIndex:20, pointerEvents:'none' }
-      } else {
-        const metrics = getDayBlockMetrics(drag.ot.date_chargement_prevue, drag.ot.date_livraison_prevue, selectedDay)
-        if (!metrics) return null
-        return { position:'absolute', top:'4px', height:'44px', left:`${metrics.leftPct}%`, width:`${metrics.widthPct}%`, zIndex:20, pointerEvents:'none' }
       }
+      const metrics = getDayBlockMetrics(drag.ot.date_chargement_prevue, drag.ot.date_livraison_prevue, selectedDay)
+      if (!metrics) return null
+      return { position:'absolute', top:'4px', height:'44px', left:`${metrics.leftPct}%`, width:`${metrics.widthPct}%`, zIndex:20, pointerEvents:'none' }
     }
     // block et custom: le ghost suit la position du curseur
     if (viewMode === 'semaine') {
@@ -3546,6 +3761,143 @@ export default function Planning() {
     const m = minutes % 60
     if (h > 0) return `${h}h${String(m).padStart(2, '0')}`
     return `${m} min`
+  }
+
+  function escapeHtml(value: unknown): string {
+    const text = value == null ? '' : String(value)
+    return text
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;')
+  }
+
+  function printDriverPlanningPeriod(rowId: string, rowLabel: string, period: 'jour' | 'semaine' | 'mois') {
+    const dayStart = new Date(`${selectedDay}T00:00:00`)
+    const dayEnd = new Date(`${selectedDay}T23:59:59`)
+    const weekStartDate = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate())
+    const weekEndDate = new Date(weekStartDate.getFullYear(), weekStartDate.getMonth(), weekStartDate.getDate() + 6, 23, 59, 59)
+    const monthStartDate = new Date(monthStart.getFullYear(), monthStart.getMonth(), 1)
+    const monthEndDate = new Date(monthStart.getFullYear(), monthStart.getMonth(), getMonthDays(monthStart), 23, 59, 59)
+
+    const range = period === 'jour'
+      ? { start: dayStart, end: dayEnd, label: `Journee du ${dayStart.toLocaleDateString('fr-FR')}` }
+      : period === 'semaine'
+        ? { start: weekStartDate, end: weekEndDate, label: `Semaine du ${weekStartDate.toLocaleDateString('fr-FR')} au ${weekEndDate.toLocaleDateString('fr-FR')}` }
+        : { start: monthStartDate, end: monthEndDate, label: `Mois de ${monthStartDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}` }
+
+    const ots = rowOTs(rowId)
+      .filter(ot => {
+        const start = new Date(ot.date_chargement_prevue ?? ot.date_livraison_prevue ?? '')
+        const end = new Date(ot.date_livraison_prevue ?? ot.date_chargement_prevue ?? '')
+        if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return false
+        return start.getTime() <= range.end.getTime() && end.getTime() >= range.start.getTime()
+      })
+      .sort((a, b) => {
+        const aStart = new Date(a.date_chargement_prevue ?? a.date_livraison_prevue ?? '').getTime()
+        const bStart = new Date(b.date_chargement_prevue ?? b.date_livraison_prevue ?? '').getTime()
+        return aStart - bStart
+      })
+
+    const extractPostalAndCity = (address: string | null | undefined): { postal: string; city: string } => {
+      const text = (address ?? '').trim()
+      if (!text) return { postal: '-', city: '-' }
+      const match = text.match(/\b(\d{5})\s+([^,]+)$/)
+      if (!match) return { postal: '-', city: '-' }
+      return { postal: match[1] ?? '-', city: (match[2] ?? '-').trim() || '-' }
+    }
+
+    const rowsHtml = ots.length > 0
+      ? ots.map(ot => {
+          const startDate = ot.date_chargement_prevue ? new Date(ot.date_chargement_prevue) : null
+          const endDate = ot.date_livraison_prevue ? new Date(ot.date_livraison_prevue) : null
+          const startDay = startDate ? startDate.toLocaleDateString('fr-FR') : '-'
+          const startHour = startDate ? startDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '-'
+          const endDay = endDate ? endDate.toLocaleDateString('fr-FR') : '-'
+          const endHour = endDate ? endDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '-'
+          const originSite = ot.chargement_site_id ? logisticSites.find(site => site.id === ot.chargement_site_id) ?? null : null
+          const destinationSite = ot.livraison_site_id ? logisticSites.find(site => site.id === ot.livraison_site_id) ?? null : null
+          const origin = originSite?.nom ?? '-'
+          const originAddress = originSite?.adresse ?? '-'
+          const originHours = originSite?.horaires_ouverture ?? '-'
+          const originParsed = extractPostalAndCity(originSite?.adresse)
+          const originPostal = (originSite?.code_postal ?? originParsed.postal ?? '-').toString()
+          const originCity = (originSite?.ville ?? originParsed.city ?? '-').toString()
+          const destination = destinationSite?.nom ?? '-'
+          const destinationAddress = destinationSite?.adresse ?? '-'
+          const destinationHours = destinationSite?.horaires_ouverture ?? '-'
+          const destinationParsed = extractPostalAndCity(destinationSite?.adresse)
+          const destinationPostal = (destinationSite?.code_postal ?? destinationParsed.postal ?? '-').toString()
+          const destinationCity = (destinationSite?.ville ?? destinationParsed.city ?? '-').toString()
+          const referenceChargement = `${ot.reference} / CHARGEMENT`
+          const referenceLivraison = `${ot.reference} / LIVRAISON`
+          const numeroOt = ot.id.slice(0, 8).toUpperCase()
+          const contactName = ot.client_nom || '-'
+          const contactPhone = 'N/R'
+          return `<tr><td>${escapeHtml(ot.reference)}</td><td>${escapeHtml(referenceChargement)}</td><td>${escapeHtml(referenceLivraison)}</td><td>${escapeHtml(numeroOt)}</td><td>${escapeHtml(contactName)}</td><td>${escapeHtml(contactPhone)}</td><td>${escapeHtml(origin)}</td><td>${escapeHtml(originAddress)}</td><td>${escapeHtml(originPostal)}</td><td>${escapeHtml(originCity)}</td><td>${escapeHtml(originHours)}</td><td>${escapeHtml(destination)}</td><td>${escapeHtml(destinationAddress)}</td><td>${escapeHtml(destinationPostal)}</td><td>${escapeHtml(destinationCity)}</td><td>${escapeHtml(destinationHours)}</td><td>${escapeHtml(startDay)}</td><td>${escapeHtml(startHour)}</td><td>${escapeHtml(endDay)}</td><td>${escapeHtml(endHour)}</td><td>${escapeHtml(STATUT_LABEL[ot.statut] ?? ot.statut)}</td></tr>`
+        }).join('')
+      : '<tr><td colspan="21">Aucune course sur cette periode.</td></tr>'
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Planning conducteur</title><style>
+      @page { size: A4 landscape; margin: 12mm; }
+      body { font-family: Arial, sans-serif; margin: 12px; color: #0f172a; }
+      h1 { margin: 0 0 8px 0; font-size: 20px; }
+      .sub { margin: 0 0 18px 0; color: #334155; }
+      table { width: 100%; border-collapse: collapse; font-size: 8px; }
+      th, td { border: 1px solid #cbd5e1; padding: 3px; text-align: left; vertical-align: top; }
+      th { background: #f1f5f9; }
+    </style></head><body>
+      <h1>Planning conducteur - ${escapeHtml(rowLabel)}</h1>
+      <p class="sub">${escapeHtml(range.label)} - genere le ${escapeHtml(new Date().toLocaleString('fr-FR'))}</p>
+      <table>
+        <thead><tr><th>Reference</th><th>Ref. annotation charg.</th><th>Ref. annotation livr.</th><th>No OT</th><th>Contact</th><th>No contact</th><th>Nom chargement</th><th>Adresse chargement</th><th>CP charg.</th><th>Ville charg.</th><th>Horaires charg.</th><th>Nom livraison</th><th>Adresse livraison</th><th>CP livr.</th><th>Ville livr.</th><th>Horaires livr.</th><th>Date charg.</th><th>Heure charg.</th><th>Date livr.</th><th>Heure livr.</th><th>Statut</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </body></html>`
+
+    const popup = window.open('about:blank', '_blank', 'width=1100,height=780')
+    if (popup) {
+      popup.document.open()
+      popup.document.write(html)
+      popup.document.close()
+      popup.onload = () => {
+        popup.focus()
+        popup.print()
+      }
+      return
+    }
+
+    // Fallback sans popup: impression via iframe cachée.
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    iframe.setAttribute('aria-hidden', 'true')
+    document.body.appendChild(iframe)
+    const doc = iframe.contentDocument
+    if (!doc) {
+      document.body.removeChild(iframe)
+      pushPlanningNotice('Impossible de preparer l impression.', 'error')
+      return
+    }
+    doc.open()
+    doc.write(html)
+    doc.close()
+    iframe.onload = () => {
+      const frameWindow = iframe.contentWindow
+      if (frameWindow) {
+        frameWindow.focus()
+        frameWindow.print()
+      }
+      window.setTimeout(() => {
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe)
+      }, 1500)
+    }
+    pushPlanningNotice('Popup bloquee: impression lancee en mode integre.', 'success')
   }
 
   // ── Row label renderer ────────────────────────────────────────────────────────
@@ -3581,6 +3933,12 @@ export default function Planning() {
         onDragOver={isRowEditMode  ? e => onRowReorderOver(row.id, e)  : undefined}
         onDrop={isRowEditMode      ? e => onRowReorderDrop(row.id, e)  : undefined}
         onDragEnd={isRowEditMode   ? onRowReorderEnd                   : undefined}
+        onContextMenu={e => {
+          if (tab !== 'conducteurs' || row.isCustom || row.isAffretementAsset || isRowEditMode) return
+          e.preventDefault()
+          e.stopPropagation()
+          setDriverPrintMenu({ x: e.clientX, y: e.clientY, rowId: row.id, rowLabel: row.primary })
+        }}
       >
         {/* Drop indicator */}
         {isOverThis && <div className="absolute top-0 left-0 right-0 h-0.5 bg-blue-400 z-20 pointer-events-none rounded" />}
@@ -3900,9 +4258,18 @@ export default function Planning() {
                           <StatutOpsDot statut={ot.statut_operationnel} size="xs" />
                           <span className="text-[10px] font-mono text-slate-500 truncate">{ot.reference}</span>
                         </span>
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 ${BADGE_CLS[ot.statut] ?? 'bg-slate-700 text-slate-400'}`}>
-                          {STATUT_LABEL[ot.statut]}
-                        </span>
+                        <button
+                          type="button"
+                          title="Cliquer pour changer le statut"
+                          onClick={e => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            void updateOtStatusFromPlanning(ot, getNextOtStatus(ot.statut))
+                          }}
+                          className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 transition-opacity hover:opacity-85 ${BADGE_CLS[ot.statut] ?? 'bg-slate-700 text-slate-400'}`}
+                        >
+                          {STATUT_LABEL[ot.statut] ?? ot.statut}
+                        </button>
                       </div>
                       <p className="text-sm font-semibold text-white truncate leading-tight">{ot.client_nom}</p>
                       {getAffretementCompany(ot.id) && (
@@ -3947,10 +4314,8 @@ export default function Planning() {
       <div className="flex-1 flex flex-col min-w-0">
 
         {/* ── Top bar ── */}
-        <div className="flex flex-wrap items-start justify-between px-5 py-3 border-b border-slate-700 bg-slate-900 flex-shrink-0 gap-2">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            <h1 className="text-base font-bold text-white flex-shrink-0">Planning</h1>
-
+        <div className="flex flex-wrap gap-2 px-4 py-2.5 border-b border-slate-700 bg-slate-900 flex-shrink-0 items-start">
+          <div className="flex min-w-[260px] flex-1 flex-wrap items-center gap-1.5 xl:gap-2">
             <div className="flex rounded-lg border border-slate-700 overflow-hidden flex-shrink-0">
               <button
                 type="button"
@@ -3981,22 +4346,18 @@ export default function Planning() {
               ))}
             </div>
 
-            <span className="text-sm text-slate-400 truncate">
-              {viewMode === 'semaine' ? fmtWeek(weekStart) : viewMode === 'mois' ? `${MONTH_FULL_NAMES[monthStart.getMonth()]} ${monthStart.getFullYear()}` : fmtDay(parseDay(selectedDay))}
-            </span>
-
-            <div className="relative hidden lg:block">
+            <div className="relative w-[210px]">
               <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
               <input
                 value={resourceSearch}
                 onChange={e => setResourceSearch(e.target.value)}
                 placeholder="Rechercher une ressource"
-                className="w-52 bg-slate-800 border border-slate-700 rounded-lg pl-6 pr-2 py-1.5 text-xs text-white placeholder-slate-600 outline-none focus:border-indigo-500 transition-colors"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-6 pr-2 py-1.5 text-xs text-white placeholder-slate-600 outline-none focus:border-indigo-500 transition-colors"
               />
             </div>
           </div>
 
-          <div className="relative flex w-full flex-wrap items-center gap-1 xl:w-auto xl:justify-end">
+          <div className="relative flex flex-shrink-0 flex-wrap items-center gap-1.5">
             {/* Lock / reorder rows */}
             <button
               onClick={() => setIsRowEditMode(v => !v)}
@@ -4021,6 +4382,22 @@ export default function Planning() {
                   Reorganiser
                 </>
               )}
+            </button>
+
+            <button
+              onClick={() => setBlockImpossibleAssignments(current => {
+                const next = !current
+                saveBooleanSetting(ASSIGNMENT_IMPOSSIBLE_BLOCK_KEY, next)
+                return next
+              })}
+              title="Activer ou desactiver le blocage des affectations declarees impossibles"
+              className={`flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-xs font-medium border transition-all ${
+                blockImpossibleAssignments
+                  ? 'bg-red-100 border-red-400 text-red-900'
+                  : 'bg-emerald-100 border-emerald-400 text-emerald-900 hover:bg-emerald-200'
+              }`}
+            >
+              Affect. impossible {blockImpossibleAssignments ? 'ON' : 'OFF'}
             </button>
 
             <button
@@ -4125,10 +4502,9 @@ export default function Planning() {
               else if (viewMode==='mois') setMonthStart(m => addMonths(m,1))
               else { const d = parseDay(selectedDay); d.setDate(d.getDate()+1); setSelectedDay(toISO(d)) }
             }} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-xl font-light transition-colors">&gt;</button>
-          </div>
 
-          {/* Boutons creation rapide */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <span className="mx-0.5 h-5 w-px bg-slate-700/80" aria-hidden="true" />
+
             <button
               type="button"
               onClick={() => openPlanningCreationModal({ type: 'course' })}
@@ -4364,7 +4740,11 @@ export default function Planning() {
           <div className="overflow-visible" onDragOver={e => e.preventDefault()}>
             {/* Day headers */}
             <div className="flex sticky top-0 z-10 bg-slate-900 border-b border-slate-700">
-              <div className="w-44 flex-shrink-0 border-r border-slate-700 bg-slate-900" />
+              <div className="w-44 flex-shrink-0 border-r border-slate-700 bg-slate-900 px-2 py-1.5 flex items-center">
+                <span className="inline-flex items-center rounded-lg border border-slate-600/70 bg-slate-800/80 px-2.5 py-1 text-[11px] font-medium text-slate-200">
+                  {fmtWeek(weekStart)}
+                </span>
+              </div>
               <div className="flex-1 grid grid-cols-7">
                 {weekDays.map((day, i) => {
                   const isToday = toISO(day)===today; const isWE = i>=5
@@ -4492,12 +4872,12 @@ export default function Planning() {
                       const hLivre  = ot.date_livraison_prevue?.includes('T')  ? ot.date_livraison_prevue.slice(11,16)  : ''
                       return (
                         <div key={ot.id} style={{...pos,...cStyle, ...(groupedLayout ? { top:`${groupedLayout.top}px`, height:`${groupedLayout.height}px` } : null)}}
-                          draggable={canMove(ot) && !isRowEditMode && !drag}
-                          onDragStart={canMove(ot)&&!isRowEditMode&&!drag ? e => onDragStartBlock(ot, e) : undefined}
+                          draggable={canMove(ot) && !isRowEditMode}
+                          onDragStart={canMove(ot) && !isRowEditMode ? e => onDragStartBlock(ot, e) : undefined}
                           onDragEnd={onDragEnd}
                           onMouseEnter={!drag ? e => openHoverPreview(ot, e.clientX, e.clientY) : undefined}
                           onMouseLeave={!drag ? clearHoverPreview : undefined}
-                          className={`${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col px-2 py-1 gap-0 transition-all overflow-hidden shadow-md group/block
+                          className={`${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col px-2 py-1 gap-0 transition-[opacity,filter] overflow-hidden shadow-md group/block
                             ${canMove(ot)&&!isRowEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
                             ${isDragging?'opacity-30':isSaving?'opacity-70 animate-pulse':'hover:brightness-110'}
                             ${isLate ? 'ring-1 ring-red-400/60' : ''}
@@ -4561,11 +4941,11 @@ export default function Planning() {
                         const hLivre  = linkedOT.date_livraison_prevue?.includes('T')  ? linkedOT.date_livraison_prevue.slice(11,16)  : ''
                         return (
                           <div key={block.id} style={{...p2,...cStyle}}
-                            draggable={!isRowEditMode && !drag}
-                            onDragStart={!isRowEditMode&&!drag ? e => onDragStartCustomBlock(block, e) : undefined} onDragEnd={onDragEnd}
+                            draggable={!isRowEditMode}
+                            onDragStart={!isRowEditMode ? e => onDragStartCustomBlock(block, e) : undefined} onDragEnd={onDragEnd}
                             onMouseEnter={!drag ? e => openHoverPreview(linkedOT, e.clientX, e.clientY) : undefined}
                             onMouseLeave={!drag ? clearHoverPreview : undefined}
-                            className={`${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col px-2 py-1 gap-0 transition-all overflow-hidden shadow-md group/cblock
+                            className={`${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col px-2 py-1 gap-0 transition-[opacity,filter] overflow-hidden shadow-md group/cblock
                               ${!isRowEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
                               ${drag?.customBlockId===block.id ? 'opacity-30' : 'hover:brightness-110'}
                               ${isLate ? 'ring-1 ring-red-400/60' : ''}
@@ -4606,8 +4986,8 @@ export default function Planning() {
                         )
                       }
                       return (
-                        <div key={block.id} style={p2} draggable={!isRowEditMode && !drag}
-                          onDragStart={!isRowEditMode&&!drag ? e => onDragStartCustomBlock(block, e) : undefined} onDragEnd={onDragEnd}
+                        <div key={block.id} style={p2} draggable={!isRowEditMode}
+                          onDragStart={!isRowEditMode ? e => onDragStartCustomBlock(block, e) : undefined} onDragEnd={onDragEnd}
                           onClick={() => !isRowEditMode && openPlanningBlockEditor(block)}
                           className={`${block.color} border rounded-md text-white text-[11px] font-medium flex items-center px-2 gap-1.5 cursor-grab active:cursor-grabbing group/cblock overflow-hidden shadow-sm ${drag?.customBlockId===block.id?'opacity-30':''} ${drag && drag.customBlockId !== block.id ? 'pointer-events-none' : ''} ${hoveredMissionId ? 'opacity-40 saturate-50' : ''}`}>
                           <span className="truncate flex-1">{block.label}</span>
@@ -4880,8 +5260,8 @@ export default function Planning() {
                         const isLate = ot.statut !== 'facture' && ot.date_livraison_prevue && ot.date_livraison_prevue.slice(0,10) < today
                         return (
                           <div key={ot.id} style={{...pos,...cStyle, ...(groupedLayout ? { top:`${groupedLayout.top}px`, height:`${groupedLayout.height}px` } : null)}}
-                            draggable={canMove(ot)&&!isRowEditMode&&!drag}
-                            onDragStart={canMove(ot)&&!isRowEditMode&&!drag ? e => onDragStartBlock(ot, e) : undefined}
+                            draggable={canMove(ot) && !isRowEditMode}
+                            onDragStart={canMove(ot) && !isRowEditMode ? e => onDragStartBlock(ot, e) : undefined}
                             onDragEnd={onDragEnd}
                             onMouseEnter={!drag ? e => openHoverPreview(ot, e.clientX, e.clientY) : undefined}
                             onMouseLeave={!drag ? clearHoverPreview : undefined}
@@ -4937,8 +5317,8 @@ export default function Planning() {
                           const isLate = linkedOT.statut !== 'facture' && linkedOT.date_livraison_prevue && linkedOT.date_livraison_prevue.slice(0,10) < today
                           return (
                             <div key={block.id} style={{...pos,...cStyle}}
-                              draggable={!isRowEditMode&&!drag}
-                              onDragStart={!isRowEditMode&&!drag ? e => onDragStartCustomBlock(block, e) : undefined} onDragEnd={onDragEnd}
+                              draggable={!isRowEditMode}
+                              onDragStart={!isRowEditMode ? e => onDragStartCustomBlock(block, e) : undefined} onDragEnd={onDragEnd}
                               onMouseEnter={!drag ? e => openHoverPreview(linkedOT, e.clientX, e.clientY) : undefined}
                               onMouseLeave={!drag ? clearHoverPreview : undefined}
                               className={`${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col justify-center px-2 group/cblock overflow-hidden shadow-md
@@ -4980,8 +5360,8 @@ export default function Planning() {
                           )
                         }
                         return (
-                          <div key={block.id} style={pos} draggable={!isRowEditMode&&!drag}
-                            onDragStart={!isRowEditMode&&!drag ? e => onDragStartCustomBlock(block, e) : undefined} onDragEnd={onDragEnd}
+                          <div key={block.id} style={pos} draggable={!isRowEditMode}
+                            onDragStart={!isRowEditMode ? e => onDragStartCustomBlock(block, e) : undefined} onDragEnd={onDragEnd}
                             onClick={() => !isRowEditMode && openPlanningBlockEditor(block)}
                             className={`${block.color} border rounded-md text-white text-[11px] font-medium flex flex-col justify-center px-2 cursor-grab active:cursor-grabbing group/cblock overflow-hidden shadow-sm ${drag && drag.customBlockId !== block.id ? 'pointer-events-none' : ''} ${hoveredMissionId ? 'opacity-40 saturate-50' : ''}`}>
                             <span className="truncate leading-tight">{block.label}</span>
@@ -5386,7 +5766,20 @@ export default function Planning() {
                           </td>
                           <td className="px-3 py-2 text-slate-400">{resolveRowId(ot) ? (orderedRows.find(row => row.id === resolveRowId(ot))?.primary ?? '-') : '-'}</td>
                           <td className="px-3 py-2 text-slate-400">{isoToDate(ot.date_chargement_prevue)} {isoToTime(ot.date_chargement_prevue)} - {isoToDate(ot.date_livraison_prevue)} {isoToTime(ot.date_livraison_prevue)}</td>
-                          <td className="px-3 py-2"><span className={`text-[10px] px-1.5 py-0.5 rounded-full ${BADGE_CLS[ot.statut] ?? 'bg-slate-700 text-slate-300'}`}>{STATUT_LABEL[ot.statut] ?? ot.statut}</span></td>
+                          <td className="px-3 py-2">
+                            <button
+                              type="button"
+                              title="Cliquer pour changer le statut"
+                              onClick={event => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                                void updateOtStatusFromPlanning(ot, getNextOtStatus(ot.statut))
+                              }}
+                              className={`text-[10px] px-1.5 py-0.5 rounded-full transition-opacity hover:opacity-85 ${BADGE_CLS[ot.statut] ?? 'bg-slate-700 text-slate-300'}`}
+                            >
+                              {STATUT_LABEL[ot.statut] ?? ot.statut}
+                            </button>
+                          </td>
                         </tr>
                         )
                       })}
@@ -5670,7 +6063,20 @@ export default function Planning() {
                               {summary.missionType === 'groupage' && <span className="text-[10px] text-slate-500 truncate">{summary.referencesLabel}</span>}
                             </div>
                           </td>
-                          <td className="px-3 py-2"><span className={`text-[10px] px-1.5 py-0.5 rounded-full ${BADGE_CLS[ot.statut] ?? 'bg-slate-700 text-slate-300'}`}>{STATUT_LABEL[ot.statut] ?? ot.statut}</span></td>
+                          <td className="px-3 py-2">
+                            <button
+                              type="button"
+                              title="Cliquer pour changer le statut"
+                              onClick={event => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                                void updateOtStatusFromPlanning(ot, getNextOtStatus(ot.statut))
+                              }}
+                              className={`text-[10px] px-1.5 py-0.5 rounded-full transition-opacity hover:opacity-85 ${BADGE_CLS[ot.statut] ?? 'bg-slate-700 text-slate-300'}`}
+                            >
+                              {STATUT_LABEL[ot.statut] ?? ot.statut}
+                            </button>
+                          </td>
                           <td className="px-3 py-2">
                             {isFeatureEnabled('action_affecter') ? (
                               <button type="button" onClick={() => openAssign(ot)} className="text-indigo-300 hover:text-indigo-200">Programmer</button>
@@ -5737,7 +6143,9 @@ export default function Planning() {
                     <p className="text-xs font-semibold text-indigo-300 mb-0.5">Placement retour en charge</p>
                     <p className="text-[11px] text-indigo-200/70">
                       Trouvez les courses disponibles les plus proches de la position actuelle du vehicule.
-                      L'IA Anthropic Claude sera branchee dans la prochaine phase.
+                      {retourChargeIaConnected
+                        ? 'IA connectee: recommandations cloud actives.'
+                        : 'IA indisponible: prediction locale optimisee active (HLP/repos/coupure inclus).'}
                     </p>
                   </div>
 
@@ -5803,7 +6211,6 @@ export default function Planning() {
                           try {
                             const { data: sessionData } = await supabase.auth.getSession()
                             const token = sessionData.session?.access_token
-                            if (!token) throw new Error('Session absente.')
                             // Position de reference : derniere livraison du vehicule dans les OT termines
                             const { data: lastOt } = await supabase
                               .from('ordres_transport')
@@ -5815,6 +6222,8 @@ export default function Planning() {
                               .maybeSingle()
                             const posLat: number = (lastOt as { livraison_lat?: number | null } | null)?.livraison_lat ?? 48.8566
                             const posLng: number = (lastOt as { livraison_lng?: number | null } | null)?.livraison_lng ?? 2.3522
+                            if (!token) throw new Error('Session absente pour le moteur IA distant.')
+
                             const res = await fetch('/.netlify/functions/v11-ai-placement', {
                               method: 'POST',
                               headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -5831,9 +6240,21 @@ export default function Planning() {
                             })
                             const json = await res.json()
                             if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`)
+
                             setRetourChargeSuggestions(json.suggestions ?? [])
+                            setRetourChargeIaConnected(true)
                           } catch (err) {
-                            setRetourChargeError(err instanceof Error ? err.message : 'Erreur recherche.')
+                            const fallbackSuggestions = buildFallbackRetourChargeSuggestions(retourChargeForm)
+                            setRetourChargeIaConnected(false)
+                            setRetourChargeSuggestions(fallbackSuggestions)
+
+                            if (fallbackSuggestions.length > 0) {
+                              setRetourChargeError(null)
+                              pushPlanningNotice('IA indisponible: predictions locales optimisees appliquees.')
+                            } else {
+                              const detail = err instanceof Error ? err.message : 'Erreur recherche.'
+                              setRetourChargeError(`IA indisponible. Mode local actif, mais aucune suggestion exploitable. (${detail})`)
+                            }
                           } finally {
                             setRetourChargeLoading(false)
                           }
@@ -7158,6 +7579,27 @@ export default function Planning() {
               </button>
             )}
 
+            <div className="px-3 pt-2 pb-1">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Statut OT</p>
+            </div>
+            <div className="px-3 pb-2 grid grid-cols-2 gap-1.5">
+              {(['brouillon', 'confirme', 'planifie', 'en_cours', 'livre', 'annule'] as const).map(status => (
+                <button
+                  key={status}
+                  type="button"
+                  disabled={contextMenu.ot.statut === status}
+                  onClick={() => { void updateOtStatusFromPlanning(contextMenu.ot, status) }}
+                  className={`rounded-lg border px-2 py-1.5 text-[11px] font-semibold transition-colors ${
+                    contextMenu.ot.statut === status
+                      ? `${BADGE_CLS[status] ?? 'bg-slate-700 text-slate-300'} border-transparent cursor-default`
+                      : 'border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  {STATUT_LABEL[status] ?? status}
+                </button>
+              ))}
+            </div>
+
             {isFeatureEnabled('action_groupage') && contextMenu.ot.mission_id && !contextMenu.ot.groupage_fige && (
               <button
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-amber-300 hover:bg-amber-900/20 hover:text-amber-200 transition-colors text-left"
@@ -7242,6 +7684,49 @@ export default function Planning() {
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {driverPrintMenu && (
+        <div
+          className="fixed z-[82] min-w-[230px] overflow-hidden rounded-xl border border-slate-700/80 bg-slate-900 py-1 shadow-2xl"
+          style={{ left: driverPrintMenu.x, top: driverPrintMenu.y }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="border-b border-slate-800 bg-slate-800/40 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-slate-400">Conducteur</p>
+            <p className="truncate text-sm font-semibold text-white">{driverPrintMenu.rowLabel}</p>
+          </div>
+          <button
+            type="button"
+            className="w-full px-3 py-2 text-left text-sm text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
+            onClick={() => {
+              setDriverPrintMenu(null)
+              printDriverPlanningPeriod(driverPrintMenu.rowId, driverPrintMenu.rowLabel, 'jour')
+            }}
+          >
+            Imprimer la journee
+          </button>
+          <button
+            type="button"
+            className="w-full px-3 py-2 text-left text-sm text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
+            onClick={() => {
+              setDriverPrintMenu(null)
+              printDriverPlanningPeriod(driverPrintMenu.rowId, driverPrintMenu.rowLabel, 'semaine')
+            }}
+          >
+            Imprimer la semaine
+          </button>
+          <button
+            type="button"
+            className="w-full px-3 py-2 text-left text-sm text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
+            onClick={() => {
+              setDriverPrintMenu(null)
+              printDriverPlanningPeriod(driverPrintMenu.rowId, driverPrintMenu.rowLabel, 'mois')
+            }}
+          >
+            Imprimer le mois
+          </button>
         </div>
       )}
 

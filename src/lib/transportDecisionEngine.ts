@@ -28,6 +28,7 @@ export interface EtaPrediction {
 export interface EtaInput {
   nowIso?: string
   departureIso?: string | null
+  plannedArrivalIso?: string | null
   distanceKm?: number | null
   multiStopCount?: number | null
   routeProfile?: {
@@ -42,6 +43,24 @@ export interface EtaInput {
     incidentSeverity?: number | null
     worksSeverity?: number | null
     apiCoveragePct?: number | null
+  }
+  apiConnection?: {
+    realtimeAvailable?: boolean | null
+  }
+  smartphone?: {
+    gpsEnabled?: boolean | null
+    driverAppStatus?: 'online' | 'offline' | 'intermittent'
+    currentLat?: number | null
+    currentLng?: number | null
+    departureLat?: number | null
+    departureLng?: number | null
+    destinationLat?: number | null
+    destinationLng?: number | null
+    speedKph?: number | null
+    capturedAtIso?: string | null
+  }
+  progression?: {
+    completedDistanceKm?: number | null
   }
   operations?: {
     loadingMinutes?: number | null
@@ -68,6 +87,27 @@ export interface EtaInput {
     onTimePct?: number | null
     plannerPerformancePct?: number | null
   }
+}
+
+export type TransportProgressSource = 'api' | 'smartphone_gps' | 'distance_ratio' | 'time_ratio' | 'unknown'
+
+export interface TransportProgressPrediction {
+  source: TransportProgressSource
+  progressPct: number
+  travelledDistanceKm: number | null
+  remainingDistanceKm: number | null
+  estimatedSpeedKph: number | null
+}
+
+export interface TransportProgressInput {
+  nowIso?: string
+  departureIso?: string | null
+  plannedArrivalIso?: string | null
+  distanceKm?: number | null
+  realtimeApiConnected?: boolean
+  apiProgressPct?: number | null
+  smartphone?: EtaInput['smartphone']
+  completedDistanceKm?: number | null
 }
 
 export interface ScoreWeights {
@@ -197,6 +237,111 @@ function diffMinutes(startIso: string | null | undefined, endIso: string | null 
   return Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000))
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function toRadians(value: number) {
+  return (value * Math.PI) / 180
+}
+
+function haversineKm(latA: number, lngA: number, latB: number, lngB: number) {
+  const earthRadiusKm = 6371
+  const dLat = toRadians(latB - latA)
+  const dLng = toRadians(lngB - lngA)
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRadians(latA)) * Math.cos(toRadians(latB)) * Math.sin(dLng / 2) ** 2
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return earthRadiusKm * c
+}
+
+export function computeTransportProgress(input: TransportProgressInput): TransportProgressPrediction {
+  const totalDistanceKm = input.distanceKm ?? null
+
+  if (input.realtimeApiConnected && isFiniteNumber(input.apiProgressPct)) {
+    const progressPct = clamp(input.apiProgressPct, 0, 100)
+    const travelledDistanceKm = totalDistanceKm != null ? (totalDistanceKm * progressPct) / 100 : null
+    const remainingDistanceKm = totalDistanceKm != null ? Math.max(0, totalDistanceKm - (travelledDistanceKm ?? 0)) : null
+    return {
+      source: 'api',
+      progressPct: round(progressPct),
+      travelledDistanceKm,
+      remainingDistanceKm,
+      estimatedSpeedKph: null,
+    }
+  }
+
+  const currentLat = input.smartphone?.currentLat
+  const currentLng = input.smartphone?.currentLng
+  const departureLat = input.smartphone?.departureLat
+  const departureLng = input.smartphone?.departureLng
+  const destinationLat = input.smartphone?.destinationLat
+  const destinationLng = input.smartphone?.destinationLng
+
+  if (
+    isFiniteNumber(currentLat)
+    && isFiniteNumber(currentLng)
+    && isFiniteNumber(departureLat)
+    && isFiniteNumber(departureLng)
+    && isFiniteNumber(destinationLat)
+    && isFiniteNumber(destinationLng)
+  ) {
+    const drivenRouteKm = haversineKm(departureLat, departureLng, currentLat, currentLng)
+    const remainingRouteKm = haversineKm(currentLat, currentLng, destinationLat, destinationLng)
+    const fullRouteKm = haversineKm(departureLat, departureLng, destinationLat, destinationLng)
+    const referenceDistanceKm = totalDistanceKm && totalDistanceKm > 0 ? totalDistanceKm : fullRouteKm
+    const travelledDistanceKm = Math.min(referenceDistanceKm, Math.max(0, drivenRouteKm))
+    const remainingDistanceKm = Math.max(0, Math.min(referenceDistanceKm, remainingRouteKm))
+    const progressPct = referenceDistanceKm > 0
+      ? clamp((travelledDistanceKm / referenceDistanceKm) * 100, 0, 99.5)
+      : 0
+
+    return {
+      source: 'smartphone_gps',
+      progressPct: round(progressPct),
+      travelledDistanceKm,
+      remainingDistanceKm,
+      estimatedSpeedKph: input.smartphone?.speedKph ?? null,
+    }
+  }
+
+  if (totalDistanceKm && totalDistanceKm > 0 && isFiniteNumber(input.completedDistanceKm)) {
+    const travelledDistanceKm = clamp(input.completedDistanceKm, 0, totalDistanceKm)
+    const remainingDistanceKm = Math.max(0, totalDistanceKm - travelledDistanceKm)
+    return {
+      source: 'distance_ratio',
+      progressPct: round((travelledDistanceKm / totalDistanceKm) * 100),
+      travelledDistanceKm,
+      remainingDistanceKm,
+      estimatedSpeedKph: null,
+    }
+  }
+
+  const nowIso = input.nowIso ?? new Date().toISOString()
+  const elapsedMinutes = diffMinutes(input.departureIso ?? null, nowIso)
+  const plannedDurationMinutes = diffMinutes(input.departureIso ?? null, input.plannedArrivalIso ?? null)
+  if (elapsedMinutes != null && plannedDurationMinutes != null && plannedDurationMinutes > 0) {
+    const progressPct = clamp((elapsedMinutes / plannedDurationMinutes) * 100, 0, 99)
+    const travelledDistanceKm = totalDistanceKm != null ? (totalDistanceKm * progressPct) / 100 : null
+    const remainingDistanceKm = totalDistanceKm != null ? Math.max(0, totalDistanceKm - (travelledDistanceKm ?? 0)) : null
+    return {
+      source: 'time_ratio',
+      progressPct: round(progressPct),
+      travelledDistanceKm,
+      remainingDistanceKm,
+      estimatedSpeedKph: null,
+    }
+  }
+
+  return {
+    source: 'unknown',
+    progressPct: 0,
+    travelledDistanceKm: null,
+    remainingDistanceKm: totalDistanceKm,
+    estimatedSpeedKph: null,
+  }
+}
+
 function computeEstimatedSpeed(input: EtaInput, traces: EtaConstraintTrace[], missingData: string[]) {
   const fallbackSpeed = 68
   const baseVehicleSpeed = input.resource?.vehicleAverageSpeedKph ?? fallbackSpeed
@@ -234,6 +379,23 @@ export function computePredictiveEta(input: EtaInput): EtaPrediction {
   const departureIso = input.departureIso ?? nowIso
   const estimatedSpeed = computeEstimatedSpeed(input, traces, missingData)
   const distanceKm = input.distanceKm ?? null
+  const apiCoveragePct = input.realtime?.apiCoveragePct ?? 52
+  const realtimeApiConnected = input.apiConnection?.realtimeAvailable ?? apiCoveragePct >= 12
+  const progress = computeTransportProgress({
+    nowIso,
+    departureIso,
+    plannedArrivalIso: input.plannedArrivalIso,
+    distanceKm,
+    realtimeApiConnected,
+    apiProgressPct: null,
+    smartphone: input.smartphone,
+    completedDistanceKm: input.progression?.completedDistanceKm ?? null,
+  })
+
+  let fallbackTrafficLevel = 0.18
+  if (!realtimeApiConnected && progress.source === 'smartphone_gps' && isFiniteNumber(progress.estimatedSpeedKph)) {
+    fallbackTrafficLevel = clamp(1 - (progress.estimatedSpeedKph / Math.max(35, estimatedSpeed)), 0, 0.72)
+  }
 
   let baselineDurationMinutes = 0
   if (distanceKm && distanceKm > 0) {
@@ -251,7 +413,7 @@ export function computePredictiveEta(input: EtaInput): EtaPrediction {
     })
   }
 
-  const trafficLevel = clamp(input.realtime?.trafficLevel ?? 0.18, 0, 1)
+  const trafficLevel = clamp(input.realtime?.trafficLevel ?? fallbackTrafficLevel, 0, 1)
   const weatherSeverity = clamp(input.realtime?.weatherSeverity ?? 0.1, 0, 1)
   const incidentSeverity = clamp((input.realtime?.incidentSeverity ?? 0) + (input.realtime?.worksSeverity ?? 0), 0, 1)
   const trafficImpact = round(baselineDurationMinutes * trafficLevel * 0.35)
@@ -287,6 +449,21 @@ export function computePredictiveEta(input: EtaInput): EtaPrediction {
       detail: 'Perturbations routieres ajoutees au scenario ETA.',
       source: input.realtime?.incidentSeverity == null && input.realtime?.worksSeverity == null ? 'heuristique' : 'api',
     })
+  }
+
+  if (!realtimeApiConnected && progress.source !== 'unknown') {
+    traces.push({
+      code: 'offline_progress',
+      label: 'Progression smartphone hors API',
+      category: 'temps_reel',
+      impactMinutes: 0,
+      detail: `Mode degrade sans API: progression ${progress.progressPct}% (${progress.source}).`,
+      source: 'fallback',
+    })
+  }
+
+  if (!realtimeApiConnected && progress.source === 'unknown') {
+    missingData.push('api temps reel indisponible')
   }
 
   const multiStopImpact = Math.max(0, (input.multiStopCount ?? 1) - 1) * 18
@@ -354,7 +531,9 @@ export function computePredictiveEta(input: EtaInput): EtaPrediction {
   }
 
   const traceImpact = traces.reduce((sum, trace) => sum + trace.impactMinutes, 0)
-  const uncertaintyBuffer = round(Math.max(12, baselineDurationMinutes * (0.08 + (missingData.length * 0.02))))
+  const smartphoneStabilityBonus = (!realtimeApiConnected && progress.source === 'smartphone_gps') ? 0.02 : 0
+  const uncertaintyFactor = Math.max(0.05, 0.08 + (missingData.length * 0.02) - smartphoneStabilityBonus)
+  const uncertaintyBuffer = round(Math.max(12, baselineDurationMinutes * uncertaintyFactor))
   traces.push({
     code: 'buffer',
     label: 'Buffer intelligent',
@@ -366,11 +545,16 @@ export function computePredictiveEta(input: EtaInput): EtaPrediction {
 
   const predictedDurationMinutes = round(baselineDurationMinutes + traceImpact + uncertaintyBuffer)
   const deltaMinutes = predictedDurationMinutes - baselineDurationMinutes
-  const apiCoverage = clamp((input.realtime?.apiCoveragePct ?? 52) / 100, 0, 1)
+  const apiCoverage = clamp(apiCoveragePct / 100, 0, 1)
+  const smartphoneCoverage = progress.source === 'smartphone_gps'
+    ? 0.18
+    : progress.source === 'distance_ratio' || progress.source === 'time_ratio'
+      ? 0.08
+      : 0
   const historyCoverage = clamp(((input.historical?.onTimePct ?? 68) + (input.historical?.plannerPerformancePct ?? 70)) / 200, 0, 1)
   const dataCompleteness = clamp(1 - (missingData.length * 0.08), 0.35, 1)
   const perturbationPenalty = clamp((trafficLevel * 0.18) + (weatherSeverity * 0.12) + (incidentSeverity * 0.14), 0, 0.38)
-  const confidencePct = round(clamp((dataCompleteness * 0.38) + (apiCoverage * 0.22) + (historyCoverage * 0.24) + (0.24 - perturbationPenalty), 0.42, 0.97) * 100)
+  const confidencePct = round(clamp((dataCompleteness * 0.34) + (apiCoverage * 0.2) + (historyCoverage * 0.24) + smartphoneCoverage + (0.22 - perturbationPenalty), 0.42, 0.97) * 100)
   const riskLevel: RiskLevel = deltaMinutes >= 150 || confidencePct < 56
     ? 'critique'
     : deltaMinutes >= 70 || confidencePct < 72
@@ -379,6 +563,7 @@ export function computePredictiveEta(input: EtaInput): EtaPrediction {
 
   if (trafficImpact > 0) explanation.push(`Trafic ajoute ${trafficImpact} min au temps de base.`)
   if (weatherImpact > 0 || incidentImpact > 0) explanation.push(`Perturbations externes ajoutees: ${weatherImpact + incidentImpact} min.`)
+  if (!realtimeApiConnected && progress.source !== 'unknown') explanation.push(`API indisponible: progression calculee via ${progress.source} (${progress.progressPct}%).`)
   explanation.push(`Contraintes operationnelles et legals ajoutees: ${loadingImpact + unloadingImpact + multiStopImpact + clientWindowImpact + continuousRiskImpact + dailyRestImpact} min.`)
   if (serviceImpact > 0 || historicalDelayImpact > 0) explanation.push(`Historique interne ajoute ${serviceImpact + historicalDelayImpact} min de prudence.`)
   if (missingData.length > 0) explanation.push(`Fallback active sur ${missingData.join(', ')}.`)
@@ -596,7 +781,15 @@ export function buildOrderEtaInput(order: {
 
   return {
     departureIso: order.date_chargement_prevue,
+    plannedArrivalIso: order.date_livraison_prevue,
     distanceKm: order.distance_km,
+    apiConnection: {
+      realtimeAvailable: true,
+    },
+    smartphone: {
+      gpsEnabled: Boolean(order.conducteur_id),
+      driverAppStatus: order.conducteur_id ? 'intermittent' : 'offline',
+    },
     realtime: {
       trafficLevel: realtimePenalty,
       weatherSeverity: transportStatus === 'en_transit' ? 0.18 : 0.1,

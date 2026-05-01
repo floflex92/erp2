@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   computeJobScore,
   computePredictiveEta,
+  computeTransportProgress,
   deriveJobScoreFromTransportRequest,
 } from './transportDecisionEngine'
 
@@ -65,6 +66,61 @@ describe('transportDecisionEngine', () => {
 
     expect(prediction.missingData).toContain('distance reelle')
     expect(prediction.traces.some(trace => trace.code === 'fallback_distance')).toBe(true)
+    expect(prediction.predictedDurationMinutes).toBeGreaterThan(0)
+  })
+
+  it('calcule l avancement via GPS smartphone si l API temps reel est indisponible', () => {
+    const progress = computeTransportProgress({
+      nowIso: '2026-04-12T10:30:00.000Z',
+      departureIso: '2026-04-12T08:00:00.000Z',
+      plannedArrivalIso: '2026-04-12T15:00:00.000Z',
+      distanceKm: 390,
+      realtimeApiConnected: false,
+      smartphone: {
+        gpsEnabled: true,
+        currentLat: 47.7982,
+        currentLng: 3.5738,
+        departureLat: 48.8566,
+        departureLng: 2.3522,
+        destinationLat: 45.764,
+        destinationLng: 4.8357,
+        speedKph: 67,
+      },
+    })
+
+    expect(progress.source).toBe('smartphone_gps')
+    expect(progress.progressPct).toBeGreaterThan(0)
+    expect(progress.progressPct).toBeLessThan(100)
+    expect(progress.remainingDistanceKm).not.toBeNull()
+    expect(progress.estimatedSpeedKph).toBe(67)
+  })
+
+  it('annote la prediction ETA avec la progression smartphone en mode degrade hors API', () => {
+    const prediction = computePredictiveEta({
+      nowIso: '2026-04-12T10:30:00.000Z',
+      departureIso: '2026-04-12T08:00:00.000Z',
+      plannedArrivalIso: '2026-04-12T15:00:00.000Z',
+      distanceKm: 390,
+      apiConnection: {
+        realtimeAvailable: false,
+      },
+      realtime: {
+        apiCoveragePct: 0,
+      },
+      smartphone: {
+        gpsEnabled: true,
+        currentLat: 47.7982,
+        currentLng: 3.5738,
+        departureLat: 48.8566,
+        departureLng: 2.3522,
+        destinationLat: 45.764,
+        destinationLng: 4.8357,
+        speedKph: 67,
+      },
+    })
+
+    expect(prediction.traces.some(trace => trace.code === 'offline_progress')).toBe(true)
+    expect(prediction.explanation.some(item => item.includes('API indisponible'))).toBe(true)
     expect(prediction.predictedDurationMinutes).toBeGreaterThan(0)
   })
 

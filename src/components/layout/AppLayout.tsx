@@ -125,6 +125,7 @@ export default function AppLayout() {
     profil,
     role,
     tenantAllowedPages,
+    enabledModules,
     isDemoSession,
   } = useAuth()
   const { theme, effectiveTheme, toggleTheme } = useTheme()
@@ -207,10 +208,10 @@ export default function AppLayout() {
 
   const quickLinks = Object.entries(PAGE_TITLES)
     .map(([to, label]) => ({ to, label, page: to.slice(1) }))
-    .filter(link => canAccess(role, link.page, tenantAllowedPages))
+    .filter(link => canAccess(role, link.page, tenantAllowedPages, enabledModules))
   const roleFocusActions = role
     ? (ROLE_FOCUS_ACTIONS[role] ?? [])
-        .filter(action => canAccess(role, action.to.replace(/^\//, ''), tenantAllowedPages))
+        .filter(action => canAccess(role, action.to.replace(/^\//, ''), tenantAllowedPages, enabledModules))
         .slice(0, 3)
     : []
 

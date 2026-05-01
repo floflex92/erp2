@@ -21,10 +21,10 @@ const SHORTCUTS: ShortcutDef[] = [
 ]
 
 export function WidgetRaccourcisMetier() {
-  const { role, tenantAllowedPages } = useAuth()
+  const { role, tenantAllowedPages, enabledModules } = useAuth()
   const currentRole = (role as Role) ?? null
 
-  const links = SHORTCUTS.filter(shortcut => canAccess(currentRole, shortcut.page, tenantAllowedPages)).slice(0, 6)
+  const links = SHORTCUTS.filter(shortcut => canAccess(currentRole, shortcut.page, tenantAllowedPages, enabledModules)).slice(0, 6)
 
   if (links.length === 0) {
     return (

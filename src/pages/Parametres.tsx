@@ -197,7 +197,7 @@ const ERP_FEATURE_CARDS = [
 ] as const
 
 export default function Parametres() {
-  const { role, sessionRole, isAdmin, isDemoSession, profil, accountProfil, tenantAllowedPages, companyId } = useAuth()
+  const { role, sessionRole, isAdmin, isDemoSession, profil, accountProfil, tenantAllowedPages, enabledModules, companyId } = useAuth()
   const location = useLocation()
   const logoInputRef = useRef<HTMLInputElement | null>(null)
   const signatureInputRef = useRef<HTMLInputElement | null>(null)
@@ -314,18 +314,30 @@ export default function Parametres() {
   }
 
   const MENU: MenuItem[] = [
-    { id: 'compte',       label: 'Mon compte',       icon: <IconCompte /> },
-    { id: 'entreprise',   label: 'Entreprise',        icon: <IconEntreprise /> },
-    { id: 'signature',    label: 'Signature',         icon: <IconSignature /> },
-    { id: 'rgpd',         label: 'RGPD & Reglement',  icon: <IconRGPD /> },
-    { id: 'utilisateurs', label: 'Utilisateurs',      icon: <IconUtilisateurs />, adminOnly: true },
-    { id: 'clients-erp',  label: 'Clients ERP',       icon: <IconEntreprise />, adminOnly: true },
-    { id: 'aide',         label: 'Aide',              icon: <IconAide /> },
-    { id: 'developpement', label: 'Developpement',     icon: <IconModules /> },
-    { id: 'groupes-conducteurs', label: 'Groupes conducteurs', icon: <IconUtilisateurs /> },
-    ...(isCompanyManager ? [{ id: 'modules' as MenuId, label: 'Modules ERP', icon: <IconModules /> }] : []),
-    ...(isAdmin ? [{ id: 'observabilite' as MenuId, label: 'Observabilite', icon: <IconEye /> }] : []),
+    { id: 'compte',       label: 'Mon compte',       icon: <IconCompte />, roleRequired: 'parametres' },
+    { id: 'entreprise',   label: 'Entreprise',       icon: <IconEntreprise />, roleRequired: 'parametres' },
+    { id: 'signature',    label: 'Signature',        icon: <IconSignature />, roleRequired: 'parametres' },
+    { id: 'rgpd',         label: 'RGPD & Reglement', icon: <IconRGPD />, roleRequired: 'parametres' },
+    { id: 'utilisateurs', label: 'Utilisateurs',     icon: <IconUtilisateurs />, adminOnly: true, roleRequired: 'utilisateurs' },
+    { id: 'clients-erp',  label: 'Clients ERP',      icon: <IconEntreprise />, adminOnly: true, roleRequired: 'super-admin' },
+    { id: 'aide',         label: 'Aide',             icon: <IconAide />, roleRequired: 'parametres' },
+    { id: 'developpement', label: 'Developpement',   icon: <IconModules />, roleRequired: 'parametres' },
+    { id: 'groupes-conducteurs', label: 'Groupes conducteurs', icon: <IconUtilisateurs />, roleRequired: 'planning' },
+    ...(isCompanyManager ? [{ id: 'modules' as MenuId, label: 'Modules ERP', icon: <IconModules />, roleRequired: 'parametres' }] : []),
+    ...(isAdmin ? [{ id: 'observabilite' as MenuId, label: 'Observabilite', icon: <IconEye />, roleRequired: 'parametres' }] : []),
   ]
+
+  const visibleMenu = MENU.filter(item => {
+    if (item.id === 'clients-erp' && !canManageErpClients) return false
+    if (item.adminOnly && !isAdmin) return false
+    if (item.roleRequired && !canAccess(role, item.roleRequired, tenantAllowedPages, enabledModules)) return false
+    return true
+  })
+
+  useEffect(() => {
+    if (visibleMenu.some(item => item.id === activeMenu)) return
+    setActiveMenu(visibleMenu[0]?.id ?? 'compte')
+  }, [activeMenu, visibleMenu])
 
   return (
     <div className="flex gap-0 h-full min-h-[calc(100vh-140px)]" style={{ background: 'var(--bg)' }}>
@@ -349,10 +361,7 @@ export default function Parametres() {
         </div>
 
         <nav className="p-2 space-y-0.5">
-          {MENU.map(item => {
-            if (item.id === 'clients-erp' && !canManageErpClients) return null
-            if (item.adminOnly && !isAdmin) return null
-            if (item.roleRequired && !canAccess(role, item.roleRequired, tenantAllowedPages)) return null
+          {visibleMenu.map(item => {
             const active = activeMenu === item.id
             return (
               <button
@@ -518,7 +527,7 @@ export default function Parametres() {
                 Les bulletins restent masques dans le coffre collaborateur jusqu a validation complete de la periode, puis deviennent visibles a 00:00 a la date reglee. Le versement est planifie pour tous les salaries a la meme date commune.
               </div>
             </Card>
-            {canAccess(role, 'rh', tenantAllowedPages) && (
+            {canAccess(role, 'rh', tenantAllowedPages, enabledModules) && (
               <Card>
                 <CardLabel>Gestion RH</CardLabel>
                 <p className="mt-2 text-sm nx-subtle">Les contrats, onboarding et suivi RH sont dans l onglet dedie.</p>
@@ -636,7 +645,7 @@ export default function Parametres() {
         {activeMenu === 'aide' && (
           <div className="space-y-4">
             <SectionHeader title="Aide & tutoriels" subtitle="Guides d utilisation selon vos droits d acces" />
-            <TutorialList role={role} tenantAllowedPages={tenantAllowedPages} />
+            <TutorialList role={role} tenantAllowedPages={tenantAllowedPages} enabledModules={enabledModules} />
           </div>
         )}
 
@@ -1016,8 +1025,8 @@ const TUTORIALS = [
   },
 ]
 
-function TutorialList({ role, tenantAllowedPages }: { role: ReturnType<typeof useAuth>['role']; tenantAllowedPages: string[] | null }) {
-  const tutorials = TUTORIALS.filter(t => canAccess(role, t.page, tenantAllowedPages))
+function TutorialList({ role, tenantAllowedPages, enabledModules }: { role: ReturnType<typeof useAuth>['role']; tenantAllowedPages: string[] | null; enabledModules: ReturnType<typeof useAuth>['enabledModules'] }) {
+  const tutorials = TUTORIALS.filter(t => canAccess(role, t.page, tenantAllowedPages, enabledModules))
   if (tutorials.length === 0) {
     return <p className="text-sm nx-subtle">Aucun tutoriel disponible pour votre acces.</p>
   }

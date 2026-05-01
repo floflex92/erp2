@@ -99,6 +99,12 @@ type TransportForm = TablesInsert<'ordres_transport'> & {
   charge_indivisible: boolean
 }
 
+type TransportContextMenu = {
+  x: number
+  y: number
+  ot: OT
+} | null
+
 
 const STATUT_LABELS: Record<string, string> = {
   brouillon: 'Brouillon', confirme: 'Confirmé', en_cours: 'En cours',
@@ -259,6 +265,7 @@ export default function Transports() {
   const [statusGuardNotice, setStatusGuardNotice] = useState<string | null>(null)
   const [affreteurOtIds, setAffreteurOtIds] = useState<string[]>([])
   const [groupageTargetId, setGroupageTargetId] = useState('')
+  const [contextMenu, setContextMenu] = useState<TransportContextMenu>(null)
 
   const [showForm, setShowForm] = useState(false)
   const [editingOtId, setEditingOtId] = useState<string | null>(null)
@@ -379,6 +386,19 @@ export default function Transports() {
       setSelected(null)
     }
   }, [scopedList, selected])
+
+  useEffect(() => {
+    if (!contextMenu) return
+    function closeContextMenu() {
+      setContextMenu(null)
+    }
+    document.addEventListener('click', closeContextMenu)
+    document.addEventListener('scroll', closeContextMenu, true)
+    return () => {
+      document.removeEventListener('click', closeContextMenu)
+      document.removeEventListener('scroll', closeContextMenu, true)
+    }
+  }, [contextMenu])
 
   useEffect(() => {
     setGroupageTargetId('')
@@ -945,6 +965,10 @@ export default function Transports() {
                     <tr
                       key={ot.id}
                       onClick={() => openOT(ot)}
+                      onContextMenu={event => {
+                        event.preventDefault()
+                        setContextMenu({ x: event.clientX, y: event.clientY, ot })
+                      }}
                       className={`cursor-pointer border-t border-slate-100 transition-colors hover:bg-blue-50 ${
                         selected?.id === ot.id ? 'bg-blue-50' : i % 2 !== 0 ? 'bg-slate-50' : ''
                       }`}
@@ -1390,6 +1414,59 @@ export default function Transports() {
               )}
               </SectionCard>
             </div>
+          </div>
+        </div>
+      )}
+
+      {contextMenu && (
+        <div
+          className="fixed z-[70] min-w-[220px] overflow-hidden rounded-xl border border-slate-700 bg-slate-900 py-1 shadow-2xl"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={event => event.stopPropagation()}
+        >
+          <div className="border-b border-slate-800 bg-slate-800/40 px-3 py-2.5">
+            <p className="font-mono text-xs text-slate-300">{contextMenu.ot.reference}</p>
+            <p className="mt-0.5 truncate text-sm font-semibold text-white">{clientMap[contextMenu.ot.client_id] ?? 'Client inconnu'}</p>
+          </div>
+
+          <div className="py-1">
+            <button
+              type="button"
+              className="w-full px-3 py-2 text-left text-sm text-slate-200 transition-colors hover:bg-slate-800 hover:text-white"
+              onClick={() => {
+                setContextMenu(null)
+                openOT(contextMenu.ot)
+              }}
+            >
+              Ouvrir la fiche
+            </button>
+
+            {canEditOt && (
+              <button
+                type="button"
+                className="w-full px-3 py-2 text-left text-sm text-slate-200 transition-colors hover:bg-slate-800 hover:text-white"
+                onClick={() => {
+                  setContextMenu(null)
+                  openEditForm(contextMenu.ot)
+                }}
+              >
+                Modifier
+              </button>
+            )}
+
+            {canDeleteOt && (
+              <button
+                type="button"
+                className="w-full px-3 py-2 text-left text-sm text-rose-300 transition-colors hover:bg-rose-900/30 hover:text-rose-200"
+                onClick={() => {
+                  const targetId = contextMenu.ot.id
+                  setContextMenu(null)
+                  void del(targetId)
+                }}
+              >
+                Supprimer
+              </button>
+            )}
           </div>
         </div>
       )}

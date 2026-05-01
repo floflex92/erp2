@@ -118,7 +118,6 @@ export function canAccess(
 ): boolean {
   if (!role) return false
   if (!(ROLE_ACCESS[role]?.includes(page) ?? false)) return false
-  if (role === 'admin' || role === 'super_admin' || role === 'dirigeant' || role === 'exploitant') return true
   // Verifie que le module auquel appartient la page est actif pour le tenant
   if (enabledModules && enabledModules.length > 0) {
     const moduleForPage = (Object.entries(MODULE_TO_PAGES) as [TenantModule, string[]][]).find(
@@ -138,7 +137,7 @@ export function firstPage(role: Role, tenantAllowedPages?: string[] | null, enab
   const ROLE_FIRST_PAGE: Partial<Record<Role, string>> = {
     conducteur:           'dashboard-conducteur',
     conducteur_affreteur: 'dashboard-conducteur',
-    exploitant:           'ops-center',
+    exploitant:           'planning',
     comptable:            'facturation',
     facturation:          'facturation',
     administratif:        'facturation',
