@@ -43,9 +43,9 @@ import type {
 import {
   getUpdateFailureReason, ACTIVE_AFFRETEMENT_STATUSES,
   getMonday, addDays, toISO, parseDay, daysDiff,
-  getMonthStart, addMonths, getMonthDays, MONTH_FULL_NAMES,
+  getMonthStart, addMonths, getMonthDays,
   snapToQuarter, toDateTimeISO, toDateTimeFromDate, isoToTime, isoToDate,
-  DAY_NAMES, fmtWeek, fmtDay, toTimeValue,
+  DAY_NAMES, fmtWeek, toTimeValue,
   getWeekBlockMetrics, blockPos, DAY_START_MIN, DAY_TOTAL_MIN, getDayBlockMetrics, blockPosDay,
   STATUT_CLS, BADGE_CLS, STATUT_LABEL, CUSTOM_COLORS, INLINE_EVENT_COLORS, INLINE_EVENT_LABELS, COLOR_PALETTE, TYPE_TRANSPORT_COLORS,
   SITE_USAGE_LABELS, normalizeAddressValue, siteSupportsKind, sortLogisticSites, makeEmptySiteDraft, mapSiteLoadRow,
@@ -3779,7 +3779,8 @@ export default function Planning() {
     const weekStartDate = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate())
     const weekEndDate = new Date(weekStartDate.getFullYear(), weekStartDate.getMonth(), weekStartDate.getDate() + 6, 23, 59, 59)
     const monthStartDate = new Date(monthStart.getFullYear(), monthStart.getMonth(), 1)
-    const monthEndDate = new Date(monthStart.getFullYear(), monthStart.getMonth(), getMonthDays(monthStart), 23, 59, 59)
+    const monthDays = getMonthDays(monthStart)
+    const monthEndDate = new Date(monthStart.getFullYear(), monthStart.getMonth(), monthDays.length, 23, 59, 59)
 
     const range = period === 'jour'
       ? { start: dayStart, end: dayEnd, label: `Journee du ${dayStart.toLocaleDateString('fr-FR')}` }
