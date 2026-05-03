@@ -19,6 +19,18 @@ type TenantModule = 'dashboard' | 'planning' | 'fleet' | 'workshop' | 'hr' | 'ac
 const ALL_TENANT_MODULES: TenantModule[] = [
   'dashboard', 'planning', 'fleet', 'workshop', 'hr', 'accounting', 'documents', 'settings',
 ]
+const LEGACY_MODULE_SET = new Set<TenantModule>(ALL_TENANT_MODULES)
+
+const LEGACY_MODULE_GROUPS: Record<TenantModule, string[]> = {
+  dashboard: ['ops-center', 'dashboard', 'dashboard-conducteur', 'tasks', 'transports', 'demandes-clients', 'clients', 'prospection', 'espace-client', 'espace-affreteur', 'compte-client-db', 'tchat', 'mail', 'inter-erp', 'communication'],
+  planning: ['planning', 'planning-conducteur', 'map-live', 'feuille-route'],
+  fleet: ['vehicules', 'remorques', 'equipements', 'entrepots'],
+  workshop: ['maintenance'],
+  hr: ['chauffeurs', 'rh', 'entretiens-salaries', 'paie', 'frais', 'frais-rapide', 'tachygraphe', 'amendes'],
+  accounting: ['facturation', 'comptabilite', 'reglements', 'tresorerie', 'analytique-transport'],
+  documents: ['coffre'],
+  settings: ['settings'],
+}
 
 const TENANT_MODULE_LABELS: Record<TenantModule, string> = {
   dashboard:  'Tableau de bord',
@@ -79,6 +91,31 @@ function normalizeAllowedPages(raw: string[] | null | undefined, allPageKeys: st
   return allPageKeys
 }
 
+function toLegacyTenantModules(raw: string[] | null | undefined): TenantModule[] {
+  if (!Array.isArray(raw) || raw.length === 0) return [...ALL_TENANT_MODULES]
+
+  const normalized = raw
+    .filter((item): item is string => typeof item === 'string')
+    .map(item => item.trim())
+    .filter(Boolean)
+
+  if (normalized.length === 0) return [...ALL_TENANT_MODULES]
+
+  const hasLegacyTokens = normalized.some(token => LEGACY_MODULE_SET.has(token as TenantModule))
+  if (hasLegacyTokens) {
+    const legacy = normalized.filter((token): token is TenantModule => LEGACY_MODULE_SET.has(token as TenantModule))
+    return legacy.length > 0 ? legacy : ['settings']
+  }
+
+  const detailedSet = new Set(normalized)
+  const selected = ALL_TENANT_MODULES.filter(moduleKey => {
+    const group = LEGACY_MODULE_GROUPS[moduleKey]
+    return group.some(item => detailedSet.has(item))
+  })
+
+  return selected.length > 0 ? selected : ['settings']
+}
+
 export function ErpClientsSettings() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -110,12 +147,7 @@ export function ErpClientsSettings() {
     setTenantMaxScreens(selectedTenant.default_max_concurrent_screens ?? 1)
     setTenantIsActive(selectedTenant.is_active !== false)
     setTenantAllowedPages(normalizeAllowedPages(selectedTenant.allowed_pages, allPageKeys))
-    const rawModules = selectedTenant.enabled_modules
-    if (Array.isArray(rawModules) && rawModules.length > 0) {
-      setTenantEnabledModules(rawModules.filter((m): m is TenantModule => ALL_TENANT_MODULES.includes(m as TenantModule)))
-    } else {
-      setTenantEnabledModules([...ALL_TENANT_MODULES])
-    }
+    setTenantEnabledModules(toLegacyTenantModules(selectedTenant.enabled_modules))
   }, [allPageKeys, selectedTenant])
 
   const tenantEmployees = useMemo(

@@ -29,7 +29,7 @@ import {
   listOtLignes,
   syncOtLignes,
 } from '@/lib/transportCourses'
-import { addCourseToMission, createMissionFromCourses, removeCourseFromMission } from '@/lib/transportMissions'
+import { addCourseToMission, assembleIndependentCourses, createMissionFromCourses, removeCourseFromMission, setMissionFreezeState } from '@/lib/transportMissions'
 import {
   TYPES_CHARGEMENT_LABELS,
   TYPES_PALETTE_LABELS,
@@ -267,6 +267,7 @@ export default function Transports() {
   const [statusGuardNotice, setStatusGuardNotice] = useState<string | null>(null)
   const [affreteurOtIds, setAffreteurOtIds] = useState<string[]>([])
   const [groupageTargetId, setGroupageTargetId] = useState('')
+  const [batchGroupageSelection, setBatchGroupageSelection] = useState<string[]>([])
   const [contextMenu, setContextMenu] = useState<TransportContextMenu>(null)
 
   const [showForm, setShowForm] = useState(false)
@@ -424,6 +425,26 @@ export default function Transports() {
       return matchSearch && matchStatut && matchView
     })
   }, [scopedList, search, clientMap, filterStatut, listView])
+
+  const independentGroupageCandidates = useMemo(() => {
+    return scopedList.filter(ot => !ot.mission_id && !ot.groupage_fige && !ot.est_affretee)
+  }, [scopedList])
+
+  const independentGroupageCandidateIds = useMemo(() => {
+    return new Set(independentGroupageCandidates.map(ot => ot.id))
+  }, [independentGroupageCandidates])
+
+  const filteredIndependentCandidates = useMemo(() => {
+    return filtered.filter(ot => independentGroupageCandidateIds.has(ot.id))
+  }, [filtered, independentGroupageCandidateIds])
+
+  const selectedIndependentIds = useMemo(() => {
+    return batchGroupageSelection.filter(id => independentGroupageCandidateIds.has(id))
+  }, [batchGroupageSelection, independentGroupageCandidateIds])
+
+  useEffect(() => {
+    setBatchGroupageSelection(current => current.filter(id => independentGroupageCandidateIds.has(id)))
+  }, [independentGroupageCandidateIds])
 
   const selectedGroupMembers = useMemo(() => {
     if (!selected?.mission_id) return []
@@ -827,16 +848,58 @@ export default function Transports() {
     await loadAll()
   }
 
+  function toggleBatchCourseSelection(courseId: string, checked: boolean) {
+    setBatchGroupageSelection(current => {
+      if (checked) {
+        if (current.includes(courseId)) return current
+        return [...current, courseId]
+      }
+      return current.filter(id => id !== courseId)
+    })
+  }
+
+  function toggleSelectAllFilteredIndependentCourses(checked: boolean) {
+    const visibleIds = filteredIndependentCandidates.map(ot => ot.id)
+    if (visibleIds.length === 0) return
+
+    setBatchGroupageSelection(current => {
+      if (checked) {
+        return Array.from(new Set([...current, ...visibleIds]))
+      }
+      const visibleSet = new Set(visibleIds)
+      return current.filter(id => !visibleSet.has(id))
+    })
+  }
+
+  async function assembleSelectedIndependentCourses() {
+    if (!canChangeOtStatus) return
+
+    const ids = Array.from(new Set(selectedIndependentIds))
+    if (ids.length < 2) {
+      setStatusGuardNotice('Selectionnez au moins 2 courses independantes pour assembler un groupage.')
+      return
+    }
+
+    try {
+      await assembleIndependentCourses(ids)
+    } catch (error) {
+      setStatusGuardNotice(`Assemblage multi-courses impossible : ${error instanceof Error ? error.message : 'erreur inconnue'}`)
+      return
+    }
+
+    setStatusGuardNotice(`Groupage cree avec ${ids.length} courses independantes.`)
+    setBatchGroupageSelection([])
+    await loadAll()
+  }
+
   async function toggleSelectedGroupageFreeze(nextFrozen: boolean) {
     if (!selected?.mission_id) return
     if (!canChangeOtStatus) return
 
-    const { error: freezeError } = await supabase
-      .from('ordres_transport')
-      .update({ groupage_fige: nextFrozen })
-      .eq('mission_id', selected.mission_id)
-    if (freezeError) {
-      setStatusGuardNotice(`Fige/degele impossible : ${freezeError.message}`)
+    try {
+      await setMissionFreezeState(selected.mission_id, nextFrozen)
+    } catch (error) {
+      setStatusGuardNotice(`Fige/degele impossible : ${error instanceof Error ? error.message : 'erreur inconnue'}`)
       return
     }
 
@@ -934,6 +997,14 @@ export default function Transports() {
           >
             {canCreateOt ? '+ Nouvel OT' : 'Compte client requis'}
           </button>
+          <button
+            type="button"
+            onClick={() => { void assembleSelectedIndependentCourses() }}
+            disabled={!canChangeOtStatus || selectedIndependentIds.length < 2}
+            className="rounded-lg border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-foreground transition hover:bg-surface-soft disabled:opacity-50"
+          >
+            Assembler la selection ({selectedIndependentIds.length})
+          </button>
           </div>
         </div>
 
@@ -973,6 +1044,16 @@ export default function Transports() {
               <table className="min-w-[920px] w-full text-sm">
                 <thead className="border-b border-line bg-surface-soft">
                   <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-discreet">
+                      <input
+                        type="checkbox"
+                        checked={filteredIndependentCandidates.length > 0 && filteredIndependentCandidates.every(ot => selectedIndependentIds.includes(ot.id))}
+                        onChange={event => toggleSelectAllFilteredIndependentCourses(event.target.checked)}
+                        disabled={!canChangeOtStatus || filteredIndependentCandidates.length === 0}
+                        aria-label="Selectionner toutes les courses independantes visibles"
+                        className="h-4 w-4 rounded border-line"
+                      />
+                    </th>
                     {['Référence OT', 'Réf. transport', 'Donneur ordre', 'Type', 'Livraison prévue', 'Affrété', 'Groupage', 'Statut transport', ''].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-discreet">{h}</th>
                     ))}
@@ -991,6 +1072,16 @@ export default function Transports() {
                         selected?.id === ot.id ? 'bg-blue-50' : i % 2 !== 0 ? 'bg-surface-soft' : ''
                       }`}
                     >
+                      <td className="px-4 py-3" onClick={event => event.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIndependentIds.includes(ot.id)}
+                          onChange={event => toggleBatchCourseSelection(ot.id, event.target.checked)}
+                          disabled={!canChangeOtStatus || !independentGroupageCandidateIds.has(ot.id)}
+                          aria-label={`Selectionner ${ot.reference} pour un assemblage en lot`}
+                          className="h-4 w-4 rounded border-line"
+                        />
+                      </td>
                       <td className="px-4 py-3 font-mono text-xs font-medium text-foreground">
                         <span className="flex items-center gap-1.5">
                           <StatutOpsDot statut={ot.statut_operationnel} size="sm" />

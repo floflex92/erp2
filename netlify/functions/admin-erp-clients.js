@@ -4,7 +4,58 @@ const ROLE_VALUES = ['admin', 'dirigeant', 'exploitant', 'mecanicien', 'commerci
 const ROLE_SET = new Set(ROLE_VALUES)
 const ADMIN_ROLES = new Set(['admin', 'super_admin', 'dirigeant'])
 const ACCOUNT_STATUSES = new Set(['actif', 'suspendu', 'archive', 'desactive'])
-const ALL_MODULE_KEYS = ['dashboard', 'planning', 'fleet', 'workshop', 'hr', 'accounting', 'documents', 'settings']
+const ALL_MODULE_KEYS = [
+  'ops-center',
+  'dashboard',
+  'dashboard-conducteur',
+  'planning',
+  'planning-conducteur',
+  'transports',
+  'feuille-route',
+  'map-live',
+  'demandes-clients',
+  'tasks',
+  'frais-rapide',
+  'chauffeurs',
+  'vehicules',
+  'remorques',
+  'equipements',
+  'maintenance',
+  'tachygraphe',
+  'amendes',
+  'entrepots',
+  'facturation',
+  'comptabilite',
+  'reglements',
+  'tresorerie',
+  'analytique-transport',
+  'frais',
+  'paie',
+  'clients',
+  'prospection',
+  'espace-client',
+  'compte-client-db',
+  'espace-affreteur',
+  'rh',
+  'entretiens-salaries',
+  'tchat',
+  'mail',
+  'inter-erp',
+  'communication',
+  'coffre',
+  'settings',
+]
+const ALL_MODULE_KEYS_SET = new Set(ALL_MODULE_KEYS)
+const LEGACY_MODULE_TO_KEYS = {
+  dashboard: ['ops-center', 'dashboard', 'dashboard-conducteur', 'tasks', 'transports', 'demandes-clients', 'clients', 'prospection', 'espace-client', 'espace-affreteur', 'compte-client-db', 'tchat', 'mail', 'inter-erp', 'communication'],
+  planning: ['planning', 'planning-conducteur', 'map-live', 'feuille-route'],
+  fleet: ['vehicules', 'remorques', 'equipements', 'entrepots'],
+  workshop: ['maintenance'],
+  hr: ['chauffeurs', 'rh', 'entretiens-salaries', 'paie', 'frais', 'frais-rapide', 'tachygraphe', 'amendes'],
+  accounting: ['facturation', 'comptabilite', 'reglements', 'tresorerie', 'analytique-transport'],
+  documents: ['coffre'],
+  settings: ['settings'],
+}
 const ALL_PAGE_KEYS = [
   'dashboard', 'tasks', 'chauffeurs', 'rh', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports',
   'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning',
@@ -67,9 +118,32 @@ function sanitizeAllowedPages(value) {
 }
 
 function sanitizeModules(value) {
-  if (!Array.isArray(value)) return ALL_MODULE_KEYS
-  const filtered = value.filter(item => typeof item === 'string' && ALL_MODULE_KEYS.includes(item))
-  return filtered.length > 0 ? filtered : ALL_MODULE_KEYS
+  if (!Array.isArray(value)) return [...ALL_MODULE_KEYS]
+
+  const tokens = value
+    .filter(item => typeof item === 'string')
+    .map(item => item.trim())
+    .filter(Boolean)
+
+  const isLegacyShape = tokens.some(token => Object.prototype.hasOwnProperty.call(LEGACY_MODULE_TO_KEYS, token))
+  const expanded = new Set()
+
+  for (const token of tokens) {
+    if (isLegacyShape && Object.prototype.hasOwnProperty.call(LEGACY_MODULE_TO_KEYS, token)) {
+      for (const moduleKey of LEGACY_MODULE_TO_KEYS[token]) {
+        expanded.add(moduleKey)
+      }
+      continue
+    }
+
+    if (ALL_MODULE_KEYS_SET.has(token)) {
+      expanded.add(token)
+    }
+  }
+
+  if (expanded.size === 0) return ['settings']
+  expanded.add('settings')
+  return ALL_MODULE_KEYS.filter(key => expanded.has(key))
 }
 
 function sanitizeTenantKey(value) {

@@ -50,6 +50,13 @@ function createInMemoryRepository(initialCourses: MutableCourse[]): TransportMis
       if (!course) throw new Error('Course introuvable')
       Object.assign(course, payload)
     },
+    async setMissionFreezeState(missionId, nextFrozen) {
+      for (const course of courses) {
+        if (course.mission_id === missionId) {
+          course.groupage_fige = nextFrozen
+        }
+      }
+    },
     async clearMissionCourses(missionId, payload) {
       for (const course of courses) {
         if (course.mission_id === missionId) {
@@ -98,8 +105,8 @@ describe('transportMissions', () => {
 
   it('retire une course d une mission puis dissout la mission restante', async () => {
     const repository = createInMemoryRepository([
-      { id: 'c1', mission_id: 'mission-1', conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, type_transport: 'groupage', groupage_fige: true },
-      { id: 'c2', mission_id: 'mission-1', conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, type_transport: 'groupage', groupage_fige: true },
+      { id: 'c1', mission_id: 'mission-1', conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, type_transport: 'groupage', groupage_fige: false },
+      { id: 'c2', mission_id: 'mission-1', conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, type_transport: 'groupage', groupage_fige: false },
     ])
     repository.missions.push({ id: 'mission-1', type: 'groupage', conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, created_at: '2026-04-14T00:00:00.000Z', updated_at: '2026-04-14T00:00:00.000Z' })
     const service = createTransportMissionService(repository)
@@ -115,5 +122,45 @@ describe('transportMissions', () => {
     expect(repository.courses[1].mission_id).toBeNull()
     expect(repository.courses[1].groupage_fige).toBe(false)
     expect(repository.missions).toHaveLength(0)
+  })
+
+  it('refuse de delier une course quand le groupage est fige', async () => {
+    const repository = createInMemoryRepository([
+      { id: 'c1', mission_id: 'mission-1', conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, type_transport: 'groupage', groupage_fige: true },
+      { id: 'c2', mission_id: 'mission-1', conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, type_transport: 'groupage', groupage_fige: true },
+    ])
+    repository.missions.push({ id: 'mission-1', type: 'groupage', conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, created_at: '2026-04-14T00:00:00.000Z', updated_at: '2026-04-14T00:00:00.000Z' })
+    const service = createTransportMissionService(repository)
+
+    await expect(service.removeCourseFromMission('c1')).rejects.toThrow(/Deliaison de groupage impossible/i)
+    expect(repository.courses[0].mission_id).toBe('mission-1')
+  })
+
+  it('fige puis defige une mission complete', async () => {
+    const repository = createInMemoryRepository([
+      { id: 'c1', mission_id: 'mission-1', conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, type_transport: 'groupage', groupage_fige: false },
+      { id: 'c2', mission_id: 'mission-1', conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, type_transport: 'groupage', groupage_fige: false },
+    ])
+    repository.missions.push({ id: 'mission-1', type: 'groupage', conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, created_at: '2026-04-14T00:00:00.000Z', updated_at: '2026-04-14T00:00:00.000Z' })
+    const service = createTransportMissionService(repository)
+
+    await service.setMissionFreezeState('mission-1', true)
+    expect(repository.courses[0].groupage_fige).toBe(true)
+    expect(repository.courses[1].groupage_fige).toBe(true)
+
+    await service.setMissionFreezeState('mission-1', false)
+    expect(repository.courses[0].groupage_fige).toBe(false)
+    expect(repository.courses[1].groupage_fige).toBe(false)
+  })
+
+  it('refuse d assembler des courses independantes si une course est deja en mission', async () => {
+    const repository = createInMemoryRepository([
+      { id: 'c1', mission_id: null, conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, type_transport: 'complet', groupage_fige: false },
+      { id: 'c2', mission_id: 'mission-1', conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, type_transport: 'groupage', groupage_fige: false },
+    ])
+    repository.missions.push({ id: 'mission-1', type: 'groupage', conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, created_at: '2026-04-14T00:00:00.000Z', updated_at: '2026-04-14T00:00:00.000Z' })
+    const service = createTransportMissionService(repository)
+
+    await expect(service.assembleIndependentCourses(['c1', 'c2'])).rejects.toThrow(/deja en mission/i)
   })
 })

@@ -106,19 +106,24 @@ function isTenantModule(value: string): value is TenantModule {
 export function normalizeEnabledModules(value: unknown): TenantModule[] | null {
   if (!Array.isArray(value)) return null
 
-  const expanded = new Set<TenantModule>()
-  for (const item of value) {
-    if (typeof item !== 'string') continue
-    const token = item.trim()
-    if (!token) continue
+  const tokens = value
+    .filter((item): item is string => typeof item === 'string')
+    .map(item => item.trim())
+    .filter(Boolean)
 
-    if (isTenantModule(token)) {
-      expanded.add(token)
+  // Si au moins un token correspond au modele legacy, on traite toute la liste
+  // comme legacy pour conserver la semantique historique du panel ERP clients.
+  const isLegacyShape = tokens.some(token => token in LEGACY_TO_MODULES)
+
+  const expanded = new Set<TenantModule>()
+  for (const token of tokens) {
+    if (isLegacyShape && token in LEGACY_TO_MODULES) {
+      for (const mod of LEGACY_TO_MODULES[token as LegacyTenantModule]) expanded.add(mod)
       continue
     }
 
-    if (token in LEGACY_TO_MODULES) {
-      for (const mod of LEGACY_TO_MODULES[token as LegacyTenantModule]) expanded.add(mod)
+    if (isTenantModule(token)) {
+      expanded.add(token)
     }
   }
 
@@ -234,6 +239,7 @@ export type TenantUser = {
   nom: string | null
   prenom: string | null
   tenant_key: string | null
+  is_active?: boolean
   login_enabled: boolean
   force_password_reset: boolean
   created_at: string
@@ -395,11 +401,20 @@ export async function getTenantUsers(): Promise<{ data: { users: TenantUser[] } 
   if (!companyId) return { data: null, error: 'Tenant introuvable.' }
   const { data, error } = await supabase
     .from('profils' as any)
-    .select('id, user_id, role, matricule, nom, prenom, tenant_key, login_enabled, force_password_reset, created_at, updated_at')
+    .select('id, user_id, role, matricule, nom, prenom, tenant_key, is_active, force_password_reset, created_at, updated_at')
     .eq('company_id', companyId)
     .order('nom', { ascending: true })
   if (error) return { data: null, error: error.message }
-  return { data: { users: (data ?? []) as unknown as TenantUser[] }, error: null }
+  const rows = (data ?? []) as unknown as Array<Record<string, unknown>>
+  const users = rows.map(row => {
+    const active = row.is_active !== false
+    return {
+      ...(row as unknown as TenantUser),
+      is_active: active,
+      login_enabled: active,
+    }
+  })
+  return { data: { users }, error: null }
 }
 
 export async function createTenantUser(payload: {
@@ -451,12 +466,22 @@ export async function setUserLoginEnabled(
 ): Promise<{ data: { user: Pick<TenantUser, 'id' | 'login_enabled' | 'updated_at'> } | null; error: string | null }> {
   const { data, error } = await supabase
     .from('profils' as any)
-    .update({ login_enabled: enabled })
+    .update({ is_active: enabled })
     .eq('id', profilId)
-    .select('id, login_enabled, updated_at')
+    .select('id, is_active, updated_at')
     .single()
   if (error) return { data: null, error: error.message }
-  return { data: { user: data as unknown as Pick<TenantUser, 'id' | 'login_enabled' | 'updated_at'> }, error: null }
+  const row = data as unknown as Record<string, unknown>
+  return {
+    data: {
+      user: {
+        id: String(row.id),
+        login_enabled: row.is_active !== false,
+        updated_at: String(row.updated_at),
+      },
+    },
+    error: null,
+  }
 }
 
 export async function setUserRole(

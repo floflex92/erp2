@@ -19,7 +19,7 @@ import {
 import { validatePlanningDropAudit, type CEAlert } from '@/lib/ce561Validation'
 import { validateTrailerAssignment } from '@/lib/trailerValidation'
 import { createLogisticSite, updateLogisticSite, type LogisticSite } from '@/lib/transportCourses'
-import { addCourseToMission, createMissionFromCourses, removeCourseFromMission } from '@/lib/transportMissions'
+import { addCourseToMission, createMissionFromCourses, removeCourseFromMission, setMissionFreezeState } from '@/lib/transportMissions'
 import { listCourseTemplates, saveCourseTemplate, deleteCourseTemplate, type CourseTemplate } from '@/lib/courseTemplates'
 import { listPersonsForDirectory } from '@/lib/services/personsService'
 import { listAssets } from '@/lib/services/assetsService'
@@ -2170,13 +2170,10 @@ export default function Planning() {
       }
 
       if (freezeGroupage && nextGroupId) {
-        const freezeResult = await supabase
-          .from('ordres_transport')
-          .update({ groupage_fige: true })
-          .eq('mission_id', nextGroupId)
-
-        if (freezeResult.error) {
-          pushPlanningNotice(`Verrouillage impossible: ${freezeResult.error.message}`, 'error')
+        try {
+          await setMissionFreezeState(nextGroupId, true)
+        } catch (error) {
+          pushPlanningNotice(`Verrouillage impossible: ${error instanceof Error ? error.message : 'erreur inconnue'}`, 'error')
           return
         }
       }
@@ -2294,13 +2291,10 @@ export default function Planning() {
     if (!ot.mission_id) return
     if (!ensureWriteAllowed(nextFrozen ? 'Figeage de groupage' : 'Defigeage de groupage')) return
 
-    const result = await supabase
-      .from('ordres_transport')
-      .update({ groupage_fige: nextFrozen })
-      .eq('mission_id', ot.mission_id)
-
-    if (result.error) {
-      pushPlanningNotice(`Mise a jour du lot impossible: ${result.error.message}`, 'error')
+    try {
+      await setMissionFreezeState(ot.mission_id, nextFrozen)
+    } catch (error) {
+      pushPlanningNotice(`Mise a jour du lot impossible: ${error instanceof Error ? error.message : 'erreur inconnue'}`, 'error')
       return
     }
 

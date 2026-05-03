@@ -17,6 +17,7 @@ export interface TransportMissionRepository {
   updateMission(missionId: string, payload: TransportMissionUpdate): Promise<TransportMission>
   updateCoursesByIds(courseIds: string[], payload: TablesUpdate<'ordres_transport'>): Promise<void>
   updateCourseById(courseId: string, payload: TablesUpdate<'ordres_transport'>): Promise<void>
+  setMissionFreezeState(missionId: string, nextFrozen: boolean): Promise<void>
   clearMissionCourses(missionId: string, payload: TablesUpdate<'ordres_transport'>): Promise<void>
   deleteMission(missionId: string): Promise<void>
 }
@@ -31,6 +32,22 @@ function getCommonResource<T extends keyof MissionScopedCourse>(courses: Mission
     return typeof value === 'string' ? value : null
   }))
   return values.length === 1 ? values[0] : null
+}
+
+function getFrozenCourseIds(courses: MissionScopedCourse[]) {
+  return courses.filter(course => course.groupage_fige).map(course => course.id)
+}
+
+function ensureCoursesNotFrozen(courses: MissionScopedCourse[], actionLabel: string) {
+  const frozenCourseIds = getFrozenCourseIds(courses)
+  if (frozenCourseIds.length === 0) return
+  throw new Error(`${actionLabel} impossible: groupage fige (${frozenCourseIds.join(', ')}).`)
+}
+
+async function ensureMissionNotFrozen(repository: TransportMissionRepository, missionId: string, actionLabel: string) {
+  const missionCourses = await repository.listMissionCourses(missionId)
+  ensureCoursesNotFrozen(missionCourses, actionLabel)
+  return missionCourses
 }
 
 export function deriveMissionWriteModel(courses: MissionScopedCourse[]): TransportMissionInsert {
@@ -124,6 +141,16 @@ export function createSupabaseTransportMissionRepository(): TransportMissionRepo
 
       if (query.error) throw query.error
     },
+    async setMissionFreezeState(missionId, nextFrozen) {
+      const rpcClient = supabase as unknown as {
+        rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: { message?: string } | null }>
+      }
+      const rpc = await rpcClient.rpc('rpc_set_transport_mission_freeze', {
+        p_mission_id: missionId,
+        p_next_frozen: nextFrozen,
+      })
+      if (rpc.error) throw rpc.error
+    },
     async clearMissionCourses(missionId, payload) {
       const query = await supabase
         .from('ordres_transport')
@@ -155,6 +182,25 @@ async function syncMission(repository: TransportMissionRepository, missionId: st
 
 export function createTransportMissionService(repository: TransportMissionRepository = createSupabaseTransportMissionRepository()) {
   return {
+    async assembleIndependentCourses(courseIds: string[]) {
+      const ids = uniqueIds(courseIds)
+      if (ids.length === 0) {
+        throw new Error('Aucune course selectionnee pour assembler un groupage.')
+      }
+
+      const courses = await repository.fetchCoursesByIds(ids)
+      if (courses.length !== ids.length) {
+        throw new Error('Impossible de retrouver toutes les courses selectionnees.')
+      }
+
+      const alreadyAssignedIds = courses.filter(course => Boolean(course.mission_id)).map(course => course.id)
+      if (alreadyAssignedIds.length > 0) {
+        throw new Error(`Assemblage impossible: certaines courses sont deja en mission (${alreadyAssignedIds.join(', ')}).`)
+      }
+
+      return this.createMissionFromCourses(ids)
+    },
+
     async createMissionFromCourses(courseIds: string[]) {
       const ids = uniqueIds(courseIds)
       if (ids.length === 0) {
@@ -166,7 +212,13 @@ export function createTransportMissionService(repository: TransportMissionReposi
         throw new Error('Impossible de retrouver toutes les courses selectionnees.')
       }
 
+      ensureCoursesNotFrozen(courses, 'Assemblage des courses')
+
       const previousMissionIds = uniqueIds(courses.map(course => course.mission_id ?? ''))
+      for (const previousMissionId of previousMissionIds) {
+        await ensureMissionNotFrozen(repository, previousMissionId, 'Assemblage des courses')
+      }
+
       const mission = await repository.createMission(deriveMissionWriteModel(courses))
 
       await repository.updateCoursesByIds(ids, {
@@ -189,7 +241,15 @@ export function createTransportMissionService(repository: TransportMissionReposi
         throw new Error('Course introuvable pour ajout a la mission.')
       }
 
+      ensureCoursesNotFrozen([course], 'Liaison de groupage')
+
+      await ensureMissionNotFrozen(repository, missionId, 'Liaison de groupage')
+
       const previousMissionId = course.mission_id
+      if (previousMissionId) {
+        await ensureMissionNotFrozen(repository, previousMissionId, 'Liaison de groupage')
+      }
+
       await repository.updateCourseById(courseId, { mission_id: missionId, type_transport: 'groupage' })
       const mission = await syncMission(repository, missionId)
 
@@ -210,13 +270,27 @@ export function createTransportMissionService(repository: TransportMissionReposi
         return null
       }
 
+      ensureCoursesNotFrozen([course], 'Deliaison de groupage')
+
       const missionId = course.mission_id
       await repository.updateCourseById(courseId, { mission_id: null, groupage_fige: false })
       await syncMission(repository, missionId)
       return missionId
     },
 
+    async setMissionFreezeState(missionId: string, nextFrozen: boolean) {
+      const missionCourses = await repository.listMissionCourses(missionId)
+      if (missionCourses.length === 0) {
+        throw new Error('Mission introuvable pour mise a jour du verrouillage.')
+      }
+
+      await repository.setMissionFreezeState(missionId, nextFrozen)
+      await syncMission(repository, missionId)
+      return missionId
+    },
+
     async dissolveMission(missionId: string) {
+      await ensureMissionNotFrozen(repository, missionId, 'Dissolution de mission')
       await repository.clearMissionCourses(missionId, { mission_id: null, groupage_fige: false })
       await repository.deleteMission(missionId)
     },
@@ -226,6 +300,8 @@ export function createTransportMissionService(repository: TransportMissionReposi
 const transportMissionService = createTransportMissionService()
 
 export const createMissionFromCourses = (courseIds: string[]) => transportMissionService.createMissionFromCourses(courseIds)
+export const assembleIndependentCourses = (courseIds: string[]) => transportMissionService.assembleIndependentCourses(courseIds)
 export const addCourseToMission = (courseId: string, missionId: string) => transportMissionService.addCourseToMission(courseId, missionId)
 export const removeCourseFromMission = (courseId: string) => transportMissionService.removeCourseFromMission(courseId)
+export const setMissionFreezeState = (missionId: string, nextFrozen: boolean) => transportMissionService.setMissionFreezeState(missionId, nextFrozen)
 export const dissolveMission = (missionId: string) => transportMissionService.dissolveMission(missionId)
