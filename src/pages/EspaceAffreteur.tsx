@@ -460,9 +460,9 @@ export default function EspaceAffreteur() {
   return (
     <div className="space-y-5 p-5 md:p-6">
       <div className="nx-panel px-6 py-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">Partenaires affretes</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-discreet">Partenaires affretes</p>
         <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Espace affreteur</h2>
-        <p className="mt-1.5 max-w-3xl text-sm text-slate-600">Inscription entreprise, gestion des moyens affretes et suivi des contrats de sous-traitance.</p>
+        <p className="mt-1.5 max-w-3xl text-sm text-secondary">Inscription entreprise, gestion des moyens affretes et suivi des contrats de sous-traitance.</p>
       </div>
 
       {error && <div className="nx-status-error rounded-2xl border border-red-200 px-4 py-3 text-sm">{error}</div>}
@@ -502,7 +502,7 @@ export default function EspaceAffreteur() {
                 {[{ key: 'contrats', label: 'Contrats affretes' }, { key: 'management', label: 'Management' }].map(item => {
                   const active = tab === item.key
                   return (
-                    <button key={item.key} type="button" onClick={() => setTab(item.key as PortalTab)} className={`px-1 py-3 text-sm font-semibold ${active ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-slate-700'}`}>
+                    <button key={item.key} type="button" onClick={() => setTab(item.key as PortalTab)} className={`px-1 py-3 text-sm font-semibold ${active ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-foreground'}`}>
                       {item.label}
                     </button>
                   )
@@ -513,7 +513,7 @@ export default function EspaceAffreteur() {
             {tab === 'contrats' && (
               <div className="p-5 space-y-3">
                 {!canUsePortal && <div className="nx-status-warning rounded-xl border border-amber-200 px-3 py-2 text-sm">Le dossier doit etre valide avant activation des contrats.</div>}
-                {contracts.length === 0 && <p className="text-sm text-slate-500">Aucun contrat d affretement pour le moment.</p>}
+                {contracts.length === 0 && <p className="text-sm text-discreet">Aucun contrat d affretement pour le moment.</p>}
 
                 {contracts.slice(0, contractsPage * CONTRACTS_PAGE_SIZE).map(contract => {
                   const details = contractDetails[contract.otId]
@@ -526,23 +526,23 @@ export default function EspaceAffreteur() {
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <p className="text-sm font-semibold text-slate-950">{details?.reference ?? contract.otId}</p>
-                          <p className="text-xs text-slate-500">{details?.clientName ?? 'Client non renseigne'}</p>
+                          <p className="text-xs text-discreet">{details?.clientName ?? 'Client non renseigne'}</p>
                         </div>
                         <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${contractStatusClass(contract.status)}`}>{CONTRACT_STATUS_LABELS[contract.status]}</span>
                       </div>
 
-                      <div className="mt-2 grid gap-2 text-xs text-slate-500 md:grid-cols-2">
+                      <div className="mt-2 grid gap-2 text-xs text-discreet md:grid-cols-2">
                         <p>Chargement: {formatDate(details?.pickupAt ?? null)}</p>
                         <p>Livraison: {formatDate(details?.deliveryAt ?? null)}</p>
                         <p>Marchandise: {details?.goods ?? '-'}</p>
                         <p>Distance: {details?.distanceKm ? `${details.distanceKm} km` : '-'}</p>
                       </div>
 
-                      {details?.instructions && <p className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">Instructions: {details.instructions}</p>}
-                      {contract.exploitationNote && <p className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">Note exploitation: {contract.exploitationNote}</p>}
-                      {contract.affreteurNote && <p className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">Note affreteur: {contract.affreteurNote}</p>}
+                      {details?.instructions && <p className="mt-2 rounded-xl bg-surface-soft px-3 py-2 text-xs text-secondary">Instructions: {details.instructions}</p>}
+                      {contract.exploitationNote && <p className="mt-2 rounded-xl bg-surface-soft px-3 py-2 text-xs text-secondary">Note exploitation: {contract.exploitationNote}</p>}
+                      {contract.affreteurNote && <p className="mt-2 rounded-xl bg-surface-soft px-3 py-2 text-xs text-secondary">Note affreteur: {contract.affreteurNote}</p>}
                       <div className="mt-2 rounded-xl border px-3 py-3" style={{ borderColor: 'var(--border)', background: 'var(--surface-soft)' }}>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Checklist statut obligatoire</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-discreet">Checklist statut obligatoire</p>
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {AFFRETEMENT_REQUIRED_OPERATIONAL_FLOW.map(key => (
                             <span
@@ -579,11 +579,11 @@ export default function EspaceAffreteur() {
                             </select>
                           </Field>
                           <div className="md:col-span-2">
-                            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Equipements</p>
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-discreet">Equipements</p>
                             <div className="space-y-1 rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface-soft)' }}>
-                              {equipments.filter(item => item.active).length === 0 && <p className="text-xs text-slate-500">Aucun equipement actif.</p>}
+                              {equipments.filter(item => item.active).length === 0 && <p className="text-xs text-discreet">Aucun equipement actif.</p>}
                               {equipments.filter(item => item.active).map(item => (
-                                <label key={item.id} className="flex items-center gap-2 text-sm text-slate-700">
+                                <label key={item.id} className="flex items-center gap-2 text-sm text-foreground">
                                   <input type="checkbox" checked={draft.equipmentIds.includes(item.id)} onChange={() => toggleContractEquipment(contract.id, item.id)} />
                                   <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">AFF</span>
                                   {item.label} ({item.kind})
@@ -636,7 +636,7 @@ export default function EspaceAffreteur() {
                   <button
                     type="button"
                     onClick={() => setContractsPage(p => p + 1)}
-                    className="w-full py-2 text-sm text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+                    className="w-full py-2 text-sm text-secondary border border-line rounded-xl hover:bg-surface-soft transition-colors"
                   >
                     Afficher plus ({contracts.length - contractsPage * CONTRACTS_PAGE_SIZE} restants)
                   </button>
@@ -652,7 +652,7 @@ export default function EspaceAffreteur() {
                   {[{ key: 'comptes', label: 'Comptes employes' }, { key: 'conducteurs', label: 'Conducteurs' }, { key: 'vehicules', label: 'Poids lourds' }, { key: 'equipements', label: 'Equipements' }].map(item => {
                     const active = managementTab === item.key
                     return (
-                      <button key={item.key} type="button" onClick={() => setManagementTab(item.key as ManagementTab)} className={`rounded-xl px-3 py-1.5 text-sm font-semibold ${active ? 'bg-[color:var(--primary)] text-white' : 'bg-slate-100 text-slate-600'}`}>
+                      <button key={item.key} type="button" onClick={() => setManagementTab(item.key as ManagementTab)} className={`rounded-xl px-3 py-1.5 text-sm font-semibold ${active ? 'bg-[color:var(--primary)] text-white' : 'bg-surface-2 text-secondary'}`}>
                         {item.label}
                       </button>
                     )
@@ -671,10 +671,10 @@ export default function EspaceAffreteur() {
                         </select>
                       </Field>
                       <div className="md:col-span-2">
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Droits du compte</p>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-discreet">Droits du compte</p>
                         <div className="space-y-1 rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface-soft)' }}>
                           {AFFRETEUR_EMPLOYEE_PERMISSION_OPTIONS.map(option => (
-                            <label key={option.key} className="flex items-center gap-2 text-sm text-slate-700">
+                            <label key={option.key} className="flex items-center gap-2 text-sm text-foreground">
                               <input type="checkbox" checked={employeeForm.permissions.includes(option.key)} onChange={() => toggleEmployeePermission(option.key)} />
                               {option.label}
                             </label>
@@ -685,7 +685,7 @@ export default function EspaceAffreteur() {
                     </form>
 
                     <div className="space-y-2">
-                      {employees.length === 0 && <p className="text-sm text-slate-500">Aucun compte employe.</p>}
+                      {employees.length === 0 && <p className="text-sm text-discreet">Aucun compte employe.</p>}
                       {employees.map(employee => (
                         <div key={employee.id} className="rounded-xl border px-3 py-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -694,11 +694,11 @@ export default function EspaceAffreteur() {
                                 <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">AFF</span>
                                 {employee.fullName}
                               </p>
-                              <p className="text-xs text-slate-500">{employee.email} - {employee.role === 'conducteur_affreteur' ? 'Conducteur affreteur' : 'Gestionnaire'}</p>
+                              <p className="text-xs text-discreet">{employee.email} - {employee.role === 'conducteur_affreteur' ? 'Conducteur affreteur' : 'Gestionnaire'}</p>
                             </div>
                             <div className="flex items-center gap-2">
                               <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${employee.active ? 'nx-status-success' : 'nx-status-error'}`}>{employee.active ? 'Actif' : 'Desactive'}</span>
-                              <button type="button" onClick={() => setAffreteurEmployeeActive(employee.id, !employee.active)} className="text-xs font-semibold text-slate-600 hover:text-slate-900">{employee.active ? 'Desactiver' : 'Activer'}</button>
+                              <button type="button" onClick={() => setAffreteurEmployeeActive(employee.id, !employee.active)} className="text-xs font-semibold text-secondary hover:text-heading">{employee.active ? 'Desactiver' : 'Activer'}</button>
                             </div>
                           </div>
                         </div>
@@ -718,17 +718,17 @@ export default function EspaceAffreteur() {
                     </form>
 
                     <div className="space-y-2">
-                      {drivers.length === 0 && <p className="text-sm text-slate-500">Aucun conducteur affreteur.</p>}
+                      {drivers.length === 0 && <p className="text-sm text-discreet">Aucun conducteur affreteur.</p>}
                       {drivers.map(driver => (
                         <div key={driver.id} className="rounded-xl border px-3 py-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div>
                               <p className="text-sm font-semibold text-slate-950">{driver.fullName}</p>
-                              <p className="text-xs text-slate-500">{driver.email}{driver.phone ? ` - ${driver.phone}` : ''}</p>
+                              <p className="text-xs text-discreet">{driver.email}{driver.phone ? ` - ${driver.phone}` : ''}</p>
                             </div>
                             <div className="flex items-center gap-2">
                               <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${driver.active ? 'nx-status-success' : 'nx-status-error'}`}>{driver.active ? 'Actif' : 'Desactive'}</span>
-                              <button type="button" onClick={() => setAffreteurDriverActive(driver.id, !driver.active)} className="text-xs font-semibold text-slate-600 hover:text-slate-900">{driver.active ? 'Desactiver' : 'Activer'}</button>
+                              <button type="button" onClick={() => setAffreteurDriverActive(driver.id, !driver.active)} className="text-xs font-semibold text-secondary hover:text-heading">{driver.active ? 'Desactiver' : 'Activer'}</button>
                             </div>
                           </div>
                         </div>
@@ -748,17 +748,17 @@ export default function EspaceAffreteur() {
                     </form>
 
                     <div className="space-y-2">
-                      {vehicles.length === 0 && <p className="text-sm text-slate-500">Aucun poids lourd affreteur.</p>}
+                      {vehicles.length === 0 && <p className="text-sm text-discreet">Aucun poids lourd affreteur.</p>}
                       {vehicles.map(vehicle => (
                         <div key={vehicle.id} className="rounded-xl border px-3 py-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div>
                               <p className="text-sm font-semibold text-slate-950">{vehicle.plate}</p>
-                              <p className="text-xs text-slate-500">{[vehicle.brand, vehicle.model].filter(Boolean).join(' - ') || 'Vehicule'}</p>
+                              <p className="text-xs text-discreet">{[vehicle.brand, vehicle.model].filter(Boolean).join(' - ') || 'Vehicule'}</p>
                             </div>
                             <div className="flex items-center gap-2">
                               <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${vehicle.active ? 'nx-status-success' : 'nx-status-error'}`}>{vehicle.active ? 'Actif' : 'Desactive'}</span>
-                              <button type="button" onClick={() => setAffreteurVehicleActive(vehicle.id, !vehicle.active)} className="text-xs font-semibold text-slate-600 hover:text-slate-900">{vehicle.active ? 'Desactiver' : 'Activer'}</button>
+                              <button type="button" onClick={() => setAffreteurVehicleActive(vehicle.id, !vehicle.active)} className="text-xs font-semibold text-secondary hover:text-heading">{vehicle.active ? 'Desactiver' : 'Activer'}</button>
                             </div>
                           </div>
                         </div>
@@ -777,7 +777,7 @@ export default function EspaceAffreteur() {
                     </form>
 
                     <div className="space-y-2">
-                      {equipments.length === 0 && <p className="text-sm text-slate-500">Aucun equipement affreteur.</p>}
+                      {equipments.length === 0 && <p className="text-sm text-discreet">Aucun equipement affreteur.</p>}
                       {equipments.map(item => (
                         <div key={item.id} className="rounded-xl border px-3 py-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -786,11 +786,11 @@ export default function EspaceAffreteur() {
                                 <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">AFF</span>
                                 {item.label}
                               </p>
-                              <p className="text-xs text-slate-500">{item.kind}{item.serialNumber ? ` - ${item.serialNumber}` : ''}</p>
+                              <p className="text-xs text-discreet">{item.kind}{item.serialNumber ? ` - ${item.serialNumber}` : ''}</p>
                             </div>
                             <div className="flex items-center gap-2">
                               <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${item.active ? 'nx-status-success' : 'nx-status-error'}`}>{item.active ? 'Actif' : 'Desactive'}</span>
-                              <button type="button" onClick={() => setAffreteurEquipmentActive(item.id, !item.active)} className="text-xs font-semibold text-slate-600 hover:text-slate-900">{item.active ? 'Desactiver' : 'Activer'}</button>
+                              <button type="button" onClick={() => setAffreteurEquipmentActive(item.id, !item.active)} className="text-xs font-semibold text-secondary hover:text-heading">{item.active ? 'Desactiver' : 'Activer'}</button>
                             </div>
                           </div>
                         </div>
@@ -810,7 +810,7 @@ export default function EspaceAffreteur() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{label}</span>
+      <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-discreet">{label}</span>
       {children}
     </label>
   )
@@ -819,9 +819,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function MetricCard({ label, value, detail, badgeClass }: { label: string; value: string; detail: string; badgeClass?: string }) {
   return (
     <div className="nx-panel px-4 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-discreet">{label}</p>
       <p className={`mt-2 text-base font-semibold ${badgeClass ? `inline-flex rounded-full px-2 py-1 text-[11px] ${badgeClass}` : 'text-slate-950'}`}>{value}</p>
-      <p className="mt-1 text-xs text-slate-500">{detail}</p>
+      <p className="mt-1 text-xs text-discreet">{detail}</p>
     </div>
   )
 }

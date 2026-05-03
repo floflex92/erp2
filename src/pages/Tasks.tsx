@@ -249,7 +249,7 @@ export default function TasksPage() {
       </form>
 
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="text-sm text-slate-600">
+        <div className="text-sm text-secondary">
           {completedCount}/{tasks.length} tâches complétées
         </div>
 
@@ -304,7 +304,7 @@ export default function TasksPage() {
                       className="h-4 w-4"
                       aria-label={`Marquer ${task.title} comme terminé`}
                     />
-                    <span className={task.completed ? 'line-through text-slate-400' : ''}>{task.title}</span>
+                    <span className={task.completed ? 'line-through text-muted' : ''}>{task.title}</span>
                   </label>
                   <button
                     type="button"
@@ -317,8 +317,8 @@ export default function TasksPage() {
 
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className={`rounded-full px-2 py-1 font-semibold ${priorityMeta.className}`}>{priorityMeta.label}</span>
-                  <span data-testid="task-due-date" className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">Echéance: {task.due_date ?? '—'}</span>
-                  <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">Créé: {new Date(task.created_at).toLocaleDateString()}</span>
+                  <span data-testid="task-due-date" className="rounded-full bg-surface-2 px-2 py-1 text-secondary">Echéance: {task.due_date ?? '—'}</span>
+                  <span className="rounded-full bg-surface-2 px-2 py-1 text-secondary">Créé: {new Date(task.created_at).toLocaleDateString()}</span>
                 </div>
               </li>
             )

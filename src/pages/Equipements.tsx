@@ -22,7 +22,7 @@ const LOCAL_KEY = 'nexora_flotte_equipements_v1'
 
 const STATUS_OPTIONS = ['conforme', 'a_controler', 'hs'] as const
 
-const INPUT_CLS = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-slate-400'
+const INPUT_CLS = 'w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-slate-400'
 
 function readLocalEquipements(): FlotteEquipement[] {
   try {
@@ -284,7 +284,7 @@ export default function Equipements() {
         <Field label="Notes"><input className={INPUT_CLS} value={form.notes} onChange={event => setForm(current => ({ ...current, notes: event.target.value }))} /></Field>
 
         <div className="md:col-span-3 flex gap-2 justify-end">
-          {editingId && <button type="button" onClick={resetForm} className="rounded-xl border border-slate-200 px-4 py-2 text-sm">Annuler edition</button>}
+          {editingId && <button type="button" onClick={resetForm} className="rounded-xl border border-line px-4 py-2 text-sm">Annuler edition</button>}
           <button type="submit" disabled={saving || (!editingId && !canManageFleetAssets)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
             {saving ? 'Enregistrement...' : editingId ? 'Mettre a jour' : 'Ajouter'}
           </button>
@@ -315,8 +315,8 @@ export default function Equipements() {
                   <td className="px-5 py-4 nx-subtle">{item.notes ?? '-'}</td>
                   <td className="px-5 py-4">
                     <div className="flex justify-end gap-3">
-                      <button type="button" onClick={() => editEquipement(item)} className="text-xs text-slate-500 hover:text-slate-800">Modifier</button>
-                      {canManageFleetAssets && <button type="button" onClick={() => void removeEquipement(item.id)} className="text-xs text-slate-500 hover:text-red-600">Supprimer</button>}
+                      <button type="button" onClick={() => editEquipement(item)} className="text-xs text-discreet hover:text-foreground">Modifier</button>
+                      {canManageFleetAssets && <button type="button" onClick={() => void removeEquipement(item.id)} className="text-xs text-discreet hover:text-red-600">Supprimer</button>}
                     </div>
                   </td>
                 </tr>
@@ -335,7 +335,7 @@ export default function Equipements() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-slate-700">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-foreground">{label}</span>
       {children}
     </label>
   )

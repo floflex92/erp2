@@ -838,16 +838,16 @@ export default function Utilisateurs() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-800">Comptes de demonstration et acces</h2>
-        <p className="mt-1 text-sm text-slate-500">Gestion complete des comptes, roles, droits et demandes publiques.</p>
+        <h2 className="text-2xl font-bold text-foreground">Comptes de demonstration et acces</h2>
+        <p className="mt-1 text-sm text-discreet">Gestion complete des comptes, roles, droits et demandes publiques.</p>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-        <p className="font-medium text-slate-800">Perimetre des ecrans utilisateurs</p>
+      <div className="rounded-xl border border-line bg-surface-soft p-4 text-sm text-foreground">
+        <p className="font-medium text-foreground">Perimetre des ecrans utilisateurs</p>
         <p className="mt-1">Cette page pilote les comptes globaux, les actions sensibles et l audit des changements de role.</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Link to="/tenant-admin" className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-100">Reglages tenant</Link>
-          <Link to="/compte-client-db" className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-100">Compte client DB</Link>
+          <Link to="/tenant-admin" className="rounded border border-line-strong bg-surface px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-2">Reglages tenant</Link>
+          <Link to="/compte-client-db" className="rounded border border-line-strong bg-surface px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-2">Compte client DB</Link>
         </div>
       </div>
 
@@ -858,9 +858,9 @@ export default function Utilisateurs() {
       )}
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-800">Creer un compte</h3>
-          <p className="mt-1 text-sm text-slate-500">Tout nouveau compte est en role dirigeant par defaut. L email externe est renseigne dans les parametres utilisateur.</p>
+        <div className="rounded-xl border border-line bg-surface p-6 shadow-sm">
+          <h3 className="text-lg font-semibold text-foreground">Creer un compte</h3>
+          <p className="mt-1 text-sm text-discreet">Tout nouveau compte est en role dirigeant par defaut. L email externe est renseigne dans les parametres utilisateur.</p>
           <form onSubmit={createUser} className="mt-4 grid grid-cols-2 gap-3">
             {isPlatformAdmin && (
               <Field label="Tenant cible">
@@ -921,7 +921,7 @@ export default function Utilisateurs() {
                 ))}
               </select>
               {createTemplateKey && (
-                <p className="mt-1 text-xs text-slate-500">{permissionTemplates.find(item => item.key === createTemplateKey)?.description ?? ''}</p>
+                <p className="mt-1 text-xs text-discreet">{permissionTemplates.find(item => item.key === createTemplateKey)?.description ?? ''}</p>
               )}
             </Field>
             <div className="col-span-2 flex justify-end">
@@ -932,8 +932,8 @@ export default function Utilisateurs() {
           </form>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-800">Filtres</h3>
+        <div className="rounded-xl border border-line bg-surface p-6 shadow-sm">
+          <h3 className="text-lg font-semibold text-foreground">Filtres</h3>
           <div className="mt-4 space-y-3">
             <Field label="Recherche">
               <input className={inp} placeholder="Nom, email externe" value={search} onChange={e => setSearch(e.target.value)} />
@@ -982,10 +982,10 @@ export default function Utilisateurs() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-line bg-surface p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="text-sm font-medium text-slate-700">Actions en lot</div>
-          <select className="rounded border border-slate-300 px-3 py-1.5 text-sm" value={bulkAction} onChange={e => setBulkAction(e.target.value as 'enable' | 'disable' | 'suspend' | 'archive')}>
+          <div className="text-sm font-medium text-foreground">Actions en lot</div>
+          <select className="rounded border border-line-strong px-3 py-1.5 text-sm" value={bulkAction} onChange={e => setBulkAction(e.target.value as 'enable' | 'disable' | 'suspend' | 'archive')}>
             <option value="enable">Activer</option>
             <option value="suspend">Suspendre</option>
             <option value="disable">Desactiver</option>
@@ -1002,47 +1002,47 @@ export default function Utilisateurs() {
           <button
             type="button"
             onClick={queueCsvExport}
-            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="rounded border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-soft"
           >
             Export CSV (filtres actifs)
           </button>
         </div>
-        <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-          <p className="font-semibold text-slate-800">Historique exports CSV</p>
+        <div className="mt-3 rounded border border-line bg-surface-soft p-3 text-xs text-foreground">
+          <p className="font-semibold text-foreground">Historique exports CSV</p>
           <div className="mt-2 space-y-1">
             {exportJobs.slice(0, 5).map(job => (
-              <div key={job.id} className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-200 bg-white px-2 py-1.5">
+              <div key={job.id} className="flex flex-wrap items-center justify-between gap-2 rounded border border-line bg-surface px-2 py-1.5">
                 <span>{new Date(job.createdAt).toLocaleString('fr-FR')}</span>
                 <span className="font-medium">{job.status}</span>
                 <span>{job.rowCount} ligne(s)</span>
-                <span className="text-slate-500">{job.filters.sortBy} / {job.filters.sortOrder}</span>
+                <span className="text-discreet">{job.filters.sortBy} / {job.filters.sortOrder}</span>
               </div>
             ))}
-            {exportJobs.length === 0 && <p className="text-slate-500">Aucun export lance.</p>}
+            {exportJobs.length === 0 && <p className="text-discreet">Aucun export lance.</p>}
           </div>
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-line bg-surface p-4 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-slate-800">Recette guidee Utilisateurs</p>
-            <p className="text-xs text-slate-500">Valider chaque point puis cocher pour boucler la recette fonctionnelle.</p>
+            <p className="text-sm font-semibold text-foreground">Recette guidee Utilisateurs</p>
+            <p className="text-xs text-discreet">Valider chaque point puis cocher pour boucler la recette fonctionnelle.</p>
           </div>
           <button
             type="button"
             onClick={() => setRecipeChecklist(DEFAULT_RECIPE_CHECKLIST)}
-            className="rounded border border-slate-300 px-3 py-1.5 text-xs"
+            className="rounded border border-line-strong px-3 py-1.5 text-xs"
           >
             Reinitialiser la checklist
           </button>
         </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-          <label className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs"><input type="checkbox" checked={recipeChecklist.batchDone} onChange={e => setRecipeChecklist(current => ({ ...current, batchDone: e.target.checked }))} />Action en lot</label>
-          <label className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs"><input type="checkbox" checked={recipeChecklist.sortLastSignInDone} onChange={e => setRecipeChecklist(current => ({ ...current, sortLastSignInDone: e.target.checked }))} />Tri derniere connexion</label>
-          <label className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs"><input type="checkbox" checked={recipeChecklist.exportCsvDone} onChange={e => setRecipeChecklist(current => ({ ...current, exportCsvDone: e.target.checked }))} />Export CSV</label>
-          <label className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs"><input type="checkbox" checked={recipeChecklist.filtersPersistDone} onChange={e => setRecipeChecklist(current => ({ ...current, filtersPersistDone: e.target.checked }))} />Persist filtres</label>
-          <label className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs"><input type="checkbox" checked={recipeChecklist.auditViewDone} onChange={e => setRecipeChecklist(current => ({ ...current, auditViewDone: e.target.checked }))} />Journal audit</label>
+          <label className="flex items-center gap-2 rounded border border-line bg-surface-soft px-2 py-1.5 text-xs"><input type="checkbox" checked={recipeChecklist.batchDone} onChange={e => setRecipeChecklist(current => ({ ...current, batchDone: e.target.checked }))} />Action en lot</label>
+          <label className="flex items-center gap-2 rounded border border-line bg-surface-soft px-2 py-1.5 text-xs"><input type="checkbox" checked={recipeChecklist.sortLastSignInDone} onChange={e => setRecipeChecklist(current => ({ ...current, sortLastSignInDone: e.target.checked }))} />Tri derniere connexion</label>
+          <label className="flex items-center gap-2 rounded border border-line bg-surface-soft px-2 py-1.5 text-xs"><input type="checkbox" checked={recipeChecklist.exportCsvDone} onChange={e => setRecipeChecklist(current => ({ ...current, exportCsvDone: e.target.checked }))} />Export CSV</label>
+          <label className="flex items-center gap-2 rounded border border-line bg-surface-soft px-2 py-1.5 text-xs"><input type="checkbox" checked={recipeChecklist.filtersPersistDone} onChange={e => setRecipeChecklist(current => ({ ...current, filtersPersistDone: e.target.checked }))} />Persist filtres</label>
+          <label className="flex items-center gap-2 rounded border border-line bg-surface-soft px-2 py-1.5 text-xs"><input type="checkbox" checked={recipeChecklist.auditViewDone} onChange={e => setRecipeChecklist(current => ({ ...current, auditViewDone: e.target.checked }))} />Journal audit</label>
         </div>
       </div>
 
@@ -1051,7 +1051,7 @@ export default function Utilisateurs() {
           <p className="font-semibold">Alertes securite admin</p>
           <div className="mt-2 space-y-2">
             {securityAlerts.map(alert => (
-              <div key={alert.id} className="rounded border border-amber-300/60 bg-white px-3 py-2 text-xs">
+              <div key={alert.id} className="rounded border border-amber-300/60 bg-surface px-3 py-2 text-xs">
                 <p className="font-semibold uppercase tracking-wide">{alert.severity === 'high' ? 'Critique' : 'Attention'} - {alert.label}</p>
                 <p className="mt-1">{alert.detail}</p>
                 <p className="mt-1 text-amber-700">{alert.createdAt ? new Date(alert.createdAt).toLocaleString('fr-FR') : '-'}</p>
@@ -1061,18 +1061,18 @@ export default function Utilisateurs() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-xl border border-line bg-surface shadow-sm">
         {loading ? (
-          <div className="p-8 text-center text-sm text-slate-400">Chargement...</div>
+          <div className="p-8 text-center text-sm text-muted">Chargement...</div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50">
+            <thead className="border-b border-line bg-surface-soft">
               <tr>
-                <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-discreet">
                   <input type="checkbox" checked={filteredUsers.length > 0 && filteredUsers.every(user => selectedSet.has(user.id))} onChange={toggleSelectPage} />
                 </th>
                 {['Nom', 'Societe', 'Email externe', 'Telephone', 'Role', 'Statut', 'Type', 'Creation', 'Derniere connexion', 'Origine', 'Actions'].map(header => (
-                  <th key={header} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">{header}</th>
+                  <th key={header} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-discreet">{header}</th>
                 ))}
               </tr>
             </thead>
@@ -1080,10 +1080,10 @@ export default function Utilisateurs() {
               {filteredUsers.map(user => (
                 <tr key={user.id} className="border-t border-slate-100">
                   <td className="px-3 py-2 align-top"><input type="checkbox" checked={selectedSet.has(user.id)} onChange={() => toggleSelection(user.id)} /></td>
-                  <td className="px-3 py-2 font-medium text-slate-700">{[user.prenom, user.nom].filter(Boolean).join(' ') || 'Non renseigne'}</td>
-                  <td className="px-3 py-2 text-slate-500">{user.company_name ?? (typeof user.company_id === 'number' ? (companyById.get(user.company_id) ?? `Tenant #${user.company_id}`) : '-')}</td>
-                  <td className="px-3 py-2 text-slate-600">{user.external_email ?? user.email ?? 'N/A'}</td>
-                  <td className="px-3 py-2 text-slate-500">{user.phone ?? '-'}</td>
+                  <td className="px-3 py-2 font-medium text-foreground">{[user.prenom, user.nom].filter(Boolean).join(' ') || 'Non renseigne'}</td>
+                  <td className="px-3 py-2 text-discreet">{user.company_name ?? (typeof user.company_id === 'number' ? (companyById.get(user.company_id) ?? `Tenant #${user.company_id}`) : '-')}</td>
+                  <td className="px-3 py-2 text-secondary">{user.external_email ?? user.email ?? 'N/A'}</td>
+                  <td className="px-3 py-2 text-discreet">{user.phone ?? '-'}</td>
                   <td className="px-3 py-2">
                     {editId === user.id ? (
                       <select className={inp} value={editRole} onChange={e => setEditRole(e.target.value as Role)}>
@@ -1139,25 +1139,25 @@ export default function Utilisateurs() {
                     ) : (
                       <div className="space-y-1">
                         <div>{user.account_type ?? 'standard'}</div>
-                        <div className="text-xs text-slate-500">{user.max_concurrent_screens ?? 1} ecran(s) max</div>
+                        <div className="text-xs text-discreet">{user.max_concurrent_screens ?? 1} ecran(s) max</div>
                       </div>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-xs text-slate-500">{new Date(user.created_at).toLocaleDateString('fr-FR')}</td>
-                  <td className="px-3 py-2 text-xs text-slate-500">{user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString('fr-FR') : 'Jamais'}</td>
-                  <td className="px-3 py-2 text-xs text-slate-500">{user.account_origin ?? 'manuel_admin'}</td>
+                  <td className="px-3 py-2 text-xs text-discreet">{new Date(user.created_at).toLocaleDateString('fr-FR')}</td>
+                  <td className="px-3 py-2 text-xs text-discreet">{user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString('fr-FR') : 'Jamais'}</td>
+                  <td className="px-3 py-2 text-xs text-discreet">{user.account_origin ?? 'manuel_admin'}</td>
                   <td className="px-3 py-2">
                     {editId === user.id ? (
                       <div className="space-y-2">
                         {permissionsCatalog.length > 0 ? (
-                          <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-2">
-                            <p className="text-xs font-medium text-slate-600">Permissions structurees</p>
+                          <div className="space-y-2 rounded border border-line bg-surface-soft p-2">
+                            <p className="text-xs font-medium text-secondary">Permissions structurees</p>
                             {[...roleLabelByName.entries()].map(([resource, entries]) => (
                               <div key={resource} className="space-y-1">
-                                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{resource}</p>
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-discreet">{resource}</p>
                                 <div className="flex flex-wrap gap-2">
                                   {entries.map(entry => (
-                                    <label key={entry.name} className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700">
+                                    <label key={entry.name} className="inline-flex items-center gap-1 rounded border border-line-strong bg-surface px-2 py-1 text-xs text-foreground">
                                       <input
                                         type="checkbox"
                                         checked={editPermissions.includes(entry.name)}
@@ -1176,19 +1176,19 @@ export default function Utilisateurs() {
                         <input className={inp} type="email" value={editExternalEmail} onChange={e => setEditExternalEmail(e.target.value)} placeholder="email externe" />
                         <textarea className={inp} rows={2} value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="note interne" />
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => setEditId(null)} className="rounded border border-slate-300 px-2 py-1 text-xs">Annuler</button>
+                          <button type="button" onClick={() => setEditId(null)} className="rounded border border-line-strong px-2 py-1 text-xs">Annuler</button>
                           <button type="button" disabled={saving} onClick={() => void saveEdit()} className="rounded bg-slate-800 px-2 py-1 text-xs text-white">Sauver</button>
                         </div>
                       </div>
                     ) : (
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => startEdit(user)} className="rounded border border-slate-300 px-2 py-1 text-xs">Editer</button>
+                        <button type="button" onClick={() => startEdit(user)} className="rounded border border-line-strong px-2 py-1 text-xs">Editer</button>
                         <button type="button" onClick={() => void applyAction(user.id, 'enable')} className="rounded border border-emerald-300 px-2 py-1 text-xs text-emerald-700">Activer</button>
                         <button type="button" onClick={() => void applyAction(user.id, 'suspend')} className="rounded border border-amber-300 px-2 py-1 text-xs text-amber-700">Suspendre</button>
                         <button type="button" onClick={() => void applyAction(user.id, 'disable')} className="rounded border border-orange-300 px-2 py-1 text-xs text-orange-700">Desactiver</button>
                         <button type="button" onClick={() => void requestLink(user.id, 'reset_password')} className="rounded border border-blue-300 px-2 py-1 text-xs text-blue-700">Reinit. MDP</button>
                         <button type="button" onClick={() => void requestLink(user.id, 'magic_link')} className="rounded border border-violet-300 px-2 py-1 text-xs text-violet-700">Lien magique</button>
-                        <button type="button" onClick={() => setConfirmAction({ id: user.id, action: 'archive', name: [user.prenom, user.nom].filter(Boolean).join(' ') || user.email || user.id })} className="rounded border border-slate-300 px-2 py-1 text-xs">Archiver</button>
+                        <button type="button" onClick={() => setConfirmAction({ id: user.id, action: 'archive', name: [user.prenom, user.nom].filter(Boolean).join(' ') || user.email || user.id })} className="rounded border border-line-strong px-2 py-1 text-xs">Archiver</button>
                         <button type="button" onClick={() => setConfirmAction({ id: user.id, action: 'delete', name: [user.prenom, user.nom].filter(Boolean).join(' ') || user.email || user.id })} className="rounded border border-red-300 px-2 py-1 text-xs text-red-700">Supprimer</button>
                       </div>
                     )}
@@ -1197,7 +1197,7 @@ export default function Utilisateurs() {
               ))}
               {filteredUsers.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="px-3 py-8 text-center text-sm text-slate-400">Aucun compte ne correspond aux filtres.</td>
+                  <td colSpan={12} className="px-3 py-8 text-center text-sm text-muted">Aucun compte ne correspond aux filtres.</td>
                 </tr>
               )}
             </tbody>
@@ -1205,23 +1205,23 @@ export default function Utilisateurs() {
         )}
       </div>
 
-      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm">
+      <div className="flex items-center justify-between rounded-xl border border-line bg-surface px-4 py-3 text-sm text-foreground shadow-sm">
         <div>{pagination.total} compte(s) au total</div>
         <div className="flex items-center gap-2">
-          <button type="button" disabled={page <= 1} onClick={() => setPage(current => Math.max(1, current - 1))} className="rounded border border-slate-300 px-3 py-1.5 disabled:opacity-40">Precedent</button>
+          <button type="button" disabled={page <= 1} onClick={() => setPage(current => Math.max(1, current - 1))} className="rounded border border-line-strong px-3 py-1.5 disabled:opacity-40">Precedent</button>
           <span>Page {page} / {totalPages}</span>
-          <button type="button" disabled={page >= totalPages} onClick={() => setPage(current => Math.min(totalPages, current + 1))} className="rounded border border-slate-300 px-3 py-1.5 disabled:opacity-40">Suivant</button>
+          <button type="button" disabled={page >= totalPages} onClick={() => setPage(current => Math.min(totalPages, current + 1))} className="rounded border border-line-strong px-3 py-1.5 disabled:opacity-40">Suivant</button>
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-800">Demandes "Parler de votre projet"</h3>
+      <div className="rounded-xl border border-line bg-surface p-6 shadow-sm">
+        <h3 className="text-lg font-semibold text-foreground">Demandes "Parler de votre projet"</h3>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50">
+            <thead className="border-b border-line bg-surface-soft">
               <tr>
                 {['Nom', 'Societe', 'Email', 'Type besoin', 'Statut', 'Date', 'Actions'].map(header => (
-                  <th key={header} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">{header}</th>
+                  <th key={header} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-discreet">{header}</th>
                 ))}
               </tr>
             </thead>
@@ -1233,13 +1233,13 @@ export default function Utilisateurs() {
                   <td className="px-3 py-2">{request.email}</td>
                   <td className="px-3 py-2">{request.need_type}</td>
                   <td className="px-3 py-2">{request.request_status}</td>
-                  <td className="px-3 py-2 text-xs text-slate-500">{new Date(request.created_at).toLocaleString('fr-FR')}</td>
+                  <td className="px-3 py-2 text-xs text-discreet">{new Date(request.created_at).toLocaleString('fr-FR')}</td>
                   <td className="px-3 py-2">
                     <button
                       type="button"
                       disabled={Boolean(request.linked_profile_id)}
                       onClick={() => void createFromRequest(request)}
-                      className="rounded border border-slate-300 px-2 py-1 text-xs disabled:opacity-40"
+                      className="rounded border border-line-strong px-2 py-1 text-xs disabled:opacity-40"
                     >
                       {request.linked_profile_id ? 'Compte deja cree' : 'Creer un compte depuis cette demande'}
                     </button>
@@ -1248,7 +1248,7 @@ export default function Utilisateurs() {
               ))}
               {requests.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-3 py-8 text-center text-sm text-slate-400">Aucune demande enregistree.</td>
+                  <td colSpan={7} className="px-3 py-8 text-center text-sm text-muted">Aucune demande enregistree.</td>
                 </tr>
               )}
             </tbody>
@@ -1256,31 +1256,31 @@ export default function Utilisateurs() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-800">Historique des changements de role</h3>
+      <div className="rounded-xl border border-line bg-surface p-6 shadow-sm">
+        <h3 className="text-lg font-semibold text-foreground">Historique des changements de role</h3>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50">
+            <thead className="border-b border-line bg-surface-soft">
               <tr>
                 {['Date', 'Profil cible', 'Role precedent', 'Nouveau role', 'Source', 'Raison'].map(header => (
-                  <th key={header} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">{header}</th>
+                  <th key={header} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-discreet">{header}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {roleChanges.map(change => (
                 <tr key={change.id} className="border-t border-slate-100">
-                  <td className="px-3 py-2 text-xs text-slate-500">{change.changed_at ? new Date(change.changed_at).toLocaleString('fr-FR') : '-'}</td>
-                  <td className="px-3 py-2 text-xs text-slate-600">{change.target_profile_id ?? '-'}</td>
+                  <td className="px-3 py-2 text-xs text-discreet">{change.changed_at ? new Date(change.changed_at).toLocaleString('fr-FR') : '-'}</td>
+                  <td className="px-3 py-2 text-xs text-secondary">{change.target_profile_id ?? '-'}</td>
                   <td className="px-3 py-2">{change.previous_role ? (ROLE_LABELS[change.previous_role as Role] ?? change.previous_role) : '-'}</td>
                   <td className="px-3 py-2">{change.new_role ? (ROLE_LABELS[change.new_role as Role] ?? change.new_role) : '-'}</td>
-                  <td className="px-3 py-2 text-xs text-slate-500">{change.source ?? '-'}</td>
-                  <td className="px-3 py-2 text-xs text-slate-500">{change.change_reason ?? '-'}</td>
+                  <td className="px-3 py-2 text-xs text-discreet">{change.source ?? '-'}</td>
+                  <td className="px-3 py-2 text-xs text-discreet">{change.change_reason ?? '-'}</td>
                 </tr>
               ))}
               {roleChanges.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-400">Aucun changement de role enregistre.</td>
+                  <td colSpan={6} className="px-3 py-8 text-center text-sm text-muted">Aucun changement de role enregistre.</td>
                 </tr>
               )}
             </tbody>
@@ -1288,8 +1288,8 @@ export default function Utilisateurs() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-800">Journal d audit technique</h3>
+      <div className="rounded-xl border border-line bg-surface p-6 shadow-sm">
+        <h3 className="text-lg font-semibold text-foreground">Journal d audit technique</h3>
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
           <Field label="Recherche audit">
             <input
@@ -1315,58 +1315,58 @@ export default function Utilisateurs() {
               <option value={100}>100</option>
             </select>
           </Field>
-          <div className="flex items-end text-xs text-slate-500">
+          <div className="flex items-end text-xs text-discreet">
             {auditPagination.total} evenement(s) sur {auditPagination.days} jour(s)
           </div>
         </div>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50">
+            <thead className="border-b border-line bg-surface-soft">
               <tr>
                 {['Date', 'Admin', 'Type evenement', 'Cible', 'IP hash', 'Payload'].map(header => (
-                  <th key={header} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">{header}</th>
+                  <th key={header} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-discreet">{header}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {auditEvents.map(event => (
                 <tr key={event.id} className="border-t border-slate-100">
-                  <td className="px-3 py-2 text-xs text-slate-500">{event.created_at ? new Date(event.created_at).toLocaleString('fr-FR') : '-'}</td>
-                  <td className="px-3 py-2 text-xs text-slate-700">{event.admin_email ?? '-'}</td>
-                  <td className="px-3 py-2 text-xs text-slate-700">{event.event_type ?? '-'}</td>
-                  <td className="px-3 py-2 text-xs text-slate-600">{[event.target_type, event.target_id].filter(Boolean).join(':') || '-'}</td>
-                  <td className="px-3 py-2 text-[11px] text-slate-500">{event.ip_hash ? `${event.ip_hash.slice(0, 12)}...` : '-'}</td>
-                  <td className="px-3 py-2 text-[11px] text-slate-500">
+                  <td className="px-3 py-2 text-xs text-discreet">{event.created_at ? new Date(event.created_at).toLocaleString('fr-FR') : '-'}</td>
+                  <td className="px-3 py-2 text-xs text-foreground">{event.admin_email ?? '-'}</td>
+                  <td className="px-3 py-2 text-xs text-foreground">{event.event_type ?? '-'}</td>
+                  <td className="px-3 py-2 text-xs text-secondary">{[event.target_type, event.target_id].filter(Boolean).join(':') || '-'}</td>
+                  <td className="px-3 py-2 text-[11px] text-discreet">{event.ip_hash ? `${event.ip_hash.slice(0, 12)}...` : '-'}</td>
+                  <td className="px-3 py-2 text-[11px] text-discreet">
                     {diffAuditPayload(event.payload).length > 0 ? (
                       <div className="space-y-1">
                         {diffAuditPayload(event.payload).map(item => (
-                          <div key={`${event.id}-${item.key}`} className="rounded bg-slate-50 px-2 py-1">
-                            <span className="font-semibold text-slate-700">{item.key}</span>: {String(item.before)} → {String(item.after)}
+                          <div key={`${event.id}-${item.key}`} className="rounded bg-surface-soft px-2 py-1">
+                            <span className="font-semibold text-foreground">{item.key}</span>: {String(item.before)} → {String(item.after)}
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <pre className="max-w-[420px] overflow-auto whitespace-pre-wrap break-words rounded bg-slate-50 p-2">{event.payload ? JSON.stringify(event.payload) : '-'}</pre>
+                      <pre className="max-w-[420px] overflow-auto whitespace-pre-wrap break-words rounded bg-surface-soft p-2">{event.payload ? JSON.stringify(event.payload) : '-'}</pre>
                     )}
                   </td>
                 </tr>
               ))}
               {auditEvents.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-400">Aucun evenement d audit enregistre.</td>
+                  <td colSpan={6} className="px-3 py-8 text-center text-sm text-muted">Aucun evenement d audit enregistre.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-        <div className="mt-4 flex items-center justify-between text-sm text-slate-700">
+        <div className="mt-4 flex items-center justify-between text-sm text-foreground">
           <div>Page audit {auditPage} / {auditTotalPages}</div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               disabled={auditPage <= 1}
               onClick={() => setAuditPage(current => Math.max(1, current - 1))}
-              className="rounded border border-slate-300 px-3 py-1.5 disabled:opacity-40"
+              className="rounded border border-line-strong px-3 py-1.5 disabled:opacity-40"
             >
               Precedent
             </button>
@@ -1374,7 +1374,7 @@ export default function Utilisateurs() {
               type="button"
               disabled={auditPage >= auditTotalPages}
               onClick={() => setAuditPage(current => Math.min(auditTotalPages, current + 1))}
-              className="rounded border border-slate-300 px-3 py-1.5 disabled:opacity-40"
+              className="rounded border border-line-strong px-3 py-1.5 disabled:opacity-40"
             >
               Suivant
             </button>
@@ -1383,16 +1383,16 @@ export default function Utilisateurs() {
       </div>
       {confirmAction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
-            <p className="text-sm font-medium text-slate-800">
+          <div className="w-full max-w-sm rounded-xl border border-line bg-surface p-6 shadow-xl">
+            <p className="text-sm font-medium text-foreground">
               Confirmer <span className="font-bold">{confirmAction.action === 'delete' ? 'la suppression' : "l'archivage"}</span> de <span className="font-bold">{confirmAction.name}</span>&nbsp;?
             </p>
             {confirmAction.action === 'delete' && (
               <>
                 <p className="mt-1 text-xs text-red-600">Cette action est irreversible. Le compte auth sera supprime.</p>
-                <p className="mt-2 text-xs text-slate-600">Saisissez SUPPRIMER pour confirmer.</p>
+                <p className="mt-2 text-xs text-secondary">Saisissez SUPPRIMER pour confirmer.</p>
                 <input
-                  className="mt-2 w-full rounded border border-slate-300 px-3 py-1.5 text-sm"
+                  className="mt-2 w-full rounded border border-line-strong px-3 py-1.5 text-sm"
                   value={confirmDeleteText}
                   onChange={e => setConfirmDeleteText(e.target.value)}
                   placeholder="SUPPRIMER"
@@ -1400,7 +1400,7 @@ export default function Utilisateurs() {
               </>
             )}
             <div className="mt-4 flex justify-end gap-2">
-              <button type="button" onClick={() => setConfirmAction(null)} className="rounded border border-slate-300 px-3 py-1.5 text-sm">Annuler</button>
+              <button type="button" onClick={() => setConfirmAction(null)} className="rounded border border-line-strong px-3 py-1.5 text-sm">Annuler</button>
               <button
                 type="button"
                 onClick={() => void applyAction(confirmAction.id, confirmAction.action as 'archive' | 'delete', { confirmationText: confirmDeleteText })}
@@ -1416,21 +1416,21 @@ export default function Utilisateurs() {
 
       {linkModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
-            <h3 className="text-sm font-semibold text-slate-800">{linkModal.title}</h3>
-            <p className="mt-1 text-xs text-slate-500">Copiez ce lien et transmettez-le a l'utilisateur. Il expire rapidement.</p>
+          <div className="w-full max-w-lg rounded-xl border border-line bg-surface p-6 shadow-xl">
+            <h3 className="text-sm font-semibold text-foreground">{linkModal.title}</h3>
+            <p className="mt-1 text-xs text-discreet">Copiez ce lien et transmettez-le a l'utilisateur. Il expire rapidement.</p>
             <div className="mt-3 flex items-center gap-2">
-              <input readOnly value={linkModal.link} className="w-full rounded border border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-xs text-slate-700 outline-none" />
+              <input readOnly value={linkModal.link} className="w-full rounded border border-line bg-surface-soft px-3 py-1.5 font-mono text-xs text-foreground outline-none" />
               <button
                 type="button"
                 onClick={() => { void navigator.clipboard.writeText(linkModal.link); setNotice('Lien copie !') }}
-                className="shrink-0 rounded border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-50"
+                className="shrink-0 rounded border border-line-strong px-3 py-1.5 text-xs hover:bg-surface-soft"
               >
                 Copier
               </button>
             </div>
             <div className="mt-4 flex justify-end">
-              <button type="button" onClick={() => setLinkModal(null)} className="rounded border border-slate-300 px-3 py-1.5 text-sm">Fermer</button>
+              <button type="button" onClick={() => setLinkModal(null)} className="rounded border border-line-strong px-3 py-1.5 text-sm">Fermer</button>
             </div>
           </div>
         </div>
@@ -1444,15 +1444,15 @@ function StatusBadge({ status }: { status: string }) {
     actif: 'bg-emerald-100 text-emerald-700',
     suspendu: 'bg-amber-100 text-amber-700',
     desactive: 'bg-red-100 text-red-700',
-    archive: 'bg-slate-100 text-slate-600',
+    archive: 'bg-surface-2 text-secondary',
   }
-  const cls = variants[status] ?? 'bg-gray-100 text-gray-700'
+  const cls = variants[status] ?? 'bg-surface-2 text-foreground'
   return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{status}</span>
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="space-y-1 text-xs font-medium text-slate-600">
+    <label className="space-y-1 text-xs font-medium text-secondary">
       <span>{label}</span>
       {children}
     </label>

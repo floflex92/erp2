@@ -47,7 +47,7 @@ interface CoutForm {
 const inp = 'w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200'
 const btn = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors'
 const btnPrimary = `${btn} bg-slate-800 text-white hover:bg-slate-700`
-const btnGhost = `${btn} border border-slate-200 text-slate-700 hover:bg-slate-50`
+const btnGhost = `${btn} border border-line text-foreground hover:bg-surface-soft`
 
 const fmtEur = (n: number) =>
   n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 })
@@ -73,11 +73,11 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
     { key: 'flotte',     label: 'Flotte' },
   ]
   return (
-    <div className="flex gap-1 mb-6 border-b border-slate-200">
+    <div className="flex gap-1 mb-6 border-b border-line">
       {tabs.map(t => (
         <button key={t.key} onClick={() => onChange(t.key)}
           className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
-            active === t.key ? 'border-slate-800 text-slate-800' : 'border-transparent text-slate-500 hover:text-slate-700'
+            active === t.key ? 'border-slate-800 text-foreground' : 'border-transparent text-discreet hover:text-foreground'
           }`}
         >{t.label}</button>
       ))}
@@ -92,7 +92,7 @@ function Stat({ label, value, sub, color = 'slate' }: {
     blue:  'bg-blue-50 text-blue-700 border-blue-100',
     red:   'bg-red-50 text-red-700 border-red-100',
     green: 'bg-green-50 text-green-700 border-green-100',
-    slate: 'bg-slate-50 text-slate-800 border-slate-200',
+    slate: 'bg-surface-soft text-foreground border-line',
     amber: 'bg-amber-50 text-amber-700 border-amber-100',
   }[color]
   return (
@@ -162,22 +162,22 @@ function SyntheseTab({ data }: { data: MissionAnalytique[] }) {
 
       <div className="grid md:grid-cols-2 gap-4">
         {/* Meilleures missions */}
-        <div className="border border-slate-200 rounded-xl overflow-hidden">
+        <div className="border border-line rounded-xl overflow-hidden">
           <div className="bg-green-50 px-4 py-2.5 border-b border-green-100">
             <h3 className="text-sm font-semibold text-green-800">Top 5 missions (marge)</h3>
           </div>
           <div className="divide-y divide-slate-100">
             {topMissions.length === 0 ? (
-              <p className="text-center py-6 text-slate-400 text-sm">Saisir les coûts dans l'onglet Missions</p>
+              <p className="text-center py-6 text-muted text-sm">Saisir les coûts dans l'onglet Missions</p>
             ) : topMissions.map(m => (
               <div key={m.ot_id} className="px-4 py-3 flex justify-between items-center">
                 <div>
-                  <p className="text-sm font-medium text-slate-800">{m.reference}</p>
-                  <p className="text-xs text-slate-400">{m.client_nom ?? '—'}</p>
+                  <p className="text-sm font-medium text-foreground">{m.reference}</p>
+                  <p className="text-xs text-muted">{m.client_nom ?? '—'}</p>
                 </div>
                 <div className="text-right">
                   <MargeBadge pct={m.marge_pct} />
-                  <p className="text-xs text-slate-500 mt-0.5">{fmtEur(m.marge_nette)}</p>
+                  <p className="text-xs text-discreet mt-0.5">{fmtEur(m.marge_nette)}</p>
                 </div>
               </div>
             ))}
@@ -185,22 +185,22 @@ function SyntheseTab({ data }: { data: MissionAnalytique[] }) {
         </div>
 
         {/* Missions sous-performantes */}
-        <div className="border border-slate-200 rounded-xl overflow-hidden">
+        <div className="border border-line rounded-xl overflow-hidden">
           <div className="bg-red-50 px-4 py-2.5 border-b border-red-100">
             <h3 className="text-sm font-semibold text-red-800">5 missions les moins rentables</h3>
           </div>
           <div className="divide-y divide-slate-100">
             {piresMissions.length === 0 ? (
-              <p className="text-center py-6 text-slate-400 text-sm">Aucune donnée</p>
+              <p className="text-center py-6 text-muted text-sm">Aucune donnée</p>
             ) : piresMissions.map(m => (
               <div key={m.ot_id} className="px-4 py-3 flex justify-between items-center">
                 <div>
-                  <p className="text-sm font-medium text-slate-800">{m.reference}</p>
-                  <p className="text-xs text-slate-400">{m.client_nom ?? '—'}</p>
+                  <p className="text-sm font-medium text-foreground">{m.reference}</p>
+                  <p className="text-xs text-muted">{m.client_nom ?? '—'}</p>
                 </div>
                 <div className="text-right">
                   <MargeBadge pct={m.marge_pct} />
-                  <p className="text-xs text-slate-500 mt-0.5">{fmtEur(m.marge_nette)}</p>
+                  <p className="text-xs text-discreet mt-0.5">{fmtEur(m.marge_nette)}</p>
                 </div>
               </div>
             ))}
@@ -210,26 +210,26 @@ function SyntheseTab({ data }: { data: MissionAnalytique[] }) {
 
       {/* Clients sous-rentables */}
       {clientsAgg.length > 0 && (
-        <div className="border border-slate-200 rounded-xl overflow-hidden">
+        <div className="border border-line rounded-xl overflow-hidden">
           <div className="bg-amber-50 px-4 py-2.5 border-b border-amber-100">
             <h3 className="text-sm font-semibold text-amber-800">Clients à surveiller (marge faible)</h3>
           </div>
           <div className="overflow-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50">
+              <thead className="bg-surface-soft">
                 <tr>
                   {['Client', 'CA', 'Coûts', 'Marge €', 'Marge %'].map(h => (
-                    <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-slate-600 border-b border-slate-200">{h}</th>
+                    <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-secondary border-b border-line">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {clientsAgg.map((r, i) => (
-                  <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                    <td className="px-3 py-2.5 font-medium text-slate-800">{r.nom}</td>
-                    <td className="px-3 py-2.5 text-right text-slate-700">{fmtEur(r.ca)}</td>
-                    <td className="px-3 py-2.5 text-right text-slate-700">{fmtEur(r.cout)}</td>
-                    <td className={`px-3 py-2.5 text-right font-semibold ${r.marge >= 0 ? 'text-slate-800' : 'text-red-700'}`}>{fmtEur(r.marge)}</td>
+                  <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-surface-soft">
+                    <td className="px-3 py-2.5 font-medium text-foreground">{r.nom}</td>
+                    <td className="px-3 py-2.5 text-right text-foreground">{fmtEur(r.ca)}</td>
+                    <td className="px-3 py-2.5 text-right text-foreground">{fmtEur(r.cout)}</td>
+                    <td className={`px-3 py-2.5 text-right font-semibold ${r.marge >= 0 ? 'text-foreground' : 'text-red-700'}`}>{fmtEur(r.marge)}</td>
                     <td className="px-3 py-2.5"><MargeBadge pct={r.pct} /></td>
                   </tr>
                 ))}
@@ -298,7 +298,7 @@ function CoutsMissionForm({ mission, onSaved, onCancel }: {
 
   const field = (key: keyof CoutForm, label: string, placeholder = '') => (
     <div>
-      <label className="text-xs text-slate-500 font-medium block mb-1">{label}</label>
+      <label className="text-xs text-discreet font-medium block mb-1">{label}</label>
       <input type="text" placeholder={placeholder}
         value={form[key]}
         onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
@@ -308,7 +308,7 @@ function CoutsMissionForm({ mission, onSaved, onCancel }: {
 
   return (
     <div className="border-t border-slate-100 pt-4 mt-3 space-y-4">
-      <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Saisie des coûts</p>
+      <p className="text-xs font-semibold text-secondary uppercase tracking-wide">Saisie des coûts</p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {field('km_reels', 'Km réels', '0')}
         {field('cout_carburant', 'Carburant (€)', '0.00')}
@@ -322,14 +322,14 @@ function CoutsMissionForm({ mission, onSaved, onCancel }: {
 
       {/* Calcul temps réel */}
       <div className={`rounded-xl p-3 flex gap-6 text-sm ${
-        margePctCalc === null ? 'bg-slate-50' :
+        margePctCalc === null ? 'bg-surface-soft' :
         margePctCalc >= 18 ? 'bg-green-50 border border-green-100' :
         margePctCalc >= 10 ? 'bg-amber-50 border border-amber-100' : 'bg-red-50 border border-red-100'
       }`}>
-        <div><span className="text-xs text-slate-500">Total coûts</span><br/><strong>{fmtEur(totalCouts)}</strong></div>
-        <div><span className="text-xs text-slate-500">Marge nette</span><br/><strong className={margeCalc < 0 ? 'text-red-700' : ''}>{fmtEur(margeCalc)}</strong></div>
+        <div><span className="text-xs text-discreet">Total coûts</span><br/><strong>{fmtEur(totalCouts)}</strong></div>
+        <div><span className="text-xs text-discreet">Marge nette</span><br/><strong className={margeCalc < 0 ? 'text-red-700' : ''}>{fmtEur(margeCalc)}</strong></div>
         {margePctCalc !== null && (
-          <div><span className="text-xs text-slate-500">Marge %</span><br/><strong><MargeBadge pct={margePctCalc} /></strong></div>
+          <div><span className="text-xs text-discreet">Marge %</span><br/><strong><MargeBadge pct={margePctCalc} /></strong></div>
         )}
       </div>
 
@@ -379,48 +379,48 @@ function MissionsTab({ data, onRefresh }: { data: MissionAnalytique[]; onRefresh
       </div>
 
       {filtered.length === 0 ? (
-        <div className="text-center py-10 text-slate-400">Aucune mission</div>
+        <div className="text-center py-10 text-muted">Aucune mission</div>
       ) : (
         <div className="space-y-2">
           {filtered.map(m => (
-            <div key={m.ot_id} className="border border-slate-200 rounded-xl overflow-hidden">
-              <div className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-slate-50 cursor-pointer"
+            <div key={m.ot_id} className="border border-line rounded-xl overflow-hidden">
+              <div className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-surface-soft cursor-pointer"
                 onClick={() => setEditing(editing === m.ot_id ? null : m.ot_id)}>
                 <div className="flex items-center gap-3 min-w-0">
                   <div>
-                    <p className="font-semibold text-slate-800 text-sm">{m.reference}</p>
-                    <p className="text-xs text-slate-400">{m.client_nom ?? '—'} {m.date_chargement ? `· ${m.date_chargement}` : ''}</p>
+                    <p className="font-semibold text-foreground text-sm">{m.reference}</p>
+                    <p className="text-xs text-muted">{m.client_nom ?? '—'} {m.date_chargement ? `· ${m.date_chargement}` : ''}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4 shrink-0">
                   {m.cout_id ? (
                     <>
-                      <div className="text-right text-xs text-slate-500">
+                      <div className="text-right text-xs text-discreet">
                         <span>{fmtEur(m.prix_vente_ht)}</span>
                         <span className="mx-1">−</span>
                         <span>{fmtEur(m.cout_total)}</span>
                       </div>
                       <div className="text-right">
-                        <p className={`font-semibold text-sm ${m.marge_nette < 0 ? 'text-red-700' : 'text-slate-800'}`}>{fmtEur(m.marge_nette)}</p>
+                        <p className={`font-semibold text-sm ${m.marge_nette < 0 ? 'text-red-700' : 'text-foreground'}`}>{fmtEur(m.marge_nette)}</p>
                         <MargeBadge pct={m.marge_pct} />
                       </div>
                     </>
                   ) : (
-                    <span className="text-xs text-slate-400 italic">Coûts non saisis</span>
+                    <span className="text-xs text-muted italic">Coûts non saisis</span>
                   )}
-                  <span className="text-slate-400 text-sm">{editing === m.ot_id ? '▲' : '▼'}</span>
+                  <span className="text-muted text-sm">{editing === m.ot_id ? '▲' : '▼'}</span>
                 </div>
               </div>
 
               {editing === m.ot_id && (
                 <div className="px-4 pb-4">
-                  <div className="grid grid-cols-3 md:grid-cols-6 gap-2 text-xs text-slate-500 mb-2">
-                    <div>Carburant<br/><strong className="text-slate-700">{fmtEur(m.cout_carburant)}</strong></div>
-                    <div>Péages<br/><strong className="text-slate-700">{fmtEur(m.cout_peages)}</strong></div>
-                    <div>Conducteur<br/><strong className="text-slate-700">{fmtEur(m.cout_conducteur)}</strong></div>
-                    <div>Amort.<br/><strong className="text-slate-700">{fmtEur(m.cout_amortissement)}</strong></div>
-                    <div>S/trait.<br/><strong className="text-slate-700">{fmtEur(m.cout_sous_traitance)}</strong></div>
-                    <div>Km réels<br/><strong className="text-slate-700">{fmtN(m.km_reels, ' km')}</strong></div>
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-2 text-xs text-discreet mb-2">
+                    <div>Carburant<br/><strong className="text-foreground">{fmtEur(m.cout_carburant)}</strong></div>
+                    <div>Péages<br/><strong className="text-foreground">{fmtEur(m.cout_peages)}</strong></div>
+                    <div>Conducteur<br/><strong className="text-foreground">{fmtEur(m.cout_conducteur)}</strong></div>
+                    <div>Amort.<br/><strong className="text-foreground">{fmtEur(m.cout_amortissement)}</strong></div>
+                    <div>S/trait.<br/><strong className="text-foreground">{fmtEur(m.cout_sous_traitance)}</strong></div>
+                    <div>Km réels<br/><strong className="text-foreground">{fmtN(m.km_reels, ' km')}</strong></div>
                   </div>
                   <CoutsMissionForm mission={m} onSaved={() => { setEditing(null); onRefresh() }} onCancel={() => setEditing(null)} />
                 </div>
@@ -475,17 +475,17 @@ function ClientsTab({ data }: { data: MissionAnalytique[] }) {
         }} className={btnGhost}>Exporter CSV</button>}
       </div>
 
-      <p className="text-xs text-slate-400">Les clients sont classés du moins rentable au plus rentable. Ligne orange = marge entre 10 et 18 %. Ligne rouge = marge &lt; 10 %.</p>
+      <p className="text-xs text-muted">Les clients sont classés du moins rentable au plus rentable. Ligne orange = marge entre 10 et 18 %. Ligne rouge = marge &lt; 10 %.</p>
 
       {clients.length === 0 ? (
-        <div className="text-center py-10 text-slate-400">Saisir les coûts depuis l'onglet Missions</div>
+        <div className="text-center py-10 text-muted">Saisir les coûts depuis l'onglet Missions</div>
       ) : (
-        <div className="overflow-auto rounded-lg border border-slate-200">
+        <div className="overflow-auto rounded-lg border border-line">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-surface-soft">
               <tr>
                 {['Client', 'Missions', 'CA total', 'Coûts totaux', 'Marge €', 'Marge %', 'Km totaux'].map(h => (
-                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 border-b border-slate-200">{h}</th>
+                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-secondary border-b border-line">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -494,13 +494,13 @@ function ClientsTab({ data }: { data: MissionAnalytique[] }) {
                 const rowBg = c.pct !== null && c.pct < 10 ? 'bg-red-50' : c.pct !== null && c.pct < 18 ? 'bg-amber-50' : ''
                 return (
                   <tr key={i} className={`border-b border-slate-100 last:border-0 hover:opacity-80 ${rowBg}`}>
-                    <td className="px-3 py-3 font-semibold text-slate-800">{c.nom}</td>
-                    <td className="px-3 py-3 text-center text-slate-600">{c.missions}</td>
-                    <td className="px-3 py-3 text-right text-slate-700">{fmtEur(c.ca)}</td>
-                    <td className="px-3 py-3 text-right text-slate-700">{fmtEur(c.cout)}</td>
-                    <td className={`px-3 py-3 text-right font-bold ${c.marge < 0 ? 'text-red-700' : 'text-slate-800'}`}>{fmtEur(c.marge)}</td>
+                    <td className="px-3 py-3 font-semibold text-foreground">{c.nom}</td>
+                    <td className="px-3 py-3 text-center text-secondary">{c.missions}</td>
+                    <td className="px-3 py-3 text-right text-foreground">{fmtEur(c.ca)}</td>
+                    <td className="px-3 py-3 text-right text-foreground">{fmtEur(c.cout)}</td>
+                    <td className={`px-3 py-3 text-right font-bold ${c.marge < 0 ? 'text-red-700' : 'text-foreground'}`}>{fmtEur(c.marge)}</td>
                     <td className="px-3 py-3"><MargeBadge pct={c.pct} /></td>
-                    <td className="px-3 py-3 text-right text-slate-500">{c.km.toLocaleString('fr-FR')} km</td>
+                    <td className="px-3 py-3 text-right text-discreet">{c.km.toLocaleString('fr-FR')} km</td>
                   </tr>
                 )
               })}
@@ -547,19 +547,19 @@ function ChauffeurTab({ data, chauffeurs }: { data: MissionAnalytique[]; chauffe
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <p className="text-xs text-slate-400">Agrégation par conducteur — CA, coûts, marge et coût/km.</p>
+        <p className="text-xs text-muted">Agrégation par conducteur — CA, coûts, marge et coût/km.</p>
         {chauffeurAgg.length > 0 && <button onClick={doExport} className={btnGhost}>Exporter CSV</button>}
       </div>
 
       {chauffeurAgg.length === 0 ? (
-        <div className="text-center py-10 text-slate-400">Aucune donnée</div>
+        <div className="text-center py-10 text-muted">Aucune donnée</div>
       ) : (
-        <div className="overflow-auto rounded-lg border border-slate-200">
+        <div className="overflow-auto rounded-lg border border-line">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-surface-soft">
               <tr>
                 {['Chauffeur', 'Missions', 'Km', 'Carburant', 'Péages', 'Coûts', 'CA', 'Marge', 'Marge %', 'Coût/km'].map(h => (
-                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 border-b border-slate-200">{h}</th>
+                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-secondary border-b border-line">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -571,14 +571,14 @@ function ChauffeurTab({ data, chauffeurs }: { data: MissionAnalytique[]; chauffe
                 const rowBg = pct !== null && pct < 10 ? 'bg-red-50' : pct !== null && pct < 18 ? 'bg-amber-50' : ''
                 return (
                   <tr key={i} className={`border-b border-slate-100 last:border-0 hover:opacity-80 ${rowBg}`}>
-                    <td className="px-3 py-3 font-semibold text-slate-800">{r.nom}</td>
-                    <td className="px-3 py-3 text-center text-slate-600">{r.missions}</td>
-                    <td className="px-3 py-3 text-right text-slate-700">{r.km.toLocaleString('fr-FR')} km</td>
-                    <td className="px-3 py-3 text-right text-slate-700">{fmtEur(r.coutCarbu)}</td>
-                    <td className="px-3 py-3 text-right text-slate-700">{fmtEur(r.coutPeages)}</td>
-                    <td className="px-3 py-3 text-right text-slate-700">{fmtEur(r.coutTotal)}</td>
-                    <td className="px-3 py-3 text-right text-slate-700">{fmtEur(r.ca)}</td>
-                    <td className={`px-3 py-3 text-right font-semibold ${marge < 0 ? 'text-red-700' : 'text-slate-800'}`}>{fmtEur(marge)}</td>
+                    <td className="px-3 py-3 font-semibold text-foreground">{r.nom}</td>
+                    <td className="px-3 py-3 text-center text-secondary">{r.missions}</td>
+                    <td className="px-3 py-3 text-right text-foreground">{r.km.toLocaleString('fr-FR')} km</td>
+                    <td className="px-3 py-3 text-right text-foreground">{fmtEur(r.coutCarbu)}</td>
+                    <td className="px-3 py-3 text-right text-foreground">{fmtEur(r.coutPeages)}</td>
+                    <td className="px-3 py-3 text-right text-foreground">{fmtEur(r.coutTotal)}</td>
+                    <td className="px-3 py-3 text-right text-foreground">{fmtEur(r.ca)}</td>
+                    <td className={`px-3 py-3 text-right font-semibold ${marge < 0 ? 'text-red-700' : 'text-foreground'}`}>{fmtEur(marge)}</td>
                     <td className="px-3 py-3"><MargeBadge pct={pct} /></td>
                     <td className="px-3 py-3 text-right">
                       {coutKm !== null
@@ -623,7 +623,7 @@ function FlotteTab({ data, vehicules }: { data: MissionAnalytique[]; vehicules: 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <p className="text-xs text-slate-400">Coût/km = (carburant + péages) / km réels saisis. Données basées sur les missions avec coûts renseignés.</p>
+        <p className="text-xs text-muted">Coût/km = (carburant + péages) / km réels saisis. Données basées sur les missions avec coûts renseignés.</p>
         {flotteAgg.length > 0 && <button onClick={() => {
           const headers = ['Véhicule', 'Missions', 'Km totaux', 'Carburant', 'Péages', 'Coûts totaux', 'CA', 'Marge', 'Coût/km']
           const rows = flotteAgg.map(r => {
@@ -635,14 +635,14 @@ function FlotteTab({ data, vehicules }: { data: MissionAnalytique[]; vehicules: 
       </div>
 
       {flotteAgg.length === 0 ? (
-        <div className="text-center py-10 text-slate-400">Aucune donnée — saisir les coûts depuis l'onglet Missions</div>
+        <div className="text-center py-10 text-muted">Aucune donnée — saisir les coûts depuis l'onglet Missions</div>
       ) : (
-        <div className="overflow-auto rounded-lg border border-slate-200">
+        <div className="overflow-auto rounded-lg border border-line">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-surface-soft">
               <tr>
                 {['Véhicule', 'Missions', 'Km totaux', 'Carburant', 'Péages', 'Coûts totaux', 'CA', 'Marge', 'Coût/km'].map(h => (
-                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 border-b border-slate-200">{h}</th>
+                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-secondary border-b border-line">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -651,15 +651,15 @@ function FlotteTab({ data, vehicules }: { data: MissionAnalytique[]; vehicules: 
                 const coutKm = r.km > 0 ? (r.coutCarbu + r.coutPeages) / r.km : null
                 const marge = r.ca - r.coutTotal
                 return (
-                  <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                    <td className="px-3 py-3 font-medium text-slate-800">{r.immat}</td>
-                    <td className="px-3 py-3 text-center text-slate-600">{r.missions}</td>
-                    <td className="px-3 py-3 text-right text-slate-700">{r.km.toLocaleString('fr-FR')} km</td>
-                    <td className="px-3 py-3 text-right text-slate-700">{fmtEur(r.coutCarbu)}</td>
-                    <td className="px-3 py-3 text-right text-slate-700">{fmtEur(r.coutPeages)}</td>
-                    <td className="px-3 py-3 text-right text-slate-700">{fmtEur(r.coutTotal)}</td>
-                    <td className="px-3 py-3 text-right text-slate-700">{fmtEur(r.ca)}</td>
-                    <td className={`px-3 py-3 text-right font-semibold ${marge < 0 ? 'text-red-700' : 'text-slate-800'}`}>{fmtEur(marge)}</td>
+                  <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-surface-soft">
+                    <td className="px-3 py-3 font-medium text-foreground">{r.immat}</td>
+                    <td className="px-3 py-3 text-center text-secondary">{r.missions}</td>
+                    <td className="px-3 py-3 text-right text-foreground">{r.km.toLocaleString('fr-FR')} km</td>
+                    <td className="px-3 py-3 text-right text-foreground">{fmtEur(r.coutCarbu)}</td>
+                    <td className="px-3 py-3 text-right text-foreground">{fmtEur(r.coutPeages)}</td>
+                    <td className="px-3 py-3 text-right text-foreground">{fmtEur(r.coutTotal)}</td>
+                    <td className="px-3 py-3 text-right text-foreground">{fmtEur(r.ca)}</td>
+                    <td className={`px-3 py-3 text-right font-semibold ${marge < 0 ? 'text-red-700' : 'text-foreground'}`}>{fmtEur(marge)}</td>
                     <td className="px-3 py-3 text-right">
                       {coutKm !== null
                         ? <span className={`text-xs font-semibold ${coutKm > 0.5 ? 'text-red-600' : coutKm > 0.35 ? 'text-amber-600' : 'text-green-700'}`}>
@@ -706,12 +706,12 @@ export default function AnalytiqueTransport() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-2">
       <div className="mb-4">
-        <h1 className="text-xl font-bold text-slate-800">Analytique Transport</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Rentabilité par mission, client et véhicule — saisie des coûts réels</p>
+        <h1 className="text-xl font-bold text-foreground">Analytique Transport</h1>
+        <p className="text-sm text-discreet mt-0.5">Rentabilité par mission, client et véhicule — saisie des coûts réels</p>
       </div>
       <TabBar active={tab} onChange={setTab} />
       {loading ? (
-        <div className="text-center py-16 text-slate-400">Chargement des données...</div>
+        <div className="text-center py-16 text-muted">Chargement des données...</div>
       ) : (
         <>
           {tab === 'synthese'   && <SyntheseTab data={data} />}

@@ -139,12 +139,12 @@ export default function DemoAccessForm({ onSuccess }: { onSuccess: () => void })
             {credentials && (
               <div className="space-y-4 mb-6 text-left">
                 <div className="rounded-xl bg-slate-900/50 p-4 border border-slate-700">
-                  <p className="text-xs font-semibold text-slate-400 mb-1">Email</p>
+                  <p className="text-xs font-semibold text-muted mb-1">Email</p>
                   <p className="text-sm font-mono text-emerald-400">{credentials.email}</p>
                 </div>
 
                 <div className="rounded-xl bg-slate-900/50 p-4 border border-slate-700">
-                  <p className="text-xs font-semibold text-slate-400 mb-1">Mot de passe</p>
+                  <p className="text-xs font-semibold text-muted mb-1">Mot de passe</p>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-mono text-emerald-400 flex-1 overflow-hidden truncate">
                       {credentials.password}
@@ -172,7 +172,7 @@ export default function DemoAccessForm({ onSuccess }: { onSuccess: () => void })
               Aller à la connexion
             </button>
 
-            <p className="text-xs text-slate-400 mt-4">
+            <p className="text-xs text-muted mt-4">
               Vous serez automatiquement connecté avec ces identifiants
             </p>
           </div>
@@ -194,7 +194,7 @@ export default function DemoAccessForm({ onSuccess }: { onSuccess: () => void })
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="rounded-3xl border border-white/10 bg-white/5 p-8 space-y-6">
+        <form onSubmit={handleSubmit} className="rounded-3xl border border-white/10 bg-surface/5 p-8 space-y-6">
           {error && (
             <div className="rounded-2xl border border-red-500/30 bg-red-950/40 p-4 text-sm text-red-200">
               {error}
@@ -203,7 +203,7 @@ export default function DemoAccessForm({ onSuccess }: { onSuccess: () => void })
 
           {/* Identité */}
           <fieldset>
-            <legend className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400 mb-3">
+            <legend className="text-xs font-semibold uppercase tracking-[0.28em] text-muted mb-3">
               Votre identité
             </legend>
             <div className="grid md:grid-cols-2 gap-4">
@@ -268,7 +268,7 @@ export default function DemoAccessForm({ onSuccess }: { onSuccess: () => void })
 
           {/* Contexte */}
           <fieldset>
-            <legend className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400 mb-3">
+            <legend className="text-xs font-semibold uppercase tracking-[0.28em] text-muted mb-3">
               Votre visite
             </legend>
             <div>
@@ -308,7 +308,7 @@ export default function DemoAccessForm({ onSuccess }: { onSuccess: () => void })
 
           {/* Entreprise */}
           <fieldset>
-            <legend className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400 mb-3">
+            <legend className="text-xs font-semibold uppercase tracking-[0.28em] text-muted mb-3">
               Votre entreprise
             </legend>
             <div>
@@ -376,7 +376,7 @@ export default function DemoAccessForm({ onSuccess }: { onSuccess: () => void })
             {loading ? 'Enregistrement...' : 'Accéder à la plateforme'}
           </button>
 
-          <p className="text-center text-xs text-slate-400 mt-4">
+          <p className="text-center text-xs text-muted mt-4">
             * Champs obligatoires. Vos données sont sécurisées et utilisées uniquement pour améliorer NEXORA Truck.
           </p>
         </form>

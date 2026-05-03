@@ -333,7 +333,7 @@ export default function DevisTab() {
               <div className="sm:col-span-2 lg:col-span-3">
                 <Field label="Prospect">
                   <select value={form.prospect_id} onChange={e => setForm(f => ({ ...f, prospect_id: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none">
+                    className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none">
                     <option value="">— Sélectionner un prospect —</option>
                     {prospects.map(p => <option key={p.id} value={p.id}>{p.nom_entreprise}</option>)}
                   </select>
@@ -342,54 +342,54 @@ export default function DevisTab() {
               <Field label="Origine *">
                 <input value={form.origine} onChange={e => setForm(f => ({ ...f, origine: e.target.value }))}
                   placeholder="Paris, Lyon..." required
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                  className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
               </Field>
               <Field label="Destination *">
                 <input value={form.destination} onChange={e => setForm(f => ({ ...f, destination: e.target.value }))}
                   placeholder="Bordeaux, Marseille..." required
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                  className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
               </Field>
               <Field label="Distance (km)">
                 <input value={form.distance_km} onChange={e => setForm(f => ({ ...f, distance_km: e.target.value }))}
                   placeholder="550" type="number" min="1"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                  className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
               </Field>
               <Field label="Type transport">
                 <select value={form.type_transport} onChange={e => setForm(f => ({ ...f, type_transport: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none">
+                  className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none">
                   {TYPE_TRANSPORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </Field>
               <Field label="Poids (kg)">
                 <input value={form.poids_kg} onChange={e => setForm(f => ({ ...f, poids_kg: e.target.value }))}
                   placeholder="18000" type="number" min="0"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                  className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
               </Field>
               <Field label="Volume (m³)">
                 <input value={form.volume_m3} onChange={e => setForm(f => ({ ...f, volume_m3: e.target.value }))}
                   placeholder="82" type="number" min="0"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                  className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
               </Field>
               <Field label="Marge cible (%)">
                 <input value={form.marge_cible_pct} onChange={e => setForm(f => ({ ...f, marge_cible_pct: e.target.value }))}
                   placeholder="18" type="number" min="0" max="60"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                  className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
               </Field>
               <Field label="Validité jusqu'au">
                 <input value={form.date_validite} onChange={e => setForm(f => ({ ...f, date_validite: e.target.value }))}
                   type="date"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                  className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
               </Field>
               <Field label="Commercial">
                 <input value={form.commercial_nom} onChange={e => setForm(f => ({ ...f, commercial_nom: e.target.value }))}
                   placeholder="Martin D."
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                  className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
               </Field>
               <div className="sm:col-span-2 lg:col-span-3">
                 <Field label="Notes">
                   <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                     placeholder="Conditions spéciales, contraintes..." rows={2}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none resize-none" />
+                    className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none resize-none" />
                 </Field>
               </div>
             </div>
@@ -541,7 +541,7 @@ export default function DevisTab() {
                         <td className="px-4 py-3">
                           <div className="flex gap-2">
                             <select value={d.statut} onChange={e => void handleStatutChange(d.id, e.target.value)}
-                              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 outline-none">
+                              className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-foreground outline-none">
                               {STATUT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                             </select>
                             <button onClick={() => void handleDelete(d.id)}

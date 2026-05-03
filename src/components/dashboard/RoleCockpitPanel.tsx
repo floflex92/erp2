@@ -231,7 +231,7 @@ const LEVEL_STYLES: Record<NotificationLevel, string> = {
   action: 'border-amber-200 bg-amber-50 text-amber-800',
   alerte: 'border-orange-200 bg-orange-50 text-orange-800',
   recommandation: 'border-blue-200 bg-blue-50 text-blue-800',
-  info: 'border-slate-200 bg-slate-50 text-slate-700',
+  info: 'border-line bg-surface-soft text-foreground',
 }
 
 const METRIC_STYLES: Record<SummaryCard['tone'], string> = {
@@ -239,7 +239,7 @@ const METRIC_STYLES: Record<SummaryCard['tone'], string> = {
   green: 'border-emerald-200 bg-emerald-50 text-emerald-900',
   amber: 'border-amber-200 bg-amber-50 text-amber-900',
   red: 'border-red-200 bg-red-50 text-red-900',
-  slate: 'border-slate-200 bg-slate-50 text-slate-900',
+  slate: 'border-line bg-surface-soft text-heading',
 }
 
 const ROLE_FOCUS: Record<CockpitProfile, { title: string; subtitle: string }> = {
@@ -476,10 +476,10 @@ function DistributionCard({ title, subtitle, segments }: { title: string; subtit
     <div className="nx-card rounded-[28px] border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-[color:var(--text-heading)]">{title}</h3>
-        <p className="text-sm text-slate-600">{subtitle}</p>
+        <p className="text-sm text-secondary">{subtitle}</p>
       </div>
 
-      <div className="overflow-hidden rounded-full bg-slate-100">
+      <div className="overflow-hidden rounded-full bg-surface-2">
         <div className="flex h-4 w-full overflow-hidden rounded-full">
           {segments.map(segment => {
             const width = total > 0 ? `${(segment.value / total) * 100}%` : '0%'
@@ -496,10 +496,10 @@ function DistributionCard({ title, subtitle, segments }: { title: string; subtit
               <span className="h-3 w-3 rounded-full" style={{ background: segment.color }} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="truncate text-sm font-semibold text-slate-900">{segment.label}</p>
-                  <p className="text-xs font-semibold text-slate-700">{formatCompactInt(segment.value)} · {formatPercent(percent)}</p>
+                  <p className="truncate text-sm font-semibold text-heading">{segment.label}</p>
+                  <p className="text-xs font-semibold text-foreground">{formatCompactInt(segment.value)} · {formatPercent(percent)}</p>
                 </div>
-                <p className="mt-1 text-xs text-slate-600">{segment.helper}</p>
+                <p className="mt-1 text-xs text-secondary">{segment.helper}</p>
               </div>
             </div>
           )
@@ -516,7 +516,7 @@ function RankingCard({ title, subtitle, items }: { title: string; subtitle: stri
     <div className="nx-card rounded-[28px] border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-[color:var(--text-heading)]">{title}</h3>
-        <p className="text-sm text-slate-600">{subtitle}</p>
+        <p className="text-sm text-secondary">{subtitle}</p>
       </div>
 
       <div className="space-y-4">
@@ -525,13 +525,13 @@ function RankingCard({ title, subtitle, items }: { title: string; subtitle: stri
           return (
             <div key={item.label}>
               <div className="mb-1 flex items-center justify-between gap-3">
-                <p className="truncate text-sm font-semibold text-slate-900">{item.label}</p>
-                <p className="text-xs font-semibold text-slate-700">{item.displayValue}</p>
+                <p className="truncate text-sm font-semibold text-heading">{item.label}</p>
+                <p className="text-xs font-semibold text-foreground">{item.displayValue}</p>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-2 overflow-hidden rounded-full bg-surface-2">
                 <div className="h-full rounded-full" style={{ width, background: item.color }} />
               </div>
-              <p className="mt-1 text-xs text-slate-600">{item.helper}</p>
+              <p className="mt-1 text-xs text-secondary">{item.helper}</p>
             </div>
           )
         }) : <EmptyState />}
@@ -559,14 +559,14 @@ function GaugeCard({ item }: { item: GaugeItem }) {
             background: `conic-gradient(${color} 0deg ${progress * 3.6}deg, rgba(148, 163, 184, 0.18) ${progress * 3.6}deg 360deg)`,
           }}
         >
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-sm font-semibold text-slate-900">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-surface text-sm font-semibold text-heading">
             {formatPercent(progress)}
           </div>
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-slate-900">{item.label}</p>
-          <p className="mt-1 text-xs text-slate-600">{item.helper}</p>
-          <p className="mt-2 text-xs font-semibold text-slate-700">Actuel {formatPercent(item.value)} · cible {formatPercent(item.target)}</p>
+          <p className="text-sm font-semibold text-heading">{item.label}</p>
+          <p className="mt-1 text-xs text-secondary">{item.helper}</p>
+          <p className="mt-2 text-xs font-semibold text-foreground">Actuel {formatPercent(item.value)} · cible {formatPercent(item.target)}</p>
         </div>
       </div>
     </div>
@@ -589,7 +589,7 @@ function GoalCard({ goal }: { goal: GoalView }) {
         </div>
         <span className="text-xs font-semibold uppercase tracking-[0.14em]">{goal.status === 'ahead' ? 'Atteint' : goal.status === 'watch' ? 'En ligne' : 'En retard'}</span>
       </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/70">
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface/70">
         <div className="h-full rounded-full bg-current" style={{ width: `${goal.progress}%` }} />
       </div>
       <div className="mt-3 flex items-center justify-between gap-3 text-xs font-semibold">
@@ -607,8 +607,8 @@ function DecisionList({ items }: { items: DecisionItem[] }) {
         <div key={item.label} className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-slate-900">{item.label}</p>
-              <p className="mt-1 text-xs text-slate-600">{item.note}</p>
+              <p className="text-sm font-semibold text-heading">{item.label}</p>
+              <p className="mt-1 text-xs text-secondary">{item.note}</p>
             </div>
             <span className="text-sm font-semibold text-[color:var(--primary)]">{item.value}</span>
           </div>
@@ -627,8 +627,8 @@ function QuickLinkGrid({ items }: { items: LinkItem[] }) {
           to={item.to}
           className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-3 transition-transform duration-150 hover:-translate-y-0.5"
         >
-          <p className="text-sm font-semibold text-slate-900">{item.label}</p>
-          <p className="mt-1 text-xs text-slate-600">{item.helper}</p>
+          <p className="text-sm font-semibold text-heading">{item.label}</p>
+          <p className="mt-1 text-xs text-secondary">{item.helper}</p>
         </Link>
       ))}
     </div>
@@ -637,7 +637,7 @@ function QuickLinkGrid({ items }: { items: LinkItem[] }) {
 
 function EmptyState() {
   return (
-    <div className="rounded-2xl border border-dashed border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-5 text-sm text-slate-600">
+    <div className="rounded-2xl border border-dashed border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-5 text-sm text-secondary">
       Aucun signal prioritaire sur ce perimetre pour le moment.
     </div>
   )
@@ -1205,22 +1205,22 @@ export function RoleCockpitPanel() {
       >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <span className="inline-flex rounded-full border border-[color:var(--border)] bg-white/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--primary)]">
+            <span className="inline-flex rounded-full border border-[color:var(--border)] bg-surface/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--primary)]">
               Cockpit {viewModel.meta.roleLabel}
             </span>
             <h2 className="mt-3 text-2xl font-semibold text-[color:var(--text-heading)]">{ROLE_FOCUS[profile].title}</h2>
-            <p className="mt-2 max-w-3xl text-sm text-slate-600">{ROLE_FOCUS[profile].subtitle}</p>
+            <p className="mt-2 max-w-3xl text-sm text-secondary">{ROLE_FOCUS[profile].subtitle}</p>
           </div>
           <div className="flex flex-col gap-3 lg:items-end">
-            <div className="rounded-2xl border border-[color:var(--border)] bg-white/70 px-4 py-3 text-sm text-slate-600">
-              <p className="font-semibold text-slate-900">Lecture priorisee</p>
+            <div className="rounded-2xl border border-[color:var(--border)] bg-surface/70 px-4 py-3 text-sm text-secondary">
+              <p className="font-semibold text-heading">Lecture priorisee</p>
               <p className="mt-1">Maintenant, sous surveillance, puis analyse. Mise a jour a {viewModel.meta.updatedAt}.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setGoalsVisible(value => !value)}
-                className={`rounded-full px-3 py-2 text-xs font-semibold transition-colors ${goalsVisible ? 'bg-emerald-600 text-white' : 'bg-white/70 text-slate-700'}`}
+                className={`rounded-full px-3 py-2 text-xs font-semibold transition-colors ${goalsVisible ? 'bg-emerald-600 text-white' : 'bg-surface/70 text-foreground'}`}
               >
                 {goalsVisible ? 'Suivi objectifs actif' : 'Activer suivi objectifs'}
               </button>
@@ -1228,7 +1228,7 @@ export function RoleCockpitPanel() {
                 <button
                   type="button"
                   onClick={() => setGoalEditorOpen(value => !value)}
-                  className="rounded-full border border-[color:var(--border)] bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700"
+                  className="rounded-full border border-[color:var(--border)] bg-surface/70 px-3 py-2 text-xs font-semibold text-foreground"
                 >
                   {goalEditorOpen ? 'Fermer les objectifs' : 'Parametrer les objectifs'}
                 </button>
@@ -1242,16 +1242,16 @@ export function RoleCockpitPanel() {
         </div>
 
         {goalsVisible && goalEditorOpen && (
-          <div className="mt-5 rounded-[24px] border border-[color:var(--border)] bg-white/75 p-4">
+          <div className="mt-5 rounded-[24px] border border-[color:var(--border)] bg-surface/75 p-4">
             <div className="mb-3">
-              <h3 className="text-sm font-semibold text-slate-900">Objectifs personnels ou d equipe</h3>
-              <p className="mt-1 text-xs text-slate-600">Optionnel. Chaque role peut suivre ses propres cibles sans imposer cet affichage aux autres utilisateurs.</p>
+              <h3 className="text-sm font-semibold text-heading">Objectifs personnels ou d equipe</h3>
+              <p className="mt-1 text-xs text-secondary">Optionnel. Chaque role peut suivre ses propres cibles sans imposer cet affichage aux autres utilisateurs.</p>
             </div>
             <div className="grid gap-3 md:grid-cols-3">
               {viewModel.goals.map(goal => (
-                <label key={goal.id} className="rounded-2xl border border-[color:var(--border)] bg-white px-3 py-3 text-sm text-slate-700">
-                  <span className="block font-semibold text-slate-900">{goal.label}</span>
-                  <span className="mt-1 block text-xs text-slate-600">{goal.helper}</span>
+                <label key={goal.id} className="rounded-2xl border border-[color:var(--border)] bg-surface px-3 py-3 text-sm text-foreground">
+                  <span className="block font-semibold text-heading">{goal.label}</span>
+                  <span className="mt-1 block text-xs text-secondary">{goal.helper}</span>
                   <input
                     type="number"
                     min="0"
@@ -1301,9 +1301,9 @@ export function RoleCockpitPanel() {
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-[color:var(--text-heading)]">Suivi objectifs</h3>
-              <p className="text-sm text-slate-600">Lecture motivante et facultative pour suivre l avancee individuelle ou d equipe.</p>
+              <p className="text-sm text-secondary">Lecture motivante et facultative pour suivre l avancee individuelle ou d equipe.</p>
             </div>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+            <span className="rounded-full bg-surface-2 px-3 py-1 text-xs font-semibold text-foreground">
               {viewModel.goals.filter(goal => goal.status === 'ahead').length}/{viewModel.goals.length} atteints
             </span>
           </div>
@@ -1318,9 +1318,9 @@ export function RoleCockpitPanel() {
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-[color:var(--text-heading)]">A traiter maintenant</h3>
-              <p className="text-sm text-slate-600">Notifications intelligentes groupees par impact, sans bruit inutile.</p>
+              <p className="text-sm text-secondary">Notifications intelligentes groupees par impact, sans bruit inutile.</p>
             </div>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+            <span className="rounded-full bg-surface-2 px-3 py-1 text-xs font-semibold text-foreground">
               {viewModel.notifications.length} priorite(s)
             </span>
           </div>
@@ -1336,7 +1336,7 @@ export function RoleCockpitPanel() {
           <div className="nx-card rounded-[28px] border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
             <div className="mb-4">
               <h3 className="text-lg font-semibold text-[color:var(--text-heading)]">Sous surveillance</h3>
-              <p className="text-sm text-slate-600">KPI prioritaires du role, visibles sans clic supplementaire.</p>
+              <p className="text-sm text-secondary">KPI prioritaires du role, visibles sans clic supplementaire.</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {viewModel.metrics.map(item => <MetricTile key={item.label} item={item} />)}
@@ -1346,7 +1346,7 @@ export function RoleCockpitPanel() {
           <div className="nx-card rounded-[28px] border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
             <div className="mb-4">
               <h3 className="text-lg font-semibold text-[color:var(--text-heading)]">Actions rapides</h3>
-              <p className="text-sm text-slate-600">Raccourcis de decision et d execution selon le perimetre du role.</p>
+              <p className="text-sm text-secondary">Raccourcis de decision et d execution selon le perimetre du role.</p>
             </div>
             <QuickLinkGrid items={viewModel.quickLinks} />
           </div>
@@ -1357,7 +1357,7 @@ export function RoleCockpitPanel() {
         <div className="nx-card rounded-[28px] border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
           <div className="mb-4">
             <h3 className="text-lg font-semibold text-[color:var(--text-heading)]">Analyse et pilotage</h3>
-            <p className="text-sm text-slate-600">Angles d analyse directement utiles a la prise de decision metier.</p>
+            <p className="text-sm text-secondary">Angles d analyse directement utiles a la prise de decision metier.</p>
           </div>
           <DecisionList items={viewModel.decisions} />
         </div>
@@ -1365,19 +1365,19 @@ export function RoleCockpitPanel() {
         <div className="nx-card rounded-[28px] border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
           <div className="mb-4">
             <h3 className="text-lg font-semibold text-[color:var(--text-heading)]">Garde-fous de lecture</h3>
-            <p className="text-sm text-slate-600">Principes pour garder un cockpit lisible, utile et durable.</p>
+            <p className="text-sm text-secondary">Principes pour garder un cockpit lisible, utile et durable.</p>
           </div>
-          <div className="space-y-3 text-sm text-slate-700">
-            <div className="rounded-2xl border border-[color:var(--border)] bg-slate-50 px-4 py-3">
+          <div className="space-y-3 text-sm text-foreground">
+            <div className="rounded-2xl border border-[color:var(--border)] bg-surface-soft px-4 py-3">
               Une alerte = un impact clair, une action recommandee, un lien direct. Les micro-evenements restent regroupes.
             </div>
-            <div className="rounded-2xl border border-[color:var(--border)] bg-slate-50 px-4 py-3">
+            <div className="rounded-2xl border border-[color:var(--border)] bg-surface-soft px-4 py-3">
               Les cartes du haut restent limitees a quatre, pour imposer une lecture de decision et non une collection de chiffres.
             </div>
-            <div className="rounded-2xl border border-[color:var(--border)] bg-slate-50 px-4 py-3">
+            <div className="rounded-2xl border border-[color:var(--border)] bg-surface-soft px-4 py-3">
               Les widgets existants restent disponibles plus bas comme second niveau de profondeur, sans concurrencer les priorites du cockpit.
             </div>
-            <div className="rounded-2xl border border-[color:var(--border)] bg-slate-50 px-4 py-3">
+            <div className="rounded-2xl border border-[color:var(--border)] bg-surface-soft px-4 py-3">
               Tout nouvel indicateur doit repondre a une question de pilotage explicite: agir, arbitrer, anticiper ou rassurer.
             </div>
           </div>

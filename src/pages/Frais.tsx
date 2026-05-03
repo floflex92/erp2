@@ -246,10 +246,10 @@ export default function Frais() {
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Depot</p>
-          <h3 className="mt-2 text-lg font-semibold text-slate-900">Nouvelle note de frais</h3>
-          <p className="mt-1 text-sm text-slate-500">Le ticket part automatiquement dans la file RH puis comptable pour validation.</p>
+        <div className="rounded-2xl border border-line bg-surface p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted">Depot</p>
+          <h3 className="mt-2 text-lg font-semibold text-heading">Nouvelle note de frais</h3>
+          <p className="mt-1 text-sm text-discreet">Le ticket part automatiquement dans la file RH puis comptable pour validation.</p>
 
           <div className="mt-5 space-y-4">
             {canManageAll && (
@@ -306,13 +306,13 @@ export default function Frais() {
               <textarea className={`${inp} min-h-[120px] resize-none`} value={form.description} onChange={event => setForm(current => ({ ...current, description: event.target.value }))} placeholder="Contexte de la depense, client, mission, trajet..." />
             </Field>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="rounded-2xl border border-line bg-surface-soft p-4">
               <div className="flex flex-wrap items-center gap-3">
-                <label className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 cursor-pointer">
+                <label className="rounded-xl border border-line px-4 py-2 text-sm font-medium text-foreground cursor-pointer">
                   Ajouter un justificatif
                   <input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" className="hidden" onChange={(event: ChangeEvent<HTMLInputElement>) => setReceiptFile(event.target.files?.[0] ?? null)} />
                 </label>
-                <span className="text-xs text-slate-500">{receiptFile?.name ?? 'Aucun fichier joint'}</span>
+                <span className="text-xs text-discreet">{receiptFile?.name ?? 'Aucun fichier joint'}</span>
               </div>
             </div>
 
@@ -322,15 +322,15 @@ export default function Frais() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="border-b border-slate-200 px-5 py-4">
+        <div className="rounded-2xl border border-line bg-surface shadow-sm overflow-hidden">
+          <div className="border-b border-line px-5 py-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-sm font-semibold text-slate-900">Ticker RH et comptable</p>
-                <p className="mt-1 text-xs text-slate-500">Chaque validation fait progresser le ticket jusqu a son integration automatique dans la paie.</p>
+                <p className="text-sm font-semibold text-heading">Ticker RH et comptable</p>
+                <p className="mt-1 text-xs text-discreet">Chaque validation fait progresser le ticket jusqu a son integration automatique dans la paie.</p>
               </div>
               {canManageAll && (
-                <select className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" value={selectedEmployeeId} onChange={event => setSelectedEmployeeId(event.target.value)}>
+                <select className="rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground" value={selectedEmployeeId} onChange={event => setSelectedEmployeeId(event.target.value)}>
                   <option value="all">Tous les collaborateurs</option>
                   {staff.map(member => (
                     <option key={member.id} value={member.id}>{staffDisplayName(member)}</option>
@@ -341,7 +341,7 @@ export default function Frais() {
           </div>
 
           {tickets.length === 0 ? (
-            <div className="px-5 py-12 text-center text-sm text-slate-500">Aucune note de frais pour ce filtre.</div>
+            <div className="px-5 py-12 text-center text-sm text-discreet">Aucune note de frais pour ce filtre.</div>
           ) : (
             <div className="divide-y divide-slate-200">
               {tickets.map(ticket => (
@@ -360,10 +360,10 @@ export default function Frais() {
       </div>
 
       {canManagePresets && (
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="border-b border-slate-200 px-5 py-4">
-            <p className="text-sm font-semibold text-slate-900">Forfaits de remboursement</p>
-            <p className="mt-1 text-xs text-slate-500">La comptabilite peut ajouter ou supprimer les forfaits disponibles dans la liste deroulante de saisie.</p>
+        <div className="rounded-2xl border border-line bg-surface shadow-sm overflow-hidden">
+          <div className="border-b border-line px-5 py-4">
+            <p className="text-sm font-semibold text-heading">Forfaits de remboursement</p>
+            <p className="mt-1 text-xs text-discreet">La comptabilite peut ajouter ou supprimer les forfaits disponibles dans la liste deroulante de saisie.</p>
           </div>
 
           <div className="grid gap-5 p-5 xl:grid-cols-[0.9fr_1.1fr]">
@@ -388,23 +388,23 @@ export default function Frais() {
               </button>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50">
-              <div className="border-b border-slate-200 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <div className="rounded-2xl border border-line bg-surface-soft">
+              <div className="border-b border-line px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-discreet">
                 Liste active
               </div>
               {presets.length === 0 ? (
-                <div className="px-4 py-8 text-sm text-slate-500">Aucun forfait configure.</div>
+                <div className="px-4 py-8 text-sm text-discreet">Aucun forfait configure.</div>
               ) : (
                 <div className="divide-y divide-slate-200">
                   {presets.map(preset => (
                     <div key={preset.id} className="flex items-center justify-between gap-4 px-4 py-3">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-slate-900">{preset.label}</p>
-                        <p className="mt-1 text-xs text-slate-500">
+                        <p className="truncate text-sm font-semibold text-heading">{preset.label}</p>
+                        <p className="mt-1 text-xs text-discreet">
                           {EXPENSE_CATEGORY_LABELS[preset.category]} - {preset.amount.toFixed(2)} EUR
                         </p>
                       </div>
-                      <button type="button" onClick={() => handleDeletePreset(preset)} className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-medium text-rose-700">
+                      <button type="button" onClick={() => handleDeletePreset(preset)} className="rounded-xl border border-rose-200 bg-surface px-3 py-2 text-xs font-medium text-rose-700">
                         Supprimer
                       </button>
                     </div>
@@ -441,9 +441,9 @@ function ExpenseRow({
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate text-sm font-semibold text-slate-900">{ticket.title}</p>
+            <p className="truncate text-sm font-semibold text-heading">{ticket.title}</p>
             <StatusBadge status={ticket.status} />
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <span className="rounded-full border border-line bg-surface-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-discreet">
               {EXPENSE_CATEGORY_LABELS[ticket.category]}
             </span>
             {ticket.presetLabel && (
@@ -452,31 +452,31 @@ function ExpenseRow({
               </span>
             )}
           </div>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-discreet">
             {ticket.employeeName} - {ROLE_LABELS[ticket.employeeRole]} - {new Date(ticket.expenseDate).toLocaleDateString('fr-FR')}
           </p>
           {ticket.presetLabel && (
             <p className="mt-2 text-xs text-blue-700">Bareme applique: {ticket.presetLabel}</p>
           )}
-          <p className="mt-2 text-sm text-slate-600">{ticket.description || 'Sans commentaire.'}</p>
+          <p className="mt-2 text-sm text-secondary">{ticket.description || 'Sans commentaire.'}</p>
           {ticket.rejectionReason && (
             <p className="mt-2 text-xs text-rose-600">Motif refus: {ticket.rejectionReason}</p>
           )}
         </div>
 
         <div className="text-right">
-          <p className="text-lg font-semibold text-slate-900">{ticket.amount.toFixed(2)} EUR</p>
-          <p className="mt-1 text-xs text-slate-500">Cree le {new Date(ticket.createdAt).toLocaleString('fr-FR')}</p>
+          <p className="text-lg font-semibold text-heading">{ticket.amount.toFixed(2)} EUR</p>
+          <p className="mt-1 text-xs text-discreet">Cree le {new Date(ticket.createdAt).toLocaleString('fr-FR')}</p>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         {ticket.attachment && (
           <>
-            <a href={ticket.attachment.url} target="_blank" rel="noreferrer" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700">
+            <a href={ticket.attachment.url} target="_blank" rel="noreferrer" className="rounded-xl border border-line px-3 py-2 text-xs font-medium text-foreground">
               Ouvrir justificatif
             </a>
-            <a href={ticket.attachment.url} download={ticket.attachment.name} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700">
+            <a href={ticket.attachment.url} download={ticket.attachment.name} className="rounded-xl border border-line px-3 py-2 text-xs font-medium text-foreground">
               Telecharger
             </a>
           </>
@@ -511,7 +511,7 @@ function StatusBadge({ status }: { status: ExpenseTicket['status'] }) {
           ? 'bg-amber-100 text-amber-700'
           : status === 'rejected'
             ? 'bg-rose-100 text-rose-700'
-            : 'bg-slate-100 text-slate-600'
+            : 'bg-surface-2 text-secondary'
 
   return (
     <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] ${className}`}>
@@ -523,7 +523,7 @@ function StatusBadge({ status }: { status: ExpenseTicket['status'] }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-slate-700">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-foreground">{label}</span>
       {children}
     </label>
   )
@@ -532,7 +532,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="nx-panel px-5 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-discreet">{label}</p>
       <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
     </div>
   )

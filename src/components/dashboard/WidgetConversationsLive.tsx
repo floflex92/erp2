@@ -148,27 +148,27 @@ export function WidgetConversationsLive() {
   return (
     <div className="space-y-3 p-4">
       <div className="flex items-center justify-between">
-        <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Personnes qui te joignent</p>
+        <p className="text-xs uppercase tracking-[0.18em] text-discreet">Personnes qui te joignent</p>
         <Link to="/tchat" className="text-xs font-semibold text-[color:var(--primary)] hover:underline">Ouvrir tchat</Link>
       </div>
 
       {rows.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+        <div className="rounded-xl border border-line bg-surface-soft p-4 text-center text-sm text-discreet">
           Aucune conversation recente.
         </div>
       ) : (
         <div className="space-y-2">
           {rows.map(row => (
-            <div key={row.id} className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2.5 transition-colors hover:bg-slate-50">
+            <div key={row.id} className="flex items-center gap-3 rounded-xl border border-line px-3 py-2.5 transition-colors hover:bg-surface-soft">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-xs font-semibold text-white">
                 {avatarFromTitle(row.title)}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <p className="truncate text-sm font-semibold text-slate-900">{row.title}</p>
+                  <p className="truncate text-sm font-semibold text-heading">{row.title}</p>
                   {row.unread > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">{row.unread} non lu(s)</span>}
                 </div>
-                <p className="truncate text-xs text-slate-500">{row.excerpt}</p>
+                <p className="truncate text-xs text-discreet">{row.excerpt}</p>
               </div>
             </div>
           ))}
@@ -176,7 +176,7 @@ export function WidgetConversationsLive() {
       )}
 
       <div className="grid grid-cols-2 gap-2">
-        <Link to="/tchat" className="rounded-lg border border-slate-200 px-3 py-2 text-center text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50">Messagerie</Link>
+        <Link to="/tchat" className="rounded-lg border border-line px-3 py-2 text-center text-xs font-medium text-foreground transition-colors hover:bg-surface-soft">Messagerie</Link>
         <Link to="/communication" className="rounded-lg bg-[color:var(--primary)] px-3 py-2 text-center text-xs font-medium text-white opacity-95 transition-opacity hover:opacity-100">Hub communication</Link>
       </div>
     </div>

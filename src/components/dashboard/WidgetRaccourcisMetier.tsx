@@ -34,7 +34,7 @@ export function WidgetRaccourcisMetier() {
             <path d="M12 3v18M3 12h18" />
           </svg>
         </div>
-        <p className="text-sm text-slate-500">Aucun raccourci disponible pour ce metier.</p>
+        <p className="text-sm text-discreet">Aucun raccourci disponible pour ce metier.</p>
       </div>
     )
   }

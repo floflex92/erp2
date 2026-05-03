@@ -704,7 +704,7 @@ export default function DashboardConducteur() {
           </button>
           <Link
             to="/feuille-route"
-            className="flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-[color:var(--surface)] text-sm font-medium text-[color:var(--text)] transition hover:border-amber-500/40 active:scale-[0.97]"
+            className="flex h-12 items-center justify-center gap-2 rounded-xl border border-line-strong bg-[color:var(--surface)] text-sm font-medium text-[color:var(--text)] transition hover:border-amber-500/40 active:scale-[0.97]"
           >
             🔧 Signaler une panne / incident
           </Link>

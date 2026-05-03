@@ -141,7 +141,7 @@ function Error({ message, onRetry, compact = false }: ErrorProps) {
         {onRetry && (
           <button
             onClick={onRetry}
-            className="shrink-0 rounded-lg border border-[color:var(--status-error-text)]/30 bg-white/10 px-3 py-1.5 text-xs font-semibold text-[color:var(--status-error-text)] transition hover:bg-white/20"
+            className="shrink-0 rounded-lg border border-[color:var(--status-error-text)]/30 bg-surface/10 px-3 py-1.5 text-xs font-semibold text-[color:var(--status-error-text)] transition hover:bg-surface/20"
             type="button"
           >
             Réessayer

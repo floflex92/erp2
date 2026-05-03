@@ -88,7 +88,7 @@ export const STATUT_ABSENCE_COLORS: Record<StatutAbsence, string> = {
   integree_paie: 'bg-purple-100 text-purple-700',
   validee: 'bg-green-100 text-green-700',
   refusee: 'bg-red-100 text-red-600',
-  annulee: 'bg-slate-100 text-slate-500',
+  annulee: 'bg-surface-2 text-discreet',
 }
 
 /** Étapes du workflow d'absence avec le rôle autorisé pour chaque transition */

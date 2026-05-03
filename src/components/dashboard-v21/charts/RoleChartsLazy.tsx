@@ -99,7 +99,7 @@ export function V21Gauge({ value, target, color = '#2563eb' }: GaugeProps) {
           background: `conic-gradient(${color} 0deg ${safeValue * 3.6}deg, rgba(148,163,184,0.25) ${safeValue * 3.6}deg 360deg)`,
         }}
       >
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-sm font-semibold text-slate-900">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface text-sm font-semibold text-heading">
           {safeValue.toFixed(1)}%
         </div>
       </div>

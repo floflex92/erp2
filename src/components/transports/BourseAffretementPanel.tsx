@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Tables } from '@/lib/database.types'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
@@ -194,9 +194,9 @@ export default function BourseAffretementPanel({ orders, clientMap, onRefresh }:
   return (
     <div className="space-y-4">
       <div className="nx-panel px-4 py-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Bourse du fret</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-discreet">Bourse du fret</p>
         <h3 className="mt-2 text-xl font-semibold text-slate-950">Affretement exploitation</h3>
-        <p className="mt-1 text-sm text-slate-600">Validation des affreteurs et decision d affreter un OT en gardant le suivi sur planning.</p>
+        <p className="mt-1 text-sm text-secondary">Validation des affreteurs et decision d affreter un OT en gardant le suivi sur planning.</p>
       </div>
 
       {error && <div className="nx-status-error rounded-xl border border-red-200 px-3 py-2 text-sm">{error}</div>}
@@ -205,25 +205,25 @@ export default function BourseAffretementPanel({ orders, clientMap, onRefresh }:
       <div className="nx-panel overflow-hidden">
         <div className="border-b px-4" style={{ borderColor: 'var(--border)' }}>
           <div className="flex gap-4">
-            <button type="button" onClick={() => setTab('affretements')} className={`px-1 py-3 text-sm font-semibold ${tab === 'affretements' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-slate-700'}`}>Affretements OT</button>
-            <button type="button" onClick={() => setTab('inscriptions')} className={`px-1 py-3 text-sm font-semibold ${tab === 'inscriptions' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-slate-700'}`}>Inscriptions affreteurs</button>
+            <button type="button" onClick={() => setTab('affretements')} className={`px-1 py-3 text-sm font-semibold ${tab === 'affretements' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-foreground'}`}>Affretements OT</button>
+            <button type="button" onClick={() => setTab('inscriptions')} className={`px-1 py-3 text-sm font-semibold ${tab === 'inscriptions' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-foreground'}`}>Inscriptions affreteurs</button>
           </div>
         </div>
 
         {tab === 'inscriptions' && (
           <div className="space-y-3 p-5">
-            {onboardings.length === 0 && <p className="text-sm text-slate-500">Aucune inscription affreteur.</p>}
+            {onboardings.length === 0 && <p className="text-sm text-discreet">Aucune inscription affreteur.</p>}
             {onboardings.map(item => (
               <div key={item.id} className="rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="text-sm font-semibold text-slate-950">{item.companyName}</p>
-                    <p className="text-xs text-slate-500">SIRET: {item.siret} - {item.contactEmail}</p>
+                    <p className="text-xs text-discreet">SIRET: {item.siret} - {item.contactEmail}</p>
                   </div>
                   <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${onboardingStatusClass(item.status)}`}>{item.status}</span>
                 </div>
 
-                <div className="mt-2 text-xs text-slate-500">
+                <div className="mt-2 text-xs text-discreet">
                   <p>Commercial: {item.commercialReview}</p>
                   <p>Comptable: {item.comptableReview}</p>
                 </div>
@@ -257,7 +257,7 @@ export default function BourseAffretementPanel({ orders, clientMap, onRefresh }:
 
         {tab === 'affretements' && (
           <div className="space-y-3 p-5">
-            {openOrders.length === 0 && <p className="text-sm text-slate-500">Aucun OT disponible pour affretement.</p>}
+            {openOrders.length === 0 && <p className="text-sm text-discreet">Aucun OT disponible pour affretement.</p>}
             {openOrders.map(order => {
               const contract = contractByOt[order.id] ?? null
               const onboardingId = selectedAffreteurByOt[order.id] || contract?.onboardingId || ''
@@ -276,16 +276,16 @@ export default function BourseAffretementPanel({ orders, clientMap, onRefresh }:
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="text-sm font-semibold text-slate-950">{order.reference}</p>
-                      <p className="text-xs text-slate-500">{clientMap[order.client_id] ?? 'Client non renseigne'}</p>
+                      <p className="text-xs text-discreet">{clientMap[order.client_id] ?? 'Client non renseigne'}</p>
                     </div>
                     {contract ? (
                       <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass(contract.status)}`}>{CONTRACT_STATUS_LABELS[contract.status]}</span>
                     ) : (
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500">Non affrete</span>
+                      <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-discreet">Non affrete</span>
                     )}
                   </div>
 
-                  <div className="mt-2 grid gap-2 text-xs text-slate-500 md:grid-cols-2">
+                  <div className="mt-2 grid gap-2 text-xs text-discreet md:grid-cols-2">
                     <p>Chargement: {formatDate(order.date_chargement_prevue)}</p>
                     <p>Livraison: {formatDate(order.date_livraison_prevue)}</p>
                     <p>Affreteur: {affreteurName}</p>
@@ -318,11 +318,11 @@ export default function BourseAffretementPanel({ orders, clientMap, onRefresh }:
                       </Field>
 
                       <div className="md:col-span-2">
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Equipements affretes</p>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-discreet">Equipements affretes</p>
                         <div className="space-y-1 rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface-soft)' }}>
-                          {equipments.length === 0 && <p className="text-xs text-slate-500">Aucun equipement actif.</p>}
+                          {equipments.length === 0 && <p className="text-xs text-discreet">Aucun equipement actif.</p>}
                           {equipments.map(item => (
-                            <label key={item.id} className="flex items-center gap-2 text-sm text-slate-700">
+                            <label key={item.id} className="flex items-center gap-2 text-sm text-foreground">
                               <input type="checkbox" checked={draft.equipmentIds.includes(item.id)} onChange={() => toggleEquipment(order.id, item.id)} />
                               {item.label} ({item.kind})
                             </label>
@@ -361,7 +361,7 @@ export default function BourseAffretementPanel({ orders, clientMap, onRefresh }:
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{label}</span>
+      <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-discreet">{label}</span>
       {children}
     </label>
   )

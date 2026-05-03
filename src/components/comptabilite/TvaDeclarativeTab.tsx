@@ -30,7 +30,7 @@ interface TvaRegle {
 const inp = 'w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary-soft)]'
 const btn = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors'
 const btnPrimary = `${btn} bg-slate-800 text-white hover:bg-slate-900`
-const btnSecondary = `${btn} border border-slate-300 text-slate-700 hover:bg-slate-100`
+const btnSecondary = `${btn} border border-line-strong text-foreground hover:bg-surface-2`
 
 const MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
 
@@ -229,12 +229,12 @@ export default function TvaDeclarativeTab() {
     const colors: Record<string, string> = {
       ouverte: 'bg-blue-100 text-blue-700',
       cloturee: 'bg-green-100 text-green-700',
-      declaree: 'bg-slate-100 text-slate-600',
+      declaree: 'bg-surface-2 text-secondary',
     }
-    return <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors[statut] || 'bg-slate-100 text-slate-600'}`}>{statut}</span>
+    return <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors[statut] || 'bg-surface-2 text-secondary'}`}>{statut}</span>
   }
 
-  if (loading) return <div className="text-center py-8 text-slate-500">Chargement...</div>
+  if (loading) return <div className="text-center py-8 text-discreet">Chargement...</div>
 
   return (
     <div className="space-y-4">
@@ -242,11 +242,11 @@ export default function TvaDeclarativeTab() {
       {success && <div className="p-3 bg-green-50 text-green-700 rounded text-sm">{success}</div>}
 
       {/* Taux en vigueur */}
-      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-        <h4 className="text-xs font-medium text-slate-600 mb-2">Taux TVA en vigueur</h4>
+      <div className="bg-surface-soft border border-line rounded-lg p-3">
+        <h4 className="text-xs font-medium text-secondary mb-2">Taux TVA en vigueur</h4>
         <div className="flex gap-3 flex-wrap">
           {regles.map(r => (
-            <span key={r.id} className="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-700">
+            <span key={r.id} className="px-2 py-1 bg-surface border border-line rounded text-xs text-foreground">
               {r.code_tva}: <strong>{r.taux}%</strong> ({r.regime})
             </span>
           ))}
@@ -256,25 +256,25 @@ export default function TvaDeclarativeTab() {
       {/* Header */}
       <div className="flex gap-3 items-end flex-wrap">
         <div>
-          <label className="text-xs font-medium text-slate-600 block mb-1">Année</label>
+          <label className="text-xs font-medium text-secondary block mb-1">Année</label>
           <input type="number" value={annee} onChange={e => setAnnee(parseInt(e.target.value))} className={inp} style={{ width: 100 }} />
         </div>
         <button onClick={() => setShowCreate(true)} className={btnPrimary}>+ Nouvelle période</button>
       </div>
 
       {showCreate && (
-        <div className="border border-slate-200 rounded-lg p-4 bg-slate-50 space-y-3">
-          <h3 className="font-medium text-sm text-slate-800">Nouvelle période TVA</h3>
+        <div className="border border-line rounded-lg p-4 bg-surface-soft space-y-3">
+          <h3 className="font-medium text-sm text-foreground">Nouvelle période TVA</h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">Type</label>
+              <label className="text-xs font-medium text-secondary block mb-1">Type</label>
               <select value={newType} onChange={e => { setNewType(e.target.value as any); setNewIndex(1) }} className={inp}>
                 <option value="mensuel">Mensuel (CA3)</option>
                 <option value="trimestriel">Trimestriel</option>
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">
+              <label className="text-xs font-medium text-secondary block mb-1">
                 {newType === 'mensuel' ? 'Mois' : 'Trimestre'}
               </label>
               <select value={newIndex} onChange={e => setNewIndex(parseInt(e.target.value))} className={inp}>
@@ -289,7 +289,7 @@ export default function TvaDeclarativeTab() {
             <button onClick={createPeriode} disabled={saving} className={btnPrimary}>
               {saving ? 'Création...' : 'Créer'}
             </button>
-            <button onClick={() => setShowCreate(false)} className={`${btn} text-slate-500 hover:text-slate-700`}>Annuler</button>
+            <button onClick={() => setShowCreate(false)} className={`${btn} text-discreet hover:text-foreground`}>Annuler</button>
           </div>
         </div>
       )}
@@ -297,9 +297,9 @@ export default function TvaDeclarativeTab() {
       {/* Liste des périodes */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div>
-          <h3 className="font-medium text-slate-800 mb-3">Périodes {annee}</h3>
+          <h3 className="font-medium text-foreground mb-3">Périodes {annee}</h3>
           {periodes.length === 0 ? (
-            <div className="text-center py-6 text-slate-500 text-sm">Aucune période pour {annee}</div>
+            <div className="text-center py-6 text-discreet text-sm">Aucune période pour {annee}</div>
           ) : (
             <div className="space-y-2" role="list">
               {periodes.map(p => {
@@ -311,13 +311,13 @@ export default function TvaDeclarativeTab() {
                     role="listitem"
                     onClick={() => fetchLignes(p)}
                     className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                      isSelected ? 'border-slate-800 bg-slate-100' : 'border-slate-200 hover:bg-slate-50'
+                      isSelected ? 'border-slate-800 bg-surface-2' : 'border-line hover:bg-surface-soft'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="font-medium text-slate-800 text-sm">{label}</span>
-                        <span className="ml-2 text-xs text-slate-500">{p.date_debut} → {p.date_fin}</span>
+                        <span className="font-medium text-foreground text-sm">{label}</span>
+                        <span className="ml-2 text-xs text-discreet">{p.date_debut} → {p.date_fin}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         {statutBadge(p.statut)}
@@ -331,7 +331,7 @@ export default function TvaDeclarativeTab() {
                             </button>
                             <button
                               onClick={e => { e.stopPropagation(); cloturerPeriode(p) }}
-                              className="text-xs text-slate-500 hover:text-slate-700"
+                              className="text-xs text-discreet hover:text-foreground"
                             >
                               Clôturer
                             </button>
@@ -351,7 +351,7 @@ export default function TvaDeclarativeTab() {
           {selectedPeriode ? (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium text-slate-800">
+                <h3 className="font-medium text-foreground">
                   Détail TVA — {selectedPeriode.periode_type === 'mensuel' ? MOIS[selectedPeriode.periode_index - 1] : `T${selectedPeriode.periode_index}`} {selectedPeriode.annee}
                 </h3>
                 {lignes.length > 0 && (
@@ -360,27 +360,27 @@ export default function TvaDeclarativeTab() {
               </div>
 
               {lignes.length === 0 ? (
-                <div className="text-center py-6 text-slate-500 text-sm border border-dashed border-slate-300 rounded-lg">
+                <div className="text-center py-6 text-discreet text-sm border border-dashed border-line-strong rounded-lg">
                   Aucune ligne TVA. Cliquez "Calculer" pour générer.
                 </div>
               ) : (
                 <div className="space-y-3">
                   <table className="w-full text-sm border-collapse">
                     <thead>
-                      <tr className="bg-slate-100">
-                        <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Case</th>
-                        <th className="px-3 py-2 text-right font-medium text-slate-800 border border-slate-200">Base HT</th>
-                        <th className="px-3 py-2 text-right font-medium text-slate-800 border border-slate-200">Montant TVA</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Origine</th>
+                      <tr className="bg-surface-2">
+                        <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Case</th>
+                        <th className="px-3 py-2 text-right font-medium text-foreground border border-line">Base HT</th>
+                        <th className="px-3 py-2 text-right font-medium text-foreground border border-line">Montant TVA</th>
+                        <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Origine</th>
                       </tr>
                     </thead>
                     <tbody>
                       {lignes.map(l => (
-                        <tr key={l.id} className={`hover:bg-slate-50 border-b border-slate-200 ${l.code_case === 'TVA_A_PAYER' ? 'font-bold bg-slate-50' : ''}`}>
-                          <td className="px-3 py-2 text-slate-700">{l.code_case.replace(/_/g, ' ')}</td>
-                          <td className="px-3 py-2 text-right text-slate-700">{l.base_ht.toFixed(2)} €</td>
-                          <td className="px-3 py-2 text-right text-slate-700">{l.montant_tva.toFixed(2)} €</td>
-                          <td className="px-3 py-2 text-slate-500 text-xs">{l.origine}</td>
+                        <tr key={l.id} className={`hover:bg-surface-soft border-b border-line ${l.code_case === 'TVA_A_PAYER' ? 'font-bold bg-surface-soft' : ''}`}>
+                          <td className="px-3 py-2 text-foreground">{l.code_case.replace(/_/g, ' ')}</td>
+                          <td className="px-3 py-2 text-right text-foreground">{l.base_ht.toFixed(2)} €</td>
+                          <td className="px-3 py-2 text-right text-foreground">{l.montant_tva.toFixed(2)} €</td>
+                          <td className="px-3 py-2 text-discreet text-xs">{l.origine}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -405,7 +405,7 @@ export default function TvaDeclarativeTab() {
               )}
             </div>
           ) : (
-            <div className="text-center py-12 text-slate-400 text-sm">
+            <div className="text-center py-12 text-muted text-sm">
               Sélectionnez une période pour voir le détail TVA
             </div>
           )}

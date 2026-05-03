@@ -86,7 +86,7 @@ const STATUT_COLORS: Record<string, string> = {
   assigne: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
   en_cours_reprise: 'bg-violet-500/20 text-violet-300 border-violet-500/30',
   termine: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-  annule: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
+  annule: 'bg-slate-500/20 text-muted border-slate-500/30',
 }
 
 function fmt(iso: string | null | undefined) {
@@ -330,11 +330,11 @@ export default function Entrepots() {
             className={`px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 transition-colors flex items-center gap-2 ${
               tab === t.key
                 ? 'border-indigo-500 text-indigo-300'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                : 'border-transparent text-muted hover:text-slate-200'
             }`}
           >
             {t.label}
-            <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${tab === t.key ? 'bg-indigo-500/30 text-indigo-200' : 'bg-slate-800 text-slate-500'}`}>
+            <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${tab === t.key ? 'bg-indigo-500/30 text-indigo-200' : 'bg-slate-800 text-discreet'}`}>
               {t.count}
             </span>
           </button>
@@ -377,9 +377,9 @@ export default function Entrepots() {
               </div>
 
               {sitesLoading ? (
-                <div className="text-slate-500 text-sm py-8 text-center">Chargement...</div>
+                <div className="text-discreet text-sm py-8 text-center">Chargement...</div>
               ) : list.length === 0 ? (
-                <div className="text-slate-500 text-sm py-12 text-center">
+                <div className="text-discreet text-sm py-12 text-center">
                   {emptyMsg}{canEdit && <> <button onClick={openCreateSite} className="text-indigo-400 hover:underline ml-1">Créer</button>.</>}
                 </div>
               ) : (
@@ -389,33 +389,33 @@ export default function Entrepots() {
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <div className="font-semibold text-slate-100">{site.nom}</div>
-                          <div className="text-xs text-slate-400 mt-0.5">{site.adresse}{site.ville ? ` — ${site.ville}` : ''}</div>
+                          <div className="text-xs text-muted mt-0.5">{site.adresse}{site.ville ? ` — ${site.ville}` : ''}</div>
                         </div>
                         <div className="flex flex-col items-end gap-1 flex-shrink-0">
                           <span className={`text-[10px] px-2 py-0.5 rounded-full ${isDepotTab ? 'bg-amber-500/20 text-amber-300' : 'bg-indigo-500/20 text-indigo-300'}`}>
                             {TYPE_SITE_LABELS[site.type_site ?? ''] ?? site.type_site ?? 'Site'}
                           </span>
                           {site.est_depot_relais && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-700 text-slate-400">Dépôt relais</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-700 text-muted">Dépôt relais</span>
                           )}
                         </div>
                       </div>
                       {(site.contact_nom || site.contact_tel) && (
-                        <div className="text-xs text-slate-400">
+                        <div className="text-xs text-muted">
                           {site.contact_nom && <span>{site.contact_nom}</span>}
-                          {site.contact_tel && <span className="ml-2 text-slate-500">{site.contact_tel}</span>}
+                          {site.contact_tel && <span className="ml-2 text-discreet">{site.contact_tel}</span>}
                         </div>
                       )}
                       {site.capacite_m3 != null && (
-                        <div className="text-xs text-slate-500">Capacité : {site.capacite_m3} m³</div>
+                        <div className="text-xs text-discreet">Capacité : {site.capacite_m3} m³</div>
                       )}
                       {site.entreprise_id && (
-                        <div className="text-xs text-slate-500">Client : {clientMap[site.entreprise_id] ?? site.entreprise_id.slice(0, 8)}</div>
+                        <div className="text-xs text-discreet">Client : {clientMap[site.entreprise_id] ?? site.entreprise_id.slice(0, 8)}</div>
                       )}
                       {canEdit && (
                         <div className="flex gap-2 mt-1 pt-2 border-t border-slate-800">
-                          <button onClick={() => openEditSite(site)} type="button" className="text-xs text-slate-400 hover:text-indigo-300 transition-colors">Modifier</button>
-                          <button onClick={() => deleteSite(site.id)} type="button" className="text-xs text-slate-400 hover:text-rose-400 transition-colors ml-auto">Supprimer</button>
+                          <button onClick={() => openEditSite(site)} type="button" className="text-xs text-muted hover:text-indigo-300 transition-colors">Modifier</button>
+                          <button onClick={() => deleteSite(site.id)} type="button" className="text-xs text-muted hover:text-rose-400 transition-colors ml-auto">Supprimer</button>
                         </div>
                       )}
                     </div>
@@ -430,14 +430,14 @@ export default function Entrepots() {
         {tab === 'en_depot' && (
           <div className="space-y-3">
             {relaisLoading ? (
-              <div className="text-slate-500 text-sm py-8 text-center">Chargement...</div>
+              <div className="text-discreet text-sm py-8 text-center">Chargement...</div>
             ) : relaisDepot.length === 0 ? (
-              <div className="text-slate-500 text-sm py-12 text-center">Aucune marchandise en dépôt actuellement.</div>
+              <div className="text-discreet text-sm py-12 text-center">Aucune marchandise en dépôt actuellement.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-slate-500 text-xs border-b border-slate-800">
+                    <tr className="text-left text-discreet text-xs border-b border-slate-800">
                       <th className="pb-2 pr-4 font-medium">OT</th>
                       <th className="pb-2 pr-4 font-medium">Site / Lieu</th>
                       <th className="pb-2 pr-4 font-medium">Conducteur dépôt</th>
@@ -453,10 +453,10 @@ export default function Entrepots() {
                       <tr key={r.id} className="hover:bg-slate-900/50">
                         <td className="py-2.5 pr-4 text-slate-300 font-mono text-xs">{r.ot_id?.slice(0, 8) ?? '—'}</td>
                         <td className="py-2.5 pr-4 text-slate-300">{siteName(r.site_id) ?? r.lieu_libre_nom ?? r.lieu_libre_adresse ?? '—'}</td>
-                        <td className="py-2.5 pr-4 text-slate-400">{conducteurName(r.conducteur_depose_id)}</td>
-                        <td className="py-2.5 pr-4 text-slate-400">{fmt(r.date_depot)}</td>
-                        <td className="py-2.5 pr-4 text-slate-400">{fmt(r.date_reprise_prevue)}</td>
-                        <td className="py-2.5 pr-4 text-slate-400">{conducteurName(r.conducteur_reprise_id)}</td>
+                        <td className="py-2.5 pr-4 text-muted">{conducteurName(r.conducteur_depose_id)}</td>
+                        <td className="py-2.5 pr-4 text-muted">{fmt(r.date_depot)}</td>
+                        <td className="py-2.5 pr-4 text-muted">{fmt(r.date_reprise_prevue)}</td>
+                        <td className="py-2.5 pr-4 text-muted">{conducteurName(r.conducteur_reprise_id)}</td>
                         <td className="py-2.5 pr-4">
                           <span className={`text-[11px] px-2 py-0.5 rounded-full border ${STATUT_COLORS[r.statut]}`}>
                             {STATUT_LABELS[r.statut]}
@@ -491,14 +491,14 @@ export default function Entrepots() {
         {tab === 'relais_conducteur' && (
           <div className="space-y-3">
             {relaisLoading ? (
-              <div className="text-slate-500 text-sm py-8 text-center">Chargement...</div>
+              <div className="text-discreet text-sm py-8 text-center">Chargement...</div>
             ) : relaisConducteur.length === 0 ? (
-              <div className="text-slate-500 text-sm py-12 text-center">Aucun relais conducteur en cours.</div>
+              <div className="text-discreet text-sm py-12 text-center">Aucun relais conducteur en cours.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-slate-500 text-xs border-b border-slate-800">
+                    <tr className="text-left text-discreet text-xs border-b border-slate-800">
                       <th className="pb-2 pr-4 font-medium">OT</th>
                       <th className="pb-2 pr-4 font-medium">Lieu</th>
                       <th className="pb-2 pr-4 font-medium">Conducteur dépose</th>
@@ -514,10 +514,10 @@ export default function Entrepots() {
                       <tr key={r.id} className="hover:bg-slate-900/50">
                         <td className="py-2.5 pr-4 text-slate-300 font-mono text-xs">{r.ot_id?.slice(0, 8) ?? '—'}</td>
                         <td className="py-2.5 pr-4 text-slate-300">{siteName(r.site_id) ?? r.lieu_libre_nom ?? r.lieu_libre_adresse ?? '—'}</td>
-                        <td className="py-2.5 pr-4 text-slate-400">{conducteurName(r.conducteur_depose_id)}</td>
-                        <td className="py-2.5 pr-4 text-slate-400">{vehiculeImmat(r.vehicule_depose_id)}</td>
-                        <td className="py-2.5 pr-4 text-slate-400">{fmt(r.date_depot)}</td>
-                        <td className="py-2.5 pr-4 text-slate-400">{conducteurName(r.conducteur_reprise_id)}</td>
+                        <td className="py-2.5 pr-4 text-muted">{conducteurName(r.conducteur_depose_id)}</td>
+                        <td className="py-2.5 pr-4 text-muted">{vehiculeImmat(r.vehicule_depose_id)}</td>
+                        <td className="py-2.5 pr-4 text-muted">{fmt(r.date_depot)}</td>
+                        <td className="py-2.5 pr-4 text-muted">{conducteurName(r.conducteur_reprise_id)}</td>
                         <td className="py-2.5 pr-4">
                           <span className={`text-[11px] px-2 py-0.5 rounded-full border ${STATUT_COLORS[r.statut]}`}>
                             {STATUT_LABELS[r.statut]}
@@ -555,7 +555,7 @@ export default function Entrepots() {
           <form onSubmit={submitSite} className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 flex-shrink-0">
               <h2 className="font-semibold text-slate-100">{siteModal.mode === 'create' ? 'Nouveau site / dépôt' : 'Modifier le site'}</h2>
-              <button type="button" onClick={() => setSiteModal(null)} className="text-slate-500 hover:text-slate-300 text-xl">✕</button>
+              <button type="button" onClick={() => setSiteModal(null)} className="text-discreet hover:text-slate-300 text-xl">✕</button>
             </div>
             <div className="overflow-y-auto px-6 py-4 space-y-3 flex-1">
               {([
@@ -570,7 +570,7 @@ export default function Entrepots() {
                 { label: 'Horaires', key: 'horaires_ouverture', placeholder: 'Lun-Ven 8h-18h' },
               ] as { label: string; key: keyof typeof siteForm; placeholder: string }[]).map(f => (
                 <div key={f.key}>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">{f.label}</label>
+                  <label className="block text-xs font-medium text-muted mb-1">{f.label}</label>
                   <input
                     value={String(siteForm[f.key])}
                     onChange={e => setSiteForm(prev => ({ ...prev, [f.key]: e.target.value }))}
@@ -580,7 +580,7 @@ export default function Entrepots() {
                 </div>
               ))}
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Type de site</label>
+                <label className="block text-xs font-medium text-muted mb-1">Type de site</label>
                 <select
                   value={siteForm.type_site}
                   onChange={e => setSiteForm(prev => ({ ...prev, type_site: e.target.value }))}
@@ -590,7 +590,7 @@ export default function Entrepots() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Notes</label>
+                <label className="block text-xs font-medium text-muted mb-1">Notes</label>
                 <textarea
                   value={siteForm.notes}
                   onChange={e => setSiteForm(prev => ({ ...prev, notes: e.target.value }))}
@@ -602,7 +602,7 @@ export default function Entrepots() {
               {/* ── Coordonnées GPS ── */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-400">Localisation GPS</span>
+                  <span className="text-xs font-medium text-muted">Localisation GPS</span>
                   <button
                     type="button"
                     onClick={() => setShowMap(v => !v)}
@@ -629,7 +629,7 @@ export default function Entrepots() {
                 {(siteForm.latitude || siteForm.longitude) && (
                   <div className="flex gap-3">
                     <div className="flex-1">
-                      <label className="block text-xs text-slate-500 mb-1">Latitude</label>
+                      <label className="block text-xs text-discreet mb-1">Latitude</label>
                       <input
                         value={siteForm.latitude}
                         onChange={e => setSiteForm(prev => ({ ...prev, latitude: e.target.value }))}
@@ -638,7 +638,7 @@ export default function Entrepots() {
                       />
                     </div>
                     <div className="flex-1">
-                      <label className="block text-xs text-slate-500 mb-1">Longitude</label>
+                      <label className="block text-xs text-discreet mb-1">Longitude</label>
                       <input
                         value={siteForm.longitude}
                         onChange={e => setSiteForm(prev => ({ ...prev, longitude: e.target.value }))}
@@ -661,7 +661,7 @@ export default function Entrepots() {
               </label>
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-800 flex-shrink-0">
-              <button type="button" onClick={() => setSiteModal(null)} className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-slate-200 transition-colors">Annuler</button>
+              <button type="button" onClick={() => setSiteModal(null)} className="px-4 py-2 rounded-lg text-sm text-muted hover:text-slate-200 transition-colors">Annuler</button>
               <button type="submit" disabled={siteSaving} className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors disabled:opacity-50">
                 {siteSaving ? 'Enregistrement...' : 'Enregistrer'}
               </button>
@@ -676,11 +676,11 @@ export default function Entrepots() {
           <form onSubmit={submitAssign} className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
               <h2 className="font-semibold text-slate-100">Assigner la reprise</h2>
-              <button type="button" onClick={() => setAssignModal(null)} className="text-slate-500 hover:text-slate-300 text-xl">✕</button>
+              <button type="button" onClick={() => setAssignModal(null)} className="text-discreet hover:text-slate-300 text-xl">✕</button>
             </div>
             <div className="px-6 py-4 space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Conducteur reprise</label>
+                <label className="block text-xs font-medium text-muted mb-1">Conducteur reprise</label>
                 <select
                   value={assignForm.conducteur_reprise_id}
                   onChange={e => setAssignForm(prev => ({ ...prev, conducteur_reprise_id: e.target.value }))}
@@ -691,7 +691,7 @@ export default function Entrepots() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Véhicule reprise</label>
+                <label className="block text-xs font-medium text-muted mb-1">Véhicule reprise</label>
                 <select
                   value={assignForm.vehicule_reprise_id}
                   onChange={e => setAssignForm(prev => ({ ...prev, vehicule_reprise_id: e.target.value }))}
@@ -702,7 +702,7 @@ export default function Entrepots() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Remorque (optionnel)</label>
+                <label className="block text-xs font-medium text-muted mb-1">Remorque (optionnel)</label>
                 <select
                   value={assignForm.remorque_reprise_id}
                   onChange={e => setAssignForm(prev => ({ ...prev, remorque_reprise_id: e.target.value }))}
@@ -713,7 +713,7 @@ export default function Entrepots() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Date reprise prévue</label>
+                <label className="block text-xs font-medium text-muted mb-1">Date reprise prévue</label>
                 <input
                   type="datetime-local"
                   value={assignForm.date_reprise_prevue}
@@ -723,7 +723,7 @@ export default function Entrepots() {
               </div>
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-800">
-              <button type="button" onClick={() => setAssignModal(null)} className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-slate-200 transition-colors">Annuler</button>
+              <button type="button" onClick={() => setAssignModal(null)} className="px-4 py-2 rounded-lg text-sm text-muted hover:text-slate-200 transition-colors">Annuler</button>
               <button type="submit" disabled={assignSaving} className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors disabled:opacity-50">
                 {assignSaving ? 'Enregistrement...' : 'Assigner'}
               </button>

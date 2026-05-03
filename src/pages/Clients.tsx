@@ -26,7 +26,7 @@ const TYPE_COLORS: Record<string, string> = {
   chargeur: 'bg-blue-100 text-blue-700',
   transitaire: 'bg-purple-100 text-purple-700',
   commissionnaire: 'bg-orange-100 text-orange-700',
-  autre: 'bg-slate-100 text-slate-600',
+  autre: 'bg-surface-2 text-secondary',
 }
 
 const MODE_PAIEMENT_LABELS: Record<string, string> = {
@@ -61,11 +61,11 @@ const FACTURE_STATUT_LABELS: Record<string, string> = {
 }
 
 const FACTURE_STATUT_COLORS: Record<string, string> = {
-  brouillon: 'bg-slate-100 text-slate-600',
+  brouillon: 'bg-surface-2 text-secondary',
   envoyee: 'bg-blue-100 text-blue-700',
   payee: 'bg-green-100 text-green-700',
   en_retard: 'bg-red-100 text-red-700',
-  annulee: 'bg-slate-100 text-slate-500',
+  annulee: 'bg-surface-2 text-discreet',
 }
 
 const OT_STATUT_LABELS: Record<string, string> = {
@@ -85,7 +85,7 @@ const OT_STATUT_LABELS: Record<string, string> = {
 
 const OT_STATUT_COLORS: Record<string, string> = {
   // legacy
-  brouillon: 'bg-slate-100 text-slate-600',
+  brouillon: 'bg-surface-2 text-secondary',
   confirme: 'bg-blue-100 text-blue-700',
   planifie: 'bg-indigo-100 text-indigo-700',
   en_cours: 'bg-amber-100 text-amber-700',
@@ -93,7 +93,7 @@ const OT_STATUT_COLORS: Record<string, string> = {
   facture: 'bg-purple-100 text-purple-700',
   annule: 'bg-red-100 text-red-700',
   // statut_transport
-  en_attente_validation: 'bg-slate-100 text-slate-700',
+  en_attente_validation: 'bg-surface-2 text-foreground',
   valide: 'bg-blue-100 text-blue-700',
   en_attente_planification: 'bg-indigo-100 text-indigo-700',
   en_cours_approche_chargement: 'bg-amber-100 text-amber-700',
@@ -774,8 +774,8 @@ export default function Clients() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Clients</h2>
-          <p className="text-sm text-slate-500">{list.length} client{list.length !== 1 ? 's' : ''}</p>
+          <h2 className="text-2xl font-bold text-foreground">Clients</h2>
+          <p className="text-sm text-discreet">{list.length} client{list.length !== 1 ? 's' : ''}</p>
         </div>
         <button
           type="button"
@@ -810,7 +810,7 @@ export default function Clients() {
               <button
                 type="button"
                 onClick={unlockDemoSeed}
-                className="rounded-lg border border-indigo-200 bg-white px-4 py-2 text-sm font-medium text-indigo-800 transition-colors hover:bg-indigo-100"
+                className="rounded-lg border border-indigo-200 bg-surface px-4 py-2 text-sm font-medium text-indigo-800 transition-colors hover:bg-indigo-100"
               >
                 Reinitialiser l'etat local
               </button>
@@ -834,7 +834,7 @@ export default function Clients() {
         placeholder="Nom, code client, ville, SIRET, TVA, banque..."
         value={search}
         onChange={event => setSearch(event.target.value)}
-        className="w-full max-w-md rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-300"
+        className="w-full max-w-md rounded-lg border border-line px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-300"
       />
 
       <div className="nx-table-shell">
@@ -846,10 +846,10 @@ export default function Clients() {
           />
         ) : (
           <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50">
+            <thead className="border-b border-line bg-surface-soft">
               <tr>
                 {['Client', 'Paiement', 'Lieux', 'Facturation', 'Courses', 'Statut', ''].map(header => (
-                  <th key={header} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <th key={header} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-discreet">
                     {header}
                   </th>
                 ))}
@@ -866,45 +866,45 @@ export default function Clients() {
                     key={client.id}
                     onClick={() => openEdit(client)}
                     className={`cursor-pointer border-t border-slate-100 transition-colors hover:bg-blue-50 ${
-                      index % 2 !== 0 ? 'bg-slate-50' : ''
+                      index % 2 !== 0 ? 'bg-surface-soft' : ''
                     }`}
                   >
                     <td className="px-4 py-3">
-                      <div className="font-medium text-slate-800">{client.nom}</div>
+                      <div className="font-medium text-foreground">{client.nom}</div>
                       <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_COLORS[client.type_client] ?? 'bg-slate-100 text-slate-600'}`}>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_COLORS[client.type_client] ?? 'bg-surface-2 text-secondary'}`}>
                           {TYPE_LABELS[client.type_client] ?? client.type_client}
                         </span>
-                        {client.code_client && <span className="text-xs font-mono text-slate-400">{client.code_client}</span>}
+                        {client.code_client && <span className="text-xs font-mono text-muted">{client.code_client}</span>}
                       </div>
                       {(client.ville || client.telephone) && (
-                        <div className="mt-1 text-xs text-slate-400">
+                        <div className="mt-1 text-xs text-muted">
                           {[client.ville, client.telephone].filter(Boolean).join(' - ')}
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-600">
+                    <td className="px-4 py-3 text-xs text-secondary">
                       <div>{client.mode_paiement_defaut ? MODE_PAIEMENT_LABELS[client.mode_paiement_defaut] ?? client.mode_paiement_defaut : 'Non renseigne'}</div>
-                      <div className="mt-1 text-slate-400">{client.conditions_paiement !== null ? `${client.conditions_paiement} j` : 'Delai libre'}</div>
+                      <div className="mt-1 text-muted">{client.conditions_paiement !== null ? `${client.conditions_paiement} j` : 'Delai libre'}</div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-600">
+                    <td className="px-4 py-3 text-xs text-secondary">
                       <div>{addressStats.total} lieu{addressStats.total > 1 ? 'x' : ''}</div>
-                      <div className="mt-1 text-slate-400">
+                      <div className="mt-1 text-muted">
                         {addressStats.enlevement} enl. / {addressStats.livraison} liv.
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-600">
+                    <td className="px-4 py-3 text-xs text-secondary">
                       <div>{factureStats.total} facture{factureStats.total > 1 ? 's' : ''}</div>
-                      <div className={`mt-1 ${factureStats.overdue > 0 ? 'font-medium text-red-600' : 'text-slate-400'}`}>
+                      <div className={`mt-1 ${factureStats.overdue > 0 ? 'font-medium text-red-600' : 'text-muted'}`}>
                         {factureStats.overdue} en retard
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-600">
+                    <td className="px-4 py-3 text-xs text-secondary">
                       <div>{courseStats.total} course{courseStats.total > 1 ? 's' : ''}</div>
-                      <div className="mt-1 text-slate-400">{courseStats.active} active{courseStats.active > 1 ? 's' : ''}</div>
+                      <div className="mt-1 text-muted">{courseStats.active} active{courseStats.active > 1 ? 's' : ''}</div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-1 text-xs font-medium ${client.actif ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                      <span className={`rounded-full px-2 py-1 text-xs font-medium ${client.actif ? 'bg-green-100 text-green-700' : 'bg-surface-2 text-discreet'}`}>
                         {client.actif ? 'Actif' : 'Inactif'}
                       </span>
                     </td>
@@ -915,7 +915,7 @@ export default function Clients() {
                           event.stopPropagation()
                           void del(client.id)
                         }}
-                        className="text-xs text-slate-400 transition-colors hover:text-red-500"
+                        className="text-xs text-muted transition-colors hover:text-red-500"
                       >
                         Suppr.
                       </button>
@@ -930,17 +930,17 @@ export default function Clients() {
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-xl bg-white shadow-xl">
+          <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-xl bg-surface shadow-xl">
             <div className="flex items-start justify-between border-b p-6">
               <div>
-                <h3 className="text-lg font-semibold text-slate-800">
+                <h3 className="text-lg font-semibold text-foreground">
                   {editingId ? 'Fiche client' : 'Ajouter un client'}
                 </h3>
-                <p className="mt-1 text-sm text-slate-400">
+                <p className="mt-1 text-sm text-muted">
                   Adresse principale, facturation, conditions de paiement, RIB, lieux de chargement et de livraison.
                 </p>
               </div>
-              <button type="button" onClick={closeForm} className="text-slate-400 transition-colors hover:text-slate-600">
+              <button type="button" onClick={closeForm} className="text-muted transition-colors hover:text-secondary">
                 X
               </button>
             </div>
@@ -1007,7 +1007,7 @@ export default function Clients() {
                     <button
                       type="button"
                       onClick={copyMainAddressToBilling}
-                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
+                      className="rounded-lg border border-line px-3 py-1.5 text-xs text-secondary transition-colors hover:bg-surface-soft"
                     >
                       Copier adresse principale
                     </button>
@@ -1091,18 +1091,18 @@ export default function Clients() {
                 <div className="mt-8 space-y-6 border-t pt-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-slate-800">Dossier client</p>
-                      <p className="text-xs text-slate-400">Contacts, lieux d'enlevement et de livraison, factures et courses.</p>
+                      <p className="text-sm font-semibold text-foreground">Dossier client</p>
+                      <p className="text-xs text-muted">Contacts, lieux d'enlevement et de livraison, factures et courses.</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() => toggleActif(selectedClient)}
-                        className={`rounded-full px-3 py-1 text-xs font-medium ${selectedClient.actif ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}
+                        className={`rounded-full px-3 py-1 text-xs font-medium ${selectedClient.actif ? 'bg-green-100 text-green-700' : 'bg-surface-2 text-secondary'}`}
                       >
                         {selectedClient.actif ? 'Actif' : 'Inactif'}
                       </button>
-                      {loadingDossier && <span className="text-xs text-slate-400">Chargement...</span>}
+                      {loadingDossier && <span className="text-xs text-muted">Chargement...</span>}
                     </div>
                   </div>
 
@@ -1117,8 +1117,8 @@ export default function Clients() {
 
                   <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
                     <div className="space-y-6">
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <h4 className="text-sm font-semibold text-slate-800">Contacts client</h4>
+                      <div className="rounded-xl border border-line bg-surface-soft p-4">
+                        <h4 className="text-sm font-semibold text-foreground">Contacts client</h4>
                         <form onSubmit={submitContact} className="mt-4 space-y-3">
                           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                             <Field label="Nom *">
@@ -1139,7 +1139,7 @@ export default function Clients() {
                               </Field>
                             </div>
                           </div>
-                          <label className="flex items-center gap-2 text-xs text-slate-600">
+                          <label className="flex items-center gap-2 text-xs text-secondary">
                             <input type="checkbox" checked={contactForm.principal ?? false} onChange={event => setContactForm(current => ({ ...current, principal: event.target.checked }))} />
                             Contact principal
                           </label>
@@ -1152,27 +1152,27 @@ export default function Clients() {
 
                         <div className="mt-4 space-y-2">
                           {contacts.length === 0 ? (
-                            <p className="text-xs text-slate-400">Aucun contact enregistre.</p>
+                            <p className="text-xs text-muted">Aucun contact enregistre.</p>
                           ) : contacts.map(contact => (
-                            <div key={contact.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                            <div key={contact.id} className="rounded-lg border border-line bg-surface p-3">
                               <div className="flex items-start justify-between gap-3">
                                 <div>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-sm font-medium text-slate-800">
+                                    <span className="text-sm font-medium text-foreground">
                                       {[contact.prenom, contact.nom].filter(Boolean).join(' ')}
                                     </span>
                                     {contact.principal && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700">Principal</span>}
                                   </div>
-                                  {contact.poste && <div className="mt-1 text-xs text-slate-500">{contact.poste}</div>}
-                                  <div className="mt-1 text-xs text-slate-500">{[contact.telephone, contact.email].filter(Boolean).join(' - ') || 'Aucune coordonnee'}</div>
+                                  {contact.poste && <div className="mt-1 text-xs text-discreet">{contact.poste}</div>}
+                                  <div className="mt-1 text-xs text-discreet">{[contact.telephone, contact.email].filter(Boolean).join(' - ') || 'Aucune coordonnee'}</div>
                                 </div>
                                 <div className="flex gap-2">
                                   {!contact.principal && (
-                                    <button type="button" onClick={() => void makePrimary(contact.id)} className="text-xs text-slate-400 hover:text-slate-700">
+                                    <button type="button" onClick={() => void makePrimary(contact.id)} className="text-xs text-muted hover:text-foreground">
                                       Principal
                                     </button>
                                   )}
-                                  <button type="button" onClick={() => void delContact(contact.id)} className="text-xs text-slate-400 hover:text-red-500">
+                                  <button type="button" onClick={() => void delContact(contact.id)} className="text-xs text-muted hover:text-red-500">
                                     Suppr.
                                   </button>
                                 </div>
@@ -1182,8 +1182,8 @@ export default function Clients() {
                         </div>
                       </div>
 
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <h4 className="text-sm font-semibold text-slate-800">Lieux d'enlevement et de livraison</h4>
+                      <div className="rounded-xl border border-line bg-surface-soft p-4">
+                        <h4 className="text-sm font-semibold text-foreground">Lieux d'enlevement et de livraison</h4>
                         <form onSubmit={submitAddress} className="mt-4 space-y-3">
                           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                             <Field label="Type de lieu">
@@ -1223,7 +1223,7 @@ export default function Clients() {
                               </Field>
                             </div>
                           </div>
-                          <label className="flex items-center gap-2 text-xs text-slate-600">
+                          <label className="flex items-center gap-2 text-xs text-secondary">
                             <input type="checkbox" checked={addressForm.actif ?? true} onChange={event => setAddressForm(current => ({ ...current, actif: event.target.checked }))} />
                             Lieu actif
                           </label>
@@ -1243,8 +1243,8 @@ export default function Clients() {
                     </div>
 
                     <div className="space-y-6">
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <h4 className="text-sm font-semibold text-slate-800">Visualisation des factures</h4>
+                      <div className="rounded-xl border border-line bg-surface-soft p-4">
+                        <h4 className="text-sm font-semibold text-foreground">Visualisation des factures</h4>
                         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
                           <MiniInfo label="Factures" value={clientFactures.length.toString()} />
                           <MiniInfo label="Total facture" value={formatCurrency(currentInvoiceTotal)} />
@@ -1253,35 +1253,35 @@ export default function Clients() {
 
                         <div className="mt-4 space-y-2">
                           {clientFactures.length === 0 ? (
-                            <p className="text-xs text-slate-400">Aucune facture liee a ce client.</p>
+                            <p className="text-xs text-muted">Aucune facture liee a ce client.</p>
                           ) : clientFactures.slice(0, 10).map(facture => (
-                            <div key={facture.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                            <div key={facture.id} className="rounded-lg border border-line bg-surface p-3">
                               <div className="flex items-start justify-between gap-3">
                                 <div>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-sm font-medium text-slate-800">{facture.numero}</span>
-                                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${FACTURE_STATUT_COLORS[facture.statut] ?? 'bg-slate-100 text-slate-600'}`}>
+                                    <span className="text-sm font-medium text-foreground">{facture.numero}</span>
+                                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${FACTURE_STATUT_COLORS[facture.statut] ?? 'bg-surface-2 text-secondary'}`}>
                                       {FACTURE_STATUT_LABELS[facture.statut] ?? facture.statut}
                                     </span>
                                   </div>
-                                  <div className="mt-1 text-xs text-slate-500">
+                                  <div className="mt-1 text-xs text-discreet">
                                     Emise le {formatDate(facture.date_emission)} - Echeance {formatDate(facture.date_echeance)}
                                   </div>
-                                  {facture.ot_id && <div className="mt-1 text-xs text-slate-400">OT {otReferenceMap[facture.ot_id] ?? facture.ot_id}</div>}
+                                  {facture.ot_id && <div className="mt-1 text-xs text-muted">OT {otReferenceMap[facture.ot_id] ?? facture.ot_id}</div>}
                                 </div>
                                 <div className="text-right">
-                                  <div className="text-sm font-semibold text-slate-800">{formatCurrency(facture.montant_ttc ?? facture.montant_ht)}</div>
-                                  <div className="mt-1 text-xs text-slate-400">{facture.mode_paiement ? MODE_PAIEMENT_LABELS[facture.mode_paiement] ?? facture.mode_paiement : 'Sans mode'}</div>
+                                  <div className="text-sm font-semibold text-foreground">{formatCurrency(facture.montant_ttc ?? facture.montant_ht)}</div>
+                                  <div className="mt-1 text-xs text-muted">{facture.mode_paiement ? MODE_PAIEMENT_LABELS[facture.mode_paiement] ?? facture.mode_paiement : 'Sans mode'}</div>
                                 </div>
                               </div>
-                              {facture.notes && <p className="mt-2 text-xs text-slate-500">{facture.notes}</p>}
+                              {facture.notes && <p className="mt-2 text-xs text-discreet">{facture.notes}</p>}
                             </div>
                           ))}
                         </div>
                       </div>
 
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <h4 className="text-sm font-semibold text-slate-800">Visualisation des courses</h4>
+                      <div className="rounded-xl border border-line bg-surface-soft p-4">
+                        <h4 className="text-sm font-semibold text-foreground">Visualisation des courses</h4>
                         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
                           <MiniInfo label="Courses" value={clientCourses.length.toString()} />
                           <MiniInfo label="Actives" value={clientCourses.filter(course => ST_ACTIFS.includes(course.statut_transport as never)).length.toString()} />
@@ -1290,21 +1290,21 @@ export default function Clients() {
 
                         <div className="mt-4 space-y-2">
                           {clientCourses.length === 0 ? (
-                            <p className="text-xs text-slate-400">Aucune course liee a ce client.</p>
+                            <p className="text-xs text-muted">Aucune course liee a ce client.</p>
                           ) : clientCourses.slice(0, 10).map(course => (
-                            <div key={course.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                            <div key={course.id} className="rounded-lg border border-line bg-surface p-3">
                               <div className="flex items-start justify-between gap-3">
                                 <div>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-sm font-medium text-slate-800">{course.reference}</span>
-                                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${OT_STATUT_COLORS[course.statut_transport ?? course.statut] ?? 'bg-slate-100 text-slate-600'}`}>
+                                    <span className="text-sm font-medium text-foreground">{course.reference}</span>
+                                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${OT_STATUT_COLORS[course.statut_transport ?? course.statut] ?? 'bg-surface-2 text-secondary'}`}>
                                       {OT_STATUT_LABELS[course.statut_transport ?? course.statut] ?? course.statut_transport ?? course.statut}
                                     </span>
                                   </div>
-                                  <div className="mt-1 text-xs text-slate-500">
+                                  <div className="mt-1 text-xs text-discreet">
                                     Chargement {formatDate(course.date_chargement_prevue)} - Livraison {formatDate(course.date_livraison_prevue)}
                                   </div>
-                                  <div className="mt-1 text-xs text-slate-400">
+                                  <div className="mt-1 text-xs text-muted">
                                     Suivi live: {operationalStatusLabel(course.statut_operationnel)}
                                   </div>
                                   {course.date_livraison_reelle && (
@@ -1313,24 +1313,24 @@ export default function Clients() {
                                     </div>
                                   )}
                                   {(course.nature_marchandise || course.distance_km) && (
-                                    <div className="mt-1 text-xs text-slate-400">
+                                    <div className="mt-1 text-xs text-muted">
                                       {[course.nature_marchandise, course.distance_km ? `${course.distance_km} km` : null].filter(Boolean).join(' - ')}
                                     </div>
                                   )}
                                 </div>
                                 <div className="text-right">
-                                  <div className="text-sm font-semibold text-slate-800">{formatCurrency(course.prix_ht)}</div>
-                                  <div className="mt-1 text-xs text-slate-400">{course.type_transport}</div>
+                                  <div className="text-sm font-semibold text-foreground">{formatCurrency(course.prix_ht)}</div>
+                                  <div className="mt-1 text-xs text-muted">{course.type_transport}</div>
                                 </div>
                               </div>
-                              {course.instructions && <p className="mt-2 text-xs text-slate-500">{course.instructions}</p>}
+                              {course.instructions && <p className="mt-2 text-xs text-discreet">{course.instructions}</p>}
                             </div>
                           ))}
                         </div>
                       </div>
 
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <h4 className="text-sm font-semibold text-slate-800">Recapitulatif commercial</h4>
+                      <div className="rounded-xl border border-line bg-surface-soft p-4">
+                        <h4 className="text-sm font-semibold text-foreground">Recapitulatif commercial</h4>
                         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                           <InfoLine label="Paiement par defaut" value={formatPaymentSummary(selectedClient)} />
                           <InfoLine label="Encours max" value={formatCurrency(selectedClient.encours_max)} />
@@ -1346,7 +1346,7 @@ export default function Clients() {
               )}
 
               <div className="mt-6 flex justify-end gap-3 border-t pt-4">
-                <button type="button" onClick={closeForm} className="rounded-lg border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50">
+                <button type="button" onClick={closeForm} className="rounded-lg border border-line px-4 py-2 text-sm hover:bg-surface-soft">
                   Annuler
                 </button>
                 <button type="submit" disabled={saving} className="rounded-lg bg-slate-800 px-4 py-2 text-sm text-white transition-colors hover:bg-slate-700 disabled:opacity-50">
@@ -1364,7 +1364,7 @@ export default function Clients() {
 function StatCard({ label, value, tone }: { label: string; value: string | number; tone: 'emerald' | 'slate' | 'amber' | 'blue' }) {
   const tones = {
     emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    slate: 'border-slate-200 bg-slate-50 text-slate-700',
+    slate: 'border-line bg-surface-soft text-foreground',
     amber: 'border-amber-200 bg-amber-50 text-amber-700',
     blue: 'border-blue-200 bg-blue-50 text-blue-700',
   }
@@ -1380,8 +1380,8 @@ function StatCard({ label, value, tone }: { label: string; value: string | numbe
 function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="border-t pt-4 first:border-t-0 first:pt-0 xl:col-span-2">
-      <p className="text-sm font-semibold text-slate-700">{title}</p>
-      <p className="mt-1 text-xs text-slate-400">{subtitle}</p>
+      <p className="text-sm font-semibold text-foreground">{title}</p>
+      <p className="mt-1 text-xs text-muted">{subtitle}</p>
     </div>
   )
 }
@@ -1389,7 +1389,7 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <label className="text-xs font-medium text-slate-600">{label}</label>
+      <label className="text-xs font-medium text-secondary">{label}</label>
       {children}
     </div>
   )
@@ -1397,9 +1397,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function MiniInfo({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-slate-800">{value}</div>
+    <div className="rounded-lg border border-line bg-surface px-3 py-2">
+      <div className="text-xs text-discreet">{label}</div>
+      <div className="mt-1 text-sm font-semibold text-foreground">{value}</div>
     </div>
   )
 }
@@ -1407,8 +1407,8 @@ function MiniInfo({ label, value }: { label: string; value: string }) {
 function InfoLine({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-xs font-medium text-slate-500">{label}</div>
-      <div className="mt-1 text-sm text-slate-700">{value}</div>
+      <div className="text-xs font-medium text-discreet">{label}</div>
+      <div className="mt-1 text-sm text-foreground">{value}</div>
     </div>
   )
 }
@@ -1426,40 +1426,40 @@ function AddressGroup({
 }) {
   return (
     <div>
-      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</div>
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-discreet">{title}</div>
       {items.length === 0 ? (
-        <p className="text-xs text-slate-400">Aucun lieu.</p>
+        <p className="text-xs text-muted">Aucun lieu.</p>
       ) : (
         <div className="space-y-2">
           {items.map(address => (
-            <div key={address.id} className="rounded-lg border border-slate-200 bg-white p-3">
+            <div key={address.id} className="rounded-lg border border-line bg-surface p-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-slate-800">{address.nom_lieu}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${address.actif ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                    <span className="text-sm font-medium text-foreground">{address.nom_lieu}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${address.actif ? 'bg-green-100 text-green-700' : 'bg-surface-2 text-discreet'}`}>
                       {address.actif ? 'Actif' : 'Inactif'}
                     </span>
                   </div>
-                  <div className="mt-1 text-xs text-slate-500">
+                  <div className="mt-1 text-xs text-discreet">
                     {[address.adresse, address.code_postal, address.ville, address.pays].filter(Boolean).join(', ') || 'Adresse non renseignee'}
                   </div>
                   {(address.contact_nom || address.contact_tel) && (
-                    <div className="mt-1 text-xs text-slate-400">
+                    <div className="mt-1 text-xs text-muted">
                       {[address.contact_nom, address.contact_tel].filter(Boolean).join(' - ')}
                     </div>
                   )}
                   {(address.horaires || address.instructions) && (
-                    <div className="mt-1 text-xs text-slate-400">
+                    <div className="mt-1 text-xs text-muted">
                       {[address.horaires, address.instructions].filter(Boolean).join(' - ')}
                     </div>
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => void onToggle(address)} className="text-xs text-slate-400 hover:text-slate-700">
+                  <button type="button" onClick={() => void onToggle(address)} className="text-xs text-muted hover:text-foreground">
                     {address.actif ? 'Desactiver' : 'Activer'}
                   </button>
-                  <button type="button" onClick={() => void onDelete(address.id)} className="text-xs text-slate-400 hover:text-red-500">
+                  <button type="button" onClick={() => void onDelete(address.id)} className="text-xs text-muted hover:text-red-500">
                     Suppr.
                   </button>
                 </div>

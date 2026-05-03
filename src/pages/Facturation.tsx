@@ -27,11 +27,11 @@ type OTLookup = {
 type Tab = 'factures' | 'fournisseurs' | 'tva' | 'tresorerie' | 'previsionnel' | 'rapports' | 'journal' | 'tarifs'
 
 const STATUT_COLORS: Record<string, string> = {
-  brouillon:  'bg-slate-100 text-slate-600',
+  brouillon:  'bg-surface-2 text-secondary',
   envoyee:    'bg-blue-100 text-blue-700',
   payee:      'bg-green-100 text-green-700',
   en_retard:  'bg-red-100 text-red-600',
-  annulee:    'bg-slate-100 text-slate-400',
+  annulee:    'bg-surface-2 text-muted',
 }
 const STATUT_LABELS: Record<string, string> = {
   brouillon: 'Brouillon', envoyee: 'Envoyée', payee: 'Payée', en_retard: 'En retard', annulee: 'Annulée',
@@ -40,7 +40,7 @@ const FOURN_STATUT_COLORS: Record<string, string> = {
   recu: 'bg-amber-100 text-amber-700',
   validee: 'bg-blue-100 text-blue-700',
   payee: 'bg-green-100 text-green-700',
-  annulee: 'bg-slate-100 text-slate-400',
+  annulee: 'bg-surface-2 text-muted',
 }
 const FOURN_STATUT_LABELS: Record<string, string> = {
   recu: 'Reçue',
@@ -141,7 +141,7 @@ function computeDateEcheance(client: ClientLookup | null, dateEmission: string) 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <label className="text-xs font-medium text-slate-600">{label}</label>
+      <label className="text-xs font-medium text-secondary">{label}</label>
       {children}
     </div>
   )
@@ -159,15 +159,15 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
     { key: 'tarifs',      label: 'Tarifs transport' },
   ]
   return (
-    <div className="flex gap-1 mb-6 border-b border-slate-200 pb-0">
+    <div className="flex gap-1 mb-6 border-b border-line pb-0">
       {tabs.map(t => (
         <button
           key={t.key}
           onClick={() => onChange(t.key)}
           className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
             active === t.key
-              ? 'border-slate-800 text-slate-800'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
+              ? 'border-slate-800 text-foreground'
+              : 'border-transparent text-discreet hover:text-foreground'
           }`}
         >
           {t.label}
@@ -194,7 +194,7 @@ function BarChart({ data, height = 120, color = '#1e293b' }: {
               style={{ height: `${(d.value / max) * 100}%`, background: color, minHeight: d.value > 0 ? 4 : 0 }}
             />
           </div>
-          <span className="text-[10px] text-slate-400 truncate w-full text-center">{d.label}</span>
+          <span className="text-[10px] text-muted truncate w-full text-center">{d.label}</span>
         </div>
       ))}
     </div>
@@ -214,7 +214,7 @@ function DualBarChart({ data, height = 120 }: {
             <div className="flex-1 rounded-t transition-all bg-slate-700" style={{ height: `${(d.a / max) * 100}%`, minHeight: d.a > 0 ? 4 : 0 }} />
             <div className="flex-1 rounded-t transition-all bg-emerald-400" style={{ height: `${(d.b / max) * 100}%`, minHeight: d.b > 0 ? 4 : 0 }} />
           </div>
-          <span className="text-[10px] text-slate-400 truncate w-full text-center">{d.label}</span>
+          <span className="text-[10px] text-muted truncate w-full text-center">{d.label}</span>
         </div>
       ))}
     </div>
@@ -227,7 +227,7 @@ function MiniStat({ label, value, color, sub }: { label: string; value: string; 
     blue:  'bg-blue-50 text-blue-700 border-blue-100',
     red:   'bg-red-50 text-red-700 border-red-100',
     green: 'bg-green-50 text-green-700 border-green-100',
-    slate: 'bg-slate-50 text-slate-700 border-slate-200',
+    slate: 'bg-surface-soft text-foreground border-line',
     amber: 'bg-amber-50 text-amber-700 border-amber-100',
   }[color]
   return (
@@ -242,8 +242,8 @@ function MiniStat({ label, value, color, sub }: { label: string; value: string; 
 function Info({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div>
-      <span className="text-xs font-medium text-slate-500">{label}</span>
-      <p className="text-slate-700 mt-0.5">{value || '—'}</p>
+      <span className="text-xs font-medium text-discreet">{label}</span>
+      <p className="text-foreground mt-0.5">{value || '—'}</p>
     </div>
   )
 }
@@ -394,9 +394,9 @@ function TarifsTransportTab({ clients }: { clients: ClientLookup[] }) {
   return (
     <div className="space-y-6">
       {/* ── Barèmes tarifaires ── */}
-      <div className="bg-white rounded-xl border p-5">
+      <div className="bg-surface rounded-xl border p-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-slate-800">Barèmes tarifaires clients</h3>
+          <h3 className="font-semibold text-foreground">Barèmes tarifaires clients</h3>
           <button onClick={() => setShowTarifForm(true)}
             className="px-3 py-1.5 bg-[color:var(--primary)] text-white rounded-lg text-sm font-medium hover:opacity-90">
             + Nouveau tarif
@@ -404,28 +404,28 @@ function TarifsTransportTab({ clients }: { clients: ClientLookup[] }) {
         </div>
 
         {showTarifForm && (
-          <div className="mb-4 p-4 border rounded-xl bg-slate-50 grid grid-cols-2 gap-3">
+          <div className="mb-4 p-4 border rounded-xl bg-surface-soft grid grid-cols-2 gap-3">
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-slate-600 mb-1">Client</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Client</label>
               <select value={tClientId} onChange={e => setTClientId(e.target.value)} className={inp}>
                 <option value="">— Sélectionner un client —</option>
                 {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Libellé</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Libellé</label>
               <input value={tLibelle} onChange={e => setTLibelle(e.target.value)} className={inp} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Tarif / km (€)</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Tarif / km (€)</label>
               <input type="number" step="0.0001" value={tTarifKm} onChange={e => setTTarifKm(e.target.value)} className={inp} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Forfait minimum (€)</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Forfait minimum (€)</label>
               <input type="number" step="0.01" value={tForfait} onChange={e => setTForfait(e.target.value)} placeholder="Facultatif" className={inp} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Date début</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Date début</label>
               <input type="date" value={tDateDebut} onChange={e => setTDateDebut(e.target.value)} className={inp} />
             </div>
             <div className="col-span-2 flex gap-4">
@@ -439,7 +439,7 @@ function TarifsTransportTab({ clients }: { clients: ClientLookup[] }) {
               </label>
             </div>
             <div className="col-span-2 flex gap-2 justify-end">
-              <button onClick={resetTarifForm} className="px-3 py-1.5 border rounded-lg text-sm text-slate-600 hover:bg-slate-100">Annuler</button>
+              <button onClick={resetTarifForm} className="px-3 py-1.5 border rounded-lg text-sm text-secondary hover:bg-surface-2">Annuler</button>
               <button onClick={saveTarif} disabled={saving || !tClientId}
                 className="px-3 py-1.5 bg-[color:var(--primary)] text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
                 {saving ? 'Sauvegarde…' : 'Enregistrer'}
@@ -450,7 +450,7 @@ function TarifsTransportTab({ clients }: { clients: ClientLookup[] }) {
 
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b bg-slate-50 text-xs text-slate-500 uppercase">
+            <tr className="border-b bg-surface-soft text-xs text-discreet uppercase">
               <th className="px-3 py-2 text-left">Client</th>
               <th className="px-3 py-2 text-left">Libellé</th>
               <th className="px-3 py-2 text-right">Tarif/km</th>
@@ -463,19 +463,19 @@ function TarifsTransportTab({ clients }: { clients: ClientLookup[] }) {
           </thead>
           <tbody>
             {tarifs.length === 0 && (
-              <tr><td colSpan={8} className="px-3 py-8 text-center text-slate-400 text-sm">Aucun barème enregistré</td></tr>
+              <tr><td colSpan={8} className="px-3 py-8 text-center text-muted text-sm">Aucun barème enregistré</td></tr>
             )}
             {tarifs.map(t => (
-              <tr key={t.id} className="border-b hover:bg-slate-50">
+              <tr key={t.id} className="border-b hover:bg-surface-soft">
                 <td className="px-3 py-2 font-medium">{clientMap[t.client_id] ?? t.client_id.slice(0,8)}</td>
-                <td className="px-3 py-2 text-slate-600">{t.libelle}</td>
+                <td className="px-3 py-2 text-secondary">{t.libelle}</td>
                 <td className="px-3 py-2 text-right font-mono">{t.tarif_km.toFixed(4)} €</td>
                 <td className="px-3 py-2 text-center">{t.coeff_gazole ? '✓' : '—'}</td>
                 <td className="px-3 py-2 text-center">{t.peages_refactures ? '✓' : '—'}</td>
                 <td className="px-3 py-2 text-right">{t.forfait_minimum != null ? fmtEur2(t.forfait_minimum) : '—'}</td>
                 <td className="px-3 py-2 text-center">
                   <button onClick={() => toggleActif(t)}
-                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${t.actif ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${t.actif ? 'bg-green-100 text-green-700' : 'bg-surface-2 text-discreet'}`}>
                     {t.actif ? 'Actif' : 'Inactif'}
                   </button>
                 </td>
@@ -490,36 +490,36 @@ function TarifsTransportTab({ clients }: { clients: ClientLookup[] }) {
 
       <div className="grid grid-cols-2 gap-6">
         {/* ── Indices CNR ── */}
-        <div className="bg-white rounded-xl border p-5">
+        <div className="bg-surface rounded-xl border p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-slate-800">Indices CNR gazole</h3>
+            <h3 className="font-semibold text-foreground">Indices CNR gazole</h3>
             <button onClick={() => setShowCnrForm(v => !v)}
               className="px-3 py-1.5 bg-[color:var(--primary)] text-white rounded-lg text-sm font-medium hover:opacity-90">
               + Ajouter
             </button>
           </div>
           {showCnrForm && (
-            <div className="mb-4 p-3 border rounded-lg bg-slate-50 grid grid-cols-2 gap-3">
+            <div className="mb-4 p-3 border rounded-lg bg-surface-soft grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Année</label>
+                <label className="block text-xs font-medium text-secondary mb-1">Année</label>
                 <input type="number" value={cAnnee} onChange={e => setCAnnee(e.target.value)} className={inp} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Mois</label>
+                <label className="block text-xs font-medium text-secondary mb-1">Mois</label>
                 <select value={cMois} onChange={e => setCMois(e.target.value)} className={inp}>
                   {MOIS_LABELS.map((m,i) => <option key={i+1} value={i+1}>{m}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Indice gazole</label>
+                <label className="block text-xs font-medium text-secondary mb-1">Indice gazole</label>
                 <input type="number" step="0.01" value={cIndice} onChange={e => setCIndice(e.target.value)} className={inp} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Indice de référence</label>
+                <label className="block text-xs font-medium text-secondary mb-1">Indice de référence</label>
                 <input type="number" step="0.01" value={cRef} onChange={e => setCRef(e.target.value)} className={inp} />
               </div>
               <div className="col-span-2 flex justify-end gap-2">
-                <button onClick={() => setShowCnrForm(false)} className="px-3 py-1.5 border rounded-lg text-sm text-slate-600">Annuler</button>
+                <button onClick={() => setShowCnrForm(false)} className="px-3 py-1.5 border rounded-lg text-sm text-secondary">Annuler</button>
                 <button onClick={saveCnr} disabled={saving || !cIndice}
                   className="px-3 py-1.5 bg-[color:var(--primary)] text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
                   {saving ? '…' : 'Enregistrer'}
@@ -528,7 +528,7 @@ function TarifsTransportTab({ clients }: { clients: ClientLookup[] }) {
             </div>
           )}
           <table className="w-full text-sm">
-            <thead><tr className="border-b bg-slate-50 text-xs text-slate-500 uppercase">
+            <thead><tr className="border-b bg-surface-soft text-xs text-discreet uppercase">
               <th className="px-3 py-2 text-left">Période</th>
               <th className="px-3 py-2 text-right">Indice gazole</th>
               <th className="px-3 py-2 text-right">Référence</th>
@@ -536,15 +536,15 @@ function TarifsTransportTab({ clients }: { clients: ClientLookup[] }) {
             </tr></thead>
             <tbody>
               {cnrIndices.length === 0 && (
-                <tr><td colSpan={4} className="px-3 py-6 text-center text-slate-400 text-sm">Aucun indice</td></tr>
+                <tr><td colSpan={4} className="px-3 py-6 text-center text-muted text-sm">Aucun indice</td></tr>
               )}
               {cnrIndices.map(c => {
                 const variation = ((c.indice_gazole - c.indice_reference) / c.indice_reference * 100)
                 return (
-                  <tr key={c.id} className="border-b hover:bg-slate-50">
+                  <tr key={c.id} className="border-b hover:bg-surface-soft">
                     <td className="px-3 py-2 font-medium">{MOIS_LABELS[c.mois-1]} {c.annee}</td>
                     <td className="px-3 py-2 text-right font-mono">{c.indice_gazole.toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right font-mono text-slate-400">{c.indice_reference.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-muted">{c.indice_reference.toFixed(2)}</td>
                     <td className={`px-3 py-2 text-right font-medium ${variation >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                       {variation >= 0 ? '+' : ''}{variation.toFixed(1)}%
                     </td>
@@ -556,27 +556,27 @@ function TarifsTransportTab({ clients }: { clients: ClientLookup[] }) {
         </div>
 
         {/* ── Calculateur CNR ── */}
-        <div className="bg-white rounded-xl border p-5">
-          <h3 className="font-semibold text-slate-800 mb-4">Calculateur gazole CNR</h3>
-          <p className="text-xs text-slate-500 mb-4">
+        <div className="bg-surface rounded-xl border p-5">
+          <h3 className="font-semibold text-foreground mb-4">Calculateur gazole CNR</h3>
+          <p className="text-xs text-discreet mb-4">
             Prix = km × tarif × (1 + 0,25 × (indice / référence − 1))
           </p>
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Distance (km)</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Distance (km)</label>
               <input type="number" value={calcKm} onChange={e => setCalcKm(e.target.value)} placeholder="ex: 450" className={inp} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Tarif de base (€/km)</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Tarif de base (€/km)</label>
               <input type="number" step="0.0001" value={calcTarifBase} onChange={e => setCalcTarifBase(e.target.value)} placeholder="ex: 1.2500" className={inp} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Indice CNR du mois</label>
+                <label className="block text-xs font-medium text-secondary mb-1">Indice CNR du mois</label>
                 <input type="number" step="0.01" value={calcCnrIdx} onChange={e => setCalcCnrIdx(e.target.value)} placeholder="ex: 157.30" className={inp} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Indice de référence</label>
+                <label className="block text-xs font-medium text-secondary mb-1">Indice de référence</label>
                 <input type="number" step="0.01" value={calcRef} onChange={e => setCalcRef(e.target.value)} className={inp} />
               </div>
             </div>
@@ -1300,12 +1300,12 @@ export default function Facturation() {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Comptabilité</h2>
-          <p className="text-slate-500 text-sm">{list.length} facture{list.length !== 1 ? 's' : ''} · CA {fmtEur(totalCA)}</p>
+          <h2 className="text-2xl font-bold text-foreground">Comptabilité</h2>
+          <p className="text-discreet text-sm">{list.length} facture{list.length !== 1 ? 's' : ''} · CA {fmtEur(totalCA)}</p>
         </div>
         {(tab === 'factures' || tab === 'fournisseurs') && (
           <div className="flex gap-2">
-            {tab === 'factures' && <button onClick={exportCSV} className="border border-slate-300 text-slate-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors">
+            {tab === 'factures' && <button onClick={exportCSV} className="border border-line-strong text-secondary px-4 py-2 rounded-lg text-sm font-medium hover:bg-surface-soft transition-colors">
               ↓ CSV
             </button>}
             <button
@@ -1350,30 +1350,30 @@ export default function Facturation() {
                 placeholder="N° facture ou client..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="px-3 py-2 border border-slate-200 rounded-lg text-sm w-52 outline-none focus:ring-2 focus:ring-slate-300"
+                className="px-3 py-2 border border-line rounded-lg text-sm w-52 outline-none focus:ring-2 focus:ring-slate-300"
               />
               <div className="flex gap-1 flex-wrap">
                 {['tous', ...Object.keys(STATUT_LABELS)].map(s => (
                   <button key={s} onClick={() => setFilterStatut(s)}
-                    className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${filterStatut === s ? 'bg-slate-800 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                    className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${filterStatut === s ? 'bg-slate-800 text-white' : 'border border-line text-secondary hover:bg-surface-soft'}`}>
                     {s === 'tous' ? 'Toutes' : STATUT_LABELS[s]}
                   </button>
                 ))}
               </div>
             </div>
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
               {loading ? (
-                <div className="p-8 text-center text-slate-400 text-sm">Chargement...</div>
+                <div className="p-8 text-center text-muted text-sm">Chargement...</div>
               ) : filtered.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-sm">
+                <div className="p-8 text-center text-muted text-sm">
                   {search || filterStatut !== 'tous' ? 'Aucun résultat' : 'Aucune facture enregistrée'}
                 </div>
               ) : (
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-200">
+                  <thead className="bg-surface-soft border-b border-line">
                     <tr>
                       {['Numéro', 'Client', 'Émission', 'Échéance', 'Montant HT', 'TTC', 'Statut', ''].map(h => (
-                        <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
+                        <th key={h} className="text-left px-4 py-3 text-xs font-medium text-discreet uppercase tracking-wide">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -1382,20 +1382,20 @@ export default function Facturation() {
                       const displayState = factureDisplayStateById[f.id] ?? getFactureDisplayState(f)
                       return (
                         <tr key={f.id} onClick={() => setSelected(f)}
-                          className={`border-t border-slate-100 cursor-pointer hover:bg-blue-50 transition-colors ${selected?.id === f.id ? 'bg-blue-50' : i % 2 !== 0 ? 'bg-slate-50' : ''}`}>
-                          <td className="px-4 py-3 font-mono text-xs font-medium text-slate-700">{f.numero}</td>
-                          <td className="px-4 py-3 text-slate-700">{clientMap[f.client_id] ?? '—'}</td>
-                          <td className="px-4 py-3 text-slate-600">{new Date(f.date_emission).toLocaleDateString('fr-FR')}</td>
-                          <td className={`px-4 py-3 ${displayState.isLate ? 'text-red-600 font-semibold' : 'text-slate-600'}`}>
+                          className={`border-t border-slate-100 cursor-pointer hover:bg-blue-50 transition-colors ${selected?.id === f.id ? 'bg-blue-50' : i % 2 !== 0 ? 'bg-surface-soft' : ''}`}>
+                          <td className="px-4 py-3 font-mono text-xs font-medium text-foreground">{f.numero}</td>
+                          <td className="px-4 py-3 text-foreground">{clientMap[f.client_id] ?? '—'}</td>
+                          <td className="px-4 py-3 text-secondary">{new Date(f.date_emission).toLocaleDateString('fr-FR')}</td>
+                          <td className={`px-4 py-3 ${displayState.isLate ? 'text-red-600 font-semibold' : 'text-secondary'}`}>
                             <div className="flex flex-col">
                               <span>{f.date_echeance ? new Date(f.date_echeance).toLocaleDateString('fr-FR') : '—'}</span>
                               {displayState.retardJours > 0 && <span className="text-[11px] font-medium text-red-600">{displayState.retardJours} j de retard</span>}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-slate-700">{fmtEur(f.montant_ht)}</td>
-                          <td className="px-4 py-3 font-medium text-slate-800">{f.montant_ttc != null ? fmtEur(f.montant_ttc) : '—'}</td>
+                          <td className="px-4 py-3 text-foreground">{fmtEur(f.montant_ht)}</td>
+                          <td className="px-4 py-3 font-medium text-foreground">{f.montant_ttc != null ? fmtEur(f.montant_ttc) : '—'}</td>
                           <td className="px-4 py-3">
-                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUT_COLORS[displayState.statut] ?? 'bg-slate-100 text-slate-600'}`}>
+                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUT_COLORS[displayState.statut] ?? 'bg-surface-2 text-secondary'}`}>
                               {STATUT_LABELS[displayState.statut] ?? displayState.statut}
                             </span>
                           </td>
@@ -1405,12 +1405,12 @@ export default function Facturation() {
                                 value={f.statut}
                                 onClick={ev => ev.stopPropagation()}
                                 onChange={ev => { ev.stopPropagation(); void updateStatut(f, ev.target.value) }}
-                                className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600"
+                                className="rounded-md border border-line px-2 py-1 text-xs text-secondary"
                               >
                                 {Object.entries(STATUT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                               </select>
                               {f.statut !== 'annulee' && (
-                                <button onClick={ev => { ev.stopPropagation(); void cancelInvoice(f) }} className="text-xs text-slate-400 hover:text-red-500 transition-colors">Annuler</button>
+                                <button onClick={ev => { ev.stopPropagation(); void cancelInvoice(f) }} className="text-xs text-muted hover:text-red-500 transition-colors">Annuler</button>
                               )}
                             </div>
                           </td>
@@ -1425,13 +1425,13 @@ export default function Facturation() {
 
           {selected && (
             <div className="w-full lg:w-[42%] shrink-0">
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+              <div className="bg-surface rounded-xl border border-line shadow-sm">
                 <div className="flex items-start justify-between p-5 border-b">
                   <div>
-                    <p className="text-xs font-mono text-slate-400 mb-0.5">{selected.numero}</p>
-                    <h3 className="text-lg font-bold text-slate-800">{clientMap[selected.client_id] ?? '—'}</h3>
+                    <p className="text-xs font-mono text-muted mb-0.5">{selected.numero}</p>
+                    <h3 className="text-lg font-bold text-foreground">{clientMap[selected.client_id] ?? '—'}</h3>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUT_COLORS[selectedDisplayState?.statut ?? selected.statut] ?? 'bg-slate-100 text-slate-600'}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUT_COLORS[selectedDisplayState?.statut ?? selected.statut] ?? 'bg-surface-2 text-secondary'}`}>
                         {STATUT_LABELS[selectedDisplayState?.statut ?? selected.statut] ?? selectedDisplayState?.statut ?? selected.statut}
                       </span>
                       {selectedDisplayState && selectedDisplayState.retardJours > 0 && (
@@ -1441,14 +1441,14 @@ export default function Facturation() {
                       )}
                     </div>
                   </div>
-                  <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
+                  <button onClick={() => setSelected(null)} className="text-muted hover:text-secondary text-lg leading-none">✕</button>
                 </div>
-                <div className="px-5 py-3 border-b bg-slate-50">
-                  <p className="text-xs font-medium text-slate-500 mb-2">Changer le statut</p>
+                <div className="px-5 py-3 border-b bg-surface-soft">
+                  <p className="text-xs font-medium text-discreet mb-2">Changer le statut</p>
                   <div className="flex gap-1.5 flex-wrap">
                     {Object.entries(STATUT_LABELS).map(([k, v]) => (
                       <button key={k} onClick={() => updateStatut(selected, k)} disabled={selected.statut === k}
-                        className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors ${selected.statut === k ? 'bg-slate-200 text-slate-500 cursor-default' : 'border border-slate-200 text-slate-600 hover:bg-white hover:shadow-sm'}`}>
+                        className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors ${selected.statut === k ? 'bg-slate-200 text-discreet cursor-default' : 'border border-line text-secondary hover:bg-surface hover:shadow-sm'}`}>
                         {v}
                       </button>
                     ))}
@@ -1462,37 +1462,37 @@ export default function Facturation() {
                   <Info label="Mode de paiement" value={selected.mode_paiement ? MODE_PAIEMENT_LABELS[selected.mode_paiement] ?? selected.mode_paiement : null} />
                   <div className="col-span-2 border-t pt-4 mt-1">
                     <div className="space-y-2">
-                      <div className="flex justify-between text-sm"><span className="text-slate-500">Montant HT</span><span className="font-medium text-slate-800">{fmtEur(selected.montant_ht)}</span></div>
-                      <div className="flex justify-between text-sm"><span className="text-slate-500">TVA ({selected.taux_tva}%)</span><span className="text-slate-600">{fmtEur(selected.montant_tva ?? 0)}</span></div>
-                      <div className="flex justify-between text-sm border-t pt-2 mt-1"><span className="font-semibold text-slate-700">Total TTC</span><span className="font-bold text-slate-900 text-base">{fmtEur(selected.montant_ttc ?? selected.montant_ht)}</span></div>
+                      <div className="flex justify-between text-sm"><span className="text-discreet">Montant HT</span><span className="font-medium text-foreground">{fmtEur(selected.montant_ht)}</span></div>
+                      <div className="flex justify-between text-sm"><span className="text-discreet">TVA ({selected.taux_tva}%)</span><span className="text-secondary">{fmtEur(selected.montant_tva ?? 0)}</span></div>
+                      <div className="flex justify-between text-sm border-t pt-2 mt-1"><span className="font-semibold text-foreground">Total TTC</span><span className="font-bold text-heading text-base">{fmtEur(selected.montant_ttc ?? selected.montant_ht)}</span></div>
                     </div>
                   </div>
-                  {selected.notes && <div className="col-span-2"><span className="text-xs font-medium text-slate-500">Notes</span><p className="text-slate-600 mt-0.5">{selected.notes}</p></div>}
+                  {selected.notes && <div className="col-span-2"><span className="text-xs font-medium text-discreet">Notes</span><p className="text-secondary mt-0.5">{selected.notes}</p></div>}
                   {(selected.statut === 'envoyee' || selected.statut === 'payee') && (
                     <div className="col-span-2 border-t pt-4 mt-1">
                       {selected.pdf_storage_bucket && selected.pdf_storage_path && (
-                        <div className="mb-3 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                        <div className="mb-3 flex items-center justify-between rounded-lg border border-line bg-surface-soft px-3 py-2">
                           <div>
-                            <p className="text-xs font-medium text-slate-600">PDF facture archivé</p>
-                            <p className="text-xs text-slate-400">Document numéroté généré pour le suivi</p>
+                            <p className="text-xs font-medium text-secondary">PDF facture archivé</p>
+                            <p className="text-xs text-muted">Document numéroté généré pour le suivi</p>
                           </div>
                           <button onClick={() => void openFacturePdf(selected)} className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition-colors">Ouvrir le PDF</button>
                         </div>
                       )}
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-medium text-slate-500">Écriture comptable</p>
+                        <p className="text-xs font-medium text-discreet">Écriture comptable</p>
                         <button
                           onClick={() => setComptaRefreshKey(k => k + 1)}
-                          className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                          className="text-xs text-muted hover:text-secondary transition-colors"
                           title="Actualiser"
                         >↻</button>
                       </div>
                       {comptaLoading ? (
-                        <p className="text-xs text-slate-400">Vérification...</p>
+                        <p className="text-xs text-muted">Vérification...</p>
                       ) : comptaInfo ? (
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">✓ Générée</span>
-                          <span className="text-xs text-slate-500">Mouvement VT-{comptaInfo.numero_mouvement} · {new Date(comptaInfo.date_ecriture).toLocaleDateString('fr-FR')}</span>
+                          <span className="text-xs text-discreet">Mouvement VT-{comptaInfo.numero_mouvement} · {new Date(comptaInfo.date_ecriture).toLocaleDateString('fr-FR')}</span>
                           <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${comptaInfo.statut === 'validee' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>
                             {comptaInfo.statut === 'validee' ? 'Validée' : 'Brouillon'}
                           </span>
@@ -1501,7 +1501,7 @@ export default function Facturation() {
                         <div className="flex items-start flex-col gap-2">
                           <div className="flex items-center gap-2">
                             <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">⏳ Aucune écriture</span>
-                            <span className="text-xs text-slate-400">Le trigger DB devrait l'avoir créée automatiquement</span>
+                            <span className="text-xs text-muted">Le trigger DB devrait l'avoir créée automatiquement</span>
                           </div>
                           <button
                             onClick={() => void generateEcriture(selected.id)}
@@ -1518,29 +1518,29 @@ export default function Facturation() {
                   {(selected.statut === 'en_retard' || selected.statut === 'envoyee') && (
                     <div className="col-span-2 border-t pt-4 mt-1">
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-medium text-slate-500">Relances</p>
+                        <p className="text-xs font-medium text-discreet">Relances</p>
                         <button
                           onClick={() => setShowRelanceModal(true)}
                           className="text-xs px-2.5 py-1 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors"
                         >+ Envoyer une relance</button>
                       </div>
                       {loadingRelances ? (
-                        <p className="text-xs text-slate-400">Chargement...</p>
+                        <p className="text-xs text-muted">Chargement...</p>
                       ) : relancesHistorique.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic">Aucune relance envoyée</p>
+                        <p className="text-xs text-muted italic">Aucune relance envoyée</p>
                       ) : (
                         <div className="space-y-1.5">
                           {relancesHistorique.map(r => (
                             <div key={r.id} className="flex items-center justify-between text-xs">
                               <div className="flex items-center gap-2">
                                 <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium">N{r.niveau}</span>
-                                <span className="text-slate-600">{new Date(r.date_envoi).toLocaleDateString('fr-FR')}</span>
-                                <span className="text-slate-400 capitalize">{r.mode}</span>
+                                <span className="text-secondary">{new Date(r.date_envoi).toLocaleDateString('fr-FR')}</span>
+                                <span className="text-muted capitalize">{r.mode}</span>
                               </div>
                               <span className={`px-1.5 py-0.5 rounded font-medium ${
                                 r.statut === 'envoye' ? 'bg-green-100 text-green-700'
                                 : r.statut === 'echec' ? 'bg-red-100 text-red-600'
-                                : 'bg-slate-100 text-slate-500'
+                                : 'bg-surface-2 text-discreet'
                               }`}>
                                 {r.statut === 'envoye' ? 'Enregistrée' : r.statut === 'echec' ? 'Échec' : 'Annulée'}
                               </span>
@@ -1570,8 +1570,8 @@ export default function Facturation() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Calculateur TVA */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-800 mb-4">Calculateur TVA</h3>
+            <div className="bg-surface rounded-xl border border-line p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-4">Calculateur TVA</h3>
               <div className="space-y-3">
                 <Field label="Montant HT (€)">
                   <input className={inp} type="number" step="0.01" value={tvaCalcHT} onChange={e => setTvaCalcHT(e.target.value)} placeholder="0.00" />
@@ -1583,18 +1583,18 @@ export default function Facturation() {
                 </Field>
               </div>
               {calcHT > 0 && (
-                <div className="mt-4 bg-slate-50 rounded-lg p-4 space-y-2 text-sm">
-                  <div className="flex justify-between text-slate-600"><span>Montant HT</span><span className="font-medium">{fmtEur(calcHT)}</span></div>
-                  <div className="flex justify-between text-slate-600"><span>TVA {tvaCalcTaux} %</span><span>{fmtEur(calcTVA)}</span></div>
-                  <div className="flex justify-between font-bold text-slate-800 border-t pt-2"><span>Total TTC</span><span className="text-lg">{fmtEur(calcTTC)}</span></div>
+                <div className="mt-4 bg-surface-soft rounded-lg p-4 space-y-2 text-sm">
+                  <div className="flex justify-between text-secondary"><span>Montant HT</span><span className="font-medium">{fmtEur(calcHT)}</span></div>
+                  <div className="flex justify-between text-secondary"><span>TVA {tvaCalcTaux} %</span><span>{fmtEur(calcTVA)}</span></div>
+                  <div className="flex justify-between font-bold text-foreground border-t pt-2"><span>Total TTC</span><span className="text-lg">{fmtEur(calcTTC)}</span></div>
                 </div>
               )}
               {/* TVA par taux */}
               {tvaByRate.length > 0 && (
                 <div className="mt-5">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Répartition par taux</p>
+                  <p className="text-xs font-semibold text-discreet uppercase tracking-wide mb-2">Répartition par taux</p>
                   <table className="w-full text-sm">
-                    <thead><tr className="text-xs text-slate-400 border-b border-slate-100">
+                    <thead><tr className="text-xs text-muted border-b border-slate-100">
                       <th className="text-left py-1.5">Taux</th>
                       <th className="text-right py-1.5">Base HT</th>
                       <th className="text-right py-1.5">TVA</th>
@@ -1602,9 +1602,9 @@ export default function Facturation() {
                     <tbody>
                       {tvaByRate.map(r => (
                         <tr key={r.taux} className="border-b border-slate-50">
-                          <td className="py-1.5 text-slate-700">{r.taux} %</td>
-                          <td className="py-1.5 text-right text-slate-600">{fmtEur(r.ht)}</td>
-                          <td className="py-1.5 text-right font-medium text-slate-800">{fmtEur(r.tva)}</td>
+                          <td className="py-1.5 text-foreground">{r.taux} %</td>
+                          <td className="py-1.5 text-right text-secondary">{fmtEur(r.ht)}</td>
+                          <td className="py-1.5 text-right font-medium text-foreground">{fmtEur(r.tva)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1614,20 +1614,20 @@ export default function Facturation() {
             </div>
 
             {/* Déclarations TVA */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <div className="bg-surface rounded-xl border border-line p-5">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-slate-800">Déclarations TVA — {thisYear}</h3>
+                <h3 className="text-sm font-semibold text-foreground">Déclarations TVA — {thisYear}</h3>
                 <div className="flex gap-1">
                   {(['mensuel', 'trimestriel', 'annuel'] as const).map(p => (
                     <button key={p} onClick={() => setTvaPeriod(p)}
-                      className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${tvaPeriod === p ? 'bg-slate-800 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                      className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${tvaPeriod === p ? 'bg-slate-800 text-white' : 'border border-line text-secondary hover:bg-surface-soft'}`}>
                       {p === 'mensuel' ? 'Mensuel' : p === 'trimestriel' ? 'Trim.' : 'Annuel'}
                     </button>
                   ))}
                 </div>
               </div>
               <table className="w-full text-sm">
-                <thead><tr className="text-xs text-slate-400 border-b border-slate-100">
+                <thead><tr className="text-xs text-muted border-b border-slate-100">
                   <th className="text-left py-1.5">Période</th>
                   <th className="text-right py-1.5">CA HT</th>
                   <th className="text-right py-1.5">TVA collectée</th>
@@ -1635,12 +1635,12 @@ export default function Facturation() {
                 </tr></thead>
                 <tbody>
                   {tvaDeclarations.map((row, i) => (
-                    <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
-                      <td className="py-2 font-medium text-slate-700">{row.label}</td>
-                      <td className="py-2 text-right text-slate-600">{fmtEur(row.ht)}</td>
-                      <td className="py-2 text-right font-medium text-slate-800">{fmtEur(row.tva)}</td>
+                    <tr key={i} className="border-b border-slate-50 hover:bg-surface-soft">
+                      <td className="py-2 font-medium text-foreground">{row.label}</td>
+                      <td className="py-2 text-right text-secondary">{fmtEur(row.ht)}</td>
+                      <td className="py-2 text-right font-medium text-foreground">{fmtEur(row.tva)}</td>
                       <td className="py-2 text-right">
-                        <span className={`text-[11px] px-2 py-0.5 rounded-full ${row.tva > 0 ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-400'}`}>
+                        <span className={`text-[11px] px-2 py-0.5 rounded-full ${row.tva > 0 ? 'bg-amber-50 text-amber-700' : 'bg-surface-2 text-muted'}`}>
                           {row.tva > 0 ? 'À déclarer' : 'Néant'}
                         </span>
                       </td>
@@ -1651,12 +1651,12 @@ export default function Facturation() {
 
               {/* IS summary */}
               <div className="mt-5 pt-4 border-t space-y-2">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Simulation IS {thisYear}</p>
-                <div className="flex justify-between text-sm text-slate-600"><span>CA total HT</span><span>{fmtEur(totalCA)}</span></div>
-                <div className="flex justify-between text-sm text-slate-600"><span>Résultat estimé (30%)</span><span>{fmtEur(resultatBrut)}</span></div>
-                <div className="flex justify-between text-sm text-slate-600"><span>Tranche 15% (≤ 42 500 €)</span><span>{fmtEur(Math.min(resultatBrut, 42500) * 0.15)}</span></div>
-                {resultatBrut > 42500 && <div className="flex justify-between text-sm text-slate-600"><span>Tranche 25% (au-delà)</span><span>{fmtEur((resultatBrut - 42500) * 0.25)}</span></div>}
-                <div className="flex justify-between text-sm font-bold text-slate-800 border-t pt-2"><span>IS estimé</span><span>{fmtEur(isEstimate)}</span></div>
+                <p className="text-xs font-semibold text-discreet uppercase tracking-wide">Simulation IS {thisYear}</p>
+                <div className="flex justify-between text-sm text-secondary"><span>CA total HT</span><span>{fmtEur(totalCA)}</span></div>
+                <div className="flex justify-between text-sm text-secondary"><span>Résultat estimé (30%)</span><span>{fmtEur(resultatBrut)}</span></div>
+                <div className="flex justify-between text-sm text-secondary"><span>Tranche 15% (≤ 42 500 €)</span><span>{fmtEur(Math.min(resultatBrut, 42500) * 0.15)}</span></div>
+                {resultatBrut > 42500 && <div className="flex justify-between text-sm text-secondary"><span>Tranche 25% (au-delà)</span><span>{fmtEur((resultatBrut - 42500) * 0.25)}</span></div>}
+                <div className="flex justify-between text-sm font-bold text-foreground border-t pt-2"><span>IS estimé</span><span>{fmtEur(isEstimate)}</span></div>
                 <p className="text-[11px] text-amber-600 italic mt-2">⚠ Simulation indicative uniquement — marge nette hypothétique 30%, sans charges réelles. Consultez votre expert-comptable.</p>
               </div>
             </div>
@@ -1676,22 +1676,22 @@ export default function Facturation() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Flux mensuel encaissé */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-800 mb-4">Flux encaissé mensuel — {thisYear}</h3>
+            <div className="bg-surface rounded-xl border border-line p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-4">Flux encaissé mensuel — {thisYear}</h3>
               <BarChart
                 data={MOIS_FR.map((label, i) => ({ label, value: monthlyEncaisse[i] }))}
                 height={140}
                 color="#10b981"
               />
               <div className="mt-3 pt-3 border-t flex justify-between text-sm">
-                <span className="text-slate-500">Total encaissé {thisYear}</span>
-                <span className="font-semibold text-slate-800">{fmtEur(monthlyEncaisse.reduce((s, v) => s + v, 0))}</span>
+                <span className="text-discreet">Total encaissé {thisYear}</span>
+                <span className="font-semibold text-foreground">{fmtEur(monthlyEncaisse.reduce((s, v) => s + v, 0))}</span>
               </div>
             </div>
 
             {/* Taux de recouvrement visuel */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-800 mb-4">Recouvrement & balance</h3>
+            <div className="bg-surface rounded-xl border border-line p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-4">Recouvrement & balance</h3>
               <div className="space-y-4">
                 {[
                   { label: 'Encaissé', value: totalEncaisse, color: 'bg-emerald-500' },
@@ -1703,10 +1703,10 @@ export default function Facturation() {
                   return (
                     <div key={row.label}>
                       <div className="flex justify-between text-sm mb-1">
-                        <span className="text-slate-600">{row.label}</span>
-                        <span className="font-medium text-slate-800">{fmtEur(row.value)} <span className="text-slate-400 font-normal">({pct.toFixed(0)}%)</span></span>
+                        <span className="text-secondary">{row.label}</span>
+                        <span className="font-medium text-foreground">{fmtEur(row.value)} <span className="text-muted font-normal">({pct.toFixed(0)}%)</span></span>
                       </div>
-                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
                         <div className={`h-full rounded-full transition-all ${row.color}`} style={{ width: `${pct}%` }} />
                       </div>
                     </div>
@@ -1717,16 +1717,16 @@ export default function Facturation() {
               {/* Upcoming */}
               {upcoming.length > 0 && (
                 <div className="mt-5 pt-4 border-t">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Échéances dans 30 jours ({upcoming.length})</p>
+                  <p className="text-xs font-semibold text-discreet uppercase tracking-wide mb-2">Échéances dans 30 jours ({upcoming.length})</p>
                   <div className="space-y-1.5">
                     {upcoming.slice(0, 5).map(f => (
                       <div key={f.id} className="flex justify-between items-center text-sm">
                         <div>
-                          <span className="font-mono text-xs text-slate-500">{f.numero}</span>
-                          <span className="ml-2 text-slate-700">{clientMap[f.client_id] ?? '—'}</span>
+                          <span className="font-mono text-xs text-discreet">{f.numero}</span>
+                          <span className="ml-2 text-foreground">{clientMap[f.client_id] ?? '—'}</span>
                         </div>
                         <div className="text-right">
-                          <span className="font-medium text-slate-800">{fmtEur(f.montant_ttc ?? f.montant_ht)}</span>
+                          <span className="font-medium text-foreground">{fmtEur(f.montant_ttc ?? f.montant_ht)}</span>
                           <span className="ml-2 text-xs text-amber-600">{new Date(f.date_echeance!).toLocaleDateString('fr-FR')}</span>
                         </div>
                       </div>
@@ -1738,11 +1738,11 @@ export default function Facturation() {
           </div>
 
           {/* Tableau CA vs encaissé */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-semibold text-slate-800 mb-4">CA facturé vs encaissé par mois — {thisYear}</h3>
+          <div className="bg-surface rounded-xl border border-line p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-4">CA facturé vs encaissé par mois — {thisYear}</h3>
             <div className="flex gap-4 mb-3">
-              <div className="flex items-center gap-2 text-xs text-slate-500"><div className="w-3 h-3 rounded bg-slate-700" />CA facturé</div>
-              <div className="flex items-center gap-2 text-xs text-slate-500"><div className="w-3 h-3 rounded bg-emerald-400" />Encaissé</div>
+              <div className="flex items-center gap-2 text-xs text-discreet"><div className="w-3 h-3 rounded bg-slate-700" />CA facturé</div>
+              <div className="flex items-center gap-2 text-xs text-discreet"><div className="w-3 h-3 rounded bg-emerald-400" />Encaissé</div>
             </div>
             <DualBarChart
               data={MOIS_FR.map((label, i) => ({ label, a: monthlyCA[i], b: monthlyEncaisse[i] }))}
@@ -1763,11 +1763,11 @@ export default function Facturation() {
           </div>
 
           {/* Visual comparison */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-semibold text-slate-800 mb-2">Budget vs Réel — {thisYear}</h3>
+          <div className="bg-surface rounded-xl border border-line p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-2">Budget vs Réel — {thisYear}</h3>
             <div className="flex gap-4 mb-4">
-              <div className="flex items-center gap-2 text-xs text-slate-500"><div className="w-3 h-3 rounded bg-slate-700" />Budget</div>
-              <div className="flex items-center gap-2 text-xs text-slate-500"><div className="w-3 h-3 rounded bg-emerald-400" />Réel</div>
+              <div className="flex items-center gap-2 text-xs text-discreet"><div className="w-3 h-3 rounded bg-slate-700" />Budget</div>
+              <div className="flex items-center gap-2 text-xs text-discreet"><div className="w-3 h-3 rounded bg-emerald-400" />Réel</div>
             </div>
             <DualBarChart
               data={MOIS_FR.map((label, i) => ({ label, a: budgets[i], b: monthlyCA[i] }))}
@@ -1776,13 +1776,13 @@ export default function Facturation() {
           </div>
 
           {/* Table budget */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-700">Tableau budgétaire mensuel</p>
-              <p className="text-xs text-slate-400">Cliquez sur un budget pour le modifier</p>
+          <div className="bg-surface rounded-xl border border-line overflow-hidden">
+            <div className="p-4 border-b bg-surface-soft flex items-center justify-between">
+              <p className="text-sm font-semibold text-foreground">Tableau budgétaire mensuel</p>
+              <p className="text-xs text-muted">Cliquez sur un budget pour le modifier</p>
             </div>
             <table className="w-full text-sm">
-              <thead><tr className="text-xs text-slate-400 border-b border-slate-100 bg-slate-50">
+              <thead><tr className="text-xs text-muted border-b border-slate-100 bg-surface-soft">
                 <th className="text-left px-4 py-2.5">Mois</th>
                 <th className="text-right px-4 py-2.5">Budget</th>
                 <th className="text-right px-4 py-2.5">CA réel</th>
@@ -1794,9 +1794,9 @@ export default function Facturation() {
                   const ecart = monthlyCA[i] - budgets[i]
                   const pct = budgets[i] > 0 ? (monthlyCA[i] / budgets[i]) * 100 : null
                   return (
-                    <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
-                      <td className="px-4 py-2.5 font-medium text-slate-700">{mois} {thisYear}</td>
-                      <td className="px-4 py-2.5 text-right text-slate-600">
+                    <tr key={i} className="border-b border-slate-50 hover:bg-surface-soft">
+                      <td className="px-4 py-2.5 font-medium text-foreground">{mois} {thisYear}</td>
+                      <td className="px-4 py-2.5 text-right text-secondary">
                         {editBudget === i ? (
                           <form onSubmit={e => { e.preventDefault(); const v = parseFloat(budgetInput) || 0; setBudgets(b => b.map((x, j) => j === i ? v : x)); setEditBudget(null) }} className="inline">
                             <input autoFocus type="number" step="100" value={budgetInput} onChange={e => setBudgetInput(e.target.value)}
@@ -1805,13 +1805,13 @@ export default function Facturation() {
                           </form>
                         ) : (
                           <button onClick={() => { setEditBudget(i); setBudgetInput(String(budgets[i])) }}
-                            className="hover:bg-slate-100 px-2 py-0.5 rounded transition-colors">
+                            className="hover:bg-surface-2 px-2 py-0.5 rounded transition-colors">
                             {fmtEur(budgets[i])}
                           </button>
                         )}
                       </td>
-                      <td className="px-4 py-2.5 text-right font-medium text-slate-800">{fmtEur(monthlyCA[i])}</td>
-                      <td className={`px-4 py-2.5 text-right font-medium ${ecart > 0 ? 'text-emerald-600' : ecart < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                      <td className="px-4 py-2.5 text-right font-medium text-foreground">{fmtEur(monthlyCA[i])}</td>
+                      <td className={`px-4 py-2.5 text-right font-medium ${ecart > 0 ? 'text-emerald-600' : ecart < 0 ? 'text-red-500' : 'text-muted'}`}>
                         {ecart > 0 ? '+' : ''}{fmtEur(ecart)}
                       </td>
                       <td className="px-4 py-2.5 text-right">
@@ -1825,15 +1825,15 @@ export default function Facturation() {
                   )
                 })}
               </tbody>
-              <tfoot className="border-t-2 border-slate-200 bg-slate-50">
+              <tfoot className="border-t-2 border-line bg-surface-soft">
                 <tr>
-                  <td className="px-4 py-3 font-bold text-slate-800">TOTAL</td>
-                  <td className="px-4 py-3 text-right font-bold text-slate-800">{fmtEur(totalBudget)}</td>
-                  <td className="px-4 py-3 text-right font-bold text-slate-800">{fmtEur(totalReel)}</td>
+                  <td className="px-4 py-3 font-bold text-foreground">TOTAL</td>
+                  <td className="px-4 py-3 text-right font-bold text-foreground">{fmtEur(totalBudget)}</td>
+                  <td className="px-4 py-3 text-right font-bold text-foreground">{fmtEur(totalReel)}</td>
                   <td className={`px-4 py-3 text-right font-bold ${totalReel >= totalBudget ? 'text-emerald-600' : 'text-red-500'}`}>
                     {totalReel - totalBudget > 0 ? '+' : ''}{fmtEur(totalReel - totalBudget)}
                   </td>
-                  <td className="px-4 py-3 text-right font-bold text-slate-700">
+                  <td className="px-4 py-3 text-right font-bold text-foreground">
                     {totalBudget > 0 ? fmtPct((totalReel / totalBudget) * 100) : '—'}
                   </td>
                 </tr>
@@ -1842,8 +1842,8 @@ export default function Facturation() {
           </div>
 
           {/* Projection annuelle */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-semibold text-slate-800 mb-3">Projection annuelle</h3>
+          <div className="bg-surface rounded-xl border border-line p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Projection annuelle</h3>
             {(() => {
               const moisCoules = new Date().getMonth() + 1
               const moyenneMensuelle = moisCoules > 0 ? totalReel / moisCoules : 0
@@ -1851,8 +1851,8 @@ export default function Facturation() {
               const resteAFaire = projection - totalReel
               return (
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                  <div className="bg-slate-50 rounded-lg p-3"><p className="text-xs text-slate-500">Mois écoulés</p><p className="font-bold text-slate-800 text-lg">{moisCoules}</p></div>
-                  <div className="bg-slate-50 rounded-lg p-3"><p className="text-xs text-slate-500">Moyenne / mois</p><p className="font-bold text-slate-800 text-lg">{fmtEur(moyenneMensuelle)}</p></div>
+                  <div className="bg-surface-soft rounded-lg p-3"><p className="text-xs text-discreet">Mois écoulés</p><p className="font-bold text-foreground text-lg">{moisCoules}</p></div>
+                  <div className="bg-surface-soft rounded-lg p-3"><p className="text-xs text-discreet">Moyenne / mois</p><p className="font-bold text-foreground text-lg">{fmtEur(moyenneMensuelle)}</p></div>
                   <div className="bg-blue-50 rounded-lg p-3"><p className="text-xs text-blue-600">CA projeté {thisYear}</p><p className="font-bold text-blue-800 text-lg">{fmtEur(projection)}</p></div>
                   <div className="bg-emerald-50 rounded-lg p-3"><p className="text-xs text-emerald-600">Reste à facturer</p><p className="font-bold text-emerald-800 text-lg">{fmtEur(Math.max(0, resteAFaire))}</p></div>
                 </div>
@@ -1874,52 +1874,52 @@ export default function Facturation() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* CA mensuel */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-800 mb-4">CA HT mensuel — {thisYear}</h3>
+            <div className="bg-surface rounded-xl border border-line p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-4">CA HT mensuel — {thisYear}</h3>
               <BarChart
                 data={MOIS_FR.map((label, i) => ({ label, value: monthlyCA[i] }))}
                 height={140}
                 color="#334155"
               />
-              <div className="mt-3 pt-3 border-t grid grid-cols-3 gap-2 text-xs text-slate-500">
-                <div><span className="block font-semibold text-slate-700">{fmtEur(Math.max(...monthlyCA))}</span>Meilleur mois</div>
-                <div><span className="block font-semibold text-slate-700">{fmtEur(monthlyCA.filter(v => v > 0).reduce((s, v, _, a) => s + v / a.length, 0))}</span>Moyenne</div>
-                <div><span className="block font-semibold text-slate-700">{fmtEur(totalCA)}</span>Total {thisYear}</div>
+              <div className="mt-3 pt-3 border-t grid grid-cols-3 gap-2 text-xs text-discreet">
+                <div><span className="block font-semibold text-foreground">{fmtEur(Math.max(...monthlyCA))}</span>Meilleur mois</div>
+                <div><span className="block font-semibold text-foreground">{fmtEur(monthlyCA.filter(v => v > 0).reduce((s, v, _, a) => s + v / a.length, 0))}</span>Moyenne</div>
+                <div><span className="block font-semibold text-foreground">{fmtEur(totalCA)}</span>Total {thisYear}</div>
               </div>
             </div>
 
             {/* TVA trimestrielle */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-800 mb-4">TVA collectée par trimestre — {thisYear}</h3>
+            <div className="bg-surface rounded-xl border border-line p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-4">TVA collectée par trimestre — {thisYear}</h3>
               <BarChart
                 data={['T1', 'T2', 'T3', 'T4'].map((label, i) => ({ label, value: quarterlyTVA[i] }))}
                 height={140}
                 color="#3b82f6"
               />
               <div className="mt-3 pt-3 border-t flex justify-between text-sm">
-                <span className="text-slate-500">TVA totale {thisYear}</span>
-                <span className="font-semibold text-slate-800">{fmtEur(totalTVACollectee)}</span>
+                <span className="text-discreet">TVA totale {thisYear}</span>
+                <span className="font-semibold text-foreground">{fmtEur(totalTVACollectee)}</span>
               </div>
             </div>
           </div>
 
           {/* Top clients */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-semibold text-slate-800 mb-4">Top clients par CA encaissé</h3>
+          <div className="bg-surface rounded-xl border border-line p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-4">Top clients par CA encaissé</h3>
             {topClients.length === 0 ? (
-              <p className="text-sm text-slate-400">Aucune donnée disponible</p>
+              <p className="text-sm text-muted">Aucune donnée disponible</p>
             ) : (
               <div className="space-y-3">
                 {topClients.map((c, i) => {
                   const pct = topClients[0].ca > 0 ? (c.ca / topClients[0].ca) * 100 : 0
                   return (
                     <div key={i} className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-slate-400 w-4">#{i + 1}</span>
-                      <span className="text-sm text-slate-700 w-40 truncate">{c.nom}</span>
-                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <span className="text-xs font-bold text-muted w-4">#{i + 1}</span>
+                      <span className="text-sm text-foreground w-40 truncate">{c.nom}</span>
+                      <div className="flex-1 h-2 bg-surface-2 rounded-full overflow-hidden">
                         <div className="h-full bg-slate-700 rounded-full" style={{ width: `${pct}%` }} />
                       </div>
-                      <span className="text-sm font-semibold text-slate-800 text-right w-28">{fmtEur(c.ca)}</span>
+                      <span className="text-sm font-semibold text-foreground text-right w-28">{fmtEur(c.ca)}</span>
                     </div>
                   )
                 })}
@@ -1928,14 +1928,14 @@ export default function Facturation() {
           </div>
 
           {/* Répartition statuts */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-semibold text-slate-800 mb-4">Répartition des factures par statut</h3>
+          <div className="bg-surface rounded-xl border border-line p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-4">Répartition des factures par statut</h3>
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
               {Object.entries(STATUT_LABELS).map(([k, v]) => {
                 const count = list.filter(f => f.statut === k).length
                 const pct = list.length > 0 ? (count / list.length) * 100 : 0
                 return (
-                  <div key={k} className={`rounded-lg border p-3 ${STATUT_COLORS[k] ?? 'bg-slate-100 text-slate-600'}`}>
+                  <div key={k} className={`rounded-lg border p-3 ${STATUT_COLORS[k] ?? 'bg-surface-2 text-secondary'}`}>
                     <p className="text-xl font-bold">{count}</p>
                     <p className="text-xs mt-0.5 opacity-80">{v}</p>
                     <p className="text-xs mt-1 opacity-60">{pct.toFixed(0)} %</p>
@@ -1957,8 +1957,8 @@ export default function Facturation() {
           </div>
 
           {/* Saisie */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-semibold text-slate-800 mb-4">Saisie d'écriture</h3>
+          <div className="bg-surface rounded-xl border border-line p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-4">Saisie d'écriture</h3>
             <form onSubmit={addEntry} className="grid grid-cols-2 lg:grid-cols-5 gap-3 items-end">
               <Field label="Date">
                 <input className={inp} type="date" value={journalForm.date} onChange={e => setJournalForm(f => ({ ...f, date: e.target.value }))} required />
@@ -1989,45 +1989,45 @@ export default function Facturation() {
           </div>
 
           {/* Journal entries table */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-700">Journal comptable ({entries.length} écriture{entries.length !== 1 ? 's' : ''})</p>
+          <div className="bg-surface rounded-xl border border-line overflow-hidden">
+            <div className="p-4 border-b bg-surface-soft flex items-center justify-between">
+              <p className="text-sm font-semibold text-foreground">Journal comptable ({entries.length} écriture{entries.length !== 1 ? 's' : ''})</p>
               {entries.length > 0 && (
-                <button onClick={() => void clearAllJournalEntries()} className="text-xs text-slate-400 hover:text-red-500 transition-colors">Effacer tout</button>
+                <button onClick={() => void clearAllJournalEntries()} className="text-xs text-muted hover:text-red-500 transition-colors">Effacer tout</button>
               )}
             </div>
             {loadingJournal ? (
-              <div className="p-8 text-center text-slate-400 text-sm">Chargement...</div>
+              <div className="p-8 text-center text-muted text-sm">Chargement...</div>
             ) : entries.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-sm">Aucune écriture saisie. Utilisez le formulaire ci-dessus pour commencer.</div>
+              <div className="p-8 text-center text-muted text-sm">Aucune écriture saisie. Utilisez le formulaire ci-dessus pour commencer.</div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200">
+                <thead className="bg-surface-soft border-b border-line">
                   <tr>
                     {['Date', 'Libellé', 'Compte', 'Débit', 'Crédit', ''].map(h => (
-                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
+                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-discreet uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {entries.map((e, i) => (
-                    <tr key={e.id} className={`border-t border-slate-100 ${i % 2 !== 0 ? 'bg-slate-50' : ''}`}>
-                      <td className="px-4 py-2.5 text-slate-600">{new Date(e.date).toLocaleDateString('fr-FR')}</td>
-                      <td className="px-4 py-2.5 text-slate-700">{e.libelle}</td>
-                      <td className="px-4 py-2.5 text-slate-500 text-xs font-mono">{e.compte}</td>
-                      <td className="px-4 py-2.5 text-right font-medium text-slate-800">{e.debit > 0 ? fmtEur(e.debit) : '—'}</td>
-                      <td className="px-4 py-2.5 text-right font-medium text-slate-800">{e.credit > 0 ? fmtEur(e.credit) : '—'}</td>
+                    <tr key={e.id} className={`border-t border-slate-100 ${i % 2 !== 0 ? 'bg-surface-soft' : ''}`}>
+                      <td className="px-4 py-2.5 text-secondary">{new Date(e.date).toLocaleDateString('fr-FR')}</td>
+                      <td className="px-4 py-2.5 text-foreground">{e.libelle}</td>
+                      <td className="px-4 py-2.5 text-discreet text-xs font-mono">{e.compte}</td>
+                      <td className="px-4 py-2.5 text-right font-medium text-foreground">{e.debit > 0 ? fmtEur(e.debit) : '—'}</td>
+                      <td className="px-4 py-2.5 text-right font-medium text-foreground">{e.credit > 0 ? fmtEur(e.credit) : '—'}</td>
                       <td className="px-4 py-2.5 text-right">
-                        <button onClick={() => void deleteJournalEntry(e.id)} className="text-xs text-slate-400 hover:text-red-500 transition-colors">✕</button>
+                        <button onClick={() => void deleteJournalEntry(e.id)} className="text-xs text-muted hover:text-red-500 transition-colors">✕</button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="border-t-2 border-slate-200 bg-slate-50">
+                <tfoot className="border-t-2 border-line bg-surface-soft">
                   <tr>
-                    <td colSpan={3} className="px-4 py-3 text-xs font-bold text-slate-600 uppercase">Totaux</td>
-                    <td className="px-4 py-3 text-right font-bold text-slate-800">{fmtEur(totalDebit)}</td>
-                    <td className="px-4 py-3 text-right font-bold text-slate-800">{fmtEur(totalCredit)}</td>
+                    <td colSpan={3} className="px-4 py-3 text-xs font-bold text-secondary uppercase">Totaux</td>
+                    <td className="px-4 py-3 text-right font-bold text-foreground">{fmtEur(totalDebit)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-foreground">{fmtEur(totalCredit)}</td>
                     <td />
                   </tr>
                 </tfoot>
@@ -2048,39 +2048,39 @@ export default function Facturation() {
             <MiniStat label="Achats TTC" value={fmtEur(totalAchatsTtc)} color="red" />
             <MiniStat label="A payer" value={fmtEur(supplierInvoices.filter(f => ['recu', 'validee'].includes(f.statut)).reduce((sum, f) => sum + (f.montant_ttc ?? f.montant_ht), 0))} color="blue" />
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
             {loading ? (
-              <div className="p-8 text-center text-slate-400 text-sm">Chargement...</div>
+              <div className="p-8 text-center text-muted text-sm">Chargement...</div>
             ) : supplierInvoices.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-sm">Aucune facture fournisseur enregistrée.</div>
+              <div className="p-8 text-center text-muted text-sm">Aucune facture fournisseur enregistrée.</div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200">
+                <thead className="bg-surface-soft border-b border-line">
                   <tr>
                     {['Numéro', 'Fournisseur', 'Date', 'Échéance', 'HT', 'TTC', 'Statut', 'Mode paiement'].map(h => (
-                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
+                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-discreet uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {supplierInvoices.map((f, index) => (
-                    <tr key={f.id} className={`border-t border-slate-100 ${index % 2 !== 0 ? 'bg-slate-50' : ''}`}>
-                      <td className="px-4 py-3 font-mono text-xs font-medium text-slate-700">{f.numero}</td>
-                      <td className="px-4 py-3 text-slate-700">{f.fournisseur_nom}</td>
-                      <td className="px-4 py-3 text-slate-600">{new Date(f.date_facture).toLocaleDateString('fr-FR')}</td>
-                      <td className="px-4 py-3 text-slate-600">{f.date_echeance ? new Date(f.date_echeance).toLocaleDateString('fr-FR') : '—'}</td>
-                      <td className="px-4 py-3 text-slate-700">{fmtEur(f.montant_ht)}</td>
-                      <td className="px-4 py-3 font-medium text-slate-800">{fmtEur(f.montant_ttc ?? f.montant_ht)}</td>
+                    <tr key={f.id} className={`border-t border-slate-100 ${index % 2 !== 0 ? 'bg-surface-soft' : ''}`}>
+                      <td className="px-4 py-3 font-mono text-xs font-medium text-foreground">{f.numero}</td>
+                      <td className="px-4 py-3 text-foreground">{f.fournisseur_nom}</td>
+                      <td className="px-4 py-3 text-secondary">{new Date(f.date_facture).toLocaleDateString('fr-FR')}</td>
+                      <td className="px-4 py-3 text-secondary">{f.date_echeance ? new Date(f.date_echeance).toLocaleDateString('fr-FR') : '—'}</td>
+                      <td className="px-4 py-3 text-foreground">{fmtEur(f.montant_ht)}</td>
+                      <td className="px-4 py-3 font-medium text-foreground">{fmtEur(f.montant_ttc ?? f.montant_ht)}</td>
                       <td className="px-4 py-3">
                         <select
                           value={f.statut}
                           onChange={ev => void updateSupplierInvoiceStatut(f, ev.target.value)}
-                          className={`rounded-md border px-2 py-1 text-xs font-medium ${FOURN_STATUT_COLORS[f.statut] ?? 'bg-slate-100 text-slate-600'}`}
+                          className={`rounded-md border px-2 py-1 text-xs font-medium ${FOURN_STATUT_COLORS[f.statut] ?? 'bg-surface-2 text-secondary'}`}
                         >
                           {Object.entries(FOURN_STATUT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                         </select>
                       </td>
-                      <td className="px-4 py-3 text-slate-600">{f.mode_paiement ? (MODE_PAIEMENT_LABELS[f.mode_paiement] ?? f.mode_paiement) : '—'}</td>
+                      <td className="px-4 py-3 text-secondary">{f.mode_paiement ? (MODE_PAIEMENT_LABELS[f.mode_paiement] ?? f.mode_paiement) : '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -2096,15 +2096,15 @@ export default function Facturation() {
       {/* ══ MODAL: Relance ══════════════════════════════════════════════════════ */}
       {showRelanceModal && selected && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+          <div className="bg-surface rounded-xl shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between p-5 border-b">
               <h3 className="text-base font-semibold">Envoyer une relance</h3>
-              <button onClick={() => setShowRelanceModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+              <button onClick={() => setShowRelanceModal(false)} className="text-muted hover:text-secondary">✕</button>
             </div>
             <div className="p-5 space-y-4">
-              <p className="text-sm text-slate-600">Facture <span className="font-mono font-medium">{selected.numero}</span> — {clientMap[selected.client_id] ?? '—'}</p>
+              <p className="text-sm text-secondary">Facture <span className="font-mono font-medium">{selected.numero}</span> — {clientMap[selected.client_id] ?? '—'}</p>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Scénario de relance</label>
+                <label className="block text-xs font-medium text-secondary mb-1">Scénario de relance</label>
                 <select value={relanceScenarioId} onChange={e => setRelanceScenarioId(e.target.value)} className={inp}>
                   {relancesScenarios.map(s => (
                     <option key={s.id} value={s.id}>Niveau {s.niveau} — {s.nom} (+{s.delai_apres_echeance}j)</option>
@@ -2112,7 +2112,7 @@ export default function Facturation() {
                 </select>
               </div>
               {relancesScenarios.find(s => s.id === relanceScenarioId)?.corps_template && (
-                <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-600 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                <div className="bg-surface-soft rounded-lg p-3 text-xs text-secondary whitespace-pre-wrap max-h-40 overflow-y-auto">
                   {(relancesScenarios.find(s => s.id === relanceScenarioId)?.corps_template ?? '')
                     .replace('{{numero}}', selected.numero)
                     .replace('{{montant}}', fmtEur(selected.montant_ttc ?? selected.montant_ht))
@@ -2122,7 +2122,7 @@ export default function Facturation() {
               )}
             </div>
             <div className="px-5 pb-5 flex justify-end gap-2">
-              <button onClick={() => setShowRelanceModal(false)} className="px-3 py-1.5 border rounded-lg text-sm text-slate-600 hover:bg-slate-50">Annuler</button>
+              <button onClick={() => setShowRelanceModal(false)} className="px-3 py-1.5 border rounded-lg text-sm text-secondary hover:bg-surface-soft">Annuler</button>
               <button
                 onClick={() => void sendRelance()}
                 disabled={!relanceScenarioId}
@@ -2136,10 +2136,10 @@ export default function Facturation() {
       {/* ══ MODAL: Nouvelle facture ═════════════════════════════════════════════ */}
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-surface rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b">
               <h3 className="text-base font-semibold">Nouvelle facture</h3>
-              <button onClick={() => { setShowForm(false); resetInvoiceForm() }} className="text-slate-400 hover:text-slate-600">✕</button>
+              <button onClick={() => { setShowForm(false); resetInvoiceForm() }} className="text-muted hover:text-secondary">✕</button>
             </div>
             <form onSubmit={submit} className="p-5">
               <div className="grid grid-cols-2 gap-4">
@@ -2158,18 +2158,18 @@ export default function Facturation() {
                   </Field>
                 </div>
                 {selectedClient && (
-                  <div className="col-span-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                  <div className="col-span-2 rounded-xl border border-line bg-surface-soft px-3 py-2 text-xs text-secondary">
                     Paiement client par défaut : {selectedClient.mode_paiement_defaut ? (MODE_PAIEMENT_LABELS[selectedClient.mode_paiement_defaut] ?? selectedClient.mode_paiement_defaut) : 'Non renseigné'} · TVA {selectedClient.taux_tva_defaut ?? form.taux_tva}% · {selectedClient.conditions_paiement ?? 0} j · {selectedClient.type_echeance ? (TYPE_ECHEANCE_LABELS[selectedClient.type_echeance] ?? selectedClient.type_echeance) : 'Standard'}{selectedClient.type_echeance === 'jour_fixe' && selectedClient.jour_echeance ? ` (${selectedClient.jour_echeance})` : ''}
-                    <span className="ml-2 text-slate-400">{paymentDefaultsLocked && dueDateDefaultsLocked && vatDefaultsLocked ? 'Auto-appliqué' : 'Modifié sur cette facture'}</span>
+                    <span className="ml-2 text-muted">{paymentDefaultsLocked && dueDateDefaultsLocked && vatDefaultsLocked ? 'Auto-appliqué' : 'Modifié sur cette facture'}</span>
                   </div>
                 )}
                 <div className="col-span-2">
                   <Field label="OT liés (optionnel)">
-                    <div className={`rounded-lg border ${!form.client_id ? 'bg-slate-50 border-slate-200' : 'border-slate-200'} px-3 py-2`}>
+                    <div className={`rounded-lg border ${!form.client_id ? 'bg-surface-soft border-line' : 'border-line'} px-3 py-2`}>
                       {!form.client_id ? (
-                        <p className="text-sm text-slate-400">Sélectionner d'abord un client</p>
+                        <p className="text-sm text-muted">Sélectionner d'abord un client</p>
                       ) : clientOts.length === 0 ? (
-                        <p className="text-sm text-slate-400">Aucun OT disponible pour ce client</p>
+                        <p className="text-sm text-muted">Aucun OT disponible pour ce client</p>
                       ) : (
                         <div className="max-h-44 space-y-2 overflow-y-auto pr-1">
                           {clientOts.map(o => {
@@ -2177,7 +2177,7 @@ export default function Facturation() {
                             const readiness = contract ? evaluateAffretementCompletionReadiness(contract) : null
                             const blocked = Boolean(contract && !readiness?.readyForCompletion)
                             return (
-                              <label key={o.id} className={`flex items-start gap-3 rounded-lg border px-3 py-2 text-sm ${blocked ? 'border-slate-100 bg-slate-50 text-slate-400' : 'border-slate-200 hover:bg-slate-50 text-slate-700'}`}>
+                              <label key={o.id} className={`flex items-start gap-3 rounded-lg border px-3 py-2 text-sm ${blocked ? 'border-slate-100 bg-surface-soft text-muted' : 'border-line hover:bg-surface-soft text-foreground'}`}>
                                 <input
                                   type="checkbox"
                                   className="mt-0.5"
@@ -2193,7 +2193,7 @@ export default function Facturation() {
                                 />
                                 <span className="flex-1">
                                   <span className="block font-medium">{contract ? '[AFF] ' : ''}{o.reference}</span>
-                                  <span className="block text-xs text-slate-500">
+                                  <span className="block text-xs text-discreet">
                                     {o.prix_ht != null ? `${fmtEur(o.prix_ht)} HT` : 'Prix HT non renseigné'}{blocked ? ' · statuts incomplets' : ''}
                                   </span>
                                 </span>
@@ -2241,15 +2241,15 @@ export default function Facturation() {
                   <Field label="Notes"><textarea className={`${inp} resize-none h-16`} value={form.notes ?? ''} onChange={e => setF('notes', e.target.value || null)} /></Field>
                 </div>
                 {form.montant_ht > 0 && (
-                  <div className="col-span-2 bg-slate-50 rounded-lg p-3 text-sm">
-                    <div className="flex justify-between text-slate-600"><span>HT</span><span>{fmtEur(form.montant_ht)}</span></div>
-                    <div className="flex justify-between text-slate-600"><span>TVA {form.taux_tva}%</span><span>{fmtEur(form.montant_ht * form.taux_tva / 100)}</span></div>
-                    <div className="flex justify-between font-bold text-slate-800 border-t pt-1.5 mt-1.5"><span>TTC</span><span>{fmtEur(form.montant_ht * (1 + form.taux_tva / 100))}</span></div>
+                  <div className="col-span-2 bg-surface-soft rounded-lg p-3 text-sm">
+                    <div className="flex justify-between text-secondary"><span>HT</span><span>{fmtEur(form.montant_ht)}</span></div>
+                    <div className="flex justify-between text-secondary"><span>TVA {form.taux_tva}%</span><span>{fmtEur(form.montant_ht * form.taux_tva / 100)}</span></div>
+                    <div className="flex justify-between font-bold text-foreground border-t pt-1.5 mt-1.5"><span>TTC</span><span>{fmtEur(form.montant_ht * (1 + form.taux_tva / 100))}</span></div>
                   </div>
                 )}
               </div>
               <div className="flex justify-end gap-3 mt-5 pt-4 border-t">
-                <button type="button" onClick={() => { setShowForm(false); resetInvoiceForm() }} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>
+                <button type="button" onClick={() => { setShowForm(false); resetInvoiceForm() }} className="px-4 py-2 text-sm border border-line rounded-lg hover:bg-surface-soft">Annuler</button>
                 <button type="submit" disabled={saving} className="px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50">
                   {saving ? 'Enregistrement...' : 'Créer la facture'}
                 </button>
@@ -2261,10 +2261,10 @@ export default function Facturation() {
 
       {showSupplierForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-surface rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b">
               <h3 className="text-base font-semibold">Nouvelle facture fournisseur</h3>
-              <button onClick={() => { setShowSupplierForm(false); setSupplierError(null) }} className="text-slate-400 hover:text-slate-600">✕</button>
+              <button onClick={() => { setShowSupplierForm(false); setSupplierError(null) }} className="text-muted hover:text-secondary">✕</button>
             </div>
             <form onSubmit={submitSupplierInvoice} className="p-5">
               <div className="grid grid-cols-2 gap-4">
@@ -2305,15 +2305,15 @@ export default function Facturation() {
                   </Field>
                 </div>
                 {supplierForm.montant_ht > 0 && (
-                  <div className="col-span-2 bg-slate-50 rounded-lg p-3 text-sm">
-                    <div className="flex justify-between text-slate-600"><span>HT</span><span>{fmtEur(supplierForm.montant_ht)}</span></div>
-                    <div className="flex justify-between text-slate-600"><span>TVA {supplierForm.taux_tva}%</span><span>{fmtEur(supplierForm.montant_ht * supplierForm.taux_tva / 100)}</span></div>
-                    <div className="flex justify-between font-bold text-slate-800 border-t pt-1.5 mt-1.5"><span>TTC</span><span>{fmtEur(supplierForm.montant_ht * (1 + supplierForm.taux_tva / 100))}</span></div>
+                  <div className="col-span-2 bg-surface-soft rounded-lg p-3 text-sm">
+                    <div className="flex justify-between text-secondary"><span>HT</span><span>{fmtEur(supplierForm.montant_ht)}</span></div>
+                    <div className="flex justify-between text-secondary"><span>TVA {supplierForm.taux_tva}%</span><span>{fmtEur(supplierForm.montant_ht * supplierForm.taux_tva / 100)}</span></div>
+                    <div className="flex justify-between font-bold text-foreground border-t pt-1.5 mt-1.5"><span>TTC</span><span>{fmtEur(supplierForm.montant_ht * (1 + supplierForm.taux_tva / 100))}</span></div>
                   </div>
                 )}
               </div>
               <div className="flex justify-end gap-3 mt-5 pt-4 border-t">
-                <button type="button" onClick={() => { setShowSupplierForm(false); setSupplierError(null) }} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>
+                <button type="button" onClick={() => { setShowSupplierForm(false); setSupplierError(null) }} className="px-4 py-2 text-sm border border-line rounded-lg hover:bg-surface-soft">Annuler</button>
                 <button type="submit" disabled={supplierSaving} className="px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50">
                   {supplierSaving ? 'Enregistrement...' : 'Créer la facture fournisseur'}
                 </button>

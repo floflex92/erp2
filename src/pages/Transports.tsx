@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Tables, TablesInsert } from '@/lib/database.types'
+import { logOtHistory } from '@/lib/otHistory'
 import { STATUT_OPS, StatutOpsDot, type StatutOps } from '@/lib/statut-ops'
 import BourseAffretementPanel from '@/components/transports/BourseAffretementPanel'
 import SiteMapPicker from '@/components/transports/SiteMapPicker'
+import OtHistoriquePanel from '@/components/transports/OtHistoriquePanel'
 import { useLogisticSites } from '@/hooks/useLogisticSites'
 import { useTransportStatusHistory } from '@/hooks/useTransportStatusHistory'
 import { useAuth } from '@/lib/auth'
@@ -111,7 +113,7 @@ const STATUT_LABELS: Record<string, string> = {
   livre: 'Livré', facture: 'Facturé', annule: 'Annulé',
 }
 const TRANSPORT_STATUS_COLORS: Record<TransportStatus, string> = {
-  en_attente_validation: 'bg-slate-100 text-slate-700',
+  en_attente_validation: 'bg-surface-2 text-foreground',
   valide: 'bg-blue-100 text-blue-700',
   en_attente_planification: 'bg-indigo-100 text-indigo-700',
   planifie: 'bg-cyan-100 text-cyan-700',
@@ -148,7 +150,7 @@ const EMPTY_OT: TransportForm = {
   instructions: null, notes_internes: null,
 }
 
-const inp = 'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-[15px] text-slate-900 outline-none transition focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary-soft)]'
+const inp = 'w-full rounded-xl border border-line-strong bg-surface px-4 py-3 text-[15px] text-heading outline-none transition focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary-soft)]'
 
 const EMPTY_SITE_DRAFT: SiteDraft = {
   entreprise_id: '',
@@ -196,7 +198,7 @@ function siteUsageLabel(site: LogisticSite) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <label className="text-xs font-medium text-slate-600">{label}</label>
+      <label className="text-xs font-medium text-secondary">{label}</label>
       {children}
     </div>
   )
@@ -214,11 +216,11 @@ function SectionCard({
   tone?: 'default' | 'highlight'
 }) {
   return (
-    <section className={`rounded-[28px] border p-6 shadow-sm ${tone === 'highlight' ? 'border-blue-200 bg-gradient-to-br from-blue-50 via-white to-cyan-50' : 'border-slate-200 bg-white'}`}>
+    <section className={`rounded-[28px] border p-6 shadow-sm ${tone === 'highlight' ? 'border-blue-200 bg-gradient-to-br from-blue-50 via-white to-cyan-50' : 'border-line bg-surface'}`}>
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h4 className="text-base font-semibold text-slate-900">{title}</h4>
-          {description && <p className="mt-1 text-sm text-slate-600">{description}</p>}
+          <h4 className="text-base font-semibold text-heading">{title}</h4>
+          {description && <p className="mt-1 text-sm text-secondary">{description}</p>}
         </div>
       </div>
       {children}
@@ -231,7 +233,7 @@ function SummaryPill({ label, value, tone = 'neutral' }: { label: string; value:
     ? 'border-slate-900 bg-slate-900 text-white'
     : tone === 'success'
       ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-      : 'border-slate-200 bg-white text-slate-700'
+      : 'border-line bg-surface text-foreground'
   return (
     <div className={`rounded-2xl border px-4 py-3 ${toneClass}`}>
       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">{label}</div>
@@ -241,7 +243,7 @@ function SummaryPill({ label, value, tone = 'neutral' }: { label: string; value:
 }
 
 export default function Transports() {
-  const { role, profil, user } = useAuth()
+  const { role, profil, user, companyId } = useAuth()
   const isAffreteurSession = role === 'affreteur'
   const canCreateOt = !isAffreteurSession
   const canEditOt = !isAffreteurSession
@@ -416,7 +418,8 @@ export default function Transports() {
       const matchSearch = ot.reference.toLowerCase().includes(searchLower) ||
         (ot.reference_transport ?? '').toLowerCase().includes(searchLower) ||
         (clientMap[ot.client_id] ?? '').toLowerCase().includes(searchLower)
-      const matchStatut = filterStatut === 'tous' || ot.statut === filterStatut
+      const effectiveStatus = ot.statut_transport ?? ot.statut
+      const matchStatut = filterStatut === 'tous' || effectiveStatus === filterStatut
       const matchView = listView === 'principal' ? !ot.est_affretee : ot.est_affretee
       return matchSearch && matchStatut && matchView
     })
@@ -579,6 +582,7 @@ export default function Transports() {
         ? `Chargement - ${companyName}`
         : `Livraison - ${companyName}`
       const created = await addSite({
+        company_id: companyId ?? profil?.companyId ?? 1,
         nom: draft.nom.trim() || defaultName,
         adresse,
         entreprise_id: entrepriseId,
@@ -599,7 +603,7 @@ export default function Transports() {
     }
   }
 
-  async function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent, overrideStatut?: string) {
     e.preventDefault()
     if (!canCreateOt) {
       setStatusGuardNotice('Creation OT bloquee: un affreteur doit passer par un compte client dedie.')
@@ -625,6 +629,8 @@ export default function Transports() {
     const payload: TablesInsert<'ordres_transport'> = {
       ...basePayload,
       donneur_ordre_id: form.donneur_ordre_id || form.client_id,
+      // Si un statut est forcé depuis les boutons (brouillon / confirmé), on l'applique
+      ...(overrideStatut ? { statut: overrideStatut } : {}),
     }
 
     let savedOtId: string | null = editingOtId
@@ -643,6 +649,18 @@ export default function Transports() {
         return
       }
       savedOtId = data.id
+      // Log création OT en fire-and-forget
+      void logOtHistory({
+        otId: data.id,
+        companyId: profil?.companyId ?? 1,
+        action: 'creation',
+        nouveauStatut: payload.statut ?? 'brouillon',
+        details: {
+          client_id: payload.client_id,
+          type_transport: payload.type_transport,
+          reference: payload.reference,
+        },
+      })
     }
 
     // Sync lignes (groupage / partiel)
@@ -862,10 +880,10 @@ export default function Transports() {
       <div className="nx-panel overflow-hidden">
         <div className="border-b px-4" style={{ borderColor: 'var(--border)' }}>
           <div className="flex gap-4">
-            <button type="button" onClick={() => setTransportTab('ot')} className={`px-1 py-3 text-sm font-semibold ${transportTab === 'ot' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-slate-700'}`}>Ordres de transport</button>
-            {canManageSites && <button type="button" onClick={() => setTransportTab('fiches')} className={`px-1 py-3 text-sm font-semibold ${transportTab === 'fiches' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-slate-700'}`}>Fiches lieux</button>}
+            <button type="button" onClick={() => setTransportTab('ot')} className={`px-1 py-3 text-sm font-semibold ${transportTab === 'ot' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-foreground'}`}>Ordres de transport</button>
+            {canManageSites && <button type="button" onClick={() => setTransportTab('fiches')} className={`px-1 py-3 text-sm font-semibold ${transportTab === 'fiches' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-foreground'}`}>Fiches lieux</button>}
             {canUseBourse && (
-              <button type="button" onClick={() => setTransportTab('bourse')} className={`px-1 py-3 text-sm font-semibold ${transportTab === 'bourse' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-slate-700'}`}>Bourse du fret</button>
+              <button type="button" onClick={() => setTransportTab('bourse')} className={`px-1 py-3 text-sm font-semibold ${transportTab === 'bourse' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-foreground'}`}>Bourse du fret</button>
             )}
           </div>
         </div>
@@ -890,22 +908,22 @@ export default function Transports() {
       <div className={`min-w-0 flex-1 ${selected ? 'hidden xl:block xl:max-w-[56%]' : ''}`}>
         <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">Ordres de Transport</h2>
-            <p className="text-slate-500 text-sm">{scopedList.length} OT{scopedList.length !== 1 ? 's' : ''}</p>
-            {isAffreteurSession && <p className="text-xs text-slate-500 mt-1">Vue affreteur: exploitation des courses affretees uniquement.</p>}
+            <h2 className="text-2xl font-bold text-foreground">Ordres de Transport</h2>
+            <p className="text-discreet text-sm">{scopedList.length} OT{scopedList.length !== 1 ? 's' : ''}</p>
+            {isAffreteurSession && <p className="text-xs text-discreet mt-1">Vue affreteur: exploitation des courses affretees uniquement.</p>}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setListView('principal')}
-              className={`px-3 py-1.5 text-xs rounded-lg border ${listView === 'principal' ? 'bg-slate-800 text-white border-slate-800' : 'border-slate-200 text-slate-600'}`}
+              className={`px-3 py-1.5 text-xs rounded-lg border ${listView === 'principal' ? 'bg-slate-800 text-white border-slate-800' : 'border-line text-secondary'}`}
             >
               Planning principal
             </button>
             <button
               type="button"
               onClick={() => setListView('affretement')}
-              className={`px-3 py-1.5 text-xs rounded-lg border ${listView === 'affretement' ? 'bg-slate-800 text-white border-slate-800' : 'border-slate-200 text-slate-600'}`}
+              className={`px-3 py-1.5 text-xs rounded-lg border ${listView === 'affretement' ? 'bg-slate-800 text-white border-slate-800' : 'border-line text-secondary'}`}
             >
               Suivi affretement
             </button>
@@ -926,37 +944,37 @@ export default function Transports() {
             placeholder="Référence ou client..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-300 sm:w-72"
+            className="w-full rounded-lg border border-line px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-300 sm:w-72"
           />
           <div className="flex gap-1 flex-wrap">
-            {['tous', ...Object.keys(STATUT_LABELS)].map(s => (
+            {['tous', ...TRANSPORT_STATUS_FLOW].map(s => (
               <button
                 key={s}
                 onClick={() => setFilterStatut(s)}
                 className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
-                  filterStatut === s ? 'bg-slate-800 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  filterStatut === s ? 'bg-slate-800 text-white' : 'border border-line text-secondary hover:bg-surface-soft'
                 }`}
               >
-                {s === 'tous' ? 'Tous' : STATUT_LABELS[s]}
+                {s === 'tous' ? 'Tous' : (TRANSPORT_STATUS_LABELS[s as TransportStatus] ?? s)}
               </button>
             ))}
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
           {loading ? (
-            <div className="p-8 text-center text-slate-400 text-sm">Chargement...</div>
+            <div className="p-8 text-center text-muted text-sm">Chargement...</div>
           ) : filtered.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 text-sm">
+            <div className="p-8 text-center text-muted text-sm">
               {search || filterStatut !== 'tous' ? 'Aucun résultat' : 'Aucun ordre de transport enregistré'}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-[920px] w-full text-sm">
-                <thead className="border-b border-slate-200 bg-slate-50">
+                <thead className="border-b border-line bg-surface-soft">
                   <tr>
                     {['Référence OT', 'Réf. transport', 'Donneur ordre', 'Type', 'Livraison prévue', 'Affrété', 'Groupage', 'Statut transport', ''].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-slate-500">{h}</th>
+                      <th key={h} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-discreet">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -970,24 +988,24 @@ export default function Transports() {
                         setContextMenu({ x: event.clientX, y: event.clientY, ot })
                       }}
                       className={`cursor-pointer border-t border-slate-100 transition-colors hover:bg-blue-50 ${
-                        selected?.id === ot.id ? 'bg-blue-50' : i % 2 !== 0 ? 'bg-slate-50' : ''
+                        selected?.id === ot.id ? 'bg-blue-50' : i % 2 !== 0 ? 'bg-surface-soft' : ''
                       }`}
                     >
-                      <td className="px-4 py-3 font-mono text-xs font-medium text-slate-800">
+                      <td className="px-4 py-3 font-mono text-xs font-medium text-foreground">
                         <span className="flex items-center gap-1.5">
                           <StatutOpsDot statut={ot.statut_operationnel} size="sm" />
                           {ot.reference}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-slate-700">{clientMap[ot.client_id] ?? '—'}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-slate-600">{ot.reference_transport ?? 'Générée à l insertion'}</td>
-                      <td className="px-4 py-3 text-slate-600">{ot.donneur_ordre_id ? (clientMap[ot.donneur_ordre_id] ?? '—') : '—'}</td>
-                      <td className="px-4 py-3 text-slate-600">{TYPE_TRANSPORT_LABELS[ot.type_transport] ?? ot.type_transport}</td>
-                      <td className="px-4 py-3 text-slate-600">
+                      <td className="px-4 py-3 text-foreground">{clientMap[ot.client_id] ?? '—'}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-secondary">{ot.reference_transport ?? 'Générée à l insertion'}</td>
+                      <td className="px-4 py-3 text-secondary">{ot.donneur_ordre_id ? (clientMap[ot.donneur_ordre_id] ?? '—') : '—'}</td>
+                      <td className="px-4 py-3 text-secondary">{TYPE_TRANSPORT_LABELS[ot.type_transport] ?? ot.type_transport}</td>
+                      <td className="px-4 py-3 text-secondary">
                         {ot.date_livraison_prevue ? new Date(ot.date_livraison_prevue).toLocaleDateString('fr-FR') : '—'}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`rounded-full px-2 py-1 text-xs font-medium ${ot.est_affretee ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                        <span className={`rounded-full px-2 py-1 text-xs font-medium ${ot.est_affretee ? 'bg-amber-100 text-amber-700' : 'bg-surface-2 text-secondary'}`}>
                           {ot.est_affretee ? `Oui (${affreteurMap[ot.affreteur_id ?? ''] ?? 'A renseigner'})` : 'Non'}
                         </span>
                       </td>
@@ -997,11 +1015,11 @@ export default function Transports() {
                             {ot.groupage_fige ? 'Fige' : 'Deliable'}
                           </span>
                         ) : (
-                          <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500">Aucun</span>
+                          <span className="rounded-full bg-surface-2 px-2 py-1 text-xs font-medium text-discreet">Aucun</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`rounded-full px-2 py-1 text-xs font-medium ${TRANSPORT_STATUS_COLORS[ot.statut_transport as TransportStatus] ?? 'bg-slate-100 text-slate-600'}`}>
+                        <span className={`rounded-full px-2 py-1 text-xs font-medium ${TRANSPORT_STATUS_COLORS[ot.statut_transport as TransportStatus] ?? 'bg-surface-2 text-secondary'}`}>
                           {TRANSPORT_STATUS_LABELS[ot.statut_transport as TransportStatus] ?? ot.statut_transport}
                         </span>
                       </td>
@@ -1010,7 +1028,7 @@ export default function Transports() {
                           {canEditOt && (
                             <button
                               onClick={ev => { ev.stopPropagation(); openEditForm(ot) }}
-                              className="text-xs text-slate-500 transition-colors hover:text-slate-700"
+                              className="text-xs text-discreet transition-colors hover:text-foreground"
                             >
                               Modifier
                             </button>
@@ -1018,7 +1036,7 @@ export default function Transports() {
                           {canDeleteOt && (
                             <button
                               onClick={ev => { ev.stopPropagation(); del(ot.id) }}
-                              className="text-xs text-slate-400 transition-colors hover:text-red-500"
+                              className="text-xs text-muted transition-colors hover:text-red-500"
                             >
                               Suppr.
                             </button>
@@ -1038,23 +1056,23 @@ export default function Transports() {
       {selected && (
         <div className="w-full shrink-0 xl:w-[44%]">
           <div className="xl:sticky xl:top-4">
-            <div className="space-y-5 rounded-[28px] border border-slate-200 bg-[#f6f8fc] p-4 shadow-sm sm:p-5">
-              <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="space-y-5 rounded-[28px] border border-line bg-[#f6f8fc] p-4 shadow-sm sm:p-5">
+              <section className="rounded-[24px] border border-line bg-surface p-5 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="space-y-3">
                     <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Vue detail mission</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-discreet">Vue detail mission</p>
                       <h3 className="mt-2 text-2xl font-semibold text-slate-950">{clientMap[selected.client_id] ?? '—'}</h3>
-                      <p className="mt-1 font-mono text-xs text-slate-500">{selected.reference}</p>
+                      <p className="mt-1 font-mono text-xs text-discreet">{selected.reference}</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`rounded-full px-3 py-1 text-xs font-medium ${OT_STATUT_BADGE_LIGHT_CLS[selected.statut] ?? 'bg-slate-100 text-slate-600'}`}>
+                      <span className={`rounded-full px-3 py-1 text-xs font-medium ${OT_STATUT_BADGE_LIGHT_CLS[selected.statut] ?? 'bg-surface-2 text-secondary'}`}>
                         {STATUT_LABELS[selected.statut] ?? selected.statut}
                       </span>
-                      <span className={`rounded-full px-3 py-1 text-xs font-medium ${TRANSPORT_STATUS_COLORS[selected.statut_transport as TransportStatus] ?? 'bg-slate-100 text-slate-600'}`}>
+                      <span className={`rounded-full px-3 py-1 text-xs font-medium ${TRANSPORT_STATUS_COLORS[selected.statut_transport as TransportStatus] ?? 'bg-surface-2 text-secondary'}`}>
                         {TRANSPORT_STATUS_LABELS[selected.statut_transport as TransportStatus] ?? selected.statut_transport}
                       </span>
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">{TYPE_TRANSPORT_LABELS[selected.type_transport] ?? selected.type_transport}</span>
+                      <span className="rounded-full bg-surface-2 px-3 py-1 text-xs font-medium text-foreground">{TYPE_TRANSPORT_LABELS[selected.type_transport] ?? selected.type_transport}</span>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                       <SummaryPill label="Livraison prevue" value={selected.date_livraison_prevue ? new Date(selected.date_livraison_prevue).toLocaleDateString('fr-FR') : 'A planifier'} tone="strong" />
@@ -1066,12 +1084,12 @@ export default function Transports() {
                       <button
                         type="button"
                         onClick={() => openEditForm(selected)}
-                        className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                        className="rounded-xl border border-line bg-surface px-4 py-2 text-sm font-medium text-foreground transition hover:bg-surface-soft"
                       >
                         Modifier l OT
                       </button>
                     )}
-                    <button onClick={() => setSelected(null)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800">
+                    <button onClick={() => setSelected(null)} className="rounded-xl border border-line bg-surface px-4 py-2 text-sm font-medium text-discreet transition hover:bg-surface-soft hover:text-foreground">
                       Fermer
                     </button>
                   </div>
@@ -1088,7 +1106,7 @@ export default function Transports() {
                     <option value="">Non affretee</option>
                     {affreteurs.map(item => <option key={item.id} value={item.id}>{item.company_name}</option>)}
                   </select>
-                  <p className="text-sm text-slate-600">
+                  <p className="text-sm text-secondary">
                     {selected.est_affretee ? 'Course retiree du planning principal et suivie dans la vue affretement.' : 'Course visible dans le planning principal.'}
                   </p>
                 </div>
@@ -1118,7 +1136,7 @@ export default function Transports() {
                       type="button"
                       onClick={() => { void linkSelectedToGroupage() }}
                       disabled={!groupageTargetId || !canChangeOtStatus || selected.groupage_fige}
-                      className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                      className="rounded-xl border border-line-strong bg-surface px-4 py-3 text-sm font-medium text-foreground transition hover:bg-surface-soft disabled:opacity-50"
                     >
                       Lier
                     </button>
@@ -1128,7 +1146,7 @@ export default function Transports() {
                       type="button"
                       onClick={() => { void unlinkSelectedFromGroupage() }}
                       disabled={!selected.mission_id || !canChangeOtStatus}
-                      className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                      className="rounded-xl border border-line-strong bg-surface px-4 py-3 text-sm font-medium text-foreground transition hover:bg-surface-soft disabled:opacity-50"
                     >
                       Delier cette course
                     </button>
@@ -1136,17 +1154,17 @@ export default function Transports() {
                       type="button"
                       onClick={() => { void toggleSelectedGroupageFreeze(!selected.groupage_fige) }}
                       disabled={!selected.mission_id || !canChangeOtStatus}
-                      className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                      className="rounded-xl border border-line-strong bg-surface px-4 py-3 text-sm font-medium text-foreground transition hover:bg-surface-soft disabled:opacity-50"
                     >
                       {selected.groupage_fige ? 'Defiger la mission' : 'Figer la mission'}
                     </button>
                   </div>
                   {selectedGroupMembers.length > 0 && (
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                      <p className="text-sm font-semibold text-slate-900">Courses de la mission</p>
+                    <div className="rounded-2xl border border-line bg-surface p-4">
+                      <p className="text-sm font-semibold text-heading">Courses de la mission</p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {selectedGroupMembers.map(item => (
-                          <span key={item.id} className={`rounded-full px-3 py-1 text-sm font-medium ${item.id === selected.id ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                          <span key={item.id} className={`rounded-full px-3 py-1 text-sm font-medium ${item.id === selected.id ? 'bg-slate-900 text-white' : 'bg-surface-2 text-foreground'}`}>
                             {item.reference}
                           </span>
                         ))}
@@ -1159,7 +1177,7 @@ export default function Transports() {
               <SectionCard title="Pilotage statuts" description="Statuts transport, administratif et opérationnel visibles dans une seule zone de décision.">
                 <div className="space-y-5">
                   <div>
-                    <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Statut transport</p>
+                    <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-discreet">Statut transport</p>
                     <div className="flex flex-wrap gap-2">
                       {TRANSPORT_STATUS_FLOW.map(statusKey => (
                         <button
@@ -1169,24 +1187,24 @@ export default function Transports() {
                           disabled={selected.statut_transport === statusKey}
                           className={`rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
                             selected.statut_transport === statusKey
-                              ? 'bg-slate-200 text-slate-500 cursor-default'
-                              : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                              ? 'bg-slate-200 text-discreet cursor-default'
+                              : 'border border-line bg-surface text-secondary hover:bg-surface-soft'
                           }`}
                         >
                           {TRANSPORT_STATUS_LABELS[statusKey]}
                         </button>
                       ))}
                     </div>
-                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Historique statut transport</p>
+                    <div className="mt-4 rounded-2xl border border-line bg-surface-soft p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-discreet">Historique statut transport</p>
                       {loadingTransportHistory ? (
-                        <p className="mt-2 text-sm text-slate-400">Chargement historique...</p>
+                        <p className="mt-2 text-sm text-muted">Chargement historique...</p>
                       ) : transportStatusHistory.length === 0 ? (
-                        <p className="mt-2 text-sm text-slate-400">Aucun historique disponible.</p>
+                        <p className="mt-2 text-sm text-muted">Aucun historique disponible.</p>
                       ) : (
                         <div className="mt-3 space-y-2">
                           {transportStatusHistory.slice(0, 5).map(entry => (
-                            <p key={entry.id} className="text-sm text-slate-600">
+                            <p key={entry.id} className="text-sm text-secondary">
                               {new Date(entry.changed_at).toLocaleString('fr-FR')} - {TRANSPORT_STATUS_LABELS[entry.statut_nouveau as TransportStatus] ?? entry.statut_nouveau}
                             </p>
                           ))}
@@ -1196,7 +1214,7 @@ export default function Transports() {
                   </div>
 
                   <div>
-                    <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Statut OT</p>
+                    <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-discreet">Statut OT</p>
                     {canChangeOtStatus ? (
                       <div className="flex flex-wrap gap-2">
                         {Object.entries(STATUT_LABELS).map(([k, v]) => (
@@ -1206,8 +1224,8 @@ export default function Transports() {
                             disabled={selected.statut === k}
                             className={`rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
                               selected.statut === k
-                                ? 'bg-slate-200 text-slate-500 cursor-default'
-                                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                                ? 'bg-slate-200 text-discreet cursor-default'
+                                : 'border border-line bg-surface text-secondary hover:bg-surface-soft'
                             }`}
                           >
                             {v}
@@ -1215,12 +1233,12 @@ export default function Transports() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-slate-500">Statut OT gere par la societe mere. Utilisez l espace affreteur pour le suivi operationnel.</p>
+                      <p className="text-sm text-discreet">Statut OT gere par la societe mere. Utilisez l espace affreteur pour le suivi operationnel.</p>
                     )}
                   </div>
 
                   <div>
-                    <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Statut operationnel</p>
+                    <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-discreet">Statut operationnel</p>
                     <div className="flex flex-wrap gap-2">
                       {(Object.entries(STATUT_OPS) as [StatutOps, typeof STATUT_OPS[StatutOps]][]).map(([k, cfg]) => (
                         <button
@@ -1234,7 +1252,7 @@ export default function Transports() {
                           className={`flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium transition-all ${
                             selected.statut_operationnel === k
                               ? `${cfg.dot} text-white border-transparent`
-                              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                              : 'border-line bg-surface text-secondary hover:bg-surface-soft'
                           }`}
                         >
                           <span className={`h-2 w-2 flex-shrink-0 rounded-full ${cfg.dot}`} />
@@ -1271,15 +1289,15 @@ export default function Transports() {
               <Info label="Nombre de colis" value={selected.nombre_colis?.toString() ?? null} />
               {selectedLots.length > 0 && (
                 <div className="sm:col-span-2 mt-1">
-                  <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Lignes de chargement</span>
-                  <div className="divide-y rounded-2xl border border-slate-200 bg-white text-xs">
+                  <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-discreet">Lignes de chargement</span>
+                  <div className="divide-y rounded-2xl border border-line bg-surface text-xs">
                     {selectedLots.map(lot => (
                       <div key={lot.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                        <span className="flex-1 font-medium text-slate-700">{lot.libelle}</span>
+                        <span className="flex-1 font-medium text-foreground">{lot.libelle}</span>
                         {lot.type_chargement && <span className="rounded-full bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-xs text-indigo-700">{TYPES_CHARGEMENT_LABELS[lot.type_chargement] ?? lot.type_chargement}</span>}
-                        {lot.poids_kg != null && <span className="text-slate-500">{lot.poids_kg} kg</span>}
-                        {lot.metrage_ml != null && <span className="text-slate-500">{lot.metrage_ml} ml</span>}
-                        {lot.nombre_colis != null && <span className="text-slate-500">{lot.nombre_colis} col.</span>}
+                        {lot.poids_kg != null && <span className="text-discreet">{lot.poids_kg} kg</span>}
+                        {lot.metrage_ml != null && <span className="text-discreet">{lot.metrage_ml} ml</span>}
+                        {lot.nombre_colis != null && <span className="text-discreet">{lot.nombre_colis} col.</span>}
                       </div>
                     ))}
                   </div>
@@ -1305,9 +1323,9 @@ export default function Transports() {
                     : calcRemplissage(selected.poids_kg, selected.tonnage, selected.metrage_ml, rem.charge_utile_kg, rem.longueur_m))
                   : null
                 return (
-                  <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                  <div className="sm:col-span-2 rounded-2xl border border-line bg-surface-soft p-4 space-y-3">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-discreet">
                         {isGroupage ? `Remplissage groupage (${groupageOts.length} courses)` : `Remplissage · ${rem?.immatriculation ?? ''}${rem?.type_remorque ? ` · ${rem.type_remorque}` : ''}`}
                       </span>
                       {remplissage?.alerte && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">⛔ DÉPASSEMENT</span>}
@@ -1317,30 +1335,30 @@ export default function Transports() {
                       <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">Capacité non renseignée sur cette remorque — éditez la fiche remorque pour activer le calcul de remplissage.</p>
                     )}
                     {!noCap && remplissage && remplissage.poids_pct === null && remplissage.ml_pct === null && (
-                      <p className="text-xs text-slate-400 italic">Renseignez le poids, le tonnage ou le métrage de la course pour voir le taux de remplissage.</p>
+                      <p className="text-xs text-muted italic">Renseignez le poids, le tonnage ou le métrage de la course pour voir le taux de remplissage.</p>
                     )}
                     {remplissage?.poids_pct !== null && remplissage?.poids_pct !== undefined && (
                       <div>
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs text-slate-600">Poids · CU {rem!.charge_utile_kg?.toLocaleString('fr-FR')} kg</span>
+                          <span className="text-xs text-secondary">Poids · CU {rem!.charge_utile_kg?.toLocaleString('fr-FR')} kg</span>
                           <span className={`text-xs font-bold ${couleurTexte(remplissage.poids_pct)}`}>{remplissage.poids_pct}%</span>
                         </div>
                         <div className="h-3 w-full rounded-full bg-slate-200">
                           <div className={`h-3 rounded-full transition-all ${couleurBarre(remplissage.poids_pct)}`} style={{ width: `${Math.min(remplissage.poids_pct, 100)}%` }} />
                         </div>
-                        {remplissage.poids_libre_kg !== null && <p className="mt-1 text-xs text-slate-500">Libre : <strong className="text-slate-700">{remplissage.poids_libre_kg.toLocaleString('fr-FR')} kg</strong></p>}
+                        {remplissage.poids_libre_kg !== null && <p className="mt-1 text-xs text-discreet">Libre : <strong className="text-foreground">{remplissage.poids_libre_kg.toLocaleString('fr-FR')} kg</strong></p>}
                       </div>
                     )}
                     {remplissage?.ml_pct !== null && remplissage?.ml_pct !== undefined && (
                       <div>
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs text-slate-600">Métrage · L {rem!.longueur_m} m</span>
+                          <span className="text-xs text-secondary">Métrage · L {rem!.longueur_m} m</span>
                           <span className={`text-xs font-bold ${couleurTexte(remplissage.ml_pct)}`}>{remplissage.ml_pct}%</span>
                         </div>
                         <div className="h-3 w-full rounded-full bg-slate-200">
                           <div className={`h-3 rounded-full transition-all ${couleurBarre(remplissage.ml_pct)}`} style={{ width: `${Math.min(remplissage.ml_pct, 100)}%` }} />
                         </div>
-                        {remplissage.ml_libre_m !== null && <p className="mt-1 text-xs text-slate-500">Libre : <strong className="text-slate-700">{remplissage.ml_libre_m} m</strong></p>}
+                        {remplissage.ml_libre_m !== null && <p className="mt-1 text-xs text-discreet">Libre : <strong className="text-foreground">{remplissage.ml_libre_m} m</strong></p>}
                       </div>
                     )}
                   </div>
@@ -1348,15 +1366,15 @@ export default function Transports() {
               })()}
 
               {selected.instructions && (
-                <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-white p-4">
-                  <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Instructions</span>
-                  <p className="mt-2 text-sm text-slate-600">{selected.instructions}</p>
+                <div className="sm:col-span-2 rounded-2xl border border-line bg-surface p-4">
+                  <span className="text-xs font-medium uppercase tracking-[0.18em] text-discreet">Instructions</span>
+                  <p className="mt-2 text-sm text-secondary">{selected.instructions}</p>
                 </div>
               )}
               {selected.notes_internes && (
-                <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-white p-4">
-                  <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Notes internes</span>
-                  <p className="mt-2 text-sm text-slate-600">{selected.notes_internes}</p>
+                <div className="sm:col-span-2 rounded-2xl border border-line bg-surface p-4">
+                  <span className="text-xs font-medium uppercase tracking-[0.18em] text-discreet">Notes internes</span>
+                  <p className="mt-2 text-sm text-secondary">{selected.notes_internes}</p>
                 </div>
               )}
                 </div>
@@ -1364,9 +1382,9 @@ export default function Transports() {
 
               <SectionCard title="Étapes de mission" description="Chronologie visuelle des chargements et livraisons pour suivre l exécution sans fouiller la fiche.">
               {loadingEtapes ? (
-                <p className="text-sm text-slate-400">Chargement...</p>
+                <p className="text-sm text-muted">Chargement...</p>
               ) : etapes.length === 0 ? (
-                <p className="text-sm text-slate-400">Aucune étape enregistrée</p>
+                <p className="text-sm text-muted">Aucune étape enregistrée</p>
               ) : (
                 <div className="relative">
                   <div className="absolute left-3.5 top-0 bottom-0 w-0.5 bg-slate-200" />
@@ -1376,25 +1394,25 @@ export default function Transports() {
                         <div className={`absolute left-2 top-2 w-3 h-3 rounded-full border-2 ${
                           et.type_etape === 'chargement' ? 'bg-blue-500 border-blue-300' :
                           et.type_etape === 'livraison' ? 'bg-green-500 border-green-300' :
-                          'bg-slate-300 border-slate-200'
+                          'bg-slate-300 border-line'
                         }`} />
-                        <div className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex-1 rounded-2xl border border-line bg-surface-soft p-4">
                           <div className="flex items-start justify-between gap-2">
                             <div>
                               <span className={`text-xs font-medium ${
                                 et.type_etape === 'chargement' ? 'text-blue-600' :
-                                et.type_etape === 'livraison' ? 'text-green-600' : 'text-slate-600'
+                                et.type_etape === 'livraison' ? 'text-green-600' : 'text-secondary'
                               }`}>
                                 {et.type_etape === 'chargement' ? 'Chargement' :
                                  et.type_etape === 'livraison' ? 'Livraison' : et.type_etape}
                               </span>
-                              <p className="text-sm font-medium text-slate-800 mt-0.5">
+                              <p className="text-sm font-medium text-foreground mt-0.5">
                                 {et.adresse_libre ?? [et.ville, et.code_postal].filter(Boolean).join(', ')}
                               </p>
-                              {et.contact_nom && <p className="text-xs text-slate-500">{et.contact_nom}{et.contact_tel ? ` · ${et.contact_tel}` : ''}</p>}
+                              {et.contact_nom && <p className="text-xs text-discreet">{et.contact_nom}{et.contact_tel ? ` · ${et.contact_tel}` : ''}</p>}
                             </div>
                             {et.date_prevue && (
-                              <span className="text-xs text-slate-500 shrink-0">
+                              <span className="text-xs text-discreet shrink-0">
                                 {new Date(et.date_prevue).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
                               </span>
                             )}
@@ -1402,7 +1420,7 @@ export default function Transports() {
                           <span className={`mt-1.5 inline-block text-xs px-2 py-0.5 rounded-full ${
                             et.statut === 'realise' ? 'bg-green-100 text-green-700' :
                             et.statut === 'en_cours' ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-slate-100 text-slate-500'
+                            'bg-surface-2 text-discreet'
                           }`}>
                             {et.statut === 'realise' ? 'Réalisé' : et.statut === 'en_cours' ? 'En cours' : 'En attente'}
                           </span>
@@ -1412,6 +1430,10 @@ export default function Transports() {
                   </div>
                 </div>
               )}
+              </SectionCard>
+
+              <SectionCard title="Historique de l'OT" description="Toutes les actions enregistrées sur cet ordre de transport — qui a fait quoi, quand.">
+                <OtHistoriquePanel otId={selected.id} visible />
               </SectionCard>
             </div>
           </div>
@@ -1475,15 +1497,15 @@ export default function Transports() {
       {showForm && canCreateOt && (
         <div className="fixed inset-0 z-50 overflow-hidden bg-slate-950/45 backdrop-blur-[2px]">
           <div className="flex h-full w-full justify-end">
-            <div className="h-full w-full max-w-[min(96vw,1380px)] border-l border-slate-200 bg-[#f6f8fc] shadow-2xl">
+            <div className="h-full w-full max-w-[min(96vw,1380px)] border-l border-line bg-[#f6f8fc] shadow-2xl">
               <form onSubmit={submit} className="flex h-full flex-col overflow-hidden">
-                <div className="border-b border-slate-200 bg-white/95 px-6 py-5 backdrop-blur sm:px-8">
+                <div className="border-b border-line bg-surface/95 px-6 py-5 backdrop-blur sm:px-8">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="space-y-3">
                       <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Gestion course / mission</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-discreet">Gestion course / mission</p>
                         <h3 className="mt-2 text-2xl font-semibold text-slate-950">{editingOtId ? 'Modifier l ordre de transport' : 'Nouvel ordre de transport'}</h3>
-                        <p className="mt-2 max-w-3xl text-sm text-slate-600">
+                        <p className="mt-2 max-w-3xl text-sm text-secondary">
                           Vue de travail exploitant avec sections séparées, repères mission visibles et saisie confortable sans tasser l information.
                         </p>
                       </div>
@@ -1494,7 +1516,7 @@ export default function Transports() {
                         <SummaryPill label="Mission" value={selected?.mission_id ? `${selectedGroupMembers.length} course${selectedGroupMembers.length > 1 ? 's' : ''} liee${selectedGroupMembers.length > 1 ? 's' : ''}` : 'Course independante'} />
                       </div>
                     </div>
-                    <button type="button" onClick={closeTransportForm} className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
+                    <button type="button" onClick={closeTransportForm} className="rounded-2xl border border-line bg-surface px-4 py-2 text-sm font-medium text-secondary transition hover:bg-surface-soft hover:text-heading">
                       Fermer
                     </button>
                   </div>
@@ -1559,6 +1581,14 @@ export default function Transports() {
                           </Field>
                           <Field label="Date et heure de livraison">
                             <input className={inp} type="datetime-local" value={form.date_livraison_prevue ?? ''} onChange={e => setF('date_livraison_prevue', e.target.value || null)} />
+                          </Field>
+                          <Field label="Mode de confirmation de livraison">
+                            <select className={inp} value={(form as Record<string, unknown>).mode_livraison as string ?? 'manuel'} onChange={e => setF('mode_livraison' as keyof typeof form, e.target.value)}>
+                              <option value="manuel">Manuel — saisie exploitant</option>
+                              <option value="conducteur">Conducteur — validation app</option>
+                              <option value="gps">GPS — détection de position</option>
+                              <option value="api">API — webhook externe</option>
+                            </select>
                           </Field>
                         </div>
                       </SectionCard>
@@ -1683,11 +1713,11 @@ export default function Transports() {
                           <div className="md:col-span-2 xl:col-span-3 flex flex-wrap gap-4">
                             <label className="flex items-center gap-2 cursor-pointer select-none">
                               <input type="checkbox" className="h-4 w-4 rounded text-indigo-600" checked={form.adr} onChange={e => setF('adr', e.target.checked)} />
-                              <span className="text-sm font-medium text-slate-700">ADR (marchandises dangereuses)</span>
+                              <span className="text-sm font-medium text-foreground">ADR (marchandises dangereuses)</span>
                             </label>
                             <label className="flex items-center gap-2 cursor-pointer select-none">
                               <input type="checkbox" className="h-4 w-4 rounded text-indigo-600" checked={form.temperature_dirigee} onChange={e => setF('temperature_dirigee', e.target.checked)} />
-                              <span className="text-sm font-medium text-slate-700">Température dirigée (frigo requis)</span>
+                              <span className="text-sm font-medium text-foreground">Température dirigée (frigo requis)</span>
                             </label>
                             <label className="flex items-center gap-2 cursor-pointer select-none">
                               <input type="checkbox" className="h-4 w-4 rounded text-amber-600" checked={form.hors_gabarit} onChange={e => setF('hors_gabarit', e.target.checked)} />
@@ -1719,7 +1749,7 @@ export default function Transports() {
                               type="button"
                               disabled={calculatingDistance || !form.chargement_site_id || !form.livraison_site_id}
                               onClick={() => { void computeDistanceFromSelectedSites() }}
-                              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="rounded-xl border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-foreground transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               {calculatingDistance ? 'Calcul en cours...' : 'Calculer itineraire poids lourd'}
                             </button>
@@ -1737,7 +1767,7 @@ export default function Transports() {
                           description="Détail des lots pour les opérations partielles et groupées, avec totaux lisibles en bas de bloc."
                         >
                           <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm text-slate-600">Décomposez la course en unités opérationnelles quand le groupage ou le partiel l exige.</p>
+                            <p className="text-sm text-secondary">Décomposez la course en unités opérationnelles quand le groupage ou le partiel l exige.</p>
                             <button
                               type="button"
                               onClick={() => setLotLines(l => [...l, { libelle: '', type_chargement: null, poids_kg: null, metrage_ml: null, nombre_colis: null, notes: null }])}
@@ -1747,11 +1777,11 @@ export default function Transports() {
                             </button>
                           </div>
                           {lotLines.length === 0 ? (
-                            <p className="mt-4 text-sm italic text-slate-500">Aucune ligne. Les valeurs de la section détails s appliquent à l ensemble de la course.</p>
+                            <p className="mt-4 text-sm italic text-discreet">Aucune ligne. Les valeurs de la section détails s appliquent à l ensemble de la course.</p>
                           ) : (
                             <div className="mt-5 space-y-4">
                               {lotLines.map((lot, idx) => (
-                                <div key={idx} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <div key={idx} className="rounded-2xl border border-line bg-surface-soft p-4">
                                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(140px,1fr)_repeat(3,minmax(100px,1fr))_minmax(0,1.5fr)_auto] xl:items-end">
                                     <Field label="Libellé *">
                                       <input className={inp} placeholder="Ex: Palettes bois" value={lot.libelle} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, libelle: e.target.value } : x))} />
@@ -1775,7 +1805,7 @@ export default function Transports() {
                                       <input className={inp} placeholder="Consigne, lot, etiquette..." value={lot.notes ?? ''} onChange={e => setLotLines(l => l.map((x, i) => i === idx ? { ...x, notes: e.target.value || null } : x))} />
                                     </Field>
                                     <div className="flex items-center xl:justify-end">
-                                      <button type="button" onClick={() => setLotLines(l => l.filter((_, i) => i !== idx))} className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50" title="Supprimer">
+                                      <button type="button" onClick={() => setLotLines(l => l.filter((_, i) => i !== idx))} className="rounded-xl border border-red-200 bg-surface px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50" title="Supprimer">
                                         Retirer
                                       </button>
                                     </div>
@@ -1799,41 +1829,41 @@ export default function Transports() {
                                   )
                                   : null
                                 return (
-                                  <div className="space-y-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                                    <div className="flex flex-wrap gap-3 text-sm text-slate-600">
-                                      {totalPoids > 0 && <span>Total poids : <strong className="text-slate-900">{totalPoids} kg</strong></span>}
-                                      {totalMl > 0 && <span>Total métrage : <strong className="text-slate-900">{totalMl} ml</strong></span>}
-                                      {totalColis > 0 && <span>Total colis : <strong className="text-slate-900">{totalColis}</strong></span>}
+                                  <div className="space-y-3 rounded-2xl border border-line bg-surface px-4 py-3">
+                                    <div className="flex flex-wrap gap-3 text-sm text-secondary">
+                                      {totalPoids > 0 && <span>Total poids : <strong className="text-heading">{totalPoids} kg</strong></span>}
+                                      {totalMl > 0 && <span>Total métrage : <strong className="text-heading">{totalMl} ml</strong></span>}
+                                      {totalColis > 0 && <span>Total colis : <strong className="text-heading">{totalColis}</strong></span>}
                                     </div>
                                     {remplissage && (remplissage.poids_pct !== null || remplissage.ml_pct !== null) && (
                                       <div className="space-y-2 pt-2 border-t border-slate-100">
                                         <div className="flex items-center gap-2">
-                                          <span className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">Remplissage total groupage</span>
+                                          <span className="text-xs font-semibold uppercase tracking-[0.15em] text-discreet">Remplissage total groupage</span>
                                           {remplissage.alerte && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">DÉPASSEMENT</span>}
                                           {!remplissage.alerte && (remplissage.global_pct ?? 0) >= SEUIL_ALERTE_ORANGE && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">QUASI-PLEIN</span>}
                                         </div>
                                         {remplissage.poids_pct !== null && (
                                           <div>
                                             <div className="flex justify-between mb-0.5">
-                                              <span className="text-xs text-slate-500">Poids · CU {rem!.charge_utile_kg?.toLocaleString('fr-FR')} kg</span>
+                                              <span className="text-xs text-discreet">Poids · CU {rem!.charge_utile_kg?.toLocaleString('fr-FR')} kg</span>
                                               <span className={`text-xs font-bold ${couleurTexte(remplissage.poids_pct)}`}>{remplissage.poids_pct}%</span>
                                             </div>
                                             <div className="h-2 w-full rounded-full bg-slate-200">
                                               <div className={`h-2 rounded-full ${couleurBarre(remplissage.poids_pct)}`} style={{ width: `${Math.min(remplissage.poids_pct, 100)}%` }} />
                                             </div>
-                                            {remplissage.poids_libre_kg !== null && <p className="text-xs text-slate-400">Libre : {remplissage.poids_libre_kg.toLocaleString('fr-FR')} kg</p>}
+                                            {remplissage.poids_libre_kg !== null && <p className="text-xs text-muted">Libre : {remplissage.poids_libre_kg.toLocaleString('fr-FR')} kg</p>}
                                           </div>
                                         )}
                                         {remplissage.ml_pct !== null && (
                                           <div>
                                             <div className="flex justify-between mb-0.5">
-                                              <span className="text-xs text-slate-500">Métrage · L {rem!.longueur_m} m</span>
+                                              <span className="text-xs text-discreet">Métrage · L {rem!.longueur_m} m</span>
                                               <span className={`text-xs font-bold ${couleurTexte(remplissage.ml_pct)}`}>{remplissage.ml_pct}%</span>
                                             </div>
                                             <div className="h-2 w-full rounded-full bg-slate-200">
                                               <div className={`h-2 rounded-full ${couleurBarre(remplissage.ml_pct)}`} style={{ width: `${Math.min(remplissage.ml_pct, 100)}%` }} />
                                             </div>
-                                            {remplissage.ml_libre_m !== null && <p className="text-xs text-slate-400">Libre : {remplissage.ml_libre_m} m</p>}
+                                            {remplissage.ml_libre_m !== null && <p className="text-xs text-muted">Libre : {remplissage.ml_libre_m} m</p>}
                                           </div>
                                         )}
                                       </div>
@@ -1872,9 +1902,9 @@ export default function Transports() {
                             <SummaryPill label="Statut mission" value={selected?.mission_id ? (selected.groupage_fige ? 'Mission figee' : 'Mission deliable') : 'Course independante'} tone={selected?.mission_id ? 'success' : 'neutral'} />
                             <SummaryPill label="Courses liees" value={selected?.mission_id ? `${selectedGroupMembers.length}` : '0'} />
                           </div>
-                          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                            <p className="text-sm font-semibold text-slate-900">Etat du groupage</p>
-                            <p className="mt-2 text-sm text-slate-600">
+                          <div className="rounded-2xl border border-line bg-surface p-4">
+                            <p className="text-sm font-semibold text-heading">Etat du groupage</p>
+                            <p className="mt-2 text-sm text-secondary">
                               {selected?.mission_id
                                 ? `Cette course appartient a une mission avec ${selectedGroupMembers.length} course${selectedGroupMembers.length > 1 ? 's' : ''}.`
                                 : 'Cette course est actuellement independante.'}
@@ -1882,16 +1912,16 @@ export default function Transports() {
                             {selected?.mission_id && selectedGroupMembers.length > 0 && (
                               <div className="mt-4 flex flex-wrap gap-2">
                                 {selectedGroupMembers.map(item => (
-                                  <span key={item.id} className={`rounded-full px-3 py-1 text-sm font-medium ${item.id === selected.id ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                                  <span key={item.id} className={`rounded-full px-3 py-1 text-sm font-medium ${item.id === selected.id ? 'bg-slate-900 text-white' : 'bg-surface-2 text-foreground'}`}>
                                     {item.reference}
                                   </span>
                                 ))}
                               </div>
                             )}
                           </div>
-                          <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-4">
+                          <div className="rounded-2xl border border-line bg-surface p-4 space-y-4">
                             <div>
-                              <label className="text-xs font-medium text-slate-600">Ajouter ou lier une autre course</label>
+                              <label className="text-xs font-medium text-secondary">Ajouter ou lier une autre course</label>
                               <div className="mt-2 flex flex-col gap-3 sm:flex-row">
                                 <select
                                   className={inp}
@@ -1910,7 +1940,7 @@ export default function Transports() {
                                   type="button"
                                   onClick={() => { void linkSelectedToGroupage() }}
                                   disabled={!editingOtId || !groupageTargetId || !canChangeOtStatus || selected?.groupage_fige}
-                                  className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="rounded-xl border border-line-strong bg-surface px-4 py-3 text-sm font-medium text-foreground transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                   Ajouter au groupage
                                 </button>
@@ -1921,7 +1951,7 @@ export default function Transports() {
                                 type="button"
                                 onClick={() => { void unlinkSelectedFromGroupage() }}
                                 disabled={!selected?.mission_id || !canChangeOtStatus}
-                                className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="rounded-xl border border-line-strong bg-surface px-4 py-3 text-sm font-medium text-foreground transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 Sortir de la mission
                               </button>
@@ -1929,12 +1959,12 @@ export default function Transports() {
                                 type="button"
                                 onClick={() => { void toggleSelectedGroupageFreeze(!selected?.groupage_fige) }}
                                 disabled={!selected?.mission_id || !canChangeOtStatus}
-                                className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="rounded-xl border border-line-strong bg-surface px-4 py-3 text-sm font-medium text-foreground transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 {selected?.groupage_fige ? 'Defiger la mission' : 'Figer la mission'}
                               </button>
                             </div>
-                            {!editingOtId && <p className="text-sm text-slate-500">Le groupage devient modifiable apres creation de la course.</p>}
+                            {!editingOtId && <p className="text-sm text-discreet">Le groupage devient modifiable apres creation de la course.</p>}
                           </div>
                         </div>
                       </SectionCard>
@@ -1944,15 +1974,15 @@ export default function Transports() {
                         description="Deux blocs distincts pour éviter la confusion entre amont et aval de mission."
                       >
                         <div className="space-y-5">
-                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="rounded-2xl border border-line bg-surface-soft p-4">
                             <Field label="Site de chargement">
                               <select className={inp} value={form.chargement_site_id ?? ''} onChange={e => setF('chargement_site_id', e.target.value || null)}>
                                 <option value="">Sélectionner un site</option>
                                 {sites.filter(site => siteSupportsKind(site, 'chargement')).map(site => <option key={site.id} value={site.id}>{site.nom} - {site.adresse}</option>)}
                               </select>
                             </Field>
-                            <details className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                              <summary className="cursor-pointer text-sm font-semibold text-slate-800">Ajouter un nouveau lieu de chargement</summary>
+                            <details className="mt-4 rounded-2xl border border-line bg-surface p-4">
+                              <summary className="cursor-pointer text-sm font-semibold text-foreground">Ajouter un nouveau lieu de chargement</summary>
                               <div className="mt-4 grid gap-4 md:grid-cols-2">
                                 <Field label="Entreprise rattachee *">
                                   <select className={inp} value={siteDrafts.chargement.entreprise_id} onChange={e => setSiteDraft('chargement', 'entreprise_id', e.target.value)}>
@@ -2013,15 +2043,15 @@ export default function Transports() {
                             </details>
                           </div>
 
-                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="rounded-2xl border border-line bg-surface-soft p-4">
                             <Field label="Site de livraison">
                               <select className={inp} value={form.livraison_site_id ?? ''} onChange={e => setF('livraison_site_id', e.target.value || null)}>
                                 <option value="">Sélectionner un site</option>
                                 {sites.filter(site => siteSupportsKind(site, 'livraison')).map(site => <option key={site.id} value={site.id}>{site.nom} - {site.adresse}</option>)}
                               </select>
                             </Field>
-                            <details className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                              <summary className="cursor-pointer text-sm font-semibold text-slate-800">Ajouter un nouveau lieu de livraison</summary>
+                            <details className="mt-4 rounded-2xl border border-line bg-surface p-4">
+                              <summary className="cursor-pointer text-sm font-semibold text-foreground">Ajouter un nouveau lieu de livraison</summary>
                               <div className="mt-4 grid gap-4 md:grid-cols-2">
                                 <Field label="Entreprise rattachee *">
                                   <select className={inp} value={siteDrafts.livraison.entreprise_id} onChange={e => setSiteDraft('livraison', 'entreprise_id', e.target.value)}>
@@ -2087,9 +2117,9 @@ export default function Transports() {
                   </div>
                 </div>
 
-                <div className="border-t border-slate-200 bg-white px-6 py-4 sm:px-8">
+                <div className="border-t border-line bg-surface px-6 py-4 sm:px-8">
                   <div className="mx-auto flex max-w-[1320px] flex-wrap items-center justify-between gap-3">
-                    <div className="text-sm text-slate-600">
+                    <div className="text-sm text-secondary">
                       Les actions principales restent visibles en permanence pendant la saisie.
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
@@ -2098,17 +2128,40 @@ export default function Transports() {
                           type="button"
                           onClick={() => { void unlinkSelectedFromGroupage() }}
                           disabled={!canChangeOtStatus}
-                          className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="rounded-xl border border-line-strong bg-surface px-4 py-3 text-sm font-medium text-foreground transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           Sortir de la mission
                         </button>
                       )}
-                      <button type="button" onClick={closeTransportForm} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                      <button type="button" onClick={closeTransportForm} className="rounded-xl border border-line-strong bg-surface px-4 py-3 text-sm font-medium text-foreground transition hover:bg-surface-soft">
                         Annuler
                       </button>
-                      <button type="submit" disabled={saving} className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50">
-                        {saving ? 'Enregistrement...' : editingOtId ? 'Sauvegarder les modifications' : 'Creer l OT'}
-                      </button>
+                      {editingOtId ? (
+                        /* Édition : un seul bouton sauvegarder */
+                        <button type="submit" disabled={saving} className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50">
+                          {saving ? 'Enregistrement...' : 'Sauvegarder les modifications'}
+                        </button>
+                      ) : (
+                        /* Création : choix brouillon ou confirmé */
+                        <>
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={e => void submit(e, 'brouillon')}
+                            className="rounded-xl border border-amber-300 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-800 transition hover:bg-amber-100 disabled:opacity-50"
+                          >
+                            {saving ? 'Enregistrement...' : 'Enregistrer en brouillon'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={e => void submit(e, 'confirme')}
+                            className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+                          >
+                            {saving ? 'Enregistrement...' : 'Confirmer l\'OT'}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2269,44 +2322,44 @@ function LogisticSitesTab({ sites, clients, clientMap, onUpdate, onNotice, canEd
       <div className="nx-panel p-4">
         <div className="flex items-end justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">Fiches entreprises chargement/dechargement</h2>
-            <p className="text-sm text-slate-500">{sites.length} lieu{sites.length > 1 ? 'x' : ''} en base</p>
+            <h2 className="text-2xl font-bold text-foreground">Fiches entreprises chargement/dechargement</h2>
+            <p className="text-sm text-discreet">{sites.length} lieu{sites.length > 1 ? 'x' : ''} en base</p>
           </div>
           <input
             type="text"
             value={search}
             onChange={event => setSearch(event.target.value)}
             placeholder="Rechercher lieu, adresse ou entreprise..."
-            className="w-full max-w-md px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-300"
+            className="w-full max-w-md px-3 py-2 border border-line rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-300"
           />
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
         {filteredSites.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-400">Aucune fiche lieu trouvee.</div>
+          <div className="p-8 text-center text-sm text-muted">Aucune fiche lieu trouvee.</div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="bg-surface-soft border-b border-line">
               <tr>
                 {['Lieu', 'Adresse', 'Entreprise', 'Usage', 'Livraison', 'Coordonnees', 'Action'].map(header => (
-                  <th key={header} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{header}</th>
+                  <th key={header} className="text-left px-4 py-3 text-xs font-medium text-discreet uppercase tracking-wide">{header}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filteredSites.map((site, index) => (
-                <tr key={site.id} className={`border-t border-slate-100 ${index % 2 !== 0 ? 'bg-slate-50' : ''}`}>
-                  <td className="px-4 py-3 font-medium text-slate-800">{site.nom}</td>
-                  <td className="px-4 py-3 text-slate-700">{site.adresse}</td>
-                  <td className="px-4 py-3 text-slate-600">{clientMap[site.entreprise_id ?? ''] ?? 'Entreprise non renseignee'}</td>
-                  <td className="px-4 py-3 text-slate-600">{siteUsageLabel(site)}</td>
-                  <td className="px-4 py-3 text-slate-500 text-xs">
+                <tr key={site.id} className={`border-t border-slate-100 ${index % 2 !== 0 ? 'bg-surface-soft' : ''}`}>
+                  <td className="px-4 py-3 font-medium text-foreground">{site.nom}</td>
+                  <td className="px-4 py-3 text-foreground">{site.adresse}</td>
+                  <td className="px-4 py-3 text-secondary">{clientMap[site.entreprise_id ?? ''] ?? 'Entreprise non renseignee'}</td>
+                  <td className="px-4 py-3 text-secondary">{siteUsageLabel(site)}</td>
+                  <td className="px-4 py-3 text-discreet text-xs">
                     {site.usage_type === 'livraison' || site.usage_type === 'mixte'
                       ? [site.jours_ouverture, site.horaires_ouverture].filter(Boolean).join(' | ') || (site.notes_livraison ? 'Note renseignee' : 'Libre')
                       : 'Non applicable'}
                   </td>
-                  <td className="px-4 py-3 text-slate-500 text-xs">
+                  <td className="px-4 py-3 text-discreet text-xs">
                     {site.latitude != null && site.longitude != null ? `${site.latitude}, ${site.longitude}` : 'Non renseignees'}
                   </td>
                   <td className="px-4 py-3">
@@ -2314,12 +2367,12 @@ function LogisticSitesTab({ sites, clients, clientMap, onUpdate, onNotice, canEd
                       <button
                         type="button"
                         onClick={() => startEdit(site)}
-                        className="text-xs rounded-lg border border-slate-200 px-2.5 py-1 text-slate-700 hover:bg-slate-50"
+                        className="text-xs rounded-lg border border-line px-2.5 py-1 text-foreground hover:bg-surface-soft"
                       >
                         Modifier
                       </button>
                     ) : (
-                      <span className="text-xs text-slate-400">Lecture seule</span>
+                      <span className="text-xs text-muted">Lecture seule</span>
                     )}
                   </td>
                 </tr>
@@ -2331,7 +2384,7 @@ function LogisticSitesTab({ sites, clients, clientMap, onUpdate, onNotice, canEd
 
       {editingId && (
         <form onSubmit={submitSiteEdit} className="nx-panel p-4 space-y-3">
-          <h3 className="text-base font-semibold text-slate-800">Modifier la fiche lieu</h3>
+          <h3 className="text-base font-semibold text-foreground">Modifier la fiche lieu</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Field label="Entreprise *">
               <select className={inp} value={form.entreprise_id} onChange={event => setForm(current => ({ ...current, entreprise_id: event.target.value }))}>
@@ -2375,7 +2428,7 @@ function LogisticSitesTab({ sites, clients, clientMap, onUpdate, onNotice, canEd
               <input className={inp} value={form.contact_tel} onChange={event => setForm(current => ({ ...current, contact_tel: event.target.value }))} placeholder="06 XX XX XX XX" />
             </Field>
             <div className="md:col-span-2">
-              <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+              <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
                 <input type="checkbox" checked={form.est_depot_relais}
                   onChange={e => setForm(current => ({ ...current, est_depot_relais: e.target.checked }))}
                   className="rounded" />
@@ -2410,7 +2463,7 @@ function LogisticSitesTab({ sites, clients, clientMap, onUpdate, onNotice, canEd
             </Field>
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={cancelEdit} className="px-3 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>
+            <button type="button" onClick={cancelEdit} className="px-3 py-2 text-sm border border-line rounded-lg hover:bg-surface-soft">Annuler</button>
             <button type="submit" disabled={saving} className="px-3 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50">
               {saving ? 'Enregistrement...' : 'Enregistrer'}
             </button>
@@ -2424,8 +2477,8 @@ function LogisticSitesTab({ sites, clients, clientMap, onUpdate, onNotice, canEd
 function Info({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div>
-      <span className="text-xs font-medium text-slate-500">{label}</span>
-      <p className="text-slate-700 mt-0.5">{value || '—'}</p>
+      <span className="text-xs font-medium text-discreet">{label}</span>
+      <p className="text-foreground mt-0.5">{value || '—'}</p>
     </div>
   )
 }

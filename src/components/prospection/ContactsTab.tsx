@@ -325,31 +325,31 @@ export default function ContactsTab() {
                       <Field label="Nom *">
                         <input value={contactForm.nom} onChange={e => setContactForm(f => ({ ...f, nom: e.target.value }))}
                           placeholder="Dupont" required
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                          className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
                       </Field>
                       <Field label="Prénom">
                         <input value={contactForm.prenom} onChange={e => setContactForm(f => ({ ...f, prenom: e.target.value }))}
                           placeholder="Jean"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                          className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
                       </Field>
                       <Field label="Poste">
                         <input value={contactForm.poste} onChange={e => setContactForm(f => ({ ...f, poste: e.target.value }))}
                           placeholder="Responsable transport"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                          className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
                       </Field>
                       <Field label="Téléphone">
                         <input value={contactForm.telephone} onChange={e => setContactForm(f => ({ ...f, telephone: e.target.value }))}
                           placeholder="06 12 34 56 78" type="tel"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                          className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
                       </Field>
                       <Field label="Email">
                         <input value={contactForm.email} onChange={e => setContactForm(f => ({ ...f, email: e.target.value }))}
                           placeholder="jean@societe.fr" type="email"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                          className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
                       </Field>
                       <Field label="Canal préféré">
                         <select value={contactForm.canal_preference} onChange={e => setContactForm(f => ({ ...f, canal_preference: e.target.value }))}
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none">
+                          className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none">
                           {CANAL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                       </Field>
@@ -362,7 +362,7 @@ export default function ContactsTab() {
                       <Field label="Notes">
                         <input value={contactForm.notes} onChange={e => setContactForm(f => ({ ...f, notes: e.target.value }))}
                           placeholder="Disponible le matin..."
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                          className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
                       </Field>
                     </div>
                     <button type="submit" disabled={savingContact}
@@ -432,31 +432,31 @@ export default function ContactsTab() {
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                       <Field label="Type d action">
                         <select value={actionForm.type_action} onChange={e => setActionForm(f => ({ ...f, type_action: e.target.value }))}
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none">
+                          className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none">
                           {ACTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.icon} {t.label}</option>)}
                         </select>
                       </Field>
                       <Field label="Durée (min)">
                         <input value={actionForm.duree_minutes} onChange={e => setActionForm(f => ({ ...f, duree_minutes: e.target.value }))}
                           placeholder="15" type="number" min="1"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                          className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
                       </Field>
                       <Field label="Résultat">
                         <select value={actionForm.resultat} onChange={e => setActionForm(f => ({ ...f, resultat: e.target.value }))}
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none">
+                          className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none">
                           {RESULTAT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                       </Field>
                       <Field label="Commercial">
                         <input value={actionForm.commercial_nom} onChange={e => setActionForm(f => ({ ...f, commercial_nom: e.target.value }))}
                           placeholder="Martin D."
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                          className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
                       </Field>
                       <div className="sm:col-span-2 lg:col-span-4">
                         <Field label="Notes *">
                           <textarea value={actionForm.notes} onChange={e => setActionForm(f => ({ ...f, notes: e.target.value }))}
                             placeholder="Résumé de l'échange, prochaine étape..." required rows={2}
-                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none resize-none" />
+                            className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none resize-none" />
                         </Field>
                       </div>
                     </div>

@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.tsx'
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary'
 import { initObservability } from '@/lib/observability'
+import { prefetchRoutesByPath } from '@/lib/routePrefetch'
 
 initObservability()
 
@@ -42,9 +43,7 @@ if (isSsrHydration) {
 if ('requestIdleCallback' in window) {
   requestIdleCallback(() => {
     startTransition(() => {
-      void import('@/pages/Transports')
-      void import('@/pages/Planning')
-      void import('@/pages/Dashboard')
+      prefetchRoutesByPath(['/dashboard', '/planning', '/transports', '/ops-center'])
     })
   })
 }

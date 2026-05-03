@@ -122,7 +122,7 @@ const EMPTY_FORM: CreateForm = {
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 const TRANSPORT_STATUS_COLORS: Record<string, string> = {
-  en_attente_validation: 'bg-slate-100 text-slate-700',
+  en_attente_validation: 'bg-surface-2 text-foreground',
   valide: 'bg-blue-100 text-blue-700',
   en_attente_planification: 'bg-indigo-100 text-indigo-700',
   planifie: 'bg-cyan-100 text-cyan-700',
@@ -135,30 +135,30 @@ const TRANSPORT_STATUS_COLORS: Record<string, string> = {
 }
 
 const STATUT_OPS_LABELS: Record<string, { label: string; cls: string }> = {
-  a_l_heure:       { label: "À l'heure",      cls: 'bg-slate-100 text-slate-700 border-slate-200' },
-  retard_mineur:   { label: 'Retard < 2h',     cls: 'bg-slate-100 text-slate-700 border-slate-200' },
+  a_l_heure:       { label: "À l'heure",      cls: 'bg-surface-2 text-foreground border-line' },
+  retard_mineur:   { label: 'Retard < 2h',     cls: 'bg-surface-2 text-foreground border-line' },
   retard_majeur:   { label: 'Retard > 2h',     cls: 'bg-red-100 text-red-700 border-red-200' },
-  en_attente:      { label: 'En attente',       cls: 'bg-slate-100 text-slate-600 border-slate-200' },
+  en_attente:      { label: 'En attente',       cls: 'bg-surface-2 text-secondary border-line' },
   prise_en_charge: { label: 'Prise en charge', cls: 'bg-blue-100 text-blue-700 border-blue-200' },
-  termine:         { label: 'Terminé',          cls: 'bg-slate-100 text-slate-700 border-slate-200' },
+  termine:         { label: 'Terminé',          cls: 'bg-surface-2 text-foreground border-line' },
 }
 
 const STATUT_OPS_CONFIG: Record<string, { label: string; cls: string }> = {
-  retard_mineur: { label: 'Retard mineur', cls: 'bg-slate-100 text-slate-700 border-slate-300' },
+  retard_mineur: { label: 'Retard mineur', cls: 'bg-surface-2 text-foreground border-line-strong' },
   retard_majeur: { label: 'Retard majeur', cls: 'bg-red-100 text-red-700 border-red-300' },
 }
 
 const PRIORITE_CONFIG: Record<string, { label: string; dot: string; badge: string }> = {
   critique: { label: 'Critique', dot: 'bg-red-500',   badge: 'bg-red-100 text-red-700 border-red-200' },
-  elevee:   { label: 'Élevée',   dot: 'bg-slate-400', badge: 'bg-slate-100 text-slate-700 border-slate-200' },
-  normale:  { label: 'Normale',  dot: 'bg-slate-400',  badge: 'bg-slate-100 text-slate-700 border-slate-200' },
+  elevee:   { label: 'Élevée',   dot: 'bg-slate-400', badge: 'bg-surface-2 text-foreground border-line' },
+  normale:  { label: 'Normale',  dot: 'bg-slate-400',  badge: 'bg-surface-2 text-foreground border-line' },
 }
 
 const STATUT_IMP_CONFIG: Record<string, { label: string; cls: string }> = {
   ouvert:   { label: 'Ouvert',   cls: 'bg-red-100 text-red-700' },
   en_cours: { label: 'En cours', cls: 'bg-blue-100 text-blue-700' },
-  resolu:   { label: 'Résolu',   cls: 'bg-slate-100 text-slate-700' },
-  clos:     { label: 'Clos',     cls: 'bg-slate-100 text-slate-600' },
+  resolu:   { label: 'Résolu',   cls: 'bg-surface-2 text-foreground' },
+  clos:     { label: 'Clos',     cls: 'bg-surface-2 text-secondary' },
 }
 
 const TYPES_LABELS: Record<string, string> = {
@@ -217,7 +217,7 @@ function prioriteMission(m: MissionActive): number {
 function StatusBadge({ st }: { st: string | null }) {
   if (!st) return null
   const label = TRANSPORT_STATUS_LABELS[st as TransportStatus] ?? st.replace(/_/g, ' ')
-  const cls   = TRANSPORT_STATUS_COLORS[st] ?? 'bg-slate-100 text-slate-600'
+  const cls   = TRANSPORT_STATUS_COLORS[st] ?? 'bg-surface-2 text-secondary'
   return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${cls}`}>{label}</span>
 }
 
@@ -230,19 +230,19 @@ function StatutOpsBadge({ st }: { st: string | null }) {
 function InfoCell({ label, value, alert = false }: { label: string; value: string; alert?: boolean }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wide text-slate-400">{label}</p>
-      <p className={`mt-0.5 text-xs font-medium ${alert ? 'text-red-600' : 'text-slate-700'}`}>{value}</p>
+      <p className="text-[10px] uppercase tracking-wide text-muted">{label}</p>
+      <p className={`mt-0.5 text-xs font-medium ${alert ? 'text-red-600' : 'text-foreground'}`}>{value}</p>
     </div>
   )
 }
 
 function KpiCard({ label, value, tone }: { label: string; value: number; tone: 'blue' | 'green' | 'amber' | 'red' | 'slate' }) {
   const colors: Record<string, string> = {
-    blue:  'text-slate-800 bg-white border-slate-200',
-    green: 'text-slate-800 bg-slate-50 border-slate-200',
-    amber: 'text-slate-800 bg-slate-50 border-slate-200',
+    blue:  'text-foreground bg-surface border-line',
+    green: 'text-foreground bg-surface-soft border-line',
+    amber: 'text-foreground bg-surface-soft border-line',
     red:   'text-red-700 bg-red-50 border-red-100',
-    slate: 'text-slate-700 bg-slate-50 border-slate-200',
+    slate: 'text-foreground bg-surface-soft border-line',
   }
   return (
     <div className={`rounded-xl border px-4 py-3 ${colors[tone]}`}>
@@ -287,15 +287,15 @@ function ImprevuCard({ imp, onUpdate }: { imp: Imprevu; onUpdate: (id: string, p
   }
 
   return (
-    <div className={`rounded-xl border ${imp.statut === 'clos' ? 'opacity-50' : ''} bg-white shadow-sm`}>
+    <div className={`rounded-xl border ${imp.statut === 'clos' ? 'opacity-50' : ''} bg-surface shadow-sm`}>
       <div className="flex cursor-pointer items-start gap-3 px-4 py-3" onClick={() => setExpanded(e => !e)}>
         <span className={`mt-1.5 h-2.5 w-2.5 flex-shrink-0 rounded-full ${pc.dot}`} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="truncate text-sm font-semibold text-slate-800">{imp.titre}</span>
-            {imp.ot_reference && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">{imp.ot_reference}</span>}
+            <span className="truncate text-sm font-semibold text-foreground">{imp.titre}</span>
+            {imp.ot_reference && <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-discreet">{imp.ot_reference}</span>}
           </div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-discreet">
             <span>{TYPES_LABELS[imp.type] ?? imp.type}</span>
             {imp.vehicule_immat && <span>· {imp.vehicule_immat}</span>}
             {imp.conducteur_nom && <span>· {imp.conducteur_nom}</span>}
@@ -305,15 +305,15 @@ function ImprevuCard({ imp, onUpdate }: { imp: Imprevu; onUpdate: (id: string, p
         <div className="flex flex-shrink-0 items-center gap-2">
           <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${pc.badge}`}>{pc.label}</span>
           <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${sc.cls}`}>{sc.label}</span>
-          <svg className={`h-4 w-4 flex-shrink-0 text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m6 9 6 6 6-6" /></svg>
+          <svg className={`h-4 w-4 flex-shrink-0 text-muted transition-transform ${expanded ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m6 9 6 6 6-6" /></svg>
         </div>
       </div>
 
       {expanded && (
         <div className="space-y-3 border-t px-4 pb-4 pt-3">
-          {imp.description && <p className="text-sm text-slate-600">{imp.description}</p>}
+          {imp.description && <p className="text-sm text-secondary">{imp.description}</p>}
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Action corrective</label>
+            <label className="mb-1 block text-xs font-medium text-secondary">Action corrective</label>
             <textarea rows={2} value={actionText} onChange={e => setActionText(e.target.value)} placeholder="Décrivez l'action prise…" className="w-full resize-none rounded-lg border px-3 py-2 text-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200" />
           </div>
           <div className="flex gap-2">
@@ -321,7 +321,7 @@ function ImprevuCard({ imp, onUpdate }: { imp: Imprevu; onUpdate: (id: string, p
               {saving ? 'Enregistrement…' : "Sauvegarder l'action"}
             </button>
             {imp.statut !== 'clos' && (
-              <button onClick={handleStatutForward} className="rounded-lg border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
+              <button onClick={handleStatutForward} className="rounded-lg border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-soft">
                 → {STATUT_IMP_CONFIG[nextStatut(imp.statut)].label}
               </button>
             )}
@@ -335,11 +335,11 @@ function ImprevuCard({ imp, onUpdate }: { imp: Imprevu; onUpdate: (id: string, p
 function Section({ label, count, color, children }: {
   label: string; count: number; color: 'red' | 'amber' | 'slate'; children: React.ReactNode
 }) {
-  const normalizedBadgeCls = color === 'red' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'
+  const normalizedBadgeCls = color === 'red' ? 'bg-red-100 text-red-700' : 'bg-surface-2 text-foreground'
   return (
-    <div className="rounded-2xl border bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border bg-surface p-4 shadow-sm">
       <div className="mb-3 flex items-center gap-2">
-        <h2 className="font-semibold text-slate-800">{label}</h2>
+        <h2 className="font-semibold text-foreground">{label}</h2>
         {count > 0 && <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${normalizedBadgeCls}`}>{count}</span>}
       </div>
       {children}
@@ -349,8 +349,8 @@ function Section({ label, count, color, children }: {
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-xs text-slate-400">
-      <svg className="h-4 w-4 flex-shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M20 6 9 17l-5-5" /></svg>
+    <div className="flex items-center gap-2 rounded-xl bg-surface-soft px-3 py-2.5 text-xs text-muted">
+      <svg className="h-4 w-4 flex-shrink-0 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M20 6 9 17l-5-5" /></svg>
       {text}
     </div>
   )
@@ -361,17 +361,17 @@ function EmptyState({ text }: { text: string }) {
 const ALERTE_SEV_CFG: Record<string, { dot: string; badge: string; border: string }> = {
   critique: { dot: 'bg-red-500',   badge: 'bg-red-100 text-red-700 border-red-200',     border: 'border-red-100' },
   warning:  { dot: 'bg-amber-500', badge: 'bg-amber-100 text-amber-700 border-amber-200', border: 'border-amber-100' },
-  info:     { dot: 'bg-blue-400',  badge: 'bg-blue-100 text-blue-700 border-blue-200',   border: 'border-slate-200' },
+  info:     { dot: 'bg-blue-400',  badge: 'bg-blue-100 text-blue-700 border-blue-200',   border: 'border-line' },
 }
 
 function AlerteOpsCard({ alerte }: { alerte: AlerteItem }) {
   const sev = ALERTE_SEV_CFG[alerte.severite] ?? ALERTE_SEV_CFG.info
   return (
-    <div className={`flex items-start gap-3 rounded-xl border bg-white px-4 py-3 shadow-sm ${sev.border}`}>
+    <div className={`flex items-start gap-3 rounded-xl border bg-surface px-4 py-3 shadow-sm ${sev.border}`}>
       <span className={`mt-1.5 h-2.5 w-2.5 flex-shrink-0 rounded-full ${sev.dot}`} />
       <div className="min-w-0 flex-1 space-y-0.5">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[13px] font-semibold text-slate-800">{alerte.titre}</span>
+          <span className="text-[13px] font-semibold text-foreground">{alerte.titre}</span>
           <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${sev.badge}`}>
             {LABELS_TYPE[alerte.type]}
           </span>
@@ -381,19 +381,19 @@ function AlerteOpsCard({ alerte }: { alerte: AlerteItem }) {
             </span>
           )}
         </div>
-        <p className="text-xs text-slate-500">{alerte.description}</p>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-0 text-[11px] text-slate-400">
-          {alerte.client_nom     && <span>Client : <strong className="text-slate-600">{alerte.client_nom}</strong></span>}
-          {alerte.conducteur_nom && <span>· <strong className="text-slate-600">{alerte.conducteur_nom}</strong></span>}
-          {alerte.vehicule_immat && <span>· 🚛 <strong className="text-slate-600">{alerte.vehicule_immat}</strong></span>}
+        <p className="text-xs text-discreet">{alerte.description}</p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0 text-[11px] text-muted">
+          {alerte.client_nom     && <span>Client : <strong className="text-secondary">{alerte.client_nom}</strong></span>}
+          {alerte.conducteur_nom && <span>· <strong className="text-secondary">{alerte.conducteur_nom}</strong></span>}
+          {alerte.vehicule_immat && <span>· 🚛 <strong className="text-secondary">{alerte.vehicule_immat}</strong></span>}
           {alerte.montant != null && (
-            <span>· <strong className="text-slate-600">{alerte.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</strong></span>
+            <span>· <strong className="text-secondary">{alerte.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</strong></span>
           )}
         </div>
       </div>
       <Link
         to={alerte.entity_url}
-        className="flex-shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+        className="flex-shrink-0 rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-secondary hover:bg-surface-soft transition-colors"
         title="Voir"
       >
         Voir →
@@ -408,7 +408,7 @@ function AlerteFilterPill({
   count: number; label: string; color: 'red' | 'amber' | 'blue' | 'slate'; active: boolean; onClick: () => void
 }) {
   const act: Record<string, string> = { red: 'bg-red-600 text-white border-red-600', amber: 'bg-amber-500 text-white border-amber-500', blue: 'bg-blue-600 text-white border-blue-600', slate: 'bg-slate-700 text-white border-slate-700' }
-  const idle: Record<string, string> = { red: 'bg-red-50 text-red-700 border-red-200', amber: 'bg-amber-50 text-amber-700 border-amber-200', blue: 'bg-blue-50 text-blue-700 border-blue-200', slate: 'bg-slate-50 text-slate-700 border-slate-200' }
+  const idle: Record<string, string> = { red: 'bg-red-50 text-red-700 border-red-200', amber: 'bg-amber-50 text-amber-700 border-amber-200', blue: 'bg-blue-50 text-blue-700 border-blue-200', slate: 'bg-surface-soft text-foreground border-line' }
   return (
     <button type="button" onClick={onClick} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${active ? act[color] : idle[color]}`}>
       <span className="text-sm font-bold">{count}</span>
@@ -722,7 +722,7 @@ export default function OpsCenter() {
       {/* Onglets */}
       <div className="flex-shrink-0 flex items-center gap-0 border-b px-4" style={{ borderColor: 'var(--border)' }}>
         {([
-          { key: 'missions' as const, label: 'Missions actives', badge: missions.length > 0 ? missions.length : null,            badgeCls: 'bg-slate-100 text-slate-700' },
+          { key: 'missions' as const, label: 'Missions actives', badge: missions.length > 0 ? missions.length : null,            badgeCls: 'bg-surface-2 text-foreground' },
           { key: 'imprevu'  as const, label: 'Imprévus',         badge: nbImprevus > 0 ? nbImprevus : null,                      badgeCls: 'bg-red-100 text-red-700' },
           { key: 'alertes'  as const, label: 'Alertes auto',     badge: alertesResult.total > 0 ? alertesResult.total : null,   badgeCls: alertesResult.totalCritiques > 0 ? 'bg-red-600 text-white' : 'bg-amber-100 text-amber-700' },
         ]).map(tab => (
@@ -732,8 +732,8 @@ export default function OpsCenter() {
             onClick={() => setActiveTab(tab.key)}
             className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === tab.key
-                ? 'border-slate-800 text-slate-900'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
+                ? 'border-slate-800 text-heading'
+                : 'border-transparent text-discreet hover:text-foreground'
             }`}
           >
             {tab.label}
@@ -761,7 +761,7 @@ export default function OpsCenter() {
                   key={f.key}
                   onClick={() => setFilterMode(f.key)}
                   className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                    filterMode === f.key ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    filterMode === f.key ? 'bg-slate-800 text-white' : 'bg-surface-2 text-secondary hover:bg-slate-200'
                   }`}
                 >
                   {f.label}
@@ -778,7 +778,7 @@ export default function OpsCenter() {
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
                 </div>
               ) : missionsFiltrees.length === 0 ? (
-                <div className="p-6 text-center text-sm text-slate-400">Aucune mission active</div>
+                <div className="p-6 text-center text-sm text-muted">Aucune mission active</div>
               ) : (
                 <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
                   {missionsFiltrees.map(m => {
@@ -788,20 +788,20 @@ export default function OpsCenter() {
                       <button
                         key={m.id}
                         onClick={() => setSelectedId(m.id)}
-                        className={`w-full text-left px-3 py-3 transition-colors ${isSelected ? 'bg-slate-100' : 'hover:bg-slate-50'} ${retard ? 'border-l-2 border-red-500' : ''}`}
+                        className={`w-full text-left px-3 py-3 transition-colors ${isSelected ? 'bg-surface-2' : 'hover:bg-surface-soft'} ${retard ? 'border-l-2 border-red-500' : ''}`}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="truncate font-mono text-xs font-semibold text-slate-800">{m.reference}</span>
+                          <span className="truncate font-mono text-xs font-semibold text-foreground">{m.reference}</span>
                           <StatusBadge st={m.statut_transport} />
                         </div>
                         <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                           <StatutOpsBadge st={m.statut_operationnel} />
                           {retard && <span className="text-[10px] font-medium text-red-600">En retard</span>}
                         </div>
-                        <div className="mt-1 truncate text-[11px] text-slate-500">
+                        <div className="mt-1 truncate text-[11px] text-discreet">
                           {m.client_nom ?? '—'} · {m.vehicule_immat ?? 'Sans véhicule'}
                         </div>
-                        <div className="text-[11px] text-slate-400">
+                        <div className="text-[11px] text-muted">
                           {m.conducteur_nom ? `🧑 ${m.conducteur_nom}` : '⚠ Sans conducteur'} · Livr. {fmtDate(m.date_livraison_prevue)}
                         </div>
                       </button>
@@ -815,7 +815,7 @@ export default function OpsCenter() {
           {/* Panel centre + droite : détail */}
           <div className="flex flex-1 flex-col overflow-hidden">
             {!selected ? (
-              <div className="flex h-full items-center justify-center text-sm text-slate-400">
+              <div className="flex h-full items-center justify-center text-sm text-muted">
                 Sélectionnez une mission
               </div>
             ) : (
@@ -825,7 +825,7 @@ export default function OpsCenter() {
                 <div className="flex-shrink-0 border-b px-5 py-4" style={{ borderColor: 'var(--border)' }}>
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <h2 className="text-lg font-bold text-slate-900">{selected.reference}</h2>
+                      <h2 className="text-lg font-bold text-heading">{selected.reference}</h2>
                       <div className="mt-1 flex flex-wrap items-center gap-2">
                         <StatusBadge st={selected.statut_transport} />
                         <StatutOpsBadge st={selected.statut_operationnel} />
@@ -835,7 +835,7 @@ export default function OpsCenter() {
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Link to="/transports" className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                      <Link to="/transports" className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-soft">
                         Fiche OT
                       </Link>
                       {selected.conducteur_id && (
@@ -874,7 +874,7 @@ export default function OpsCenter() {
                 {/* Actions statut */}
                 {actionsDisponibles.length > 0 && (
                   <div className="flex-shrink-0 border-b px-5 py-3" style={{ borderColor: 'var(--border)' }}>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Avancer la mission</p>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-discreet">Avancer la mission</p>
                     <div className="flex flex-wrap gap-2">
                       {actionsDisponibles.map(nextSt => (
                         <button
@@ -884,7 +884,7 @@ export default function OpsCenter() {
                           className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
                             TRANSPORT_STATUS_COLORS[nextSt]
                               ? `${TRANSPORT_STATUS_COLORS[nextSt]} border-transparent hover:opacity-80`
-                              : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                              : 'border-line text-foreground hover:bg-surface-soft'
                           }`}
                         >
                           → {TRANSPORT_STATUS_LABELS[nextSt]}
@@ -898,11 +898,11 @@ export default function OpsCenter() {
                 <div className="flex flex-1 overflow-hidden">
 
                   <div className="flex-1 overflow-y-auto border-r px-5 py-4" style={{ borderColor: 'var(--border)' }}>
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Étapes</p>
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-discreet">Étapes</p>
                     {detailLoading ? (
-                      <div className="flex justify-center py-4"><div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-transparent" /></div>
+                      <div className="flex justify-center py-4"><div className="h-4 w-4 animate-spin rounded-full border-2 border-line-strong border-t-transparent" /></div>
                     ) : etapes.length === 0 ? (
-                      <p className="text-xs text-slate-400">Aucune étape définie</p>
+                      <p className="text-xs text-muted">Aucune étape définie</p>
                     ) : (
                       <ol className="space-y-3">
                         {etapes.map((etape, idx) => {
@@ -911,20 +911,20 @@ export default function OpsCenter() {
                           return (
                             <li key={etape.id} className="flex gap-3">
                               <div className="flex flex-col items-center">
-                                <div className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${done ? 'bg-emerald-500 text-white' : late ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                                <div className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${done ? 'bg-emerald-500 text-white' : late ? 'bg-red-500 text-white' : 'bg-slate-200 text-secondary'}`}>
                                   {done ? '✓' : idx + 1}
                                 </div>
                                 {idx < etapes.length - 1 && <div className={`mt-1 min-h-3 w-0.5 flex-1 ${done ? 'bg-emerald-300' : 'bg-slate-200'}`} />}
                               </div>
                               <div className="pb-3">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="text-xs font-semibold text-slate-800">
+                                  <span className="text-xs font-semibold text-foreground">
                                     {etape.type_etape === 'chargement' ? '⬆ Chargement' : etape.type_etape === 'livraison' ? '⬇ Livraison' : `Étape ${idx + 1}`}
                                   </span>
                                   {late && <span className="text-[10px] font-medium text-red-600">En retard</span>}
                                 </div>
-                                <div className="mt-0.5 text-[11px] text-slate-600">{etape.ville ?? etape.adresse_libre ?? '—'}</div>
-                                <div className="text-[11px] text-slate-400">
+                                <div className="mt-0.5 text-[11px] text-secondary">{etape.ville ?? etape.adresse_libre ?? '—'}</div>
+                                <div className="text-[11px] text-muted">
                                   Prévu : {fmtHeure(etape.date_prevue)}
                                   {etape.date_reelle && ` · Réel : ${fmtHeure(etape.date_reelle)}`}
                                 </div>
@@ -945,20 +945,20 @@ export default function OpsCenter() {
 
                   {/* Historique */}
                   <div className="w-56 flex-shrink-0 overflow-y-auto px-4 py-4">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Historique</p>
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-discreet">Historique</p>
                     {detailLoading ? (
-                      <div className="flex justify-center py-4"><div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-transparent" /></div>
+                      <div className="flex justify-center py-4"><div className="h-4 w-4 animate-spin rounded-full border-2 border-line-strong border-t-transparent" /></div>
                     ) : historique.length === 0 ? (
-                      <p className="text-xs text-slate-400">Aucune transition</p>
+                      <p className="text-xs text-muted">Aucune transition</p>
                     ) : (
                       <ol className="space-y-2">
                         {historique.map(h => (
-                          <li key={h.id} className="border-l-2 border-slate-200 pb-2 pl-3">
-                            <div className="text-[11px] font-medium text-slate-700">
+                          <li key={h.id} className="border-l-2 border-line pb-2 pl-3">
+                            <div className="text-[11px] font-medium text-foreground">
                               {TRANSPORT_STATUS_LABELS[h.statut_nouveau as TransportStatus] ?? h.statut_nouveau}
                             </div>
-                            {h.commentaire && <div className="truncate text-[11px] text-slate-500" title={h.commentaire}>{h.commentaire}</div>}
-                            <div className="text-[10px] text-slate-400">
+                            {h.commentaire && <div className="truncate text-[11px] text-discreet" title={h.commentaire}>{h.commentaire}</div>}
+                            <div className="text-[10px] text-muted">
                               {new Date(h.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                             </div>
                           </li>
@@ -982,7 +982,7 @@ export default function OpsCenter() {
 
             {/* Action bar */}
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-discreet">
                 {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
               </p>
               <button
@@ -997,18 +997,18 @@ export default function OpsCenter() {
             {/* Formulaire création */}
             {showCreate && (
               <div className="rounded-2xl border border-red-200 bg-red-50 p-5">
-                <h2 className="mb-4 font-semibold text-slate-800">Signaler un imprévu</h2>
+                <h2 className="mb-4 font-semibold text-foreground">Signaler un imprévu</h2>
                 <form onSubmit={handleCreate} className="space-y-3">
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">Type *</label>
-                      <select value={form.type} onChange={e => formF('type', e.target.value)} className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-slate-500">
+                      <label className="mb-1 block text-xs font-medium text-secondary">Type *</label>
+                      <select value={form.type} onChange={e => formF('type', e.target.value)} className="w-full rounded-lg border bg-surface px-3 py-2 text-sm outline-none focus:border-slate-500">
                         {Object.entries(TYPES_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">Priorité *</label>
-                      <select value={form.priorite} onChange={e => formF('priorite', e.target.value)} className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-slate-500">
+                      <label className="mb-1 block text-xs font-medium text-secondary">Priorité *</label>
+                      <select value={form.priorite} onChange={e => formF('priorite', e.target.value)} className="w-full rounded-lg border bg-surface px-3 py-2 text-sm outline-none focus:border-slate-500">
                         <option value="critique">🔴 Critique</option>
                         <option value="elevee">🟡 Élevée</option>
                         <option value="normale">🔵 Normale</option>
@@ -1016,41 +1016,41 @@ export default function OpsCenter() {
                     </div>
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Titre *</label>
+                    <label className="mb-1 block text-xs font-medium text-secondary">Titre *</label>
                     <input required type="text" value={form.titre} onChange={e => formF('titre', e.target.value)} placeholder="Ex : Panne boîte de vitesse camion AB-123-CD" className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200" />
                   </div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">OT concerné</label>
-                      <select value={form.ot_id} onChange={e => formF('ot_id', e.target.value)} className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-slate-500">
+                      <label className="mb-1 block text-xs font-medium text-secondary">OT concerné</label>
+                      <select value={form.ot_id} onChange={e => formF('ot_id', e.target.value)} className="w-full rounded-lg border bg-surface px-3 py-2 text-sm outline-none focus:border-slate-500">
                         <option value="">— Aucun —</option>
                         {otList.map(o => <option key={o.id} value={o.id}>{o.reference}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">Véhicule</label>
-                      <select value={form.vehicule_id} onChange={e => formF('vehicule_id', e.target.value)} className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-slate-500">
+                      <label className="mb-1 block text-xs font-medium text-secondary">Véhicule</label>
+                      <select value={form.vehicule_id} onChange={e => formF('vehicule_id', e.target.value)} className="w-full rounded-lg border bg-surface px-3 py-2 text-sm outline-none focus:border-slate-500">
                         <option value="">— Aucun —</option>
                         {vehicules.map(v => <option key={v.id} value={v.id}>{v.immatriculation}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">Conducteur</label>
-                      <select value={form.conducteur_id} onChange={e => formF('conducteur_id', e.target.value)} className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-slate-500">
+                      <label className="mb-1 block text-xs font-medium text-secondary">Conducteur</label>
+                      <select value={form.conducteur_id} onChange={e => formF('conducteur_id', e.target.value)} className="w-full rounded-lg border bg-surface px-3 py-2 text-sm outline-none focus:border-slate-500">
                         <option value="">— Aucun —</option>
                         {conducteurs.map(c => <option key={c.id} value={c.id}>{c.prenom} {c.nom}</option>)}
                       </select>
                     </div>
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Description</label>
+                    <label className="mb-1 block text-xs font-medium text-secondary">Description</label>
                     <textarea rows={2} value={form.description} onChange={e => formF('description', e.target.value)} placeholder="Contexte, localisation, informations utiles…" className="w-full resize-none rounded-lg border px-3 py-2 text-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200" />
                   </div>
                   <div className="flex gap-2">
                     <button type="submit" disabled={creating || !form.titre.trim()} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
                       {creating ? 'Création…' : "Créer l'imprévu"}
                     </button>
-                    <button type="button" onClick={() => { setShowCreate(false); setForm(EMPTY_FORM) }} className="rounded-lg border px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                    <button type="button" onClick={() => { setShowCreate(false); setForm(EMPTY_FORM) }} className="rounded-lg border px-4 py-2 text-sm font-medium text-foreground hover:bg-surface-soft">
                       Annuler
                     </button>
                   </div>
@@ -1075,18 +1075,18 @@ export default function OpsCenter() {
                         {otRetards.map(ot => (
                           <div key={ot.id} className={`rounded-xl border p-3 ${ot.statut_operationnel === 'retard_majeur' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
                             <div className="flex items-center justify-between gap-2">
-                              <span className="text-sm font-semibold text-slate-800">{ot.reference}</span>
+                              <span className="text-sm font-semibold text-foreground">{ot.reference}</span>
                               <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${STATUT_OPS_CONFIG[ot.statut_operationnel]?.cls ?? ''}`}>
                                 {STATUT_OPS_CONFIG[ot.statut_operationnel]?.label ?? ot.statut_operationnel}
                               </span>
                             </div>
-                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-600">
+                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-secondary">
                               {ot.client_nom     && <span>{ot.client_nom}</span>}
                               {ot.vehicule_immat && <span>🚛 {ot.vehicule_immat}</span>}
                               {ot.conducteur_nom && <span>👤 {ot.conducteur_nom}</span>}
                             </div>
                             {ot.date_livraison_prevue && (
-                              <p className="mt-1 text-xs text-slate-500">Livraison prévue : {fmtDate(ot.date_livraison_prevue)}</p>
+                              <p className="mt-1 text-xs text-discreet">Livraison prévue : {fmtDate(ot.date_livraison_prevue)}</p>
                             )}
                           </div>
                         ))}
@@ -1100,17 +1100,17 @@ export default function OpsCenter() {
                     ) : (
                       <div className="space-y-2">
                         {otNonAffectes.map(ot => (
-                          <div key={ot.id} className={`rounded-xl border p-3 ${(ot.age_heures ?? 0) > 24 ? 'border-red-200 bg-red-50' : (ot.age_heures ?? 0) > 12 ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
+                          <div key={ot.id} className={`rounded-xl border p-3 ${(ot.age_heures ?? 0) > 24 ? 'border-red-200 bg-red-50' : (ot.age_heures ?? 0) > 12 ? 'border-amber-200 bg-amber-50' : 'border-line bg-surface-soft'}`}>
                             <div className="flex items-center justify-between gap-2">
-                              <span className="text-sm font-semibold text-slate-800">{ot.reference}</span>
-                              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">{fmtAge(ot.age_heures)} sans affectation</span>
+                              <span className="text-sm font-semibold text-foreground">{ot.reference}</span>
+                              <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-discreet">{fmtAge(ot.age_heures)} sans affectation</span>
                             </div>
-                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-600">
+                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-secondary">
                               {ot.client_nom     && <span>{ot.client_nom}</span>}
                               {ot.type_transport && <span>· {ot.type_transport}</span>}
                               {ot.poids_kg       && <span>· {ot.poids_kg.toLocaleString('fr-FR')} kg</span>}
                             </div>
-                            <div className="mt-1 flex gap-3 text-xs text-slate-500">
+                            <div className="mt-1 flex gap-3 text-xs text-discreet">
                               {ot.date_chargement_prevue && <span>Chgt : {fmtDate(ot.date_chargement_prevue)}</span>}
                               {ot.date_livraison_prevue  && <span>Liv : {fmtDate(ot.date_livraison_prevue)}</span>}
                             </div>
@@ -1124,7 +1124,7 @@ export default function OpsCenter() {
                 {/* Colonne droite : feed imprévus */}
                 <div className="space-y-4 lg:col-span-2">
                   <div className="flex items-center justify-between">
-                    <h2 className="font-semibold text-slate-800">
+                    <h2 className="font-semibold text-foreground">
                       Imprévus signalés
                       {activeImprevus.length > 0 && (
                         <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">{activeImprevus.length}</span>
@@ -1139,7 +1139,7 @@ export default function OpsCenter() {
                         <button
                           key={opt.key}
                           onClick={() => setFilterStatut(opt.key)}
-                          className={`rounded-lg px-3 py-1.5 font-medium transition-colors ${filterStatut === opt.key ? 'bg-slate-800 text-white' : 'border text-slate-600 hover:bg-slate-50'}`}
+                          className={`rounded-lg px-3 py-1.5 font-medium transition-colors ${filterStatut === opt.key ? 'bg-slate-800 text-white' : 'border text-secondary hover:bg-surface-soft'}`}
                         >
                           {opt.label}
                         </button>
@@ -1155,7 +1155,7 @@ export default function OpsCenter() {
                       <div key={prio}>
                         <div className="mb-2 flex items-center gap-2">
                           <span className={`h-2 w-2 rounded-full ${pc.dot}`} />
-                          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{pc.label} ({groupe.length})</span>
+                          <span className="text-xs font-semibold uppercase tracking-wide text-discreet">{pc.label} ({groupe.length})</span>
                         </div>
                         <div className="space-y-2">
                           {groupe.map(imp => <ImprevuCard key={imp.id} imp={imp} onUpdate={handleImprevuUpdate} />)}
@@ -1209,7 +1209,7 @@ export default function OpsCenter() {
                 type="button"
                 onClick={alertesResult.refresh}
                 disabled={alertesResult.loading}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-1.5 text-xs font-medium text-secondary shadow-sm hover:bg-surface-soft disabled:opacity-50 transition-colors"
               >
                 <svg className={`h-3.5 w-3.5 ${alertesResult.loading ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 12A9 9 0 1 1 5.6 5.6" /><path d="M3 3v6h6" /></svg>
                 {alertesResult.loading ? 'Actualisation…' : 'Actualiser'}
@@ -1217,7 +1217,7 @@ export default function OpsCenter() {
             </div>
 
             {/* Onglets catégorie */}
-            <div className="flex gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+            <div className="flex gap-1 rounded-xl border border-line bg-surface-soft p-1">
               {(
                 [
                   { key: 'toutes'      as const, label: 'Toutes',      count: alertesResult.total },
@@ -1232,13 +1232,13 @@ export default function OpsCenter() {
                   className={[
                     'flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
                     alerteFilterCat === tab.key
-                      ? 'bg-white text-slate-800 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700',
+                      ? 'bg-surface text-foreground shadow-sm'
+                      : 'text-discreet hover:text-foreground',
                   ].join(' ')}
                 >
                   {tab.label}
                   {tab.count > 0 && (
-                    <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${alerteFilterCat === tab.key ? 'bg-slate-100 text-slate-700' : 'bg-slate-200 text-slate-600'}`}>
+                    <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${alerteFilterCat === tab.key ? 'bg-surface-2 text-foreground' : 'bg-slate-200 text-secondary'}`}>
                       {tab.count}
                     </span>
                   )}
@@ -1249,16 +1249,16 @@ export default function OpsCenter() {
             {/* Liste */}
             {alertesResult.loading && alertesResult.alertes.length === 0 ? (
               <div className="flex items-center justify-center py-12">
-                <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700" />
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-line border-t-slate-700" />
               </div>
             ) : alertesFiltrees.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 py-12 text-center">
+              <div className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-surface-soft py-12 text-center">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M20 6 9 17l-5-5" /></svg>
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-700">Aucune alerte active</p>
-                  <p className="mt-0.5 text-sm text-slate-400">Tout est nominal</p>
+                  <p className="font-semibold text-foreground">Aucune alerte active</p>
+                  <p className="mt-0.5 text-sm text-muted">Tout est nominal</p>
                 </div>
               </div>
             ) : (
@@ -1268,7 +1268,7 @@ export default function OpsCenter() {
             )}
 
             {!alertesResult.loading && alertesResult.total > 0 && (
-              <p className="text-center text-[11px] text-slate-400">
+              <p className="text-center text-[11px] text-muted">
                 Actualisé à {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} · Rafraîchissement automatique toutes les 5 min
               </p>
             )}

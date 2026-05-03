@@ -62,14 +62,14 @@ interface ScoringRow {
 const inp = 'w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200'
 const btn = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors'
 const btnPrimary = `${btn} bg-slate-800 text-white hover:bg-slate-700`
-const btnGhost = `${btn} border border-slate-200 text-slate-700 hover:bg-slate-50`
+const btnGhost = `${btn} border border-line text-foreground hover:bg-surface-soft`
 
 const STATUT_COLORS: Record<string, string> = {
-  brouillon: 'bg-slate-100 text-slate-500',
+  brouillon: 'bg-surface-2 text-discreet',
   envoyee: 'bg-blue-100 text-blue-700',
   payee: 'bg-green-100 text-green-700',
   en_retard: 'bg-red-100 text-red-700',
-  annulee: 'bg-slate-100 text-slate-400',
+  annulee: 'bg-surface-2 text-muted',
 }
 const STATUT_LABELS: Record<string, string> = {
   brouillon: 'Brouillon', envoyee: 'Envoyée', payee: 'Payée', en_retard: 'En retard', annulee: 'Annulée',
@@ -97,15 +97,15 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
     { key: 'scoring', label: 'Scoring clients' },
   ]
   return (
-    <div className="flex gap-1 mb-6 border-b border-slate-200">
+    <div className="flex gap-1 mb-6 border-b border-line">
       {tabs.map(t => (
         <button
           key={t.key}
           onClick={() => onChange(t.key)}
           className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
             active === t.key
-              ? 'border-slate-800 text-slate-800'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
+              ? 'border-slate-800 text-foreground'
+              : 'border-transparent text-discreet hover:text-foreground'
           }`}
         >
           {t.label}
@@ -122,7 +122,7 @@ function Stat({ label, value, sub, color = 'slate' }: {
     blue:  'bg-blue-50 text-blue-700 border-blue-100',
     red:   'bg-red-50 text-red-700 border-red-100',
     green: 'bg-green-50 text-green-700 border-green-100',
-    slate: 'bg-slate-50 text-slate-800 border-slate-200',
+    slate: 'bg-surface-soft text-foreground border-line',
     amber: 'bg-amber-50 text-amber-700 border-amber-100',
   }[color]
   return (
@@ -235,16 +235,16 @@ function ReglementsTab() {
 
       {/* Tableau */}
       {loading ? (
-        <div className="text-center py-10 text-slate-400">Chargement...</div>
+        <div className="text-center py-10 text-muted">Chargement...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-10 text-slate-400">Aucune facture</div>
+        <div className="text-center py-10 text-muted">Aucune facture</div>
       ) : (
-        <div className="overflow-auto rounded-lg border border-slate-200">
+        <div className="overflow-auto rounded-lg border border-line">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-surface-soft">
               <tr>
                 {['Numéro', 'Client', 'Montant TTC', 'Émission', 'Échéance', 'Retard', 'Statut', ''].map(h => (
-                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 border-b border-slate-200">{h}</th>
+                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-secondary border-b border-line">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -252,12 +252,12 @@ function ReglementsTab() {
               {filtered.map(f => {
                 const retard = retardJours(f)
                 return (
-                  <tr key={f.id} className="hover:bg-slate-50 border-b border-slate-100 last:border-0">
-                    <td className="px-3 py-2 font-mono text-xs text-slate-700">{f.numero}</td>
-                    <td className="px-3 py-2 text-slate-800 font-medium truncate max-w-[150px]">{clientMap[f.client_id] ?? '—'}</td>
-                    <td className="px-3 py-2 text-right font-medium text-slate-800">{fmtEur(f.montant_ttc ?? f.montant_ht)}</td>
-                    <td className="px-3 py-2 text-slate-500 text-xs">{f.date_emission}</td>
-                    <td className="px-3 py-2 text-slate-500 text-xs">{f.date_echeance ?? '—'}</td>
+                  <tr key={f.id} className="hover:bg-surface-soft border-b border-slate-100 last:border-0">
+                    <td className="px-3 py-2 font-mono text-xs text-foreground">{f.numero}</td>
+                    <td className="px-3 py-2 text-foreground font-medium truncate max-w-[150px]">{clientMap[f.client_id] ?? '—'}</td>
+                    <td className="px-3 py-2 text-right font-medium text-foreground">{fmtEur(f.montant_ttc ?? f.montant_ht)}</td>
+                    <td className="px-3 py-2 text-discreet text-xs">{f.date_emission}</td>
+                    <td className="px-3 py-2 text-discreet text-xs">{f.date_echeance ?? '—'}</td>
                     <td className="px-3 py-2 text-center">
                       {retard > 0
                         ? <span className="text-red-600 font-semibold text-xs">{retard} j</span>
@@ -290,13 +290,13 @@ function ReglementsTab() {
       {/* Modal paiement */}
       {showPayModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 space-y-4">
-            <h3 className="font-semibold text-slate-800">Enregistrer le paiement</h3>
-            <p className="text-sm text-slate-600">
+          <div className="bg-surface rounded-2xl shadow-xl p-6 w-80 space-y-4">
+            <h3 className="font-semibold text-foreground">Enregistrer le paiement</h3>
+            <p className="text-sm text-secondary">
               {showPayModal.numero} — {fmtEur(showPayModal.montant_ttc ?? showPayModal.montant_ht)}
             </p>
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">Date de paiement</label>
+              <label className="text-xs font-medium text-secondary block mb-1">Date de paiement</label>
               <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} className={inp} />
             </div>
             <div className="flex gap-2 justify-end">
@@ -384,13 +384,13 @@ function RelancesTab() {
 
   return (
     <div className="space-y-5">
-      <div className="flex gap-2 border-b border-slate-200 mb-4">
+      <div className="flex gap-2 border-b border-line mb-4">
         {(['aenvoyer', 'historique', 'scenarios'] as const).map(v => {
           const labels = { aenvoyer: 'À envoyer', historique: 'Historique', scenarios: 'Scénarios' }
           return (
             <button key={v} onClick={() => setView(v)}
               className={`px-3 py-2 text-sm transition-colors border-b-2 -mb-px ${
-                view === v ? 'border-slate-800 text-slate-800 font-medium' : 'border-transparent text-slate-400'
+                view === v ? 'border-slate-800 text-foreground font-medium' : 'border-transparent text-muted'
               }`}
             >{labels[v]}</button>
           )
@@ -402,33 +402,33 @@ function RelancesTab() {
       )}
 
       {loading ? (
-        <div className="text-center py-10 text-slate-400">Chargement...</div>
+        <div className="text-center py-10 text-muted">Chargement...</div>
       ) : view === 'aenvoyer' ? (
         facturesEnRetard.length === 0 ? (
-          <div className="text-center py-10 text-slate-400">Aucune facture en retard — excellente situation !</div>
+          <div className="text-center py-10 text-muted">Aucune facture en retard — excellente situation !</div>
         ) : (
           <div className="space-y-3">
-            <p className="text-sm text-slate-500">{facturesEnRetard.length} facture(s) en retard de paiement</p>
+            <p className="text-sm text-discreet">{facturesEnRetard.length} facture(s) en retard de paiement</p>
             {facturesEnRetard.map(f => {
               const sc = niveauSuggere(f)
               const retard = retardJours(f)
               const hist = historique.filter(h => h.facture_id === f.id)
               return (
-                <div key={f.id} className="border border-slate-200 rounded-xl p-4 space-y-3">
+                <div key={f.id} className="border border-line rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <span className="font-semibold text-slate-800">{clientMap[f.client_id] ?? '—'}</span>
-                      <span className="ml-2 text-xs text-slate-400 font-mono">{f.numero}</span>
+                      <span className="font-semibold text-foreground">{clientMap[f.client_id] ?? '—'}</span>
+                      <span className="ml-2 text-xs text-muted font-mono">{f.numero}</span>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-slate-800">{fmtEur(f.montant_ttc ?? f.montant_ht)}</p>
+                      <p className="font-bold text-foreground">{fmtEur(f.montant_ttc ?? f.montant_ht)}</p>
                       <p className="text-xs text-red-600">{retard} j de retard</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <div className="flex items-center gap-2 text-xs text-discreet">
                     <span>Échéance : {f.date_echeance}</span>
                     {hist.length > 0 && (
-                      <span className="bg-slate-100 px-2 py-0.5 rounded">
+                      <span className="bg-surface-2 px-2 py-0.5 rounded">
                         {hist.length} relance(s) envoyée(s) — dernier : niv. {Math.max(...hist.map(h => h.niveau))}
                       </span>
                     )}
@@ -448,7 +448,7 @@ function RelancesTab() {
                       </button>
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">
+                    <p className="text-xs text-muted italic">
                       {scenarios.length === 0 ? 'Aucun scénario configuré' : 'Relance max atteinte — action manuelle requise'}
                     </p>
                   )}
@@ -459,29 +459,29 @@ function RelancesTab() {
         )
       ) : view === 'historique' ? (
         historique.length === 0 ? (
-          <div className="text-center py-10 text-slate-400">Aucune relance envoyée</div>
+          <div className="text-center py-10 text-muted">Aucune relance envoyée</div>
         ) : (
-          <div className="overflow-auto rounded-lg border border-slate-200">
+          <div className="overflow-auto rounded-lg border border-line">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50">
+              <thead className="bg-surface-soft">
                 <tr>
                   {['Date', 'Facture', 'Niveau', 'Mode', 'Montant', 'Statut'].map(h => (
-                    <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 border-b border-slate-200">{h}</th>
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-secondary border-b border-line">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {historique.map(h => (
-                  <tr key={h.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                    <td className="px-3 py-2 text-xs text-slate-500">{new Date(h.date_envoi).toLocaleDateString('fr-FR')}</td>
-                    <td className="px-3 py-2 font-mono text-xs text-slate-700">
+                  <tr key={h.id} className="border-b border-slate-100 last:border-0 hover:bg-surface-soft">
+                    <td className="px-3 py-2 text-xs text-discreet">{new Date(h.date_envoi).toLocaleDateString('fr-FR')}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-foreground">
                       {factures.find(f => f.id === h.facture_id)?.numero ?? h.facture_id.slice(0,8)}
                     </td>
                     <td className="px-3 py-2">
                       <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-xs font-medium">Niv. {h.niveau}</span>
                     </td>
-                    <td className="px-3 py-2 text-xs text-slate-600">{h.mode}</td>
-                    <td className="px-3 py-2 text-right text-slate-700">{fmtEur(h.montant_relance)}</td>
+                    <td className="px-3 py-2 text-xs text-secondary">{h.mode}</td>
+                    <td className="px-3 py-2 text-right text-foreground">{fmtEur(h.montant_relance)}</td>
                     <td className="px-3 py-2">
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                         h.statut === 'envoye' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
@@ -497,23 +497,23 @@ function RelancesTab() {
         // Scénarios
         <div className="space-y-3">
           {scenarios.length === 0 ? (
-            <div className="text-center py-10 text-slate-400">Aucun scénario configuré</div>
+            <div className="text-center py-10 text-muted">Aucun scénario configuré</div>
           ) : (
             scenarios.map(sc => (
-              <div key={sc.id} className="border border-slate-200 rounded-xl p-4 space-y-2">
+              <div key={sc.id} className="border border-line rounded-xl p-4 space-y-2">
                 <div className="flex items-center gap-2">
                   <span className="bg-slate-800 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
                     {sc.niveau}
                   </span>
-                  <h4 className="font-semibold text-slate-800">{sc.nom}</h4>
-                  <span className="text-xs text-slate-400">J+{sc.delai_apres_echeance} après échéance</span>
-                  <span className="ml-auto text-xs bg-slate-100 px-2 py-0.5 rounded">{sc.type}</span>
+                  <h4 className="font-semibold text-foreground">{sc.nom}</h4>
+                  <span className="text-xs text-muted">J+{sc.delai_apres_echeance} après échéance</span>
+                  <span className="ml-auto text-xs bg-surface-2 px-2 py-0.5 rounded">{sc.type}</span>
                 </div>
                 {sc.sujet_template && (
-                  <p className="text-sm text-slate-600 font-medium">{sc.sujet_template}</p>
+                  <p className="text-sm text-secondary font-medium">{sc.sujet_template}</p>
                 )}
                 {sc.corps_template && (
-                  <pre className="text-xs text-slate-500 bg-slate-50 rounded p-3 whitespace-pre-wrap font-sans leading-relaxed">
+                  <pre className="text-xs text-discreet bg-surface-soft rounded p-3 whitespace-pre-wrap font-sans leading-relaxed">
                     {sc.corps_template}
                   </pre>
                 )}
@@ -560,10 +560,10 @@ function ScoringTab() {
     const color = score >= 80 ? 'bg-green-500' : score >= 50 ? 'bg-amber-400' : 'bg-red-500'
     return (
       <div className="flex items-center gap-2">
-        <div className="w-20 h-2 bg-slate-100 rounded-full overflow-hidden">
+        <div className="w-20 h-2 bg-surface-2 rounded-full overflow-hidden">
           <div className={`h-full rounded-full ${color}`} style={{ width: `${score}%` }} />
         </div>
-        <span className="text-xs font-semibold text-slate-700">{Math.round(score)}</span>
+        <span className="text-xs font-semibold text-foreground">{Math.round(score)}</span>
       </div>
     )
   }
@@ -594,31 +594,31 @@ function ScoringTab() {
       </div>
 
       {loading ? (
-        <div className="text-center py-10 text-slate-400">Calcul du scoring...</div>
+        <div className="text-center py-10 text-muted">Calcul du scoring...</div>
       ) : sorted.length === 0 ? (
-        <div className="text-center py-10 text-slate-400">Aucun client</div>
+        <div className="text-center py-10 text-muted">Aucun client</div>
       ) : (
-        <div className="overflow-auto rounded-lg border border-slate-200">
+        <div className="overflow-auto rounded-lg border border-line">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-surface-soft">
               <tr>
                 {['Client', 'Factures', 'CA total', 'Retard moyen', 'Encours', 'En retard', 'Score', 'Risque'].map(h => (
-                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 border-b border-slate-200">{h}</th>
+                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-secondary border-b border-line">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {sorted.map(row => (
-                <tr key={row.client_id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                  <td className="px-3 py-2.5 font-medium text-slate-800 truncate max-w-[160px]">{row.client_nom}</td>
-                  <td className="px-3 py-2.5 text-center text-slate-600">{row.nb_factures}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-700">{fmtEur(row.ca_total)}</td>
+                <tr key={row.client_id} className="border-b border-slate-100 last:border-0 hover:bg-surface-soft">
+                  <td className="px-3 py-2.5 font-medium text-foreground truncate max-w-[160px]">{row.client_nom}</td>
+                  <td className="px-3 py-2.5 text-center text-secondary">{row.nb_factures}</td>
+                  <td className="px-3 py-2.5 text-right text-foreground">{fmtEur(row.ca_total)}</td>
                   <td className="px-3 py-2.5 text-center">
                     {row.retard_moyen_jours > 0
                       ? <span className="text-red-600 font-medium">{Math.round(row.retard_moyen_jours)} j</span>
                       : <span className="text-green-600">0 j</span>}
                   </td>
-                  <td className="px-3 py-2.5 text-right text-slate-700">{fmtEur(row.encours_total)}</td>
+                  <td className="px-3 py-2.5 text-right text-foreground">{fmtEur(row.encours_total)}</td>
                   <td className="px-3 py-2.5 text-right">
                     {row.encours_retard > 0
                       ? <span className="text-red-700 font-semibold">{fmtEur(row.encours_retard)}</span>
@@ -647,8 +647,8 @@ export default function Reglements() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-2">
       <div className="mb-4">
-        <h1 className="text-xl font-bold text-slate-800">Règlements & Recouvrement</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Suivi des paiements clients, relances automatiques, scoring de risque</p>
+        <h1 className="text-xl font-bold text-foreground">Règlements & Recouvrement</h1>
+        <p className="text-sm text-discreet mt-0.5">Suivi des paiements clients, relances automatiques, scoring de risque</p>
       </div>
       <TabBar active={tab} onChange={setTab} />
       {tab === 'reglements' && <ReglementsTab />}

@@ -4,6 +4,7 @@ import Sidebar from './Sidebar'
 import ImpersonationBanner from './ImpersonationBanner'
 import { canAccess, useAuth } from '@/lib/auth'
 import { useTheme } from '@/lib/theme'
+import { prefetchRouteByPath } from '@/lib/routePrefetch'
 
 const PLANNING_HEADER_COLLAPSED_KEY = 'nexora_planning_header_collapsed_v1'
 
@@ -51,6 +52,10 @@ const PAGE_TITLES: Record<string, string> = {
   '/mail': 'Mail',
   '/coffre': 'Coffre numerique',
   '/mentions-legales': 'Mentions legales',
+  '/optimisation-tournees': 'Optimisation tournées',
+  '/messagerie-colis': 'Messagerie & Colis',
+  '/formulaires-terrain': 'E-formulaires terrain',
+  '/gestion-temperature': 'Gestion température frigo',
 }
 
 function PlusIcon() {
@@ -338,7 +343,11 @@ export default function AppLayout() {
                             <li key={link.to}>
                               <button
                                 type="button"
-                                onMouseEnter={() => setSearchHighlightIndex(index)}
+                                onMouseEnter={() => {
+                                  setSearchHighlightIndex(index)
+                                  prefetchRouteByPath(link.to)
+                                }}
+                                onFocus={() => prefetchRouteByPath(link.to)}
                                 onClick={() => openQuickLink(link.to)}
                                 className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-colors"
                                 style={isActive
@@ -381,6 +390,8 @@ export default function AppLayout() {
                 <button
                   type="button"
                   onClick={() => navigate('/ops-center')}
+                  onMouseEnter={() => prefetchRouteByPath('/ops-center')}
+                  onFocus={() => prefetchRouteByPath('/ops-center')}
                   className="nx-btn relative flex h-11 w-11 items-center justify-center shadow-sm"
                   style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
                   aria-label="Notifications"
@@ -402,6 +413,8 @@ export default function AppLayout() {
                 <Link
                   key={action.to}
                   to={action.to}
+                  onMouseEnter={() => prefetchRouteByPath(action.to)}
+                  onFocus={() => prefetchRouteByPath(action.to)}
                   className="inline-flex min-h-[40px] items-center rounded-xl border px-3 py-2 text-sm font-semibold transition-colors"
                   style={{
                     borderColor: 'color-mix(in srgb, var(--primary) 35%, var(--border))',
@@ -425,6 +438,8 @@ export default function AppLayout() {
         {role && ROLE_QUICK_ACTION[role] && (!ROLE_QUICK_ACTION[role].onlyOnPage || location.pathname === ROLE_QUICK_ACTION[role].onlyOnPage) && location.pathname !== '/planning' && (
           <Link
             to={ROLE_QUICK_ACTION[role].to}
+            onMouseEnter={() => prefetchRouteByPath(ROLE_QUICK_ACTION[role].to)}
+            onFocus={() => prefetchRouteByPath(ROLE_QUICK_ACTION[role].to)}
             className="fixed bottom-6 right-6 z-[80] flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-xl transition-all hover:scale-105 active:scale-95"
             style={{
               background: 'linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 70%, #5856D6))',

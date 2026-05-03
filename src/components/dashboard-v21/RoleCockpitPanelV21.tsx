@@ -36,6 +36,13 @@ interface DataBundle {
   clients: LooseRow[]
 }
 
+type DataBundleKey = keyof DataBundle
+
+interface DataTask {
+  key: DataBundleKey
+  table: string
+}
+
 const emptyData: DataBundle = {
   orders: [],
   margins: [],
@@ -55,6 +62,35 @@ const emptyData: DataBundle = {
   fleetAlerts: [],
   clients: [],
 }
+
+const criticalTasks: DataTask[] = [
+  { key: 'orders', table: 'ordres_transport' },
+  { key: 'margins', table: 'vue_marge_ot' },
+  { key: 'invoices', table: 'factures' },
+  { key: 'drivers', table: 'conducteurs' },
+  { key: 'vehicles', table: 'vehicules' },
+]
+
+const hydrationBatches: DataTask[][] = [
+  [
+    { key: 'financeKpis', table: 'vue_finance_kpis_v21' },
+    { key: 'financeClientPerf', table: 'vue_finance_client_perf_v21' },
+    { key: 'financeChargeBreakdown', table: 'vue_finance_charge_breakdown_v21' },
+    { key: 'financeLatePayments', table: 'vue_finance_late_payments_v21' },
+  ],
+  [
+    { key: 'supplierInvoices', table: 'compta_factures_fournisseurs' },
+    { key: 'missionCosts', table: 'couts_mission' },
+    { key: 'bankMoves', table: 'mouvements_bancaires' },
+    { key: 'cashForecast', table: 'flux_previsionnel' },
+  ],
+  [
+    { key: 'interviews', table: 'entretiens' },
+    { key: 'driverAlerts', table: 'vue_conducteur_alertes' },
+    { key: 'fleetAlerts', table: 'vue_alertes_flotte' },
+    { key: 'clients', table: 'clients' },
+  ],
+]
 
 const ROLE_TO_COCKPIT: Partial<Record<Role, CockpitRole>> = {
   admin: 'dirigeant',
@@ -152,6 +188,13 @@ async function fetchLoose(table: string) {
   }
 }
 
+async function fetchTaskBatch(tasks: DataTask[]): Promise<Partial<DataBundle>> {
+  const entries = await Promise.all(
+    tasks.map(async task => [task.key, await fetchLoose(task.table)] as const),
+  )
+  return Object.fromEntries(entries) as Partial<DataBundle>
+}
+
 function dateToDisplay(dateIso: string) {
   const date = new Date(dateIso)
   if (Number.isNaN(date.getTime())) return '--'
@@ -180,6 +223,8 @@ export function RoleCockpitPanelV21() {
   const [showLegacy, setShowLegacy] = useState(false)
 
   const [loading, setLoading] = useState(true)
+  const [hydrating, setHydrating] = useState(false)
+  const [hydrationProgress, setHydrationProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<DataBundle>(emptyData)
 
@@ -188,73 +233,43 @@ export function RoleCockpitPanelV21() {
 
     async function load() {
       setLoading(true)
+      setHydrating(false)
+      setHydrationProgress(0)
       setError(null)
       try {
-        const [
-          orders,
-          margins,
-          invoices,
-          financeKpis,
-          financeClientPerf,
-          financeChargeBreakdown,
-          financeLatePayments,
-          supplierInvoices,
-          missionCosts,
-          bankMoves,
-          cashForecast,
-          drivers,
-          interviews,
-          vehicles,
-          driverAlerts,
-          fleetAlerts,
-          clients,
-        ] = await Promise.all([
-          fetchLoose('ordres_transport'),
-          fetchLoose('vue_marge_ot'),
-          fetchLoose('factures'),
-          fetchLoose('vue_finance_kpis_v21'),
-          fetchLoose('vue_finance_client_perf_v21'),
-          fetchLoose('vue_finance_charge_breakdown_v21'),
-          fetchLoose('vue_finance_late_payments_v21'),
-          fetchLoose('compta_factures_fournisseurs'),
-          fetchLoose('couts_mission'),
-          fetchLoose('mouvements_bancaires'),
-          fetchLoose('flux_previsionnel'),
-          fetchLoose('conducteurs'),
-          fetchLoose('entretiens'),
-          fetchLoose('vehicules'),
-          fetchLoose('vue_conducteur_alertes'),
-          fetchLoose('vue_alertes_flotte'),
-          fetchLoose('clients'),
-        ])
+        const criticalData = await fetchTaskBatch(criticalTasks)
+        if (cancelled) return
+
+        setData(previous => ({ ...previous, ...criticalData }))
+        setLoading(false)
+
+        const totalBackgroundTasks = hydrationBatches.reduce((sum, batch) => sum + batch.length, 0)
+        if (totalBackgroundTasks === 0) {
+          setHydrationProgress(100)
+          return
+        }
+
+        setHydrating(true)
+        let completedTasks = 0
+
+        for (const batch of hydrationBatches) {
+          const batchData = await fetchTaskBatch(batch)
+          if (cancelled) return
+
+          completedTasks += batch.length
+          setData(previous => ({ ...previous, ...batchData }))
+          setHydrationProgress(Math.round((completedTasks / totalBackgroundTasks) * 100))
+        }
 
         if (!cancelled) {
-          setData({
-            orders,
-            margins,
-            invoices,
-            financeKpis,
-            financeClientPerf,
-            financeChargeBreakdown,
-            financeLatePayments,
-            supplierInvoices,
-            missionCosts,
-            bankMoves,
-            cashForecast,
-            drivers,
-            interviews,
-            vehicles,
-            driverAlerts,
-            fleetAlerts,
-            clients,
-          })
+          setHydrating(false)
         }
       } catch {
         if (!cancelled) {
           setError('Le cockpit V2.1 n a pas pu charger toutes les donnees. Le mode historique reste disponible.')
+          setLoading(false)
+          setHydrating(false)
         }
-      } finally {
-        if (!cancelled) setLoading(false)
       }
     }
 
@@ -996,6 +1011,16 @@ export function RoleCockpitPanelV21() {
           </label>
         </div>
       </header>
+
+      {hydrating ? (
+        <div
+          className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-3 py-2 text-xs text-[color:var(--text-secondary)]"
+          role="status"
+          aria-live="polite"
+        >
+          Affichage rapide actif. Enrichissement progressif des indicateurs ({hydrationProgress}%).
+        </div>
+      ) : null}
 
       {error ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">{error}</div>

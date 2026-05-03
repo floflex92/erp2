@@ -188,15 +188,15 @@ export default function Mail() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-base font-semibold text-white">Mail</h2>
-                <p className="mt-1 text-xs text-slate-400">Flux externe separe de la messagerie interne.</p>
+                <p className="mt-1 text-xs text-muted">Flux externe separe de la messagerie interne.</p>
               </div>
               <button type="button" onClick={() => openCompose()} className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500">
                 Nouveau
               </button>
             </div>
 
-            <label className="mt-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5">
-              <svg className="h-4 w-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <label className="mt-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-surface/5 px-3 py-2.5">
+              <svg className="h-4 w-4 text-discreet" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <circle cx="11" cy="11" r="7" />
                 <path d="m20 20-3.5-3.5" />
               </svg>
@@ -205,7 +205,7 @@ export default function Mail() {
                 value={searchTerm}
                 onChange={event => setSearchTerm(event.target.value)}
                 placeholder="Rechercher un expediteur, un objet ou un lien"
-                className="w-full border-0 bg-transparent p-0 text-sm text-white outline-none placeholder:text-slate-500"
+                className="w-full border-0 bg-transparent p-0 text-sm text-white outline-none placeholder:text-discreet"
               />
             </label>
 
@@ -215,7 +215,7 @@ export default function Mail() {
                   key={currentFolder}
                   type="button"
                   onClick={() => setFolder(currentFolder)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${folder === currentFolder ? 'bg-blue-600 text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${folder === currentFolder ? 'bg-blue-600 text-white' : 'bg-surface/5 text-muted hover:bg-surface/10'}`}
                 >
                   {FOLDER_LABELS[currentFolder]}
                   {currentFolder === 'inbox' && counts.unread > 0 ? ` (${counts.unread})` : ''}
@@ -228,7 +228,7 @@ export default function Mail() {
             {filteredMails.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center px-5 text-center">
                 <div className="mb-3 text-4xl opacity-25">...</div>
-                <p className="text-sm text-slate-400">Aucun mail dans {FOLDER_LABELS[folder].toLowerCase()}.</p>
+                <p className="text-sm text-muted">Aucun mail dans {FOLDER_LABELS[folder].toLowerCase()}.</p>
               </div>
             ) : (
               filteredMails.map(({ mail, payload, important }) => {
@@ -238,7 +238,7 @@ export default function Mail() {
                     key={mail.id}
                     type="button"
                     onClick={() => { setSelectedId(mail.id); setShowCompose(false) }}
-                    className={`mb-1 w-full rounded-2xl px-3 py-3 text-left transition-colors ${active ? 'bg-blue-600/15 ring-1 ring-blue-500/30' : 'hover:bg-white/5'} ${important ? 'border border-amber-400/20 bg-amber-400/5' : ''}`}
+                    className={`mb-1 w-full rounded-2xl px-3 py-3 text-left transition-colors ${active ? 'bg-blue-600/15 ring-1 ring-blue-500/30' : 'hover:bg-surface/5'} ${important ? 'border border-amber-400/20 bg-amber-400/5' : ''}`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -248,10 +248,10 @@ export default function Mail() {
                           {important && <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-semibold text-amber-100">Important</span>}
                         </div>
                         <p className="mt-1 truncate text-sm text-slate-100">{mail.subject}</p>
-                        <p className="mt-1 truncate text-xs text-slate-500">{payload.text || 'Message avec piece jointe ou lien'}</p>
+                        <p className="mt-1 truncate text-xs text-discreet">{payload.text || 'Message avec piece jointe ou lien'}</p>
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="text-[11px] text-slate-500">{formatTime(mail.created_at)}</p>
+                        <p className="text-[11px] text-discreet">{formatTime(mail.created_at)}</p>
                         {mail.starred && <p className="mt-1 text-xs text-amber-300">Suivi</p>}
                       </div>
                     </div>
@@ -299,7 +299,7 @@ export default function Mail() {
               onToggleImportantSender={() => toggleImportantPerson(selectedMail.from_email.toLowerCase(), selectedMail.from_name)}
             />
           ) : (
-            <div className="flex flex-1 items-center justify-center text-slate-500">Selectionne un mail</div>
+            <div className="flex flex-1 items-center justify-center text-discreet">Selectionne un mail</div>
           )}
         </div>
       </div>
@@ -336,19 +336,19 @@ function ComposePanel(props: {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-semibold text-white">Nouveau mail</h3>
-            <p className="mt-1 text-xs text-slate-400">Canal externe: ideal pour clients, fournisseurs et partenaires.</p>
+            <p className="mt-1 text-xs text-muted">Canal externe: ideal pour clients, fournisseurs et partenaires.</p>
           </div>
-          <button type="button" onClick={resetCompose} className="text-sm text-slate-400 transition-colors hover:text-slate-200">Effacer</button>
+          <button type="button" onClick={resetCompose} className="text-sm text-muted transition-colors hover:text-slate-200">Effacer</button>
         </div>
       </div>
       <div className="space-y-4 p-5">
-        <input value={composeTo} onChange={event => setComposeTo(event.target.value)} placeholder="A : client@domaine.fr, exploitation@client.fr" className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500" />
-        <input value={composeSubject} onChange={event => setComposeSubject(event.target.value)} placeholder="Objet" className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500" />
+        <input value={composeTo} onChange={event => setComposeTo(event.target.value)} placeholder="A : client@domaine.fr, exploitation@client.fr" className="w-full rounded-2xl border border-white/10 bg-surface/5 px-4 py-3 text-sm text-white outline-none placeholder:text-discreet" />
+        <input value={composeSubject} onChange={event => setComposeSubject(event.target.value)} placeholder="Objet" className="w-full rounded-2xl border border-white/10 bg-surface/5 px-4 py-3 text-sm text-white outline-none placeholder:text-discreet" />
 
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Texte</span>
-          <button type="button" onClick={() => setComposeStyle(current => ({ ...current, bold: !current.bold }))} className={`rounded-lg px-2 py-1 text-xs font-semibold ${composeStyle.bold ? 'bg-blue-500 text-white' : 'bg-white/5 text-slate-300'}`}>Gras</button>
-          <button type="button" onClick={() => setComposeStyle(current => ({ ...current, italic: !current.italic }))} className={`rounded-lg px-2 py-1 text-xs font-semibold ${composeStyle.italic ? 'bg-blue-500 text-white' : 'bg-white/5 text-slate-300'}`}>Italique</button>
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-surface/5 px-3 py-2">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-discreet">Texte</span>
+          <button type="button" onClick={() => setComposeStyle(current => ({ ...current, bold: !current.bold }))} className={`rounded-lg px-2 py-1 text-xs font-semibold ${composeStyle.bold ? 'bg-blue-500 text-white' : 'bg-surface/5 text-slate-300'}`}>Gras</button>
+          <button type="button" onClick={() => setComposeStyle(current => ({ ...current, italic: !current.italic }))} className={`rounded-lg px-2 py-1 text-xs font-semibold ${composeStyle.italic ? 'bg-blue-500 text-white' : 'bg-surface/5 text-slate-300'}`}>Italique</button>
           <select value={composeStyle.align} onChange={event => setComposeStyle(current => ({ ...current, align: event.target.value as TchatTextStyle['align'] }))} className="rounded-lg border border-white/10 bg-slate-950/70 px-2 py-1 text-xs text-slate-200 outline-none">
             <option value="left">Gauche</option>
             <option value="center">Centre</option>
@@ -369,10 +369,10 @@ function ComposePanel(props: {
         {composeAttachments.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {composeAttachments.map(attachment => (
-              <button key={attachment.id} type="button" onClick={() => setComposeAttachments(current => current.filter(item => item.id !== attachment.id))} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-left">
+              <button key={attachment.id} type="button" onClick={() => setComposeAttachments(current => current.filter(item => item.id !== attachment.id))} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-surface/5 px-3 py-2 text-left">
                 <span className="text-sm">{attachment.kind === 'image' ? PREVIEW_IMAGE_ICON : PREVIEW_DOCUMENT_ICON}</span>
                 <span className="max-w-[180px] truncate text-xs text-slate-200">{attachment.name}</span>
-                <span className="text-[10px] text-slate-500">x</span>
+                <span className="text-[10px] text-discreet">x</span>
               </button>
             ))}
           </div>
@@ -381,7 +381,7 @@ function ComposePanel(props: {
         {showEmojiPicker && (
           <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-3">
             {TCHAT_EMOJIS.map(emoji => (
-              <button key={emoji} type="button" onClick={() => appendEmoji(emoji)} className="rounded-xl bg-white/5 px-3 py-2 text-xl transition-colors hover:bg-white/10">
+              <button key={emoji} type="button" onClick={() => appendEmoji(emoji)} className="rounded-xl bg-surface/5 px-3 py-2 text-xl transition-colors hover:bg-surface/10">
                 {emoji}
               </button>
             ))}
@@ -391,17 +391,17 @@ function ComposePanel(props: {
         {composeError && <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">{composeError}</div>}
 
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setShowEmojiPicker(current => !current)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 hover:bg-white/10">Emoji</button>
-          <button type="button" onClick={() => imageInputRef.current?.click()} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 hover:bg-white/10">Photo</button>
-          <button type="button" onClick={() => documentInputRef.current?.click()} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 hover:bg-white/10">Document</button>
+          <button type="button" onClick={() => setShowEmojiPicker(current => !current)} className="rounded-xl border border-white/10 bg-surface/5 px-3 py-2 text-sm text-slate-200 hover:bg-surface/10">Emoji</button>
+          <button type="button" onClick={() => imageInputRef.current?.click()} className="rounded-xl border border-white/10 bg-surface/5 px-3 py-2 text-sm text-slate-200 hover:bg-surface/10">Photo</button>
+          <button type="button" onClick={() => documentInputRef.current?.click()} className="rounded-xl border border-white/10 bg-surface/5 px-3 py-2 text-sm text-slate-200 hover:bg-surface/10">Document</button>
           <input ref={imageInputRef} type="file" accept="image/*" multiple className="hidden" onChange={async event => { await addAttachments(event.target.files, 'image'); event.target.value = '' }} />
           <input ref={documentInputRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.png,.jpg,.jpeg" multiple className="hidden" onChange={async event => { await addAttachments(event.target.files, 'document'); event.target.value = '' }} />
         </div>
 
-        <textarea value={composeBody} onChange={event => setComposeBody(event.target.value)} rows={14} placeholder="Redige ton mail. Les liens colles seront compris et mis en avant." className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-white outline-none placeholder:text-slate-500" />
+        <textarea value={composeBody} onChange={event => setComposeBody(event.target.value)} rows={14} placeholder="Redige ton mail. Les liens colles seront compris et mis en avant." className="w-full resize-none rounded-2xl border border-white/10 bg-surface/5 px-4 py-4 text-sm text-white outline-none placeholder:text-discreet" />
 
         <div className="flex items-center justify-end gap-3">
-          <button type="button" onClick={resetCompose} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-white/5">Annuler</button>
+          <button type="button" onClick={resetCompose} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-surface/5">Annuler</button>
           <button type="button" onClick={send} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500">Envoyer</button>
         </div>
       </div>
@@ -416,15 +416,15 @@ function MailReader({ mail, ownerId, importantSender, onReply, onArchive, onTogg
       <div className="border-b px-5 py-4" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{mail.folder === 'inbox' ? 'Mail recu' : mail.folder === 'sent' ? 'Mail envoye' : 'Archive'}</p>
+            <p className="text-xs uppercase tracking-[0.22em] text-discreet">{mail.folder === 'inbox' ? 'Mail recu' : mail.folder === 'sent' ? 'Mail envoye' : 'Archive'}</p>
             <h3 className="mt-2 text-xl font-semibold text-white">{mail.subject}</h3>
-            <p className="mt-2 text-sm text-slate-400">De {mail.from_name} • {mail.from_email}</p>
-            <p className="mt-1 text-sm text-slate-500">Pour {mail.to.join(', ')}</p>
+            <p className="mt-2 text-sm text-muted">De {mail.from_name} • {mail.from_email}</p>
+            <p className="mt-1 text-sm text-discreet">Pour {mail.to.join(', ')}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={onToggleImportantSender} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/5">{importantSender ? 'Retirer importance' : 'Mettre en importance'}</button>
-            <button type="button" onClick={onToggleStar} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/5">{mail.starred ? 'Retirer suivi' : 'Suivre'}</button>
-            <button type="button" onClick={onArchive} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/5">Archiver</button>
+            <button type="button" onClick={onToggleImportantSender} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-surface/5">{importantSender ? 'Retirer importance' : 'Mettre en importance'}</button>
+            <button type="button" onClick={onToggleStar} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-surface/5">{mail.starred ? 'Retirer suivi' : 'Suivre'}</button>
+            <button type="button" onClick={onArchive} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-surface/5">Archiver</button>
             <button type="button" onClick={onReply} className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500">Repondre</button>
           </div>
         </div>
@@ -433,10 +433,10 @@ function MailReader({ mail, ownerId, importantSender, onReply, onArchive, onTogg
       <div className="space-y-4 p-5">
         {payload.text && <p className={messageTextClasses(payload.style)}>{payload.text}</p>}
         {payload.links.length > 0 && payload.links.map(link => (
-          <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 transition-colors hover:bg-white/10">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{link.hostname}</p>
+          <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="block rounded-2xl border border-white/10 bg-surface/5 px-4 py-3 transition-colors hover:bg-surface/10">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-discreet">{link.hostname}</p>
             <p className="mt-1 text-sm font-semibold text-white">{link.title}</p>
-            {link.description && <p className="mt-1 text-xs text-slate-400">{link.description}</p>}
+            {link.description && <p className="mt-1 text-xs text-muted">{link.description}</p>}
           </a>
         ))}
         {payload.attachments.length > 0 && (
@@ -463,7 +463,7 @@ function AttachmentPreview({ attachment, ownerId, sourceLabel }: { attachment: T
           <img src={attachment.url} alt={attachment.name} className="h-56 w-full object-cover" />
         </a>
         <div className="flex flex-wrap items-center gap-2 border-t border-white/10 bg-slate-950/40 px-3 py-3">
-          <a href={attachment.url} download={attachment.name} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-slate-100 hover:bg-white/5">Appareil</a>
+          <a href={attachment.url} download={attachment.name} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-slate-100 hover:bg-surface/5">Appareil</a>
           <button type="button" onClick={saveToVault} className="rounded-xl bg-[color:var(--primary)] px-3 py-2 text-xs font-medium text-white">Coffre</button>
           {saved && <span className="text-[11px] text-emerald-300">Enregistre dans le coffre</span>}
         </div>
@@ -471,16 +471,16 @@ function AttachmentPreview({ attachment, ownerId, sourceLabel }: { attachment: T
     )
   }
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+    <div className="rounded-2xl border border-white/10 bg-surface/5 px-3 py-3">
       <div className="flex items-start gap-3">
         <span className="text-lg">{PREVIEW_DOCUMENT_ICON}</span>
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-white">{attachment.name}</p>
-        <p className="text-[11px] text-slate-400">{attachmentLabel(attachment)} · {formatAttachmentSize(attachment.size)}</p>
+        <p className="text-[11px] text-muted">{attachmentLabel(attachment)} · {formatAttachmentSize(attachment.size)}</p>
         </div>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <a href={attachment.url} download={attachment.name} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-slate-100 hover:bg-white/5">Appareil</a>
+        <a href={attachment.url} download={attachment.name} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-slate-100 hover:bg-surface/5">Appareil</a>
         <button type="button" onClick={saveToVault} className="rounded-xl bg-[color:var(--primary)] px-3 py-2 text-xs font-medium text-white">Coffre</button>
         {saved && <span className="text-[11px] text-emerald-300">Enregistre dans le coffre</span>}
       </div>
@@ -492,7 +492,7 @@ function MetricCard({ label, value, tone }: { label: string; value: string; tone
   const toneClass = tone === 'blue' ? 'from-blue-500/20 to-blue-500/5 text-blue-100' : tone === 'emerald' ? 'from-emerald-500/20 to-emerald-500/5 text-emerald-100' : 'from-slate-500/20 to-slate-500/5 text-slate-100'
   return (
     <div className={`rounded-2xl border bg-gradient-to-br px-4 py-4 ${toneClass}`} style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
-      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">{label}</p>
+      <p className="text-xs uppercase tracking-[0.22em] text-muted">{label}</p>
       <p className="mt-2 text-2xl font-semibold">{value}</p>
     </div>
   )

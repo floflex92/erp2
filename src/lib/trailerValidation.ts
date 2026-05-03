@@ -826,7 +826,7 @@ export function couleurBarrePct(pct: number | null): string {
 }
 
 export function couleurTextePct(pct: number | null): string {
-  if (pct === null) return 'text-slate-400'
+  if (pct === null) return 'text-muted'
   if (pct > 100) return 'text-red-600 font-bold'
   if (pct >= SEUIL_WARNING_PCT) return 'text-amber-600 font-semibold'
   return 'text-emerald-700 font-medium'

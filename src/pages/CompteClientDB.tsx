@@ -25,14 +25,14 @@ function OverviewPanel({ compte, stats }: { compte: CompteErp; stats: { partenai
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="p-4 border border-slate-200 rounded-lg">
-          <div className="text-xs text-slate-500">Compte</div>
-          <div className="text-lg font-bold text-slate-800">{compte.nom}</div>
-          <div className="text-xs text-slate-400 font-mono mt-1">{compte.code}</div>
+        <div className="p-4 border border-line rounded-lg">
+          <div className="text-xs text-discreet">Compte</div>
+          <div className="text-lg font-bold text-foreground">{compte.nom}</div>
+          <div className="text-xs text-muted font-mono mt-1">{compte.code}</div>
         </div>
-        <div className="p-4 border border-slate-200 rounded-lg">
-          <div className="text-xs text-slate-500">Statut</div>
-          <Badge text={compte.statut} color={compte.statut === 'actif' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'} />
+        <div className="p-4 border border-line rounded-lg">
+          <div className="text-xs text-discreet">Statut</div>
+          <Badge text={compte.statut} color={compte.statut === 'actif' ? 'bg-green-100 text-green-700' : 'bg-surface-2 text-discreet'} />
         </div>
         {[
           { label: 'Partenaires', value: stats.partenaires },
@@ -42,9 +42,9 @@ function OverviewPanel({ compte, stats }: { compte: CompteErp; stats: { partenai
           { label: 'Messages', value: stats.messages },
           { label: 'Notifications non lues', value: stats.notifs },
         ].map(s => (
-          <div key={s.label} className="p-4 border border-slate-200 rounded-lg">
-            <div className="text-xs text-slate-500">{s.label}</div>
-            <div className="text-2xl font-bold text-slate-800">{s.value}</div>
+          <div key={s.label} className="p-4 border border-line rounded-lg">
+            <div className="text-xs text-discreet">{s.label}</div>
+            <div className="text-2xl font-bold text-foreground">{s.value}</div>
           </div>
         ))}
       </div>
@@ -85,7 +85,7 @@ function PartenairesPanel({ compteId }: { compteId: string }) {
     if (e) setError(e.message); else fetch()
   }
 
-  if (loading) return <div className="text-center py-8 text-slate-500">Chargement...</div>
+  if (loading) return <div className="text-center py-8 text-discreet">Chargement...</div>
 
   return (
     <div className="space-y-4">
@@ -93,45 +93,45 @@ function PartenairesPanel({ compteId }: { compteId: string }) {
       <button onClick={openAdd} className={btnP}>+ Ajouter partenaire</button>
 
       {showForm && (
-        <div className="border border-slate-200 rounded-lg p-4 bg-slate-50 space-y-3">
-          <h3 className="font-medium text-sm text-slate-800">{edit ? 'Modifier' : 'Nouveau'} partenaire</h3>
+        <div className="border border-line rounded-lg p-4 bg-surface-soft space-y-3">
+          <h3 className="font-medium text-sm text-foreground">{edit ? 'Modifier' : 'Nouveau'} partenaire</h3>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="text-xs font-medium text-slate-600 block mb-1">Nom *</label><input value={form.nom} onChange={e => setForm({ ...form, nom: e.target.value })} className={inp} /></div>
-            <div><label className="text-xs font-medium text-slate-600 block mb-1">SIRET</label><input value={form.siret} onChange={e => setForm({ ...form, siret: e.target.value })} className={inp} /></div>
-            <div><label className="text-xs font-medium text-slate-600 block mb-1">Email</label><input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className={inp} /></div>
-            <div><label className="text-xs font-medium text-slate-600 block mb-1">Téléphone</label><input value={form.telephone} onChange={e => setForm({ ...form, telephone: e.target.value })} className={inp} /></div>
+            <div><label className="text-xs font-medium text-secondary block mb-1">Nom *</label><input value={form.nom} onChange={e => setForm({ ...form, nom: e.target.value })} className={inp} /></div>
+            <div><label className="text-xs font-medium text-secondary block mb-1">SIRET</label><input value={form.siret} onChange={e => setForm({ ...form, siret: e.target.value })} className={inp} /></div>
+            <div><label className="text-xs font-medium text-secondary block mb-1">Email</label><input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className={inp} /></div>
+            <div><label className="text-xs font-medium text-secondary block mb-1">Téléphone</label><input value={form.telephone} onChange={e => setForm({ ...form, telephone: e.target.value })} className={inp} /></div>
           </div>
           <div className="flex gap-3">
             <button onClick={save} className={btnP}>{edit ? 'Modifier' : 'Créer'}</button>
-            <button onClick={() => setShowForm(false)} className={`${btn} text-slate-500`}>Annuler</button>
+            <button onClick={() => setShowForm(false)} className={`${btn} text-discreet`}>Annuler</button>
           </div>
         </div>
       )}
 
       <table className="w-full text-sm border-collapse">
-        <thead><tr className="bg-slate-100">
-          <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Nom</th>
-          <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">SIRET</th>
-          <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Email</th>
-          <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Tél</th>
-          <th className="px-3 py-2 text-center font-medium text-slate-800 border border-slate-200">Actions</th>
+        <thead><tr className="bg-surface-2">
+          <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Nom</th>
+          <th className="px-3 py-2 text-left font-medium text-foreground border border-line">SIRET</th>
+          <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Email</th>
+          <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Tél</th>
+          <th className="px-3 py-2 text-center font-medium text-foreground border border-line">Actions</th>
         </tr></thead>
         <tbody>
           {data.map(p => (
-            <tr key={p.id} className="hover:bg-slate-50 border-b border-slate-200">
+            <tr key={p.id} className="hover:bg-surface-soft border-b border-line">
               <td className="px-3 py-2">{p.nom}</td>
               <td className="px-3 py-2 font-mono text-xs">{p.siret || '—'}</td>
               <td className="px-3 py-2">{p.email || '—'}</td>
               <td className="px-3 py-2">{p.telephone || '—'}</td>
               <td className="px-3 py-2 text-center space-x-2">
                 <button onClick={() => openEdit(p)} className="text-xs text-blue-600 hover:text-blue-800">Modifier</button>
-                <button onClick={() => archive(p.id)} className="text-xs text-slate-500 hover:text-red-600">Archiver</button>
+                <button onClick={() => archive(p.id)} className="text-xs text-discreet hover:text-red-600">Archiver</button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-      {data.length === 0 && <div className="text-center py-6 text-slate-500 text-sm">Aucun partenaire</div>}
+      {data.length === 0 && <div className="text-center py-6 text-discreet text-sm">Aucun partenaire</div>}
     </div>
   )
 }
@@ -168,7 +168,7 @@ function UtilisateursPanel({ compteId }: { compteId: string }) {
 
   const roleLabel = (rid: string) => roles.find(r => r.id === rid)?.libelle || '?'
 
-  if (loading) return <div className="text-center py-8 text-slate-500">Chargement...</div>
+  if (loading) return <div className="text-center py-8 text-discreet">Chargement...</div>
 
   return (
     <div className="space-y-4">
@@ -176,48 +176,48 @@ function UtilisateursPanel({ compteId }: { compteId: string }) {
       <button onClick={openAdd} className={btnP}>+ Ajouter utilisateur</button>
 
       {showForm && (
-        <div className="border border-slate-200 rounded-lg p-4 bg-slate-50 space-y-3">
-          <h3 className="font-medium text-sm text-slate-800">{edit ? 'Modifier' : 'Nouvel'} utilisateur</h3>
+        <div className="border border-line rounded-lg p-4 bg-surface-soft space-y-3">
+          <h3 className="font-medium text-sm text-foreground">{edit ? 'Modifier' : 'Nouvel'} utilisateur</h3>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="text-xs font-medium text-slate-600 block mb-1">Email *</label><input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} disabled={!!edit} className={`${inp} ${edit ? 'bg-slate-100' : ''}`} /></div>
-            <div><label className="text-xs font-medium text-slate-600 block mb-1">Rôle *</label>
+            <div><label className="text-xs font-medium text-secondary block mb-1">Email *</label><input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} disabled={!!edit} className={`${inp} ${edit ? 'bg-surface-2' : ''}`} /></div>
+            <div><label className="text-xs font-medium text-secondary block mb-1">Rôle *</label>
               <select value={form.role_compte_id} onChange={e => setForm({ ...form, role_compte_id: e.target.value })} className={inp}>
                 {roles.map(r => <option key={r.id} value={r.id}>{r.libelle}</option>)}
               </select>
             </div>
-            <div><label className="text-xs font-medium text-slate-600 block mb-1">Nom</label><input value={form.nom} onChange={e => setForm({ ...form, nom: e.target.value })} className={inp} /></div>
-            <div><label className="text-xs font-medium text-slate-600 block mb-1">Prénom</label><input value={form.prenom} onChange={e => setForm({ ...form, prenom: e.target.value })} className={inp} /></div>
+            <div><label className="text-xs font-medium text-secondary block mb-1">Nom</label><input value={form.nom} onChange={e => setForm({ ...form, nom: e.target.value })} className={inp} /></div>
+            <div><label className="text-xs font-medium text-secondary block mb-1">Prénom</label><input value={form.prenom} onChange={e => setForm({ ...form, prenom: e.target.value })} className={inp} /></div>
           </div>
           <div className="flex gap-3">
             <button onClick={save} className={btnP}>{edit ? 'Modifier' : 'Créer'}</button>
-            <button onClick={() => setShowForm(false)} className={`${btn} text-slate-500`}>Annuler</button>
+            <button onClick={() => setShowForm(false)} className={`${btn} text-discreet`}>Annuler</button>
           </div>
         </div>
       )}
 
       <table className="w-full text-sm border-collapse">
-        <thead><tr className="bg-slate-100">
-          <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Email</th>
-          <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Nom</th>
-          <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Prénom</th>
-          <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Rôle</th>
-          <th className="px-3 py-2 text-center font-medium text-slate-800 border border-slate-200">Actif</th>
-          <th className="px-3 py-2 text-center font-medium text-slate-800 border border-slate-200">Actions</th>
+        <thead><tr className="bg-surface-2">
+          <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Email</th>
+          <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Nom</th>
+          <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Prénom</th>
+          <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Rôle</th>
+          <th className="px-3 py-2 text-center font-medium text-foreground border border-line">Actif</th>
+          <th className="px-3 py-2 text-center font-medium text-foreground border border-line">Actions</th>
         </tr></thead>
         <tbody>
           {data.map(u => (
-            <tr key={u.id} className="hover:bg-slate-50 border-b border-slate-200">
+            <tr key={u.id} className="hover:bg-surface-soft border-b border-line">
               <td className="px-3 py-2">{u.email}</td>
               <td className="px-3 py-2">{u.nom || '—'}</td>
               <td className="px-3 py-2">{u.prenom || '—'}</td>
               <td className="px-3 py-2">{roleLabel(u.role_compte_id)}</td>
-              <td className="px-3 py-2 text-center"><Badge text={u.actif ? 'Actif' : 'Inactif'} color={u.actif ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'} /></td>
+              <td className="px-3 py-2 text-center"><Badge text={u.actif ? 'Actif' : 'Inactif'} color={u.actif ? 'bg-green-100 text-green-700' : 'bg-surface-2 text-discreet'} /></td>
               <td className="px-3 py-2 text-center"><button onClick={() => openEdit(u)} className="text-xs text-blue-600 hover:text-blue-800">Modifier</button></td>
             </tr>
           ))}
         </tbody>
       </table>
-      {data.length === 0 && <div className="text-center py-6 text-slate-500 text-sm">Aucun utilisateur</div>}
+      {data.length === 0 && <div className="text-center py-6 text-discreet text-sm">Aucun utilisateur</div>}
     </div>
   )
 }
@@ -265,7 +265,7 @@ function OrdresTransportPanel({ compteId, partenaires }: { compteId: string; par
 
   const partenaireNom = (id: string) => partenaires.find(p => p.id === id)?.nom || '—'
 
-  if (loading) return <div className="text-center py-8 text-slate-500">Chargement...</div>
+  if (loading) return <div className="text-center py-8 text-discreet">Chargement...</div>
 
   return (
     <div className="space-y-4">
@@ -273,41 +273,41 @@ function OrdresTransportPanel({ compteId, partenaires }: { compteId: string; par
       <button onClick={() => setShowForm(true)} className={btnP}>+ Nouvel OT</button>
 
       {showForm && (
-        <div className="border border-slate-200 rounded-lg p-4 bg-slate-50 space-y-3">
+        <div className="border border-line rounded-lg p-4 bg-surface-soft space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="text-xs font-medium text-slate-600 block mb-1">Référence *</label><input value={form.reference} onChange={e => setForm({ ...form, reference: e.target.value })} className={inp} /></div>
-            <div><label className="text-xs font-medium text-slate-600 block mb-1">Partenaire *</label>
+            <div><label className="text-xs font-medium text-secondary block mb-1">Référence *</label><input value={form.reference} onChange={e => setForm({ ...form, reference: e.target.value })} className={inp} /></div>
+            <div><label className="text-xs font-medium text-secondary block mb-1">Partenaire *</label>
               <select value={form.partenaire_id} onChange={e => setForm({ ...form, partenaire_id: e.target.value })} className={inp}>
                 <option value="">Choisir...</option>
                 {partenaires.map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
               </select>
             </div>
-            <div><label className="text-xs font-medium text-slate-600 block mb-1">Chargement prévu</label><input type="datetime-local" value={form.date_chargement} onChange={e => setForm({ ...form, date_chargement: e.target.value })} className={inp} /></div>
-            <div><label className="text-xs font-medium text-slate-600 block mb-1">Livraison prévue</label><input type="datetime-local" value={form.date_livraison} onChange={e => setForm({ ...form, date_livraison: e.target.value })} className={inp} /></div>
+            <div><label className="text-xs font-medium text-secondary block mb-1">Chargement prévu</label><input type="datetime-local" value={form.date_chargement} onChange={e => setForm({ ...form, date_chargement: e.target.value })} className={inp} /></div>
+            <div><label className="text-xs font-medium text-secondary block mb-1">Livraison prévue</label><input type="datetime-local" value={form.date_livraison} onChange={e => setForm({ ...form, date_livraison: e.target.value })} className={inp} /></div>
           </div>
           <div className="flex gap-3">
             <button onClick={save} className={btnP}>Créer</button>
-            <button onClick={() => setShowForm(false)} className={`${btn} text-slate-500`}>Annuler</button>
+            <button onClick={() => setShowForm(false)} className={`${btn} text-discreet`}>Annuler</button>
           </div>
         </div>
       )}
 
       <div className="overflow-auto">
         <table className="w-full text-sm border-collapse">
-          <thead><tr className="bg-slate-100">
-            <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Référence</th>
-            <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Partenaire</th>
-            <th className="px-3 py-2 text-center font-medium text-slate-800 border border-slate-200">Statut</th>
-            <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Chargement</th>
-            <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Livraison</th>
-            <th className="px-3 py-2 text-center font-medium text-slate-800 border border-slate-200">Actions</th>
+          <thead><tr className="bg-surface-2">
+            <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Référence</th>
+            <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Partenaire</th>
+            <th className="px-3 py-2 text-center font-medium text-foreground border border-line">Statut</th>
+            <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Chargement</th>
+            <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Livraison</th>
+            <th className="px-3 py-2 text-center font-medium text-foreground border border-line">Actions</th>
           </tr></thead>
           <tbody>
             {data.map(ot => (
-              <tr key={ot.id} className="hover:bg-slate-50 border-b border-slate-200">
+              <tr key={ot.id} className="hover:bg-surface-soft border-b border-line">
                 <td className="px-3 py-2 font-mono">{ot.reference}</td>
                 <td className="px-3 py-2">{partenaireNom(ot.partenaire_id)}</td>
-                <td className="px-3 py-2 text-center"><Badge text={ot.statut_transport} color={statutColor[ot.statut_transport] || 'bg-slate-100 text-slate-600'} /></td>
+                <td className="px-3 py-2 text-center"><Badge text={ot.statut_transport} color={statutColor[ot.statut_transport] || 'bg-surface-2 text-secondary'} /></td>
                 <td className="px-3 py-2 text-xs">{ot.date_chargement_prevue?.replace('T', ' ').slice(0, 16) || '—'}</td>
                 <td className="px-3 py-2 text-xs">{ot.date_livraison_prevue?.replace('T', ' ').slice(0, 16) || '—'}</td>
                 <td className="px-3 py-2 text-center">
@@ -326,7 +326,7 @@ function OrdresTransportPanel({ compteId, partenaires }: { compteId: string; par
             ))}
           </tbody>
         </table>
-        {data.length === 0 && <div className="text-center py-6 text-slate-500 text-sm">Aucun OT</div>}
+        {data.length === 0 && <div className="text-center py-6 text-discreet text-sm">Aucun OT</div>}
       </div>
     </div>
   )
@@ -356,7 +356,7 @@ function DocumentsPanel({ compteId }: { compteId: string }) {
     setShowForm(false); setForm({ type_document: 'cmr', nom_fichier: '' }); fetch()
   }
 
-  if (loading) return <div className="text-center py-8 text-slate-500">Chargement...</div>
+  if (loading) return <div className="text-center py-8 text-discreet">Chargement...</div>
 
   return (
     <div className="space-y-4">
@@ -364,9 +364,9 @@ function DocumentsPanel({ compteId }: { compteId: string }) {
       <button onClick={() => setShowForm(true)} className={btnP}>+ Ajouter document</button>
 
       {showForm && (
-        <div className="border border-slate-200 rounded-lg p-4 bg-slate-50 space-y-3">
+        <div className="border border-line rounded-lg p-4 bg-surface-soft space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="text-xs font-medium text-slate-600 block mb-1">Type</label>
+            <div><label className="text-xs font-medium text-secondary block mb-1">Type</label>
               <select value={form.type_document} onChange={e => setForm({ ...form, type_document: e.target.value })} className={inp}>
                 <option value="cmr">CMR</option>
                 <option value="bon_livraison">Bon de livraison</option>
@@ -375,32 +375,32 @@ function DocumentsPanel({ compteId }: { compteId: string }) {
                 <option value="autre">Autre</option>
               </select>
             </div>
-            <div><label className="text-xs font-medium text-slate-600 block mb-1">Nom fichier *</label><input value={form.nom_fichier} onChange={e => setForm({ ...form, nom_fichier: e.target.value })} className={inp} /></div>
+            <div><label className="text-xs font-medium text-secondary block mb-1">Nom fichier *</label><input value={form.nom_fichier} onChange={e => setForm({ ...form, nom_fichier: e.target.value })} className={inp} /></div>
           </div>
           <div className="flex gap-3">
             <button onClick={save} className={btnP}>Enregistrer</button>
-            <button onClick={() => setShowForm(false)} className={`${btn} text-slate-500`}>Annuler</button>
+            <button onClick={() => setShowForm(false)} className={`${btn} text-discreet`}>Annuler</button>
           </div>
         </div>
       )}
 
       <table className="w-full text-sm border-collapse">
-        <thead><tr className="bg-slate-100">
-          <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Type</th>
-          <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Nom fichier</th>
-          <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Date</th>
+        <thead><tr className="bg-surface-2">
+          <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Type</th>
+          <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Nom fichier</th>
+          <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Date</th>
         </tr></thead>
         <tbody>
           {data.map(d => (
-            <tr key={d.id} className="hover:bg-slate-50 border-b border-slate-200">
-              <td className="px-3 py-2"><Badge text={d.type_document} color="bg-slate-100 text-slate-700" /></td>
+            <tr key={d.id} className="hover:bg-surface-soft border-b border-line">
+              <td className="px-3 py-2"><Badge text={d.type_document} color="bg-surface-2 text-foreground" /></td>
               <td className="px-3 py-2">{d.nom_fichier}</td>
-              <td className="px-3 py-2 text-xs text-slate-500">{d.created_at?.slice(0, 10)}</td>
+              <td className="px-3 py-2 text-xs text-discreet">{d.created_at?.slice(0, 10)}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      {data.length === 0 && <div className="text-center py-6 text-slate-500 text-sm">Aucun document</div>}
+      {data.length === 0 && <div className="text-center py-6 text-discreet text-sm">Aucun document</div>}
     </div>
   )
 }
@@ -430,7 +430,7 @@ function MessagesPanel({ compteId }: { compteId: string }) {
     setSending(false)
   }
 
-  if (loading) return <div className="text-center py-8 text-slate-500">Chargement...</div>
+  if (loading) return <div className="text-center py-8 text-discreet">Chargement...</div>
 
   return (
     <div className="space-y-4">
@@ -441,12 +441,12 @@ function MessagesPanel({ compteId }: { compteId: string }) {
       </div>
       <div className="space-y-2 max-h-96 overflow-auto">
         {data.map(m => (
-          <div key={m.id} className="p-3 border border-slate-200 rounded-lg">
-            <div className="text-sm text-slate-800">{m.contenu}</div>
-            <div className="text-xs text-slate-400 mt-1">{m.created_at?.replace('T', ' ').slice(0, 19)}</div>
+          <div key={m.id} className="p-3 border border-line rounded-lg">
+            <div className="text-sm text-foreground">{m.contenu}</div>
+            <div className="text-xs text-muted mt-1">{m.created_at?.replace('T', ' ').slice(0, 19)}</div>
           </div>
         ))}
-        {data.length === 0 && <div className="text-center py-6 text-slate-500 text-sm">Aucun message</div>}
+        {data.length === 0 && <div className="text-center py-6 text-discreet text-sm">Aucun message</div>}
       </div>
     </div>
   )
@@ -465,20 +465,20 @@ function EvenementsPanel({ compteId }: { compteId: string }) {
     })()
   }, [compteId])
 
-  if (loading) return <div className="text-center py-8 text-slate-500">Chargement...</div>
+  if (loading) return <div className="text-center py-8 text-discreet">Chargement...</div>
 
   return (
     <div className="space-y-2 max-h-[500px] overflow-auto">
       {data.map(e => (
-        <div key={e.id} className="p-3 border border-slate-200 rounded-lg flex justify-between items-start">
+        <div key={e.id} className="p-3 border border-line rounded-lg flex justify-between items-start">
           <div>
             <Badge text={e.type_evenement} color="bg-blue-100 text-blue-700" />
-            <pre className="text-xs text-slate-600 mt-1 max-w-lg overflow-hidden">{JSON.stringify(e.payload, null, 2).slice(0, 200)}</pre>
+            <pre className="text-xs text-secondary mt-1 max-w-lg overflow-hidden">{JSON.stringify(e.payload, null, 2).slice(0, 200)}</pre>
           </div>
-          <div className="text-xs text-slate-400 whitespace-nowrap">{e.created_at?.replace('T', ' ').slice(0, 19)}</div>
+          <div className="text-xs text-muted whitespace-nowrap">{e.created_at?.replace('T', ' ').slice(0, 19)}</div>
         </div>
       ))}
-      {data.length === 0 && <div className="text-center py-6 text-slate-500 text-sm">Aucun événement</div>}
+      {data.length === 0 && <div className="text-center py-6 text-discreet text-sm">Aucun événement</div>}
     </div>
   )
 }
@@ -501,23 +501,23 @@ function NotificationsPanel({ compteId }: { compteId: string }) {
     fetch()
   }
 
-  if (loading) return <div className="text-center py-8 text-slate-500">Chargement...</div>
+  if (loading) return <div className="text-center py-8 text-discreet">Chargement...</div>
 
   return (
     <div className="space-y-2 max-h-[500px] overflow-auto">
       {data.map(n => (
-        <div key={n.id} className={`p-3 border rounded-lg flex justify-between items-start ${n.lu_at ? 'border-slate-200 opacity-60' : 'border-blue-200 bg-blue-50'}`}>
+        <div key={n.id} className={`p-3 border rounded-lg flex justify-between items-start ${n.lu_at ? 'border-line opacity-60' : 'border-blue-200 bg-blue-50'}`}>
           <div>
-            <Badge text={n.type_notification} color="bg-slate-100 text-slate-700" />
-            <div className="text-xs text-slate-600 mt-1">{JSON.stringify(n.payload).slice(0, 150)}</div>
+            <Badge text={n.type_notification} color="bg-surface-2 text-foreground" />
+            <div className="text-xs text-secondary mt-1">{JSON.stringify(n.payload).slice(0, 150)}</div>
           </div>
           <div className="flex flex-col items-end gap-1">
-            <div className="text-xs text-slate-400">{n.created_at?.replace('T', ' ').slice(0, 19)}</div>
+            <div className="text-xs text-muted">{n.created_at?.replace('T', ' ').slice(0, 19)}</div>
             {!n.lu_at && <button onClick={() => markRead(n.id)} className="text-xs text-blue-600 hover:text-blue-800">Marquer lu</button>}
           </div>
         </div>
       ))}
-      {data.length === 0 && <div className="text-center py-6 text-slate-500 text-sm">Aucune notification</div>}
+      {data.length === 0 && <div className="text-center py-6 text-discreet text-sm">Aucune notification</div>}
     </div>
   )
 }
@@ -535,29 +535,29 @@ function AuditPanel({ compteId }: { compteId: string }) {
     })()
   }, [compteId])
 
-  if (loading) return <div className="text-center py-8 text-slate-500">Chargement...</div>
+  if (loading) return <div className="text-center py-8 text-discreet">Chargement...</div>
 
   return (
     <div className="overflow-auto max-h-[500px]">
       <table className="w-full text-sm border-collapse">
-        <thead><tr className="bg-slate-100">
-          <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Date</th>
-          <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Action</th>
-          <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Table</th>
-          <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Cible</th>
+        <thead><tr className="bg-surface-2">
+          <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Date</th>
+          <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Action</th>
+          <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Table</th>
+          <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Cible</th>
         </tr></thead>
         <tbody>
           {data.map(a => (
-            <tr key={a.id} className="hover:bg-slate-50 border-b border-slate-200">
+            <tr key={a.id} className="hover:bg-surface-soft border-b border-line">
               <td className="px-3 py-2 text-xs whitespace-nowrap">{a.created_at?.replace('T', ' ').slice(0, 19)}</td>
-              <td className="px-3 py-2"><Badge text={a.action} color="bg-slate-100 text-slate-700" /></td>
+              <td className="px-3 py-2"><Badge text={a.action} color="bg-surface-2 text-foreground" /></td>
               <td className="px-3 py-2 font-mono text-xs">{a.table_cible}</td>
-              <td className="px-3 py-2 font-mono text-xs text-slate-500">{a.cible_id?.slice(0, 8) || '—'}</td>
+              <td className="px-3 py-2 font-mono text-xs text-discreet">{a.cible_id?.slice(0, 8) || '—'}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      {data.length === 0 && <div className="text-center py-6 text-slate-500 text-sm">Aucune action journalisée</div>}
+      {data.length === 0 && <div className="text-center py-6 text-discreet text-sm">Aucune action journalisée</div>}
     </div>
   )
 }
@@ -619,15 +619,15 @@ export default function CompteClientDB() {
     { key: 'audit', label: 'Audit' },
   ]
 
-  if (loading) return <div className="p-6 text-center text-slate-500">Chargement...</div>
+  if (loading) return <div className="p-6 text-center text-discreet">Chargement...</div>
   if (error) return <div className="p-6"><div className="p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div></div>
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 mb-1">Compte Client DB</h1>
-          <p className="text-sm text-slate-600">Gestion du périmètre client — schémas core / docs / rt / audit</p>
+          <h1 className="text-2xl font-bold text-foreground mb-1">Compte Client DB</h1>
+          <p className="text-sm text-secondary">Gestion du périmètre client — schémas core / docs / rt / audit</p>
         </div>
         {comptes.length > 1 && (
           <select
@@ -642,8 +642,8 @@ export default function CompteClientDB() {
       </div>
 
       {selectedCompte && (
-        <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <div className="flex gap-1 mb-6 border-b border-slate-200 pb-0 overflow-x-auto">
+        <div className="bg-surface rounded-lg border border-line p-6">
+          <div className="flex gap-1 mb-6 border-b border-line pb-0 overflow-x-auto">
             {tabs.map(t => (
               <button
                 key={t.key}
@@ -651,8 +651,8 @@ export default function CompteClientDB() {
                 onClick={() => setActiveTab(t.key)}
                 className={`px-3 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
                   activeTab === t.key
-                    ? 'border-slate-800 text-slate-800'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                    ? 'border-slate-800 text-foreground'
+                    : 'border-transparent text-discreet hover:text-foreground'
                 }`}
               >
                 {t.label}
@@ -676,7 +676,7 @@ export default function CompteClientDB() {
       )}
 
       {!selectedCompte && (
-        <div className="text-center py-12 text-slate-500">Aucun compte ERP trouvé. Exécutez le bootstrap Channel Fret.</div>
+        <div className="text-center py-12 text-discreet">Aucun compte ERP trouvé. Exécutez le bootstrap Channel Fret.</div>
       )}
     </div>
   )

@@ -26,8 +26,8 @@ const SEV_CONFIG: Record<SeveriteAlerte, { label: string; dot: string; badge: st
     label: 'Info',
     dot:   'bg-blue-400',
     badge: 'bg-blue-100 text-blue-700 border-blue-200',
-    border:'border-slate-200',
-    bg:    'bg-slate-50',
+    border:'border-line',
+    bg:    'bg-surface-soft',
   },
 }
 
@@ -105,14 +105,14 @@ function AlerteCard({ alerte }: { alerte: AlerteItem }) {
   const icon = TYPE_ICONS[alerte.type] ?? <BellIcon />
 
   return (
-    <div className={`flex items-start gap-3 rounded-xl border bg-white px-4 py-3 shadow-sm transition-shadow hover:shadow-md ${sev.border}`}>
+    <div className={`flex items-start gap-3 rounded-xl border bg-surface px-4 py-3 shadow-sm transition-shadow hover:shadow-md ${sev.border}`}>
       {/* Indicateur sévérité */}
       <span className={`mt-1 h-2.5 w-2.5 flex-shrink-0 rounded-full ${sev.dot}`} aria-hidden="true" />
 
       {/* Corps */}
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[13px] font-semibold text-slate-800">{alerte.titre}</span>
+          <span className="text-[13px] font-semibold text-foreground">{alerte.titre}</span>
           <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${sev.badge}`}>
             {icon}
             {LABELS_TYPE[alerte.type]}
@@ -124,22 +124,22 @@ function AlerteCard({ alerte }: { alerte: AlerteItem }) {
           )}
         </div>
 
-        <p className="text-xs text-slate-500">{alerte.description}</p>
+        <p className="text-xs text-discreet">{alerte.description}</p>
 
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-400">
-          {alerte.client_nom     && <span>Client : <strong className="text-slate-600">{alerte.client_nom}</strong></span>}
-          {alerte.conducteur_nom && <span>· Conducteur : <strong className="text-slate-600">{alerte.conducteur_nom}</strong></span>}
-          {alerte.vehicule_immat && <span>· Véhicule : <strong className="text-slate-600">{alerte.vehicule_immat}</strong></span>}
-          {alerte.date_echeance  && <span>· Échéance : <strong className="text-slate-600">{fmtDate(alerte.date_echeance)}</strong></span>}
-          {alerte.date_livraison_prevue && <span>· Livraison prévue : <strong className="text-slate-600">{fmtDate(alerte.date_livraison_prevue)}</strong></span>}
-          {alerte.montant != null && <span>· Montant : <strong className="text-slate-600">{fmtMontant(alerte.montant)}</strong></span>}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted">
+          {alerte.client_nom     && <span>Client : <strong className="text-secondary">{alerte.client_nom}</strong></span>}
+          {alerte.conducteur_nom && <span>· Conducteur : <strong className="text-secondary">{alerte.conducteur_nom}</strong></span>}
+          {alerte.vehicule_immat && <span>· Véhicule : <strong className="text-secondary">{alerte.vehicule_immat}</strong></span>}
+          {alerte.date_echeance  && <span>· Échéance : <strong className="text-secondary">{fmtDate(alerte.date_echeance)}</strong></span>}
+          {alerte.date_livraison_prevue && <span>· Livraison prévue : <strong className="text-secondary">{fmtDate(alerte.date_livraison_prevue)}</strong></span>}
+          {alerte.montant != null && <span>· Montant : <strong className="text-secondary">{fmtMontant(alerte.montant)}</strong></span>}
         </div>
       </div>
 
       {/* Action rapide */}
       <Link
         to={alerte.entity_url}
-        className="ml-auto flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-800 transition-colors"
+        className="ml-auto flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-secondary shadow-sm hover:bg-surface-soft hover:text-foreground transition-colors"
         title="Ouvrir"
       >
         Voir
@@ -170,7 +170,7 @@ function KpiPill({
     red:   'bg-red-50 text-red-700 border-red-200',
     amber: 'bg-amber-50 text-amber-700 border-amber-200',
     blue:  'bg-blue-50 text-blue-700 border-blue-200',
-    slate: 'bg-slate-50 text-slate-700 border-slate-200',
+    slate: 'bg-surface-soft text-foreground border-line',
   }
   return (
     <button
@@ -218,8 +218,8 @@ export default function Alertes() {
             <BellIcon />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Alertes proactives</h1>
-            <p className="text-xs text-slate-500">Transport · Facturation · Anomalies</p>
+            <h1 className="text-xl font-bold text-heading">Alertes proactives</h1>
+            <p className="text-xs text-discreet">Transport · Facturation · Anomalies</p>
           </div>
           {total > 0 && (
             <span className="rounded-full bg-red-600 px-2.5 py-0.5 text-xs font-bold text-white">
@@ -232,7 +232,7 @@ export default function Alertes() {
           type="button"
           onClick={refresh}
           disabled={loading}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50 disabled:opacity-50 transition-colors"
+          className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2 text-xs font-medium text-secondary shadow-sm hover:bg-surface-soft disabled:opacity-50 transition-colors"
         >
           <span className={loading ? 'animate-spin' : ''}><RefreshIcon /></span>
           {loading ? 'Actualisation…' : 'Actualiser'}
@@ -264,7 +264,7 @@ export default function Alertes() {
       </div>
 
       {/* ── Onglets catégorie ── */}
-      <div className="flex gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+      <div className="flex gap-1 rounded-xl border border-line bg-surface-soft p-1">
         {(
           [
             { key: 'toutes', label: 'Toutes les alertes', count: total },
@@ -279,13 +279,13 @@ export default function Alertes() {
             className={[
               'flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition-colors',
               filterCat === tab.key
-                ? 'bg-white text-slate-800 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700',
+                ? 'bg-surface text-foreground shadow-sm'
+                : 'text-discreet hover:text-foreground',
             ].join(' ')}
           >
             {tab.label}
             {tab.count > 0 && (
-              <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${filterCat === tab.key ? 'bg-slate-100 text-slate-700' : 'bg-slate-200 text-slate-600'}`}>
+              <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${filterCat === tab.key ? 'bg-surface-2 text-foreground' : 'bg-slate-200 text-secondary'}`}>
                 {tab.count}
               </span>
             )}
@@ -296,20 +296,20 @@ export default function Alertes() {
       {/* ── Contenu ── */}
       {loading && alertes.length === 0 ? (
         <div className="flex items-center justify-center py-16">
-          <div className="h-7 w-7 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700" />
+          <div className="h-7 w-7 animate-spin rounded-full border-2 border-line border-t-slate-700" />
         </div>
       ) : error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           Erreur : {error}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 py-16 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-surface-soft py-16 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M20 6 9 17l-5-5" /></svg>
           </div>
           <div>
-            <p className="font-semibold text-slate-700">Aucune alerte active</p>
-            <p className="mt-0.5 text-sm text-slate-400">
+            <p className="font-semibold text-foreground">Aucune alerte active</p>
+            <p className="mt-0.5 text-sm text-muted">
               {filterSev === 'toutes' && filterCat === 'toutes'
                 ? 'Tout est nominal — aucune anomalie détectée'
                 : 'Aucune alerte pour ce filtre'}
@@ -328,10 +328,10 @@ export default function Alertes() {
                 return (
                   <div key={cat} className="space-y-2">
                     <div className="flex items-center gap-2 pt-2">
-                      <span className="text-slate-400">{cfg.icon}</span>
-                      <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <span className="text-muted">{cfg.icon}</span>
+                      <h2 className="text-xs font-semibold uppercase tracking-wide text-discreet">
                         {cfg.label}
-                        <span className="ml-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">{items.length}</span>
+                        <span className="ml-1.5 rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-secondary">{items.length}</span>
                       </h2>
                       <div className="flex-1 border-t border-slate-100" />
                     </div>
@@ -348,7 +348,7 @@ export default function Alertes() {
 
       {/* ── Dernière mise à jour ── */}
       {!loading && total > 0 && (
-        <p className="text-center text-[11px] text-slate-400">
+        <p className="text-center text-[11px] text-muted">
           Actualisé à {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} · Prochain rafraîchissement dans 5 min
         </p>
       )}

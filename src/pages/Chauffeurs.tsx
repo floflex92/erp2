@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { listAssets } from '@/lib/services/assetsService'
@@ -41,7 +41,7 @@ const SEVERITY_LABELS: Record<'info' | 'warning' | 'critical', string> = {
 
 const STATUT_COLORS: Record<string, string> = {
   actif:          'bg-green-100 text-green-700',
-  inactif:        'bg-slate-100 text-slate-600',
+  inactif:        'bg-surface-2 text-secondary',
   conge:          'bg-blue-100 text-blue-700',
   arret_maladie:  'bg-red-100 text-red-700',
 }
@@ -50,9 +50,9 @@ const STATUT_LABELS: Record<string, string> = {
 }
 
 function expColor(date: string | null) {
-  if (!date) return 'text-slate-400'
+  if (!date) return 'text-muted'
   const d = (new Date(date).getTime() - Date.now()) / 86400000
-  return d < 0 ? 'text-red-600 font-semibold' : d < 60 ? 'text-orange-500 font-semibold' : 'text-slate-600'
+  return d < 0 ? 'text-red-600 font-semibold' : d < 60 ? 'text-orange-500 font-semibold' : 'text-secondary'
 }
 
 function countExpiringSoon(dates: Array<string | null>) {
@@ -853,8 +853,8 @@ export default function Chauffeurs() {
       {/* Header */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Conducteurs</h2>
-          <p className="text-slate-500 text-sm">{list.length} conducteur{list.length !== 1 ? 's' : ''}</p>
+          <h2 className="text-2xl font-bold text-foreground">Conducteurs</h2>
+          <p className="text-discreet text-sm">{list.length} conducteur{list.length !== 1 ? 's' : ''}</p>
         </div>
         <button
           onClick={openCreate}
@@ -883,7 +883,7 @@ export default function Chauffeurs() {
         placeholder="Rechercher par nom, contact, permis ou categorie..."
         value={search}
         onChange={e => setSearch(e.target.value)}
-        className="mb-4 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-300 sm:w-72"
+        className="mb-4 w-full rounded-lg border border-line px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-300 sm:w-72"
       />
 
       {/* Table */}
@@ -897,10 +897,10 @@ export default function Chauffeurs() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1160px] text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="bg-surface-soft border-b border-line">
               <tr>
                 {['Conducteur', 'Contact', 'Permis', 'FCO exp.', 'Carte tachy', 'OT en cours / a venir', 'Preferences', 'Affectation', 'Statut', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
+                  <th key={h} className="text-left px-4 py-3 text-xs font-medium text-discreet uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -916,11 +916,11 @@ export default function Chauffeurs() {
                   ? exploitants.find(ex => ex.id === aff.exploitant_responsable_id)
                   : null
                 return (
-                  <tr key={c.id} className={`border-t border-slate-100 ${i % 2 !== 0 ? 'bg-slate-50' : ''}`}>
+                  <tr key={c.id} className={`border-t border-slate-100 ${i % 2 !== 0 ? 'bg-surface-soft' : ''}`}>
                     <td className="px-4 py-3">
-                      <div className="font-medium text-slate-800">{c.nom} {c.prenom}</div>
-                      <div className="text-xs text-slate-400">Ne le {formatDate(c.date_naissance)}</div>
-                      {c.matricule && <div className="text-xs text-slate-400 font-mono mt-0.5">{c.matricule}</div>}
+                      <div className="font-medium text-foreground">{c.nom} {c.prenom}</div>
+                      <div className="text-xs text-muted">Ne le {formatDate(c.date_naissance)}</div>
+                      {c.matricule && <div className="text-xs text-muted font-mono mt-0.5">{c.matricule}</div>}
                       {svcConducteur && (
                         <span
                           className="mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-medium text-white"
@@ -931,16 +931,16 @@ export default function Chauffeurs() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-slate-700">{c.poste ?? 'Poste non renseigne'}</div>
-                      <div className="text-xs text-slate-400">{c.type_contrat ?? 'Contrat non renseigne'}</div>
-                      <div className="text-xs text-slate-400 mt-1">Entree: {formatDate(c.date_entree)}</div>
-                      {c.date_sortie && <div className="text-xs text-slate-400">Sortie: {formatDate(c.date_sortie)}</div>}
+                      <div className="text-foreground">{c.poste ?? 'Poste non renseigne'}</div>
+                      <div className="text-xs text-muted">{c.type_contrat ?? 'Contrat non renseigne'}</div>
+                      <div className="text-xs text-muted mt-1">Entree: {formatDate(c.date_entree)}</div>
+                      {c.date_sortie && <div className="text-xs text-muted">Sortie: {formatDate(c.date_sortie)}</div>}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-slate-600">{c.telephone ?? '—'}</div>
-                      <div className="text-xs text-slate-400">{c.email ?? ''}</div>
+                      <div className="text-secondary">{c.telephone ?? '—'}</div>
+                      <div className="text-xs text-muted">{c.email ?? ''}</div>
                       {c.contact_urgence_nom && (
-                        <div className="text-xs text-slate-400 mt-1">
+                        <div className="text-xs text-muted mt-1">
                           Urgence: {c.contact_urgence_nom}{c.contact_urgence_telephone ? ` · ${c.contact_urgence_telephone}` : ''}
                         </div>
                       )}
@@ -972,28 +972,28 @@ export default function Chauffeurs() {
                     <td className="px-4 py-3 min-w-[220px]">
                       {firstOt ? (
                         <div>
-                          <div className="text-xs font-semibold text-slate-700">{firstOt.reference}</div>
-                          <div className="text-xs text-slate-500">
+                          <div className="text-xs font-semibold text-foreground">{firstOt.reference}</div>
+                          <div className="text-xs text-discreet">
                             {ST_EN_COURS.includes(firstOt.statut_transport as never) ? 'En cours' : 'Planifie'} · {formatDateTimeShort(firstOt.date_chargement_prevue ?? firstOt.date_livraison_prevue)}
                           </div>
                           {otList.length > 1 && (
-                            <div className="mt-1 text-[11px] text-slate-400">+{otList.length - 1} autre{otList.length - 1 > 1 ? 's' : ''} mission{otList.length - 1 > 1 ? 's' : ''}</div>
+                            <div className="mt-1 text-[11px] text-muted">+{otList.length - 1} autre{otList.length - 1 > 1 ? 's' : ''} mission{otList.length - 1 > 1 ? 's' : ''}</div>
                           )}
                         </div>
                       ) : (
-                        <span className="text-xs text-slate-400">Aucune mission active</span>
+                        <span className="text-xs text-muted">Aucune mission active</span>
                       )}
                     </td>
                     <td className="px-4 py-3 max-w-[160px]">
                       {c.preferences
-                        ? <p className="text-xs text-slate-500 leading-relaxed line-clamp-3 whitespace-pre-line">{c.preferences}</p>
+                        ? <p className="text-xs text-discreet leading-relaxed line-clamp-3 whitespace-pre-line">{c.preferences}</p>
                         : <span className="text-xs text-slate-300">—</span>}
                     </td>
                     <td className="px-4 py-3 min-w-[180px]">
                       {aff ? (
                         <div className="space-y-1">
-                          {veh && <div className="text-slate-700 font-medium">{veh.immatriculation}</div>}
-                          {rem && <div className="text-slate-500 text-xs">{rem.immatriculation}</div>}
+                          {veh && <div className="text-foreground font-medium">{veh.immatriculation}</div>}
+                          {rem && <div className="text-discreet text-xs">{rem.immatriculation}</div>}
                           <div className="flex flex-wrap gap-1 mt-0.5">
                             <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${aff.type_affectation === 'fixe' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                               {aff.type_affectation === 'fixe' ? 'Fixe' : 'Temp.'}
@@ -1003,31 +1003,31 @@ export default function Chauffeurs() {
                             )}
                           </div>
                           {aff.type_affectation === 'temporaire' && aff.date_fin && (
-                            <div className="text-xs text-slate-400">jusqu'au {new Date(aff.date_fin).toLocaleDateString('fr-FR')}</div>
+                            <div className="text-xs text-muted">jusqu'au {new Date(aff.date_fin).toLocaleDateString('fr-FR')}</div>
                           )}
                           {expCond && (
-                            <div className="text-[11px] text-slate-400">{expCond.name}</div>
+                            <div className="text-[11px] text-muted">{expCond.name}</div>
                           )}
                         </div>
                       ) : (
-                        <span className="text-xs text-slate-400">—</span>
+                        <span className="text-xs text-muted">—</span>
                       )}
                       <button
                         onClick={() => openAffModal(c)}
-                        className="mt-1 text-xs text-slate-500 underline hover:text-slate-800 block"
+                        className="mt-1 text-xs text-discreet underline hover:text-foreground block"
                       >
                         {aff ? 'Modifier' : 'Affecter'}
                       </button>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUT_COLORS[c.statut] ?? 'bg-slate-100 text-slate-600'}`}>
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUT_COLORS[c.statut] ?? 'bg-surface-2 text-secondary'}`}>
                         {STATUT_LABELS[c.statut] ?? c.statut}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-3">
-                        <button onClick={() => openEdit(c)} className="text-xs text-slate-400 hover:text-slate-700 transition-colors">Modifier</button>
-                        <button onClick={() => del(c.id)} className="text-xs text-slate-400 hover:text-red-500 transition-colors">Suppr.</button>
+                        <button onClick={() => openEdit(c)} className="text-xs text-muted hover:text-foreground transition-colors">Modifier</button>
+                        <button onClick={() => del(c.id)} className="text-xs text-muted hover:text-red-500 transition-colors">Suppr.</button>
                       </div>
                     </td>
                   </tr>
@@ -1042,10 +1042,10 @@ export default function Chauffeurs() {
       {/* Modal ajout conducteur */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 sm:p-6">
-          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-xl sm:max-h-[90vh]">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-surface shadow-xl sm:max-h-[90vh]">
             <div className="flex items-center justify-between border-b p-4 sm:p-6">
               <h3 className="text-lg font-semibold">{editingId ? 'Modifier un conducteur' : 'Ajouter un conducteur'}</h3>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+              <button onClick={() => setShowForm(false)} className="text-muted hover:text-secondary">✕</button>
             </div>
             <form onSubmit={submit} className="p-4 sm:p-6">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1064,7 +1064,7 @@ export default function Chauffeurs() {
                 </div>
 
                 <div className="mt-2 border-t pt-4 sm:col-span-2">
-                  <p className="text-sm font-semibold text-slate-700 mb-3">Contrat et dossier RH</p>
+                  <p className="text-sm font-semibold text-foreground mb-3">Contrat et dossier RH</p>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field label="Matricule"><input className={inp} value={form.matricule ?? ''} onChange={e => set('matricule', e.target.value || null)} /></Field>
                     <Field label="Poste"><input className={inp} value={form.poste ?? ''} onChange={e => set('poste', e.target.value || null)} /></Field>
@@ -1078,13 +1078,13 @@ export default function Chauffeurs() {
                 </div>
 
                 <div className="border-t pt-4 sm:col-span-2">
-                  <p className="text-sm font-semibold text-slate-700 mb-3">Permis de conduire</p>
+                  <p className="text-sm font-semibold text-foreground mb-3">Permis de conduire</p>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field label="Numéro"><input className={inp} value={form.numero_permis ?? ''} onChange={e => set('numero_permis', e.target.value || null)} /></Field>
                     <Field label="Expiration"><input className={inp} type="date" value={form.permis_expiration ?? ''} onChange={e => set('permis_expiration', e.target.value || null)} /></Field>
                   </div>
                   <div className="mt-4">
-                    <p className="text-xs font-medium text-slate-600 mb-2">Categories</p>
+                    <p className="text-xs font-medium text-secondary mb-2">Categories</p>
                     <div className="flex flex-wrap gap-2">
                       {LICENSE_CATEGORIES.map(category => {
                         const active = (form.permis_categories ?? []).includes(category)
@@ -1093,7 +1093,7 @@ export default function Chauffeurs() {
                             key={category}
                             type="button"
                             onClick={() => toggleCategory(category)}
-                            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${active ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'}`}
+                            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${active ? 'border-blue-600 bg-blue-600 text-white' : 'border-line bg-surface text-secondary hover:border-line-strong hover:bg-surface-soft'}`}
                           >
                             {category}
                           </button>
@@ -1104,7 +1104,7 @@ export default function Chauffeurs() {
                 </div>
 
                 <div className="border-t pt-4 sm:col-span-2">
-                  <p className="text-sm font-semibold text-slate-700 mb-3">FCO / FIMO</p>
+                  <p className="text-sm font-semibold text-foreground mb-3">FCO / FIMO</p>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field label="Date FIMO"><input className={inp} type="date" value={form.fimo_date ?? ''} onChange={e => set('fimo_date', e.target.value || null)} /></Field>
                     <Field label="Date FCO"><input className={inp} type="date" value={form.fco_date ?? ''} onChange={e => set('fco_date', e.target.value || null)} /></Field>
@@ -1115,7 +1115,7 @@ export default function Chauffeurs() {
                 </div>
 
                 <div className="border-t pt-4 sm:col-span-2">
-                  <p className="text-sm font-semibold text-slate-700 mb-3">Visite medicale</p>
+                  <p className="text-sm font-semibold text-foreground mb-3">Visite medicale</p>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field label="Date visite"><input className={inp} type="date" value={form.visite_medicale_date ?? ''} onChange={e => set('visite_medicale_date', e.target.value || null)} /></Field>
                     <Field label="Expiration visite"><input className={inp} type="date" value={form.visite_medicale_expiration ?? ''} onChange={e => set('visite_medicale_expiration', e.target.value || null)} /></Field>
@@ -1123,7 +1123,7 @@ export default function Chauffeurs() {
                 </div>
 
                 <div className="border-t pt-4 sm:col-span-2">
-                  <p className="text-sm font-semibold text-slate-700 mb-3">Carte conducteur tachygraphe</p>
+                  <p className="text-sm font-semibold text-foreground mb-3">Carte conducteur tachygraphe</p>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field label="Numéro carte"><input className={inp} value={form.carte_tachy_numero ?? ''} onChange={e => set('carte_tachy_numero', e.target.value || null)} /></Field>
                     <Field label="Expiration"><input className={inp} type="date" value={form.carte_tachy_expiration ?? ''} onChange={e => set('carte_tachy_expiration', e.target.value || null)} /></Field>
@@ -1131,8 +1131,8 @@ export default function Chauffeurs() {
                 </div>
 
                 <div className="border-t pt-4 sm:col-span-2">
-                  <p className="text-sm font-semibold text-slate-700 mb-1">Préférences / Habitudes</p>
-                  <p className="text-xs text-slate-400 mb-3">Zones habituelles, types de fret, horaires préférés, langues parlées…</p>
+                  <p className="text-sm font-semibold text-foreground mb-1">Préférences / Habitudes</p>
+                  <p className="text-xs text-muted mb-3">Zones habituelles, types de fret, horaires préférés, langues parlées…</p>
                   <textarea
                     className={`${inp} resize-none`}
                     rows={3}
@@ -1147,10 +1147,10 @@ export default function Chauffeurs() {
                 <div className="mt-6 border-t pt-6">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <p className="text-sm font-semibold text-slate-800">Dossier RH</p>
-                      <p className="text-xs text-slate-400">Evenements RH, disciplinaire et documents PDF.</p>
+                      <p className="text-sm font-semibold text-foreground">Dossier RH</p>
+                      <p className="text-xs text-muted">Evenements RH, disciplinaire et documents PDF.</p>
                     </div>
-                    {rhLoading && <span className="text-xs text-slate-400">Chargement...</span>}
+                    {rhLoading && <span className="text-xs text-muted">Chargement...</span>}
                   </div>
 
                   {rhError && (
@@ -1160,8 +1160,8 @@ export default function Chauffeurs() {
                   )}
 
                   <div className="mt-4 grid grid-cols-1 gap-6 xl:grid-cols-2">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <h4 className="text-sm font-semibold text-slate-800">Evenements RH / disciplinaire</h4>
+                    <div className="rounded-xl border border-line bg-surface-soft p-4">
+                      <h4 className="text-sm font-semibold text-foreground">Evenements RH / disciplinaire</h4>
                       <form onSubmit={saveRhEvent} className="mt-4 space-y-3">
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <Field label="Type">
@@ -1209,24 +1209,24 @@ export default function Chauffeurs() {
 
                       <div className="mt-4 space-y-2">
                         {rhEvents.length === 0 ? (
-                          <p className="text-xs text-slate-400">Aucun evenement RH enregistre.</p>
+                          <p className="text-xs text-muted">Aucun evenement RH enregistre.</p>
                         ) : rhEvents.map(event => (
-                          <div key={event.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                          <div key={event.id} className="rounded-lg border border-line bg-surface p-3">
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <div className="text-sm font-medium text-slate-800">{event.title}</div>
-                                <div className="text-xs text-slate-400">{event.event_type} · {formatDate(event.start_date)}{event.end_date ? ` au ${formatDate(event.end_date)}` : ''}</div>
+                                <div className="text-sm font-medium text-foreground">{event.title}</div>
+                                <div className="text-xs text-muted">{event.event_type} · {formatDate(event.start_date)}{event.end_date ? ` au ${formatDate(event.end_date)}` : ''}</div>
                               </div>
-                              <button type="button" onClick={() => void deleteRhEvent(event.id)} className="text-xs text-slate-400 hover:text-red-500">Suppr.</button>
+                              <button type="button" onClick={() => void deleteRhEvent(event.id)} className="text-xs text-muted hover:text-red-500">Suppr.</button>
                             </div>
-                            {event.description && <p className="mt-2 text-xs text-slate-500 whitespace-pre-line">{event.description}</p>}
+                            {event.description && <p className="mt-2 text-xs text-discreet whitespace-pre-line">{event.description}</p>}
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <h4 className="text-sm font-semibold text-slate-800">Documents PDF</h4>
+                    <div className="rounded-xl border border-line bg-surface-soft p-4">
+                      <h4 className="text-sm font-semibold text-foreground">Documents PDF</h4>
                       <form onSubmit={saveRhDocument} className="mt-4 space-y-3">
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <Field label="Categorie">
@@ -1252,7 +1252,7 @@ export default function Chauffeurs() {
                         <Field label="Notes">
                           <textarea className={`${inp} resize-none`} rows={3} value={documentForm.notes} onChange={e => setDocumentForm(current => ({ ...current, notes: e.target.value }))} />
                         </Field>
-                        <label className="flex items-center gap-2 text-xs text-slate-600">
+                        <label className="flex items-center gap-2 text-xs text-secondary">
                           <input type="checkbox" checked={documentForm.is_mandatory} onChange={e => setDocumentForm(current => ({ ...current, is_mandatory: e.target.checked }))} />
                           Document obligatoire
                         </label>
@@ -1265,49 +1265,49 @@ export default function Chauffeurs() {
 
                       <div className="mt-4 space-y-2">
                         {rhDocuments.length === 0 ? (
-                          <p className="text-xs text-slate-400">Aucun document RH enregistre.</p>
+                          <p className="text-xs text-muted">Aucun document RH enregistre.</p>
                         ) : rhDocuments.map(doc => (
-                          <div key={doc.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                          <div key={doc.id} className="rounded-lg border border-line bg-surface p-3">
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <div className="text-sm font-medium text-slate-800">{doc.title}</div>
-                                <div className="text-xs text-slate-400">{doc.category} · {doc.file_name}</div>
+                                <div className="text-sm font-medium text-foreground">{doc.title}</div>
+                                <div className="text-xs text-muted">{doc.category} · {doc.file_name}</div>
                                 {doc.expires_at && <div className={`text-xs ${expColor(doc.expires_at)}`}>Expiration {formatDate(doc.expires_at)}</div>}
                               </div>
                               <div className="flex gap-2">
-                                <button type="button" onClick={() => void openRhDocument(doc)} className="text-xs text-slate-400 hover:text-slate-700">Ouvrir</button>
-                                <button type="button" onClick={() => void archiveRhDocument(doc.id)} className="text-xs text-slate-400 hover:text-red-500">Archiver</button>
+                                <button type="button" onClick={() => void openRhDocument(doc)} className="text-xs text-muted hover:text-foreground">Ouvrir</button>
+                                <button type="button" onClick={() => void archiveRhDocument(doc.id)} className="text-xs text-muted hover:text-red-500">Archiver</button>
                               </div>
                             </div>
-                            {doc.notes && <p className="mt-2 text-xs text-slate-500 whitespace-pre-line">{doc.notes}</p>}
+                            {doc.notes && <p className="mt-2 text-xs text-discreet whitespace-pre-line">{doc.notes}</p>}
                           </div>
                         ))}
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="mt-4 rounded-xl border border-line bg-surface p-4">
                     <div className="flex items-center justify-between gap-2">
-                      <h4 className="text-sm font-semibold text-slate-800">Entretiens salaries (source canonique)</h4>
-                      {mappedProfileLabel && <span className="text-xs text-slate-500">Profil lie: {mappedProfileLabel}</span>}
+                      <h4 className="text-sm font-semibold text-foreground">Entretiens salaries (source canonique)</h4>
+                      {mappedProfileLabel && <span className="text-xs text-discreet">Profil lie: {mappedProfileLabel}</span>}
                     </div>
                     {!mappedProfileLabel ? (
-                      <p className="mt-2 text-xs text-slate-400">
+                      <p className="mt-2 text-xs text-muted">
                         Aucun profil salarie associe automatiquement a ce conducteur (matricule / nom-prenom).
                       </p>
                     ) : canonicalInterviews.length === 0 ? (
-                      <p className="mt-2 text-xs text-slate-400">Aucun entretien trouve pour ce profil.</p>
+                      <p className="mt-2 text-xs text-muted">Aucun entretien trouve pour ce profil.</p>
                     ) : (
                       <ul className="mt-3 space-y-2">
                         {canonicalInterviews.slice(0, 8).map(interview => (
-                          <li key={interview.id} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                          <li key={interview.id} className="rounded-lg border border-line bg-surface-soft px-3 py-2">
                             <div className="flex items-center justify-between gap-2">
-                              <p className="text-sm font-medium text-slate-800">{interview.interview_type?.name ?? 'Entretien'}</p>
-                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+                              <p className="text-sm font-medium text-foreground">{interview.interview_type?.name ?? 'Entretien'}</p>
+                              <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-secondary">
                                 {INTERVIEW_STATUS_LABELS[interview.status]}
                               </span>
                             </div>
-                            <p className="mt-1 text-xs text-slate-500">
+                            <p className="mt-1 text-xs text-discreet">
                               {interview.planned_at ? new Date(interview.planned_at).toLocaleString('fr-FR') : 'Date non planifiee'}
                             </p>
                           </li>
@@ -1319,7 +1319,7 @@ export default function Chauffeurs() {
               )}
 
               <div className="mt-6 flex flex-col-reverse gap-3 border-t pt-4 sm:flex-row sm:justify-end">
-                <button type="button" onClick={closeForm} className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50 sm:w-auto">Annuler</button>
+                <button type="button" onClick={closeForm} className="w-full rounded-lg border border-line px-4 py-2 text-sm hover:bg-surface-soft sm:w-auto">Annuler</button>
                 <button type="submit" disabled={saving} className="w-full rounded-lg bg-slate-800 px-4 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-50 sm:w-auto">
                   {saving ? 'Enregistrement...' : editingId ? 'Sauvegarder' : 'Enregistrer'}
                 </button>
@@ -1337,27 +1337,27 @@ export default function Chauffeurs() {
         const svcActuel = services.find(s => s.id === affConducteurServiceId)
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 sm:p-6">
-            <div className="max-h-[94vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl sm:max-h-[92vh]">
+            <div className="max-h-[94vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-surface shadow-2xl sm:max-h-[92vh]">
               {/* En-tête */}
               <div className="flex items-start justify-between border-b px-6 py-4">
                 <div>
-                  <h3 className="text-base font-semibold text-slate-800">
+                  <h3 className="text-base font-semibold text-foreground">
                     Affectation — {conducteurModal ? `${conducteurModal.prenom} ${conducteurModal.nom}` : ''}
                   </h3>
-                  <p className="mt-0.5 text-xs text-slate-400">Véhicule · Remorque · Service · Exploitant</p>
+                  <p className="mt-0.5 text-xs text-muted">Véhicule · Remorque · Service · Exploitant</p>
                 </div>
-                <button onClick={() => setAffModal(null)} className="text-slate-400 hover:text-slate-600 mt-0.5">✕</button>
+                <button onClick={() => setAffModal(null)} className="text-muted hover:text-secondary mt-0.5">✕</button>
               </div>
 
               <form onSubmit={saveAff} className="divide-y divide-slate-100">
 
                 {/* — Section Véhicule & Remorque — */}
                 <div className="space-y-4 px-6 py-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Ressources matérielles</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Ressources matérielles</p>
 
                   {/* Sélection rapide véhicule */}
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-slate-600">Camion</label>
+                    <label className="mb-1.5 block text-xs font-medium text-secondary">Camion</label>
                     <div className="flex flex-wrap gap-2 mb-2">
                       {availableVehicules.slice(0, 8).map(v => (
                         <button
@@ -1367,7 +1367,7 @@ export default function Chauffeurs() {
                           className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                             affForm.vehicule_id === v.id
                               ? 'border-slate-800 bg-slate-800 text-white'
-                              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
+                              : 'border-line bg-surface text-foreground hover:border-slate-400'
                           }`}
                         >
                           {v.immatriculation}{v.marque ? ` · ${v.marque}` : ''}
@@ -1387,17 +1387,17 @@ export default function Chauffeurs() {
                       </select>
                     )}
                     {selectedVeh && (
-                      <div className="mt-2 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                      <div className="mt-2 flex items-center gap-2 rounded-lg bg-surface-soft px-3 py-2 text-xs text-secondary">
                         <span className="font-semibold">{selectedVeh.immatriculation}</span>
                         {selectedVeh.marque && <span>{selectedVeh.marque} {selectedVeh.modele ?? ''}</span>}
-                        <button type="button" className="ml-auto text-slate-400 hover:text-red-500" onClick={() => setAffForm(f => ({ ...f, vehicule_id: null }))}>✕</button>
+                        <button type="button" className="ml-auto text-muted hover:text-red-500" onClick={() => setAffForm(f => ({ ...f, vehicule_id: null }))}>✕</button>
                       </div>
                     )}
                   </div>
 
                   {/* Sélection rapide remorque */}
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-slate-600">Remorque</label>
+                    <label className="mb-1.5 block text-xs font-medium text-secondary">Remorque</label>
                     <div className="flex flex-wrap gap-2 mb-2">
                       {availableRemorques.slice(0, 6).map(r => (
                         <button
@@ -1407,7 +1407,7 @@ export default function Chauffeurs() {
                           className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                             affForm.remorque_id === r.id
                               ? 'border-slate-800 bg-slate-800 text-white'
-                              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
+                              : 'border-line bg-surface text-foreground hover:border-slate-400'
                           }`}
                         >
                           {r.immatriculation}{r.type_remorque ? ` · ${r.type_remorque}` : ''}
@@ -1427,10 +1427,10 @@ export default function Chauffeurs() {
                       </select>
                     )}
                     {selectedRem && (
-                      <div className="mt-2 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                      <div className="mt-2 flex items-center gap-2 rounded-lg bg-surface-soft px-3 py-2 text-xs text-secondary">
                         <span className="font-semibold">{selectedRem.immatriculation}</span>
                         {selectedRem.type_remorque && <span>{selectedRem.type_remorque}</span>}
-                        <button type="button" className="ml-auto text-slate-400 hover:text-red-500" onClick={() => setAffForm(f => ({ ...f, remorque_id: null }))}>✕</button>
+                        <button type="button" className="ml-auto text-muted hover:text-red-500" onClick={() => setAffForm(f => ({ ...f, remorque_id: null }))}>✕</button>
                       </div>
                     )}
                   </div>
@@ -1438,13 +1438,13 @@ export default function Chauffeurs() {
 
                 {/* — Section Service & Exploitant — */}
                 <div className="space-y-4 px-6 py-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Service & Exploitant</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Service & Exploitant</p>
 
                   {/* Service du conducteur */}
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-slate-600">
+                    <label className="mb-1.5 block text-xs font-medium text-secondary">
                       Service du conducteur{' '}
-                      <span className="text-slate-400 font-normal">(modifie le rattachement principal)</span>
+                      <span className="text-muted font-normal">(modifie le rattachement principal)</span>
                     </label>
                     {services.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
@@ -1454,7 +1454,7 @@ export default function Chauffeurs() {
                           className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                             !affConducteurServiceId
                               ? 'border-slate-800 bg-slate-800 text-white'
-                              : 'border-slate-200 bg-white text-slate-500 hover:border-slate-400'
+                              : 'border-line bg-surface text-discreet hover:border-slate-400'
                           }`}
                         >
                           Non attribué
@@ -1467,7 +1467,7 @@ export default function Chauffeurs() {
                             className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                               affConducteurServiceId === s.id
                                 ? 'border-slate-800 text-white'
-                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
+                                : 'border-line bg-surface text-foreground hover:border-slate-400'
                             }`}
                             style={affConducteurServiceId === s.id ? { backgroundColor: s.color ?? '#1e293b', borderColor: s.color ?? '#1e293b' } : {}}
                           >
@@ -1476,10 +1476,10 @@ export default function Chauffeurs() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-slate-400">Aucun service configuré — créer des services dans Paramètres.</p>
+                      <p className="text-xs text-muted">Aucun service configuré — créer des services dans Paramètres.</p>
                     )}
                     {svcActuel && (
-                      <p className="mt-1.5 text-xs text-slate-500">Actuel : <span className="font-medium">{svcActuel.name}</span></p>
+                      <p className="mt-1.5 text-xs text-discreet">Actuel : <span className="font-medium">{svcActuel.name}</span></p>
                     )}
                   </div>
 
@@ -1497,7 +1497,7 @@ export default function Chauffeurs() {
                         ))}
                       </select>
                     ) : (
-                      <p className="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-400">
+                      <p className="rounded-lg border border-dashed border-line px-3 py-2 text-xs text-muted">
                         Aucun exploitant configuré — créer des exploitants dans Paramètres.
                       </p>
                     )}
@@ -1506,16 +1506,16 @@ export default function Chauffeurs() {
 
                 {/* — Section Paramètres — */}
                 <div className="space-y-4 px-6 py-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Paramètres</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Paramètres</p>
 
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-slate-600">Type d'affectation</label>
+                    <label className="mb-1.5 block text-xs font-medium text-secondary">Type d'affectation</label>
                     <div className="flex gap-3">
                       {(['fixe', 'temporaire'] as const).map(t => (
                         <label key={t} className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border py-2 text-sm font-medium transition-all ${
                           affForm.type_affectation === t
                             ? 'border-slate-800 bg-slate-800 text-white'
-                            : 'border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50'
+                            : 'border-line text-secondary hover:border-slate-400 hover:bg-surface-soft'
                         }`}>
                           <input
                             type="radio"
@@ -1549,9 +1549,9 @@ export default function Chauffeurs() {
                       onChange={e => setAffForm(f => ({ ...f, est_exclusive: e.target.checked }))}
                       className="h-4 w-4 rounded accent-slate-800"
                     />
-                    <span className="text-sm text-slate-700">
+                    <span className="text-sm text-foreground">
                       Affectation exclusive
-                      <span className="ml-1 text-xs text-slate-400">(conducteur dédié à ce véhicule)</span>
+                      <span className="ml-1 text-xs text-muted">(conducteur dédié à ce véhicule)</span>
                     </span>
                   </label>
 
@@ -1585,7 +1585,7 @@ export default function Chauffeurs() {
                     </button>
                   )}
                   <div className="ml-auto flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-                    <button type="button" onClick={() => setAffModal(null)} className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50 sm:w-auto">Annuler</button>
+                    <button type="button" onClick={() => setAffModal(null)} className="w-full rounded-lg border border-line px-4 py-2 text-sm hover:bg-surface-soft sm:w-auto">Annuler</button>
                     <button type="submit" disabled={affSaving} className="w-full rounded-lg bg-slate-800 px-4 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-50 sm:w-auto">
                       {affSaving ? 'Enregistrement...' : 'Enregistrer'}
                     </button>
@@ -1618,7 +1618,7 @@ function StatCard({ label, value, tone }: { label: string; value: number; tone: 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <label className="text-xs font-medium text-slate-600">{label}</label>
+      <label className="text-xs font-medium text-secondary">{label}</label>
       {children}
     </div>
   )

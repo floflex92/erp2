@@ -24,7 +24,7 @@ export default function DemoAccessPage() {
   if (checking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950">
-        <div className="text-slate-400">Vérification...</div>
+        <div className="text-muted">Vérification...</div>
       </div>
     )
   }

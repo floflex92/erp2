@@ -405,7 +405,7 @@ export default function Login() {
                       type="checkbox"
                       checked={rememberMe}
                       onChange={e => setRememberMe(e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-300 accent-[#1F4E8C]"
+                      className="h-4 w-4 rounded border-line-strong accent-[#1F4E8C]"
                     />
                     Se souvenir de moi
                   </label>

@@ -11,7 +11,7 @@ interface Compte {
 const inp = 'w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary-soft)]'
 const btn = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors'
 const btnPrimary = `${btn} bg-slate-800 text-white hover:bg-slate-900`
-const btnSecondary = `${btn} border border-slate-300 text-slate-700 hover:bg-slate-100`
+const btnSecondary = `${btn} border border-line-strong text-foreground hover:bg-surface-2`
 
 const CLASSES = [
   { value: 1, label: '1 - Comptes de capitaux' },
@@ -170,7 +170,7 @@ export default function PlanComptableTab() {
 
       <div className="flex gap-3 items-end flex-wrap">
         <div>
-          <label className="text-xs font-medium text-slate-600 block mb-1">Classe</label>
+          <label className="text-xs font-medium text-secondary block mb-1">Classe</label>
           <select
             value={filtreClasse ?? ''}
             onChange={e => setFiltreClasse(e.target.value ? parseInt(e.target.value) : null)}
@@ -181,7 +181,7 @@ export default function PlanComptableTab() {
           </select>
         </div>
         <div className="flex-1 min-w-[200px]">
-          <label className="text-xs font-medium text-slate-600 block mb-1">Recherche</label>
+          <label className="text-xs font-medium text-secondary block mb-1">Recherche</label>
           <input
             type="text"
             placeholder="Code ou libellé..."
@@ -195,11 +195,11 @@ export default function PlanComptableTab() {
       </div>
 
       {showForm && (
-        <div className="border border-slate-200 rounded-lg p-4 bg-slate-50 space-y-3">
-          <h3 className="font-medium text-sm text-slate-800">{editMode ? `Modifier ${editMode}` : 'Nouveau compte'}</h3>
+        <div className="border border-line rounded-lg p-4 bg-surface-soft space-y-3">
+          <h3 className="font-medium text-sm text-foreground">{editMode ? `Modifier ${editMode}` : 'Nouveau compte'}</h3>
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">Code compte *</label>
+              <label className="text-xs font-medium text-secondary block mb-1">Code compte *</label>
               <input
                 type="text"
                 placeholder="ex: 625200"
@@ -213,11 +213,11 @@ export default function PlanComptableTab() {
                   }
                 }}
                 disabled={!!editMode}
-                className={`${inp} ${editMode ? 'bg-slate-100' : ''}`}
+                className={`${inp} ${editMode ? 'bg-surface-2' : ''}`}
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">Libellé *</label>
+              <label className="text-xs font-medium text-secondary block mb-1">Libellé *</label>
               <input
                 type="text"
                 placeholder="Libellé du compte"
@@ -227,7 +227,7 @@ export default function PlanComptableTab() {
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">Classe</label>
+              <label className="text-xs font-medium text-secondary block mb-1">Classe</label>
               <select value={formClasse} onChange={e => setFormClasse(parseInt(e.target.value))} className={inp}>
                 {CLASSES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
@@ -237,40 +237,40 @@ export default function PlanComptableTab() {
             <button onClick={handleSave} disabled={saving} className={btnPrimary}>
               {saving ? 'Enregistrement...' : editMode ? 'Modifier' : 'Créer'}
             </button>
-            <button onClick={resetForm} className={`${btn} text-slate-500 hover:text-slate-700`}>Annuler</button>
+            <button onClick={resetForm} className={`${btn} text-discreet hover:text-foreground`}>Annuler</button>
           </div>
         </div>
       )}
 
       {loading ? (
-        <div className="text-center py-8 text-slate-500">Chargement...</div>
+        <div className="text-center py-8 text-discreet">Chargement...</div>
       ) : (
         <div className="overflow-auto">
-          <div className="text-xs text-slate-500 mb-2">{filteredComptes.length} compte(s)</div>
+          <div className="text-xs text-discreet mb-2">{filteredComptes.length} compte(s)</div>
           <table className="w-full text-sm border-collapse">
             <thead>
-              <tr className="bg-slate-100">
-                <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Code</th>
-                <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Libellé</th>
-                <th className="px-3 py-2 text-center font-medium text-slate-800 border border-slate-200">Classe</th>
-                <th className="px-3 py-2 text-center font-medium text-slate-800 border border-slate-200">Actif</th>
-                <th className="px-3 py-2 text-center font-medium text-slate-800 border border-slate-200">Actions</th>
+              <tr className="bg-surface-2">
+                <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Code</th>
+                <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Libellé</th>
+                <th className="px-3 py-2 text-center font-medium text-foreground border border-line">Classe</th>
+                <th className="px-3 py-2 text-center font-medium text-foreground border border-line">Actif</th>
+                <th className="px-3 py-2 text-center font-medium text-foreground border border-line">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredComptes.map(c => (
-                <tr key={c.code_compte} className={`hover:bg-slate-50 border-b border-slate-200 ${!c.actif ? 'opacity-50' : ''}`}>
-                  <td className="px-3 py-2 font-mono text-slate-700">{c.code_compte}</td>
-                  <td className="px-3 py-2 text-slate-700">{c.libelle}</td>
-                  <td className="px-3 py-2 text-center text-slate-600">{c.classe}</td>
+                <tr key={c.code_compte} className={`hover:bg-surface-soft border-b border-line ${!c.actif ? 'opacity-50' : ''}`}>
+                  <td className="px-3 py-2 font-mono text-foreground">{c.code_compte}</td>
+                  <td className="px-3 py-2 text-foreground">{c.libelle}</td>
+                  <td className="px-3 py-2 text-center text-secondary">{c.classe}</td>
                   <td className="px-3 py-2 text-center">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${c.actif ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${c.actif ? 'bg-green-100 text-green-700' : 'bg-surface-2 text-discreet'}`}>
                       {c.actif ? 'Actif' : 'Inactif'}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-center space-x-2">
                     <button onClick={() => startEdit(c)} className="text-xs text-blue-600 hover:text-blue-800">Modifier</button>
-                    <button onClick={() => toggleActif(c)} className="text-xs text-slate-500 hover:text-slate-700">
+                    <button onClick={() => toggleActif(c)} className="text-xs text-discreet hover:text-foreground">
                       {c.actif ? 'Désactiver' : 'Réactiver'}
                     </button>
                   </td>

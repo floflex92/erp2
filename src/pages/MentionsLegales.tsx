@@ -103,7 +103,7 @@ export default function MentionsLegales() {
   return (
     <>
       {/* ── HERO ── */}
-      <section className="w-full bg-white" style={{ ...sectionPx, ...sectionPy }}>
+      <section className="w-full bg-surface" style={{ ...sectionPx, ...sectionPy }}>
         <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#6E6E73' }}>
           Information légale
         </p>
@@ -140,7 +140,7 @@ export default function MentionsLegales() {
       </section>
 
       {/* ── DIRECTEUR DE PUBLICATION ── */}
-      <section className="w-full bg-white" style={{ ...sectionPx, ...sectionPy }}>
+      <section className="w-full bg-surface" style={{ ...sectionPx, ...sectionPy }}>
         <LegalTitle>Directeur de publication</LegalTitle>
         <div className="mt-6 grid gap-1" style={{ color: '#1D1D1F' }}>
           <p>Responsable : {isProvided(legalConfig.publicationDirector) ? legalConfig.publicationDirector : 'À compléter'}</p>
@@ -167,7 +167,7 @@ export default function MentionsLegales() {
       </section>
 
       {/* ── PROPRIÉTÉ INTELLECTUELLE ── */}
-      <section className="w-full bg-white" style={{ ...sectionPx, ...sectionPy }}>
+      <section className="w-full bg-surface" style={{ ...sectionPx, ...sectionPy }}>
         <LegalTitle>Propriété intellectuelle</LegalTitle>
         <div className="mt-6 max-w-3xl grid gap-4" style={{ color: '#6E6E73' }}>
           <p>Les contenus, marques, codes, bases de données et éléments graphiques de la plateforme sont protégés par les droits de propriété intellectuelle.</p>
@@ -192,7 +192,7 @@ export default function MentionsLegales() {
       </section>
 
       {/* ── COOKIES ── */}
-      <section className="w-full bg-white" style={{ ...sectionPx, ...sectionPy }}>
+      <section className="w-full bg-surface" style={{ ...sectionPx, ...sectionPy }}>
         <LegalTitle>Cookies et traces techniques</LegalTitle>
         <div className="mt-6 max-w-3xl grid gap-4" style={{ color: '#6E6E73' }}>
           <p>La plateforme utilise des stockages techniques nécessaires au fonctionnement (session, préférences, configuration locale).</p>
@@ -210,7 +210,7 @@ export default function MentionsLegales() {
       </section>
 
       {/* ── DROIT APPLICABLE ── */}
-      <section className="w-full bg-white" style={{ ...sectionPx, ...sectionPy }}>
+      <section className="w-full bg-surface" style={{ ...sectionPx, ...sectionPy }}>
         <LegalTitle>Droit applicable et contact</LegalTitle>
         <div className="mt-6 max-w-3xl grid gap-4" style={{ color: '#6E6E73' }}>
           <p>Les présentes mentions légales sont régies par le droit français.</p>

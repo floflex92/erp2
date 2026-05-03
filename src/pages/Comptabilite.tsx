@@ -82,15 +82,15 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
   ]
 
   return (
-    <div className="flex gap-1 mb-6 border-b border-slate-200 pb-0">
+    <div className="flex gap-1 mb-6 border-b border-line pb-0">
       {tabs.map(t => (
         <button
           key={t.key}
           onClick={() => onChange(t.key)}
           className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
             active === t.key
-              ? 'border-slate-800 text-slate-800'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
+              ? 'border-slate-800 text-foreground'
+              : 'border-transparent text-discreet hover:text-foreground'
           }`}
         >
           {t.label}
@@ -150,7 +150,7 @@ function BalanceTab() {
     <div className="space-y-4">
       <div className="flex gap-4 items-end">
         <div>
-          <label className="text-xs font-medium text-slate-600 block mb-1">Exercice</label>
+          <label className="text-xs font-medium text-secondary block mb-1">Exercice</label>
           <input
             type="number"
             value={exercice}
@@ -159,41 +159,41 @@ function BalanceTab() {
           />
         </div>
         {data.length > 0 && (
-          <button onClick={exportCSV} className="px-4 py-2 rounded-lg text-sm font-medium border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors">Export CSV</button>
+          <button onClick={exportCSV} className="px-4 py-2 rounded-lg text-sm font-medium border border-line-strong text-foreground hover:bg-surface-2 transition-colors">Export CSV</button>
         )}
       </div>
 
       {error && <div className="p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
 
       {loading ? (
-        <div className="text-center py-8 text-slate-500">Chargement...</div>
+        <div className="text-center py-8 text-discreet">Chargement...</div>
       ) : data.length === 0 ? (
-        <div className="text-center py-8 text-slate-500">Aucune donnée pour cet exercice</div>
+        <div className="text-center py-8 text-discreet">Aucune donnée pour cet exercice</div>
       ) : (
         <div className="overflow-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
-              <tr className="bg-slate-100">
-                <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Code</th>
-                <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Libellé</th>
-                <th className="px-3 py-2 text-right font-medium text-slate-800 border border-slate-200">Débit</th>
-                <th className="px-3 py-2 text-right font-medium text-slate-800 border border-slate-200">Crédit</th>
-                <th className="px-3 py-2 text-right font-medium text-slate-800 border border-slate-200">Solde</th>
+              <tr className="bg-surface-2">
+                <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Code</th>
+                <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Libellé</th>
+                <th className="px-3 py-2 text-right font-medium text-foreground border border-line">Débit</th>
+                <th className="px-3 py-2 text-right font-medium text-foreground border border-line">Crédit</th>
+                <th className="px-3 py-2 text-right font-medium text-foreground border border-line">Solde</th>
               </tr>
             </thead>
             <tbody>
               {data.map((row, i) => (
-                <tr key={i} className="hover:bg-slate-50 border-b border-slate-200">
-                  <td className="px-3 py-2 font-mono text-slate-700 border-r border-slate-200">{row.compte_code}</td>
-                  <td className="px-3 py-2 text-slate-700 border-r border-slate-200">{row.compte_libelle}</td>
-                  <td className="px-3 py-2 text-right text-slate-700 border-r border-slate-200">
+                <tr key={i} className="hover:bg-surface-soft border-b border-line">
+                  <td className="px-3 py-2 font-mono text-foreground border-r border-line">{row.compte_code}</td>
+                  <td className="px-3 py-2 text-foreground border-r border-line">{row.compte_libelle}</td>
+                  <td className="px-3 py-2 text-right text-foreground border-r border-line">
                     {row.total_debit.toFixed(2)}
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-700 border-r border-slate-200">
+                  <td className="px-3 py-2 text-right text-foreground border-r border-line">
                     {row.total_credit.toFixed(2)}
                   </td>
-                  <td className="px-3 py-2 text-right font-medium border-r border-slate-200">
-                    <span className={row.solde_gestion !== 0 ? 'text-slate-800' : 'text-slate-400'}>
+                  <td className="px-3 py-2 text-right font-medium border-r border-line">
+                    <span className={row.solde_gestion !== 0 ? 'text-foreground' : 'text-muted'}>
                       {row.solde_gestion.toFixed(2)}
                     </span>
                   </td>
@@ -263,7 +263,7 @@ function GrandLivreTab() {
     <div className="space-y-4">
       <div className="flex gap-4 items-end">
         <div className="flex-1">
-          <label className="text-xs font-medium text-slate-600 block mb-1">Exercice</label>
+          <label className="text-xs font-medium text-secondary block mb-1">Exercice</label>
           <input
             type="number"
             value={exercice}
@@ -272,7 +272,7 @@ function GrandLivreTab() {
           />
         </div>
         <div className="flex-1">
-          <label className="text-xs font-medium text-slate-600 block mb-1">Filtre compte</label>
+          <label className="text-xs font-medium text-secondary block mb-1">Filtre compte</label>
           <input
             type="text"
             placeholder="ex: 411"
@@ -282,43 +282,43 @@ function GrandLivreTab() {
           />
         </div>
         {data.length > 0 && (
-          <button onClick={exportCSV} className="px-4 py-2 rounded-lg text-sm font-medium border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors">Export CSV</button>
+          <button onClick={exportCSV} className="px-4 py-2 rounded-lg text-sm font-medium border border-line-strong text-foreground hover:bg-surface-2 transition-colors">Export CSV</button>
         )}
       </div>
 
       {error && <div className="p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
 
       {loading ? (
-        <div className="text-center py-8 text-slate-500">Chargement...</div>
+        <div className="text-center py-8 text-discreet">Chargement...</div>
       ) : data.length === 0 ? (
-        <div className="text-center py-8 text-slate-500">Aucune donnée pour ce filtre</div>
+        <div className="text-center py-8 text-discreet">Aucune donnée pour ce filtre</div>
       ) : (
         <div className="overflow-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
-              <tr className="bg-slate-100">
-                <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Date</th>
-                <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Journal</th>
-                <th className="px-3 py-2 text-right font-medium text-slate-800 border border-slate-200">Mv</th>
-                <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Compte</th>
-                <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Libellé</th>
-                <th className="px-3 py-2 text-right font-medium text-slate-800 border border-slate-200">Débit</th>
-                <th className="px-3 py-2 text-right font-medium text-slate-800 border border-slate-200">Crédit</th>
-                <th className="px-3 py-2 text-right font-medium text-slate-800 border border-slate-200">Solde</th>
+              <tr className="bg-surface-2">
+                <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Date</th>
+                <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Journal</th>
+                <th className="px-3 py-2 text-right font-medium text-foreground border border-line">Mv</th>
+                <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Compte</th>
+                <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Libellé</th>
+                <th className="px-3 py-2 text-right font-medium text-foreground border border-line">Débit</th>
+                <th className="px-3 py-2 text-right font-medium text-foreground border border-line">Crédit</th>
+                <th className="px-3 py-2 text-right font-medium text-foreground border border-line">Solde</th>
               </tr>
             </thead>
             <tbody>
               {data.map((row, i) => (
-                <tr key={i} className="hover:bg-slate-50 border-b border-slate-200">
-                  <td className="px-3 py-2 text-slate-700 border-r border-slate-200 whitespace-nowrap">{row.date_ecriture}</td>
-                  <td className="px-3 py-2 font-mono text-slate-700 border-r border-slate-200">{row.journal_code}</td>
-                  <td className="px-3 py-2 text-right text-slate-700 border-r border-slate-200">{row.numero_mouvement}</td>
-                  <td className="px-3 py-2 font-mono text-slate-700 border-r border-slate-200">{row.compte_code}</td>
-                  <td className="px-3 py-2 text-slate-700 border-r border-slate-200">{row.libelle}</td>
-                  <td className="px-3 py-2 text-right text-slate-700 border-r border-slate-200">
+                <tr key={i} className="hover:bg-surface-soft border-b border-line">
+                  <td className="px-3 py-2 text-foreground border-r border-line whitespace-nowrap">{row.date_ecriture}</td>
+                  <td className="px-3 py-2 font-mono text-foreground border-r border-line">{row.journal_code}</td>
+                  <td className="px-3 py-2 text-right text-foreground border-r border-line">{row.numero_mouvement}</td>
+                  <td className="px-3 py-2 font-mono text-foreground border-r border-line">{row.compte_code}</td>
+                  <td className="px-3 py-2 text-foreground border-r border-line">{row.libelle}</td>
+                  <td className="px-3 py-2 text-right text-foreground border-r border-line">
                     {row.debit > 0 ? row.debit.toFixed(2) : ''}
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-700 border-r border-slate-200">
+                  <td className="px-3 py-2 text-right text-foreground border-r border-line">
                     {row.credit > 0 ? row.credit.toFixed(2) : ''}
                   </td>
                   <td className="px-3 py-2 text-right font-medium">{row.solde_courant.toFixed(2)}</td>
@@ -384,7 +384,7 @@ function BilanTab() {
     <div className="space-y-4">
       <div className="flex gap-4 items-end">
         <div>
-          <label className="text-xs font-medium text-slate-600 block mb-1">Exercice</label>
+          <label className="text-xs font-medium text-secondary block mb-1">Exercice</label>
           <input
             type="number"
             value={exercice}
@@ -397,21 +397,21 @@ function BilanTab() {
       {error && <div className="p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
 
       {loading ? (
-        <div className="text-center py-8 text-slate-500">Chargement...</div>
+        <div className="text-center py-8 text-discreet">Chargement...</div>
       ) : (
         <>
           {synthese && (
             <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="p-4 border border-slate-200 rounded-lg">
-                <div className="text-xs text-slate-600 mb-1">Total Actif</div>
-                <div className="text-2xl font-bold text-slate-800">{synthese.total_actif.toFixed(2)} €</div>
+              <div className="p-4 border border-line rounded-lg">
+                <div className="text-xs text-secondary mb-1">Total Actif</div>
+                <div className="text-2xl font-bold text-foreground">{synthese.total_actif.toFixed(2)} €</div>
               </div>
-              <div className="p-4 border border-slate-200 rounded-lg">
-                <div className="text-xs text-slate-600 mb-1">Total Passif</div>
-                <div className="text-2xl font-bold text-slate-800">{synthese.total_passif.toFixed(2)} €</div>
+              <div className="p-4 border border-line rounded-lg">
+                <div className="text-xs text-secondary mb-1">Total Passif</div>
+                <div className="text-2xl font-bold text-foreground">{synthese.total_passif.toFixed(2)} €</div>
               </div>
               <div className={`p-4 border rounded-lg ${Math.abs(synthese.ecart) < 0.01 ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
-                <div className="text-xs text-slate-600 mb-1">Écart</div>
+                <div className="text-xs text-secondary mb-1">Écart</div>
                 <div className={`text-2xl font-bold ${Math.abs(synthese.ecart) < 0.01 ? 'text-green-700' : 'text-red-700'}`}>
                   {synthese.ecart.toFixed(2)} €
                 </div>
@@ -420,31 +420,31 @@ function BilanTab() {
           )}
 
           {detail.length === 0 ? (
-            <div className="text-center py-8 text-slate-500">Aucune donnée pour cet exercice</div>
+            <div className="text-center py-8 text-discreet">Aucune donnée pour cet exercice</div>
           ) : (
             <div className="overflow-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="bg-slate-100">
-                    <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Code</th>
-                    <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Libellé</th>
-                    <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Catégorie</th>
-                    <th className="px-3 py-2 text-right font-medium text-slate-800 border border-slate-200">Montant</th>
+                  <tr className="bg-surface-2">
+                    <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Code</th>
+                    <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Libellé</th>
+                    <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Catégorie</th>
+                    <th className="px-3 py-2 text-right font-medium text-foreground border border-line">Montant</th>
                   </tr>
                 </thead>
                 <tbody>
                   {detail.map((row, i) => (
-                    <tr key={i} className="hover:bg-slate-50 border-b border-slate-200">
-                      <td className="px-3 py-2 font-mono text-slate-700 border-r border-slate-200">{row.code_compte}</td>
-                      <td className="px-3 py-2 text-slate-700 border-r border-slate-200">{row.libelle_compte}</td>
-                      <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
+                    <tr key={i} className="hover:bg-surface-soft border-b border-line">
+                      <td className="px-3 py-2 font-mono text-foreground border-r border-line">{row.code_compte}</td>
+                      <td className="px-3 py-2 text-foreground border-r border-line">{row.libelle_compte}</td>
+                      <td className="px-3 py-2 text-foreground border-r border-line">
                         <span className={`px-2 py-1 rounded text-xs font-medium ${
                           row.categorie === 'actif' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
                         }`}>
                           {row.categorie}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-right text-slate-700">{row.montant.toFixed(2)} €</td>
+                      <td className="px-3 py-2 text-right text-foreground">{row.montant.toFixed(2)} €</td>
                     </tr>
                   ))}
                 </tbody>
@@ -509,7 +509,7 @@ function ResultatTab() {
     <div className="space-y-4">
       <div className="flex gap-4 items-end">
         <div>
-          <label className="text-xs font-medium text-slate-600 block mb-1">Exercice</label>
+          <label className="text-xs font-medium text-secondary block mb-1">Exercice</label>
           <input
             type="number"
             value={exercice}
@@ -522,21 +522,21 @@ function ResultatTab() {
       {error && <div className="p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
 
       {loading ? (
-        <div className="text-center py-8 text-slate-500">Chargement...</div>
+        <div className="text-center py-8 text-discreet">Chargement...</div>
       ) : (
         <>
           {synthese && (
             <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="p-4 border border-slate-200 rounded-lg">
-                <div className="text-xs text-slate-600 mb-1">Total Produits</div>
-                <div className="text-2xl font-bold text-slate-800">{synthese.total_produits.toFixed(2)} €</div>
+              <div className="p-4 border border-line rounded-lg">
+                <div className="text-xs text-secondary mb-1">Total Produits</div>
+                <div className="text-2xl font-bold text-foreground">{synthese.total_produits.toFixed(2)} €</div>
               </div>
-              <div className="p-4 border border-slate-200 rounded-lg">
-                <div className="text-xs text-slate-600 mb-1">Total Charges</div>
-                <div className="text-2xl font-bold text-slate-800">{synthese.total_charges.toFixed(2)} €</div>
+              <div className="p-4 border border-line rounded-lg">
+                <div className="text-xs text-secondary mb-1">Total Charges</div>
+                <div className="text-2xl font-bold text-foreground">{synthese.total_charges.toFixed(2)} €</div>
               </div>
               <div className={`p-4 border rounded-lg ${synthese.resultat_net >= 0 ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
-                <div className="text-xs text-slate-600 mb-1">Résultat Net</div>
+                <div className="text-xs text-secondary mb-1">Résultat Net</div>
                 <div className={`text-2xl font-bold ${synthese.resultat_net >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                   {synthese.resultat_net.toFixed(2)} €
                 </div>
@@ -545,31 +545,31 @@ function ResultatTab() {
           )}
 
           {detail.length === 0 ? (
-            <div className="text-center py-8 text-slate-500">Aucune donnée pour cet exercice</div>
+            <div className="text-center py-8 text-discreet">Aucune donnée pour cet exercice</div>
           ) : (
             <div className="overflow-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="bg-slate-100">
-                    <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Code</th>
-                    <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Libellé</th>
-                    <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Catégorie</th>
-                    <th className="px-3 py-2 text-right font-medium text-slate-800 border border-slate-200">Solde</th>
+                  <tr className="bg-surface-2">
+                    <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Code</th>
+                    <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Libellé</th>
+                    <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Catégorie</th>
+                    <th className="px-3 py-2 text-right font-medium text-foreground border border-line">Solde</th>
                   </tr>
                 </thead>
                 <tbody>
                   {detail.map((row, i) => (
-                    <tr key={i} className="hover:bg-slate-50 border-b border-slate-200">
-                      <td className="px-3 py-2 font-mono text-slate-700 border-r border-slate-200">{row.code_compte}</td>
-                      <td className="px-3 py-2 text-slate-700 border-r border-slate-200">{row.libelle_compte}</td>
-                      <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
+                    <tr key={i} className="hover:bg-surface-soft border-b border-line">
+                      <td className="px-3 py-2 font-mono text-foreground border-r border-line">{row.code_compte}</td>
+                      <td className="px-3 py-2 text-foreground border-r border-line">{row.libelle_compte}</td>
+                      <td className="px-3 py-2 text-foreground border-r border-line">
                         <span className={`px-2 py-1 rounded text-xs font-medium ${
                           row.categorie === 'produits' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
                         }`}>
                           {row.categorie}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-right text-slate-700">{row.solde_gestion.toFixed(2)} €</td>
+                      <td className="px-3 py-2 text-right text-foreground">{row.solde_gestion.toFixed(2)} €</td>
                     </tr>
                   ))}
                 </tbody>
@@ -649,15 +649,15 @@ function ExportFecTab() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-        <h3 className="font-medium text-slate-800 mb-2">Export FEC (Fichier des Écritures Comptables)</h3>
-        <p className="text-sm text-slate-600 mb-4">
+      <div className="bg-surface-soft p-4 rounded-lg border border-line">
+        <h3 className="font-medium text-foreground mb-2">Export FEC (Fichier des Écritures Comptables)</h3>
+        <p className="text-sm text-secondary mb-4">
           Générez un export au format DGFiP (Trésor Public) pour transmission obligatoire en cas de contrôle fiscal.
         </p>
 
         <div className="flex gap-4 items-end">
           <div className="flex-1 max-w-xs">
-            <label className="text-xs font-medium text-slate-600 block mb-1">Exercice</label>
+            <label className="text-xs font-medium text-secondary block mb-1">Exercice</label>
             <input
               type="number"
               value={exercice}
@@ -684,7 +684,7 @@ function ExportFecTab() {
         <p className="text-sm text-blue-800 mb-2">
           Le fichier généré respecte le format DGFiP avec séparateur pipe (|):
         </p>
-        <pre className="bg-white p-3 rounded text-xs border border-blue-200 overflow-auto">
+        <pre className="bg-surface p-3 rounded text-xs border border-blue-200 overflow-auto">
 {`JournalCode|Date|CompteNum|Debit|Credit|EcritureLib|...
 AC|2026-04-01|401000|1500.00|0.00|Facture fournisseur...
 VT|2026-04-02|411000|0.00|5000.00|Facture client...`}
@@ -700,11 +700,11 @@ export default function Comptabilite() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800 mb-1">Comptabilité Générale</h1>
-        <p className="text-sm text-slate-600">Saisie, états légaux et reporting comptable</p>
+        <h1 className="text-2xl font-bold text-foreground mb-1">Comptabilité Générale</h1>
+        <p className="text-sm text-secondary">Saisie, états légaux et reporting comptable</p>
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 p-6">
+      <div className="bg-surface rounded-lg border border-line p-6">
         <TabBar active={activeTab} onChange={setActiveTab} />
 
         {activeTab === 'saisie' && <SaisieEcrituresTab />}

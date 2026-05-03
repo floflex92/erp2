@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import {
@@ -327,9 +327,9 @@ export default function EspaceClient() {
   return (
     <div className="space-y-5 p-5 md:p-6">
       <div className="nx-panel px-6 py-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">Portail client</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-discreet">Portail client</p>
         <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Espace client entreprise</h2>
-        <p className="mt-1.5 max-w-3xl text-sm text-slate-600">Inscription societe, demandes transport, suivi exploitation, facturation et gestion des acces employes.</p>
+        <p className="mt-1.5 max-w-3xl text-sm text-secondary">Inscription societe, demandes transport, suivi exploitation, facturation et gestion des acces employes.</p>
       </div>
 
       {error && <div className="nx-status-error rounded-2xl border border-red-200 px-4 py-3 text-sm">{error}</div>}
@@ -363,7 +363,7 @@ export default function EspaceClient() {
               <div className="flex flex-wrap gap-4">
                 {[{ key: 'demande', label: 'Demande transport' }, { key: 'suivi', label: 'Statut demandes' }, { key: 'facturation', label: 'Facturation' }, { key: 'co2', label: '🌿 Bilan CO₂' }, { key: 'comptes', label: 'Comptes employes' }].map(item => {
                   const active = tab === item.key
-                  return <button key={item.key} type="button" onClick={() => setTab(item.key as PortalTab)} className={`px-1 py-3 text-sm font-semibold ${active ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-slate-700'}`}>{item.label}</button>
+                  return <button key={item.key} type="button" onClick={() => setTab(item.key as PortalTab)} className={`px-1 py-3 text-sm font-semibold ${active ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-foreground'}`}>{item.label}</button>
                 })}
               </div>
             </div>
@@ -389,7 +389,7 @@ export default function EspaceClient() {
 
             {tab === 'suivi' && (
               <div className="p-5 space-y-3">
-                {requests.length === 0 && <p className="text-sm text-slate-500">Aucune demande transport.</p>}
+                {requests.length === 0 && <p className="text-sm text-discreet">Aucune demande transport.</p>}
                 {requests.map(item => {
                   const editable = ['soumise', 'en_etude', 'modification_demandee'].includes(item.status)
                   return (
@@ -398,10 +398,10 @@ export default function EspaceClient() {
                         <p className="text-sm font-semibold text-slate-950">{item.reference}</p>
                         <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${requestStatusClass(item.status)}`}>{REQUEST_STATUS_LABELS[item.status]}</span>
                       </div>
-                      <p className="mt-1 text-xs text-slate-500">{item.pickupAddress} {'->'} {item.deliveryAddress}</p>
-                      <p className="mt-1 text-xs text-slate-500">Chargement: {formatDate(item.pickupDatetime)} | Livraison: {formatDate(item.deliveryDatetime)}</p>
-                      {item.exploitationNote && <p className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">Note exploitation: {item.exploitationNote}</p>}
-                      <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                      <p className="mt-1 text-xs text-discreet">{item.pickupAddress} {'->'} {item.deliveryAddress}</p>
+                      <p className="mt-1 text-xs text-discreet">Chargement: {formatDate(item.pickupDatetime)} | Livraison: {formatDate(item.deliveryDatetime)}</p>
+                      {item.exploitationNote && <p className="mt-2 rounded-xl bg-surface-soft px-3 py-2 text-xs text-secondary">Note exploitation: {item.exploitationNote}</p>}
+                      <div className="mt-3 flex items-center justify-between text-xs text-discreet">
                         <span>Mise a jour: {formatDate(item.updatedAt)}</span>
                         {editable && <button type="button" onClick={() => editRequest(item)} className="font-semibold text-[color:var(--primary)] hover:underline">Modifier</button>}
                       </div>
@@ -413,27 +413,27 @@ export default function EspaceClient() {
 
             {tab === 'facturation' && (
               <div className="p-5">
-                {!onboarding.clientId && <p className="text-sm text-slate-500">Facturation visible apres integration CRM.</p>}
-                {onboarding.clientId && loadingInvoices && <p className="text-sm text-slate-500">Chargement des factures...</p>}
-                {onboarding.clientId && !loadingInvoices && invoices.length === 0 && <p className="text-sm text-slate-500">Aucune facture disponible.</p>}
+                {!onboarding.clientId && <p className="text-sm text-discreet">Facturation visible apres integration CRM.</p>}
+                {onboarding.clientId && loadingInvoices && <p className="text-sm text-discreet">Chargement des factures...</p>}
+                {onboarding.clientId && !loadingInvoices && invoices.length === 0 && <p className="text-sm text-discreet">Aucune facture disponible.</p>}
                 {invoices.length > 0 && (
                   <div className="overflow-hidden rounded-2xl border" style={{ borderColor: 'var(--border)' }}>
                     <table className="w-full text-sm">
-                      <thead className="bg-slate-50">
+                      <thead className="bg-surface-soft">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Numero</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Statut</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Emission</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Montant TTC</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-discreet">Numero</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-discreet">Statut</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-discreet">Emission</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-discreet">Montant TTC</th>
                         </tr>
                       </thead>
                       <tbody>
                         {invoices.map(item => (
                           <tr key={item.id} className="border-t border-slate-100">
-                            <td className="px-4 py-3 font-medium text-slate-900">{item.numero}</td>
-                            <td className="px-4 py-3 text-slate-600">{item.statut}</td>
-                            <td className="px-4 py-3 text-slate-600">{new Date(item.dateEmission).toLocaleDateString('fr-FR')}</td>
-                            <td className="px-4 py-3 font-semibold text-slate-900">{formatMoney(item.montantTtc ?? item.montantHt)}</td>
+                            <td className="px-4 py-3 font-medium text-heading">{item.numero}</td>
+                            <td className="px-4 py-3 text-secondary">{item.statut}</td>
+                            <td className="px-4 py-3 text-secondary">{new Date(item.dateEmission).toLocaleDateString('fr-FR')}</td>
+                            <td className="px-4 py-3 font-semibold text-heading">{formatMoney(item.montantTtc ?? item.montantHt)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -446,13 +446,13 @@ export default function EspaceClient() {
             {tab === 'co2' && (
               <div className="p-5">
                 {!onboarding.clientId && (
-                  <p className="text-sm text-slate-500">Bilan CO₂ disponible apres integration CRM.</p>
+                  <p className="text-sm text-discreet">Bilan CO₂ disponible apres integration CRM.</p>
                 )}
                 {onboarding.clientId && loadingCo2 && (
-                  <p className="text-sm text-slate-500">Chargement du bilan CO₂...</p>
+                  <p className="text-sm text-discreet">Chargement du bilan CO₂...</p>
                 )}
                 {onboarding.clientId && !loadingCo2 && co2Ots.length === 0 && (
-                  <p className="text-sm text-slate-500">Aucun transport disponible pour le calcul CO₂.</p>
+                  <p className="text-sm text-discreet">Aucun transport disponible pour le calcul CO₂.</p>
                 )}
                 {co2Ots.length > 0 && (
                   <Co2ClientPanel
@@ -470,10 +470,10 @@ export default function EspaceClient() {
                   <Field label="Nom complet"><input value={employeeForm.fullName} onChange={event => setEmployeeForm(current => ({ ...current, fullName: event.target.value }))} className="w-full rounded-xl px-3 py-2 text-sm" /></Field>
                   <Field label="Email"><input type="email" value={employeeForm.email} onChange={event => setEmployeeForm(current => ({ ...current, email: event.target.value }))} className="w-full rounded-xl px-3 py-2 text-sm" /></Field>
                   <div className="md:col-span-2">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Permissions</p>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-discreet">Permissions</p>
                     <div className="space-y-2 rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface-soft)' }}>
                       {CLIENT_PERMISSION_OPTIONS.map(option => (
-                        <label key={option.key} className="flex items-center gap-2 text-sm text-slate-700">
+                        <label key={option.key} className="flex items-center gap-2 text-sm text-foreground">
                           <input type="checkbox" checked={employeeForm.permissions.includes(option.key)} onChange={() => togglePermission(option.key)} />
                           {option.label}
                         </label>
@@ -487,18 +487,18 @@ export default function EspaceClient() {
                 </form>
 
                 <div className="mt-5 space-y-2">
-                  {employees.length === 0 && <p className="text-sm text-slate-500">Aucun employe enregistre.</p>}
+                  {employees.length === 0 && <p className="text-sm text-discreet">Aucun employe enregistre.</p>}
                   {employees.map(employee => (
                     <div key={employee.id} className="rounded-xl border px-3 py-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <p className="text-sm font-semibold text-slate-950">{employee.fullName}</p>
-                          <p className="text-xs text-slate-500">{employee.email}</p>
+                          <p className="text-xs text-discreet">{employee.email}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${employee.active ? 'nx-status-success' : 'nx-status-error'}`}>{employee.active ? 'Actif' : 'Desactive'}</span>
                           <button type="button" onClick={() => editEmployee(employee)} className="text-xs font-semibold text-[color:var(--primary)] hover:underline">Editer</button>
-                          <button type="button" onClick={() => toggleEmployee(employee)} className="text-xs font-semibold text-slate-600 hover:text-slate-900">{employee.active ? 'Desactiver' : 'Activer'}</button>
+                          <button type="button" onClick={() => toggleEmployee(employee)} className="text-xs font-semibold text-secondary hover:text-heading">{employee.active ? 'Desactiver' : 'Activer'}</button>
                         </div>
                       </div>
                     </div>
@@ -586,8 +586,8 @@ function Co2ClientPanel({ results, clientNom }: { results: OtCo2Result[]; client
           { label: 'Poids total', value: `${poidsTotalT.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} t` },
         ].map(kpi => (
           <div key={kpi.label} className="nx-panel px-4 py-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">{kpi.label}</p>
-            <p className="mt-2 text-lg font-bold text-slate-900">{kpi.value}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-discreet">{kpi.label}</p>
+            <p className="mt-2 text-lg font-bold text-heading">{kpi.value}</p>
           </div>
         ))}
       </div>
@@ -596,24 +596,24 @@ function Co2ClientPanel({ results, clientNom }: { results: OtCo2Result[]; client
       {view === 'detail' && (
         <div className="overflow-hidden rounded-2xl border" style={{ borderColor: 'var(--border)' }}>
           <table className="w-full text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-surface-soft">
               <tr>
                 {['Reference', 'Date', 'Type', 'Distance', 'Poids', 'CO\u2082', 'Estimation'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">{h}</th>
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-discreet">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map(r => (
                 <tr key={r.id} className="border-t border-slate-100">
-                  <td className="px-4 py-3 font-mono text-xs font-medium text-slate-900">{r.reference}</td>
-                  <td className="px-4 py-3 text-slate-500">
+                  <td className="px-4 py-3 font-mono text-xs font-medium text-heading">{r.reference}</td>
+                  <td className="px-4 py-3 text-discreet">
                     {r.date_chargement_prevue ? new Date(r.date_chargement_prevue).toLocaleDateString('fr-FR') : '\u2014'}
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{r.type_transport}</td>
-                  <td className="px-4 py-3 text-right text-slate-600">{r.distance_utilisee.toLocaleString('fr-FR')} km</td>
-                  <td className="px-4 py-3 text-right text-slate-600">{r.poids_t_utilise.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} t</td>
-                  <td className="px-4 py-3 text-right font-semibold text-slate-900">{formatCo2(r.co2_kg)}</td>
+                  <td className="px-4 py-3 text-secondary">{r.type_transport}</td>
+                  <td className="px-4 py-3 text-right text-secondary">{r.distance_utilisee.toLocaleString('fr-FR')} km</td>
+                  <td className="px-4 py-3 text-right text-secondary">{r.poids_t_utilise.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} t</td>
+                  <td className="px-4 py-3 text-right font-semibold text-heading">{formatCo2(r.co2_kg)}</td>
                   <td className="px-4 py-3 text-center text-xs">
                     {r.estimation ? <span className="text-amber-500" title="Poids ou distance estim\u00e9">\u26a0 Est.</span> : <span className="text-emerald-600">Mesure</span>}
                   </td>
@@ -626,15 +626,15 @@ function Co2ClientPanel({ results, clientNom }: { results: OtCo2Result[]; client
 
       {/* Repartition par annee (vue resume) */}
       {view === 'resume' && years.length > 1 && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <h4 className="text-sm font-semibold text-slate-700 mb-3">Repartition annuelle</h4>
+        <div className="rounded-xl border border-line bg-surface-soft p-4">
+          <h4 className="text-sm font-semibold text-foreground mb-3">Repartition annuelle</h4>
           <div className="space-y-2">
             {years.map(y => {
               const annualCo2 = results.filter(r => (r.date_chargement_prevue ?? '').startsWith(y)).reduce((s, r) => s + r.co2_kg, 0)
               const maxCo2 = Math.max(...years.map(yr => results.filter(r => (r.date_chargement_prevue ?? '').startsWith(yr)).reduce((s, r) => s + r.co2_kg, 0)))
               return (
                 <div key={y} className="flex items-center gap-3 text-sm">
-                  <span className="w-12 text-slate-500">{y}</span>
+                  <span className="w-12 text-discreet">{y}</span>
                   <div className="flex-1 h-5 rounded-full bg-slate-200">
                     <div
                       className="h-5 rounded-full bg-emerald-400 flex items-center justify-end pr-2"
@@ -656,7 +656,7 @@ function Co2ClientPanel({ results, clientNom }: { results: OtCo2Result[]; client
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{label}</span>
+      <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-discreet">{label}</span>
       {children}
     </label>
   )
@@ -665,9 +665,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function MetricCard({ label, value, detail, badgeClass }: { label: string; value: string; detail: string; badgeClass?: string }) {
   return (
     <div className="nx-panel px-4 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-discreet">{label}</p>
       <p className={`mt-2 text-base font-semibold ${badgeClass ? `inline-flex rounded-full px-2 py-1 text-[11px] ${badgeClass}` : 'text-slate-950'}`}>{value}</p>
-      <p className="mt-1 text-xs text-slate-500">{detail}</p>
+      <p className="mt-1 text-xs text-discreet">{detail}</p>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
 interface Prospect {
@@ -13,7 +13,7 @@ interface Prospect {
 }
 
 const STATUT_META: Record<string, { label: string; color: string; order: number }> = {
-  lead: { label: 'Lead', color: 'bg-slate-100 text-slate-600', order: 0 },
+  lead: { label: 'Lead', color: 'bg-surface-2 text-secondary', order: 0 },
   qualification: { label: 'Qualification', color: 'bg-blue-50 text-blue-700', order: 1 },
   devis_envoye: { label: 'Devis envoye', color: 'nx-status-warning', order: 2 },
   negociation: { label: 'Negociation', color: 'nx-status-warning', order: 3 },
@@ -77,33 +77,33 @@ export function WidgetPipelineProspects() {
             <button
               key={tab.id}
               onClick={() => setFilterStatut(tab.id)}
-              className={`px-2.5 py-1 text-xs font-semibold transition-colors ${active ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-slate-700'}`}
+              className={`px-2.5 py-1 text-xs font-semibold transition-colors ${active ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-foreground'}`}
             >
               {tab.label}
             </button>
           )
         })}
         {totalPotentiel > 0 && (
-          <span className="ml-auto text-xs font-semibold text-slate-700">Potentiel : {(totalPotentiel / 1000).toFixed(0)}k EUR/mois</span>
+          <span className="ml-auto text-xs font-semibold text-foreground">Potentiel : {(totalPotentiel / 1000).toFixed(0)}k EUR/mois</span>
         )}
       </div>
 
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-10">
-          <p className="text-sm text-slate-500">Aucun prospect</p>
+          <p className="text-sm text-discreet">Aucun prospect</p>
         </div>
       ) : (
         <div className="divide-y divide-slate-100">
           {filtered.map(p => {
-            const meta = STATUT_META[p.statut] ?? { label: p.statut, color: 'bg-slate-100 text-slate-600', order: 0 }
+            const meta = STATUT_META[p.statut] ?? { label: p.statut, color: 'bg-surface-2 text-secondary', order: 0 }
             return (
-              <div key={p.id} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-50">
+              <div key={p.id} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-soft">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-medium text-slate-950">{p.nom_entreprise}</p>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${meta.color}`}>{meta.label}</span>
                   </div>
-                  <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
+                  <div className="mt-0.5 flex items-center gap-2 text-xs text-discreet">
                     {p.secteur && <span>{p.secteur}</span>}
                     {p.secteur && p.type_transport && <span>•</span>}
                     {p.type_transport && <span>{p.type_transport}</span>}

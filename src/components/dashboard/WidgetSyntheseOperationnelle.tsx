@@ -77,14 +77,14 @@ export function WidgetSyntheseOperationnelle() {
     <div className="space-y-4 p-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl border px-3 py-3" style={{ borderColor: 'var(--border)' }}>
-          <p className="text-xs text-slate-500">Flux actif</p>
+          <p className="text-xs text-discreet">Flux actif</p>
           <p className="mt-1 text-xl font-semibold text-slate-950">{totalActif}</p>
-          <p className="text-xs text-slate-500">OT a traiter</p>
+          <p className="text-xs text-discreet">OT a traiter</p>
         </div>
         <div className="rounded-xl border px-3 py-3" style={{ borderColor: 'var(--border)' }}>
-          <p className="text-xs text-slate-500">OT livres</p>
+          <p className="text-xs text-discreet">OT livres</p>
           <p className="mt-1 text-xl font-semibold text-slate-950">{data.livre}</p>
-          <p className="text-xs text-slate-500">Suivi qualite</p>
+          <p className="text-xs text-discreet">Suivi qualite</p>
         </div>
       </div>
 
@@ -94,10 +94,10 @@ export function WidgetSyntheseOperationnelle() {
           return (
             <div key={metric.id}>
               <div className="mb-1 flex items-center justify-between text-xs">
-                <span className="text-slate-600">{metric.label}</span>
-                <span className="font-semibold text-slate-900">{metric.value} ({percent}%)</span>
+                <span className="text-secondary">{metric.label}</span>
+                <span className="font-semibold text-heading">{metric.value} ({percent}%)</span>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-2 overflow-hidden rounded-full bg-surface-2">
                 <div className={`h-full ${metric.tone}`} style={{ width: `${percent}%` }} />
               </div>
             </div>

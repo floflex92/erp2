@@ -184,13 +184,13 @@ export function ServicesOverviewCard({ companyId }: Props) {
                         <div key={exploitant.id} className="rounded-lg border px-3 py-2" style={{ borderColor: 'var(--border)' }}>
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="text-sm font-medium text-[color:var(--text)]">{exploitant.name}</p>
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-800">
+                            <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-semibold text-foreground">
                               {exploitant.type_exploitant}
                             </span>
                           </div>
                           <div className="mt-2 flex flex-wrap items-center gap-2">
                             <select
-                              className="rounded-lg border bg-white px-2 py-1.5 text-xs text-slate-900"
+                              className="rounded-lg border bg-surface px-2 py-1.5 text-xs text-heading"
                               style={{ borderColor: 'var(--border)' }}
                               value={targetService}
                               disabled={!canManage || !health.ready || exploitantsSaving || otherServices.length === 0}
@@ -219,10 +219,10 @@ export function ServicesOverviewCard({ companyId }: Props) {
                   )}
 
                   <div className="rounded-lg border border-dashed px-3 py-2" style={{ borderColor: 'var(--border)' }}>
-                    <p className="text-xs font-semibold text-slate-800">Affecter un exploitant a ce service</p>
+                    <p className="text-xs font-semibold text-foreground">Affecter un exploitant a ce service</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <select
-                        className="rounded-lg border bg-white px-2 py-1.5 text-xs text-slate-900"
+                        className="rounded-lg border bg-surface px-2 py-1.5 text-xs text-heading"
                         style={{ borderColor: 'var(--border)' }}
                         value={assignCandidateByService[service.id] ?? ''}
                         disabled={!canManage || !health.ready || exploitantsSaving}
@@ -257,19 +257,19 @@ export function ServicesOverviewCard({ companyId }: Props) {
 
           <form className="mt-4 space-y-3" onSubmit={event => void handleCreate(event)}>
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-slate-700">Nom</span>
+              <span className="mb-1.5 block text-sm font-medium text-foreground">Nom</span>
               <input className={inputClassName} value={name} onChange={event => setName(event.target.value)} disabled={!canManage || !health.ready || isSaving} />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-slate-700">Code</span>
+              <span className="mb-1.5 block text-sm font-medium text-foreground">Code</span>
               <input className={inputClassName} value={code} onChange={event => setCode(event.target.value.toUpperCase())} disabled={!canManage || !health.ready || isSaving} />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-slate-700">Description</span>
+              <span className="mb-1.5 block text-sm font-medium text-foreground">Description</span>
               <textarea className={`${inputClassName} min-h-[88px] resize-none`} value={description} onChange={event => setDescription(event.target.value)} disabled={!canManage || !health.ready || isSaving} />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-slate-700">Couleur</span>
+              <span className="mb-1.5 block text-sm font-medium text-foreground">Couleur</span>
               <div className="flex flex-wrap gap-2">
                 {DEFAULT_SERVICE_COLORS.map(candidate => (
                   <button

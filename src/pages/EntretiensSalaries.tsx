@@ -26,7 +26,7 @@ import {
   type InterviewType,
 } from '@/lib/hrInterviewsModule'
 
-const inputClass = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-500'
+const inputClass = 'w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-heading outline-none focus:border-slate-500'
 
 type ProfileLite = {
   id: string
@@ -43,7 +43,7 @@ function profileLabel(profile: ProfileLite | null | undefined) {
 
 function statusClass(status: string) {
   const map: Record<string, string> = {
-    a_planifier: 'bg-slate-100 text-slate-700',
+    a_planifier: 'bg-surface-2 text-foreground',
     planifie: 'bg-blue-100 text-blue-700',
     convocation_a_preparer: 'bg-amber-100 text-amber-800',
     convocation_envoyee: 'bg-cyan-100 text-cyan-700',
@@ -55,14 +55,14 @@ function statusClass(status: string) {
     cloture: 'bg-teal-100 text-teal-700',
     reporte: 'bg-fuchsia-100 text-fuchsia-700',
     annule: 'bg-rose-100 text-rose-700',
-    archive: 'bg-slate-200 text-slate-600',
+    archive: 'bg-slate-200 text-secondary',
   }
-  return map[status] ?? 'bg-slate-100 text-slate-700'
+  return map[status] ?? 'bg-surface-2 text-foreground'
 }
 
 function priorityClass(priority: InterviewPriority) {
   const map: Record<InterviewPriority, string> = {
-    basse: 'bg-slate-100 text-slate-600',
+    basse: 'bg-surface-2 text-secondary',
     normale: 'bg-blue-100 text-blue-700',
     haute: 'bg-amber-100 text-amber-800',
     critique: 'bg-red-100 text-red-700',
@@ -309,9 +309,9 @@ export default function EntretiensSalaries() {
 
   return (
     <div className="space-y-4">
-      <header className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-xl font-semibold text-slate-900">Entretiens salaries</h2>
-        <p className="mt-1 text-sm text-slate-600">
+      <header className="rounded-xl border border-line bg-surface p-4">
+        <h2 className="text-xl font-semibold text-heading">Entretiens salaries</h2>
+        <p className="mt-1 text-sm text-secondary">
           Vue globale RH, dossier individuel et suivi documentaire relies a une source unique.
         </p>
       </header>
@@ -329,8 +329,8 @@ export default function EntretiensSalaries() {
         <KpiCard label="Comptes rendus en attente" value={kpis.pendingReport} />
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-900">Nouveau entretien</h3>
+      <section className="rounded-xl border border-line bg-surface p-4">
+        <h3 className="text-sm font-semibold text-heading">Nouveau entretien</h3>
         <div className="mt-3 grid gap-3 md:grid-cols-5">
           <select className={inputClass} value={createTypeId} onChange={event => setCreateTypeId(event.target.value)}>
             <option value="">Type</option>
@@ -356,8 +356,8 @@ export default function EntretiensSalaries() {
         />
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-900">Filtres globaux</h3>
+      <section className="rounded-xl border border-line bg-surface p-4">
+        <h3 className="text-sm font-semibold text-heading">Filtres globaux</h3>
         <div className="mt-3 grid gap-3 md:grid-cols-6">
           <select className={inputClass} value={filters.category ?? ''} onChange={event => setFilters(current => ({ ...current, category: (event.target.value || undefined) as InterviewCategory | undefined }))}>
             <option value="">Categorie</option>
@@ -388,16 +388,16 @@ export default function EntretiensSalaries() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <h3 className="text-sm font-semibold text-slate-900">Liste globale</h3>
+        <div className="rounded-xl border border-line bg-surface p-4">
+          <h3 className="text-sm font-semibold text-heading">Liste globale</h3>
           <div className="mt-3 max-h-[420px] overflow-auto">
             {loading ? (
-              <p className="text-sm text-slate-500">Chargement...</p>
+              <p className="text-sm text-discreet">Chargement...</p>
             ) : interviews.length === 0 ? (
-              <p className="text-sm text-slate-500">Aucun entretien.</p>
+              <p className="text-sm text-discreet">Aucun entretien.</p>
             ) : (
               <table className="w-full min-w-[760px] text-sm">
-                <thead className="text-left text-xs text-slate-500">
+                <thead className="text-left text-xs text-discreet">
                   <tr>
                     <th className="pb-2">Salarie</th>
                     <th className="pb-2">Type</th>
@@ -414,7 +414,7 @@ export default function EntretiensSalaries() {
                         setSelectedInterviewId(item.id)
                         setSelectedEmployeeId(item.employee_profile_id)
                       }}
-                      className={`cursor-pointer border-t border-slate-100 ${item.id === selectedInterviewId ? 'bg-slate-50' : ''}`}
+                      className={`cursor-pointer border-t border-slate-100 ${item.id === selectedInterviewId ? 'bg-surface-soft' : ''}`}
                     >
                       <td className="py-2">{profileLabel(item.employee ?? null)}</td>
                       <td className="py-2">{item.interview_type?.name ?? 'Type non charge'}</td>
@@ -438,10 +438,10 @@ export default function EntretiensSalaries() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <h3 className="text-sm font-semibold text-slate-900">Fiche entretien</h3>
+          <div className="rounded-xl border border-line bg-surface p-4">
+            <h3 className="text-sm font-semibold text-heading">Fiche entretien</h3>
             {!selectedInterview ? (
-              <p className="mt-2 text-sm text-slate-500">Selectionne un entretien.</p>
+              <p className="mt-2 text-sm text-discreet">Selectionne un entretien.</p>
             ) : (
               <div className="mt-3 space-y-2 text-sm">
                 <p><span className="font-medium">Salarie:</span> {profileLabel(selectedInterview.employee ?? null)}</p>
@@ -452,7 +452,7 @@ export default function EntretiensSalaries() {
                 <p><span className="font-medium">Motif:</span> {selectedInterview.reason || '-'}</p>
                 <p><span className="font-medium">Resume:</span> {selectedInterview.summary || '-'}</p>
                 <div className="pt-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Transitions possibles</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-discreet">Transitions possibles</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {(INTERVIEW_STATUS_TRANSITIONS[selectedInterview.status] ?? []).map(target => (
                       <button
@@ -460,13 +460,13 @@ export default function EntretiensSalaries() {
                         type="button"
                         disabled={statusSaving}
                         onClick={() => void handleTransitionInterview(target)}
-                        className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        className="rounded-lg border border-line px-2.5 py-1 text-xs text-foreground hover:bg-surface-soft disabled:opacity-50"
                       >
                         {INTERVIEW_STATUS_LABELS[target]}
                       </button>
                     ))}
                     {(INTERVIEW_STATUS_TRANSITIONS[selectedInterview.status] ?? []).length === 0 && (
-                      <span className="text-xs text-slate-400">Aucune transition disponible</span>
+                      <span className="text-xs text-muted">Aucune transition disponible</span>
                     )}
                   </div>
                 </div>
@@ -474,22 +474,22 @@ export default function EntretiensSalaries() {
             )}
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <h3 className="text-sm font-semibold text-slate-900">Actions</h3>
+          <div className="rounded-xl border border-line bg-surface p-4">
+            <h3 className="text-sm font-semibold text-heading">Actions</h3>
             <ul className="mt-2 space-y-2 text-sm">
-              {actions.length === 0 && <li className="text-slate-500">Aucune action.</li>}
+              {actions.length === 0 && <li className="text-discreet">Aucune action.</li>}
               {actions.map(item => (
-                <li key={item.id} className="rounded-md border border-slate-200 p-2">
-                  <p className="font-medium text-slate-800">{item.title}</p>
-                  <p className="text-xs text-slate-600">{item.status} {item.due_date ? `- echeance ${new Date(item.due_date).toLocaleDateString('fr-FR')}` : ''}</p>
+                <li key={item.id} className="rounded-md border border-line p-2">
+                  <p className="font-medium text-foreground">{item.title}</p>
+                  <p className="text-xs text-secondary">{item.status} {item.due_date ? `- echeance ${new Date(item.due_date).toLocaleDateString('fr-FR')}` : ''}</p>
                 </li>
               ))}
             </ul>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="rounded-xl border border-line bg-surface p-4">
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-slate-900">Documents</h3>
+              <h3 className="text-sm font-semibold text-heading">Documents</h3>
               <button
                 type="button"
                 onClick={() => void handleCreateDocument()}
@@ -500,11 +500,11 @@ export default function EntretiensSalaries() {
               </button>
             </div>
             <ul className="mt-2 space-y-2 text-sm">
-              {documents.length === 0 && <li className="text-slate-500">Aucun document.</li>}
+              {documents.length === 0 && <li className="text-discreet">Aucun document.</li>}
               {documents.map(item => (
-                <li key={item.id} className="rounded-md border border-slate-200 p-2">
-                  <p className="font-medium text-slate-800">{item.name}</p>
-                  <p className="text-xs text-slate-600">{item.document_type} - {item.status} - v{item.current_version}</p>
+                <li key={item.id} className="rounded-md border border-line p-2">
+                  <p className="font-medium text-foreground">{item.name}</p>
+                  <p className="text-xs text-secondary">{item.document_type} - {item.status} - v{item.current_version}</p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {(INTERVIEW_DOCUMENT_STATUS_TRANSITIONS[item.status] ?? []).map(target => (
                       <button
@@ -512,14 +512,14 @@ export default function EntretiensSalaries() {
                         type="button"
                         disabled={documentActionId === item.id}
                         onClick={() => void handleDocumentStatus(item, target)}
-                        className="rounded border border-slate-200 px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                        className="rounded border border-line px-2 py-1 text-[11px] text-secondary hover:bg-surface-soft disabled:opacity-50"
                       >
                         {target}
                       </button>
                     ))}
                   </div>
                   <div className="mt-2">
-                    <label className="inline-flex cursor-pointer items-center gap-2 rounded border border-slate-200 px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-50">
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded border border-line px-2 py-1 text-[11px] text-secondary hover:bg-surface-soft">
                       Upload scan signe
                       <input
                         type="file"
@@ -534,11 +534,11 @@ export default function EntretiensSalaries() {
                     </label>
                   </div>
                   {(documentVersions[item.id] ?? []).length > 0 && (
-                    <div className="mt-2 rounded border border-slate-100 bg-slate-50 p-2">
-                      <p className="text-[11px] font-medium text-slate-600">Versions</p>
+                    <div className="mt-2 rounded border border-slate-100 bg-surface-soft p-2">
+                      <p className="text-[11px] font-medium text-secondary">Versions</p>
                       <ul className="mt-1 space-y-1">
                         {(documentVersions[item.id] ?? []).map(version => (
-                          <li key={version.id} className="text-[11px] text-slate-500">
+                          <li key={version.id} className="text-[11px] text-discreet">
                             v{version.version} · {version.file_name ?? 'fichier'}{version.is_signed_scan ? ' · scan signe' : ''}
                           </li>
                         ))}
@@ -550,14 +550,14 @@ export default function EntretiensSalaries() {
             </ul>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <h3 className="text-sm font-semibold text-slate-900">Objectifs lies</h3>
+          <div className="rounded-xl border border-line bg-surface p-4">
+            <h3 className="text-sm font-semibold text-heading">Objectifs lies</h3>
             <ul className="mt-2 space-y-2 text-sm">
-              {objectives.length === 0 && <li className="text-slate-500">Aucun objectif lie.</li>}
+              {objectives.length === 0 && <li className="text-discreet">Aucun objectif lie.</li>}
               {objectives.map(item => (
-                <li key={item.id} className="rounded-md border border-slate-200 p-2">
-                  <p className="font-medium text-slate-800">{item.objective_label_snapshot}</p>
-                  <p className="text-xs text-slate-600">
+                <li key={item.id} className="rounded-md border border-line p-2">
+                  <p className="font-medium text-foreground">{item.objective_label_snapshot}</p>
+                  <p className="text-xs text-secondary">
                     Realise: {item.achieved_value_snapshot ?? '-'} / Cible: {item.target_value_snapshot ?? '-'} {item.unit_snapshot ?? ''}
                   </p>
                 </li>
@@ -567,10 +567,10 @@ export default function EntretiensSalaries() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
+      <section className="rounded-xl border border-line bg-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-sm font-semibold text-slate-900">Dossier salarie - onglet Entretiens</h3>
-          <select className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" value={selectedEmployeeId} onChange={event => setSelectedEmployeeId(event.target.value)}>
+          <h3 className="text-sm font-semibold text-heading">Dossier salarie - onglet Entretiens</h3>
+          <select className="rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm" value={selectedEmployeeId} onChange={event => setSelectedEmployeeId(event.target.value)}>
             <option value="">Selectionner un salarie</option>
             {employees.map(item => <option key={item.id} value={item.id}>{profileLabel(item)}</option>)}
           </select>
@@ -591,7 +591,7 @@ export default function EntretiensSalaries() {
               key={item.key}
               type="button"
               onClick={() => setEmployeeCategory(item.key as 'all' | InterviewCategory)}
-              className={`rounded-full px-3 py-1 text-xs font-medium ${employeeCategory === item.key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}
+              className={`rounded-full px-3 py-1 text-xs font-medium ${employeeCategory === item.key ? 'bg-slate-900 text-white' : 'bg-surface-2 text-foreground'}`}
             >
               {item.label}
             </button>
@@ -599,27 +599,27 @@ export default function EntretiensSalaries() {
         </div>
 
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <div className="rounded-lg border border-slate-200 p-3">
-            <p className="text-xs font-medium uppercase text-slate-500">Prochain entretien</p>
-            <p className="mt-1 text-sm text-slate-800">{employeeNextInterview ? `${employeeNextInterview.interview_type?.name ?? 'Type'} - ${employeeNextInterview.planned_at ? new Date(employeeNextInterview.planned_at).toLocaleDateString('fr-FR') : '-'}` : 'Aucun'}</p>
+          <div className="rounded-lg border border-line p-3">
+            <p className="text-xs font-medium uppercase text-discreet">Prochain entretien</p>
+            <p className="mt-1 text-sm text-foreground">{employeeNextInterview ? `${employeeNextInterview.interview_type?.name ?? 'Type'} - ${employeeNextInterview.planned_at ? new Date(employeeNextInterview.planned_at).toLocaleDateString('fr-FR') : '-'}` : 'Aucun'}</p>
           </div>
-          <div className="rounded-lg border border-slate-200 p-3">
-            <p className="text-xs font-medium uppercase text-slate-500">Dernier entretien</p>
-            <p className="mt-1 text-sm text-slate-800">{employeeLastInterview ? `${employeeLastInterview.interview_type?.name ?? 'Type'} - ${employeeLastInterview.planned_at ? new Date(employeeLastInterview.planned_at).toLocaleDateString('fr-FR') : '-'}` : 'Aucun'}</p>
+          <div className="rounded-lg border border-line p-3">
+            <p className="text-xs font-medium uppercase text-discreet">Dernier entretien</p>
+            <p className="mt-1 text-sm text-foreground">{employeeLastInterview ? `${employeeLastInterview.interview_type?.name ?? 'Type'} - ${employeeLastInterview.planned_at ? new Date(employeeLastInterview.planned_at).toLocaleDateString('fr-FR') : '-'}` : 'Aucun'}</p>
           </div>
         </div>
 
         <div className="mt-4 max-h-72 overflow-auto">
           <ul className="space-y-2">
-            {employeeInterviews.length === 0 && <li className="text-sm text-slate-500">Aucun entretien pour ce salarie.</li>}
+            {employeeInterviews.length === 0 && <li className="text-sm text-discreet">Aucun entretien pour ce salarie.</li>}
             {employeeInterviews.map(item => (
-              <li key={item.id} className="rounded-lg border border-slate-200 p-3">
+              <li key={item.id} className="rounded-lg border border-line p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-medium text-slate-800">{item.interview_type?.name ?? 'Type non charge'}</p>
+                  <p className="text-sm font-medium text-foreground">{item.interview_type?.name ?? 'Type non charge'}</p>
                   <span className={`rounded-full px-2 py-1 text-xs font-medium ${statusClass(item.status)}`}>{INTERVIEW_STATUS_LABELS[item.status]}</span>
                 </div>
-                <p className="mt-1 text-xs text-slate-600">{item.planned_at ? new Date(item.planned_at).toLocaleString('fr-FR') : 'Date non planifiee'}</p>
-                <p className="mt-1 text-xs text-slate-600">{item.summary || item.reason || 'Sans resume'}</p>
+                <p className="mt-1 text-xs text-secondary">{item.planned_at ? new Date(item.planned_at).toLocaleString('fr-FR') : 'Date non planifiee'}</p>
+                <p className="mt-1 text-xs text-secondary">{item.summary || item.reason || 'Sans resume'}</p>
               </li>
             ))}
           </ul>
@@ -631,9 +631,9 @@ export default function EntretiensSalaries() {
 
 function KpiCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
+    <div className="rounded-xl border border-line bg-surface px-4 py-3">
+      <p className="text-xs font-medium uppercase tracking-wide text-discreet">{label}</p>
+      <p className="mt-1 text-2xl font-semibold text-heading">{value}</p>
     </div>
   )
 }

@@ -84,18 +84,18 @@ const TYPES_LABELS: Record<string, string> = {
 const PRIORITE_CONFIG: Record<string, { label: string; dot: string; badge: string }> = {
   critique: { label: 'Critique', dot: 'bg-red-500', badge: 'bg-red-100 text-red-700 border-red-200' },
   elevee:   { label: 'Élevée',   dot: 'bg-blue-500', badge: 'bg-blue-100 text-blue-700 border-blue-200' },
-  normale:  { label: 'Normale',  dot: 'bg-slate-400', badge: 'bg-slate-100 text-slate-700 border-slate-200' },
+  normale:  { label: 'Normale',  dot: 'bg-slate-400', badge: 'bg-surface-2 text-foreground border-line' },
 }
 
 const STATUT_CONFIG: Record<string, { label: string; cls: string }> = {
   ouvert:    { label: 'Ouvert',    cls: 'bg-red-100 text-red-700' },
   en_cours:  { label: 'En cours',  cls: 'bg-blue-100 text-blue-700' },
-  resolu:    { label: 'Résolu',    cls: 'bg-slate-100 text-slate-700' },
-  clos:      { label: 'Clos',      cls: 'bg-slate-100 text-slate-500' },
+  resolu:    { label: 'Résolu',    cls: 'bg-surface-2 text-foreground' },
+  clos:      { label: 'Clos',      cls: 'bg-surface-2 text-discreet' },
 }
 
 const STATUT_OPS_CONFIG: Record<string, { label: string; cls: string }> = {
-  retard_mineur: { label: 'Retard mineur', cls: 'bg-slate-100 text-slate-700 border-slate-300' },
+  retard_mineur: { label: 'Retard mineur', cls: 'bg-surface-2 text-foreground border-line-strong' },
   retard_majeur: { label: 'Retard majeur', cls: 'bg-red-100 text-red-700 border-red-300' },
 }
 
@@ -149,7 +149,7 @@ function ImprevuCard({
   }
 
   return (
-    <div className={`rounded-xl border ${imp.statut === 'clos' ? 'opacity-50' : ''} bg-white shadow-sm`}>
+    <div className={`rounded-xl border ${imp.statut === 'clos' ? 'opacity-50' : ''} bg-surface shadow-sm`}>
       <div
         className="flex cursor-pointer items-start gap-3 px-4 py-3"
         onClick={() => setExpanded(e => !e)}
@@ -157,12 +157,12 @@ function ImprevuCard({
         <span className={`mt-1.5 h-2.5 w-2.5 flex-shrink-0 rounded-full ${pc.dot}`} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-slate-800 truncate">{imp.titre}</span>
+            <span className="text-sm font-semibold text-foreground truncate">{imp.titre}</span>
             {imp.ot_reference && (
-              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">{imp.ot_reference}</span>
+              <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-discreet">{imp.ot_reference}</span>
             )}
           </div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-discreet">
             <span>{TYPES_LABELS[imp.type] ?? imp.type}</span>
             {imp.vehicule_immat && <span>· {imp.vehicule_immat}</span>}
             {imp.conducteur_nom  && <span>· {imp.conducteur_nom}</span>}
@@ -179,11 +179,11 @@ function ImprevuCard({
       {expanded && (
         <div className="border-t px-4 pb-4 pt-3 space-y-3">
           {imp.description && (
-            <p className="text-sm text-slate-600">{imp.description}</p>
+            <p className="text-sm text-secondary">{imp.description}</p>
           )}
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Action corrective</label>
+            <label className="mb-1 block text-xs font-medium text-secondary">Action corrective</label>
             <textarea
               rows={2}
               value={actionText}
@@ -204,7 +204,7 @@ function ImprevuCard({
             {imp.statut !== 'clos' && (
               <button
                 onClick={handleStatutForward}
-                className="rounded-lg border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-soft"
               >
                 → {STATUT_CONFIG[nextStatut(imp.statut)].label}
               </button>
@@ -219,7 +219,7 @@ function ImprevuCard({
 function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg
-      className={`h-4 w-4 flex-shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
+      className={`h-4 w-4 flex-shrink-0 text-muted transition-transform ${open ? 'rotate-180' : ''}`}
       viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
     >
       <path d="m6 9 6 6 6-6" />
@@ -410,8 +410,8 @@ export default function WarRoom() {
             <SirenIcon />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-800">War Room Exploitation</h1>
-            <p className="text-xs text-slate-500">Supervision temps réel — {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+            <h1 className="text-xl font-bold text-foreground">War Room Exploitation</h1>
+            <p className="text-xs text-discreet">Supervision temps réel — {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
           </div>
         </div>
         <button
@@ -434,14 +434,14 @@ export default function WarRoom() {
         />
         <ZoneCounter
           color="amber"
-          icon={<AlertIcon className="h-5 w-5 text-slate-500" />}
+          icon={<AlertIcon className="h-5 w-5 text-discreet" />}
           label="Vigilance"
           count={nbVigilance}
           sub="retards mineurs + OT non affectés"
         />
         <ZoneCounter
           color="green"
-          icon={<CheckIcon className="h-5 w-5 text-slate-500" />}
+          icon={<CheckIcon className="h-5 w-5 text-discreet" />}
           label="En ordre"
           count={nbOrdre}
           sub="imprévus normaux"
@@ -451,15 +451,15 @@ export default function WarRoom() {
       {/* Formulaire création */}
       {showCreate && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-5">
-          <h2 className="mb-4 font-semibold text-slate-800">Signaler un imprévu</h2>
+          <h2 className="mb-4 font-semibold text-foreground">Signaler un imprévu</h2>
           <form onSubmit={handleCreate} className="space-y-3">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Type *</label>
+                <label className="mb-1 block text-xs font-medium text-secondary">Type *</label>
                 <select
                   value={form.type}
                   onChange={e => formF('type', e.target.value)}
-                  className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-slate-500"
+                  className="w-full rounded-lg border bg-surface px-3 py-2 text-sm outline-none focus:border-slate-500"
                 >
                   {Object.entries(TYPES_LABELS).map(([k, v]) => (
                     <option key={k} value={k}>{v}</option>
@@ -467,11 +467,11 @@ export default function WarRoom() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Priorité *</label>
+                <label className="mb-1 block text-xs font-medium text-secondary">Priorité *</label>
                 <select
                   value={form.priorite}
                   onChange={e => formF('priorite', e.target.value)}
-                  className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-slate-500"
+                  className="w-full rounded-lg border bg-surface px-3 py-2 text-sm outline-none focus:border-slate-500"
                 >
                   <option value="critique">🔴 Critique</option>
                   <option value="elevee">🟡 Élevée</option>
@@ -481,7 +481,7 @@ export default function WarRoom() {
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Titre *</label>
+              <label className="mb-1 block text-xs font-medium text-secondary">Titre *</label>
               <input
                 required
                 type="text"
@@ -494,11 +494,11 @@ export default function WarRoom() {
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">OT concerné</label>
+                <label className="mb-1 block text-xs font-medium text-secondary">OT concerné</label>
                 <select
                   value={form.ot_id}
                   onChange={e => formF('ot_id', e.target.value)}
-                  className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-slate-500"
+                  className="w-full rounded-lg border bg-surface px-3 py-2 text-sm outline-none focus:border-slate-500"
                 >
                   <option value="">— Aucun —</option>
                   {otList.map(o => (
@@ -507,11 +507,11 @@ export default function WarRoom() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Véhicule</label>
+                <label className="mb-1 block text-xs font-medium text-secondary">Véhicule</label>
                 <select
                   value={form.vehicule_id}
                   onChange={e => formF('vehicule_id', e.target.value)}
-                  className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-slate-500"
+                  className="w-full rounded-lg border bg-surface px-3 py-2 text-sm outline-none focus:border-slate-500"
                 >
                   <option value="">— Aucun —</option>
                   {vehicules.map(v => (
@@ -520,11 +520,11 @@ export default function WarRoom() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Conducteur</label>
+                <label className="mb-1 block text-xs font-medium text-secondary">Conducteur</label>
                 <select
                   value={form.conducteur_id}
                   onChange={e => formF('conducteur_id', e.target.value)}
-                  className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-slate-500"
+                  className="w-full rounded-lg border bg-surface px-3 py-2 text-sm outline-none focus:border-slate-500"
                 >
                   <option value="">— Aucun —</option>
                   {conducteurs.map(c => (
@@ -535,7 +535,7 @@ export default function WarRoom() {
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Description</label>
+              <label className="mb-1 block text-xs font-medium text-secondary">Description</label>
               <textarea
                 rows={2}
                 value={form.description}
@@ -556,7 +556,7 @@ export default function WarRoom() {
               <button
                 type="button"
                 onClick={() => { setShowCreate(false); setForm(EMPTY_FORM) }}
-                className="rounded-lg border px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border px-4 py-2 text-sm font-medium text-foreground hover:bg-surface-soft"
               >
                 Annuler
               </button>
@@ -587,24 +587,24 @@ export default function WarRoom() {
                     className={`rounded-xl border p-3 ${
                       ot.statut_operationnel === 'retard_majeur'
                         ? 'border-red-200 bg-red-50'
-                        : 'border-slate-200 bg-slate-50'
+                        : 'border-line bg-surface-soft'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-slate-800">{ot.reference}</span>
+                      <span className="text-sm font-semibold text-foreground">{ot.reference}</span>
                       <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
                         STATUT_OPS_CONFIG[ot.statut_operationnel]?.cls ?? ''
                       }`}>
                         {STATUT_OPS_CONFIG[ot.statut_operationnel]?.label ?? ot.statut_operationnel}
                       </span>
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-600">
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-secondary">
                       {ot.client_nom    && <span>{ot.client_nom}</span>}
                       {ot.vehicule_immat && <span>🚛 {ot.vehicule_immat}</span>}
                       {ot.conducteur_nom && <span>👤 {ot.conducteur_nom}</span>}
                     </div>
                     {ot.date_livraison_prevue && (
-                      <p className="mt-1 text-xs text-slate-500">Livraison prévue : {fmtDate(ot.date_livraison_prevue)}</p>
+                      <p className="mt-1 text-xs text-discreet">Livraison prévue : {fmtDate(ot.date_livraison_prevue)}</p>
                     )}
                   </div>
                 ))}
@@ -629,22 +629,22 @@ export default function WarRoom() {
                       (ot.age_heures ?? 0) > 24
                         ? 'border-red-200 bg-red-50'
                         : (ot.age_heures ?? 0) > 12
-                          ? 'border-slate-200 bg-slate-50'
-                          : 'border-slate-200 bg-slate-50'
+                          ? 'border-line bg-surface-soft'
+                          : 'border-line bg-surface-soft'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-slate-800">{ot.reference}</span>
-                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
+                      <span className="text-sm font-semibold text-foreground">{ot.reference}</span>
+                      <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-discreet">
                         {fmtAge(ot.age_heures)} sans affectation
                       </span>
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-600">
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-secondary">
                       {ot.client_nom && <span>{ot.client_nom}</span>}
                       {ot.type_transport && <span>· {ot.type_transport}</span>}
                       {ot.poids_kg && <span>· {ot.poids_kg.toLocaleString('fr-FR')} kg</span>}
                     </div>
-                    <div className="mt-1 flex gap-3 text-xs text-slate-500">
+                    <div className="mt-1 flex gap-3 text-xs text-discreet">
                       {ot.date_chargement_prevue && <span>Chgt : {fmtDate(ot.date_chargement_prevue)}</span>}
                       {ot.date_livraison_prevue  && <span>Liv : {fmtDate(ot.date_livraison_prevue)}</span>}
                     </div>
@@ -658,7 +658,7 @@ export default function WarRoom() {
         {/* Colonne droite — Feed des imprévus */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-slate-800">
+            <h2 className="font-semibold text-foreground">
               Imprévus signalés
               {activeImprevus.length > 0 && (
                 <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
@@ -678,7 +678,7 @@ export default function WarRoom() {
                   className={`rounded-lg px-3 py-1.5 font-medium transition-colors ${
                     filterStatut === opt.key
                       ? 'bg-slate-800 text-white'
-                      : 'border text-slate-600 hover:bg-slate-50'
+                      : 'border text-secondary hover:bg-surface-soft'
                   }`}
                 >
                   {opt.label}
@@ -697,7 +697,7 @@ export default function WarRoom() {
               <div key={prio}>
                 <div className="mb-2 flex items-center gap-2">
                   <span className={`h-2 w-2 rounded-full ${pc.dot}`} />
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-discreet">
                     {pc.label} ({groupe.length})
                   </span>
                 </div>
@@ -711,10 +711,10 @@ export default function WarRoom() {
           })}
 
           {imprevus.length === 0 && (
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
-              <CheckIcon className="mx-auto mb-2 h-8 w-8 text-slate-500" />
-              <p className="font-medium text-slate-700">Aucun imprévu en cours</p>
-              <p className="text-sm text-slate-600">L'exploitation se déroule normalement</p>
+            <div className="rounded-2xl border border-line bg-surface-soft p-8 text-center">
+              <CheckIcon className="mx-auto mb-2 h-8 w-8 text-discreet" />
+              <p className="font-medium text-foreground">Aucun imprévu en cours</p>
+              <p className="text-sm text-secondary">L'exploitation se déroule normalement</p>
             </div>
           )}
         </div>
@@ -736,20 +736,20 @@ function ZoneCounter({
 }) {
   const cls = {
     red:   'border-red-200   bg-red-50',
-    amber: 'border-slate-200 bg-slate-50',
-    green: 'border-slate-200 bg-slate-50',
+    amber: 'border-line bg-surface-soft',
+    green: 'border-line bg-surface-soft',
   }[color]
   const countCls = {
     red:   'text-red-700',
-    amber: 'text-slate-700',
-    green: 'text-slate-700',
+    amber: 'text-foreground',
+    green: 'text-foreground',
   }[color]
 
   return (
     <div className={`rounded-2xl border p-4 ${cls}`}>
-      <div className="flex items-center gap-2 mb-1">{icon}<span className="text-sm font-semibold text-slate-700">{label}</span></div>
+      <div className="flex items-center gap-2 mb-1">{icon}<span className="text-sm font-semibold text-foreground">{label}</span></div>
       <p className={`text-3xl font-bold ${countCls}`}>{count}</p>
-      <p className="text-xs text-slate-500 mt-0.5">{sub}</p>
+      <p className="text-xs text-discreet mt-0.5">{sub}</p>
     </div>
   )
 }
@@ -764,14 +764,14 @@ function Section({
 }) {
   const badgeCls = {
     red:   'bg-red-100 text-red-700',
-    amber: 'bg-slate-100 text-slate-700',
-    slate: 'bg-slate-100 text-slate-600',
+    amber: 'bg-surface-2 text-foreground',
+    slate: 'bg-surface-2 text-secondary',
   }[color]
 
   return (
-    <div className="rounded-2xl border bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border bg-surface p-4 shadow-sm">
       <div className="mb-3 flex items-center gap-2">
-        <h2 className="font-semibold text-slate-800">{label}</h2>
+        <h2 className="font-semibold text-foreground">{label}</h2>
         {count > 0 && (
           <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${badgeCls}`}>{count}</span>
         )}
@@ -783,8 +783,8 @@ function Section({
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-xs text-slate-400">
-      <CheckIcon className="h-4 w-4 flex-shrink-0 text-slate-400" />
+    <div className="flex items-center gap-2 rounded-xl bg-surface-soft px-3 py-2.5 text-xs text-muted">
+      <CheckIcon className="h-4 w-4 flex-shrink-0 text-muted" />
       {text}
     </div>
   )

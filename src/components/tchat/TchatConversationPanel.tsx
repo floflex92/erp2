@@ -154,8 +154,8 @@ export function TchatConversationPanel({
       <div className="flex flex-1 items-center justify-center">
         <div className="text-center">
           <div className="mb-4 text-6xl opacity-20">{EMPTY_HINT_ICON}</div>
-          <p className="font-medium text-slate-400">Selectionne une conversation</p>
-          <p className="mt-1 text-sm text-slate-600">ou cree-en une nouvelle avec +</p>
+          <p className="font-medium text-muted">Selectionne une conversation</p>
+          <p className="mt-1 text-sm text-secondary">ou cree-en une nouvelle avec +</p>
         </div>
       </div>
     )
@@ -171,7 +171,7 @@ export function TchatConversationPanel({
       <button
         type="button"
         onClick={() => setShowConversationDetails(current => !current)}
-        className="border-b px-4 py-4 text-left transition-colors hover:bg-white/5 sm:px-5"
+        className="border-b px-4 py-4 text-left transition-colors hover:bg-surface/5 sm:px-5"
         style={{ borderColor: 'rgba(255,255,255,0.08)' }}
       >
         <div className="flex items-center gap-3">
@@ -190,7 +190,7 @@ export function TchatConversationPanel({
                   onBackToList()
                 }
               }}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-200 md:hidden"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-surface/5 text-slate-200 md:hidden"
               aria-label="Revenir a la liste des conversations"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -213,16 +213,16 @@ export function TchatConversationPanel({
 
           <div className="min-w-0 flex-1">
             <p className="truncate font-semibold text-white">{conversationTitle(conversation)}</p>
-            <p className="truncate text-xs text-slate-400">{conversationSubtitle(conversation)}</p>
+            <p className="truncate text-xs text-muted">{conversationSubtitle(conversation)}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {leadPresence && <TchatPresenceBadge presence={leadPresence} compact />}
-              <p className="truncate text-[11px] text-slate-500">
+              <p className="truncate text-[11px] text-discreet">
                 Touchez ici pour afficher {conversation.participants.length > 1 ? `${conversation.participants.length} participants` : '1 participant'} comme dans iMessage.
               </p>
             </div>
           </div>
 
-          <span className={`text-slate-400 transition-transform ${showConversationDetails ? 'rotate-180' : ''}`}>
+          <span className={`text-muted transition-transform ${showConversationDetails ? 'rotate-180' : ''}`}>
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               <path d="m6 9 6 6 6-6" />
             </svg>
@@ -270,7 +270,7 @@ export function TchatConversationPanel({
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="mb-3 text-4xl opacity-30">{EMPTY_HINT_ICON}</div>
-            <p className="text-sm text-slate-500">Demarre la conversation</p>
+            <p className="text-sm text-discreet">Demarre la conversation</p>
           </div>
         ) : (
           messages.map((message, index) => {
@@ -290,7 +290,7 @@ export function TchatConversationPanel({
                 {showDate && (
                   <div className="my-4 flex items-center gap-3">
                     <div className="flex-1 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }} />
-                    <span className="px-2 text-xs text-slate-500">
+                    <span className="px-2 text-xs text-discreet">
                       {new Date(message.created_at).toLocaleDateString('fr-FR', {
                         weekday: 'long',
                         day: 'numeric',
@@ -307,7 +307,7 @@ export function TchatConversationPanel({
                     style={isMe ? undefined : { background: 'rgba(255,255,255,0.08)' }}
                   >
                     {payload.meta.autoReply && (
-                      <div className={`mb-2 inline-flex rounded-full px-2 py-1 text-[10px] font-semibold ${isMe ? 'bg-white/15 text-blue-100' : 'bg-sky-500/12 text-sky-200'}`}>
+                      <div className={`mb-2 inline-flex rounded-full px-2 py-1 text-[10px] font-semibold ${isMe ? 'bg-surface/15 text-blue-100' : 'bg-sky-500/12 text-sky-200'}`}>
                         Reponse automatique
                       </div>
                     )}
@@ -326,11 +326,11 @@ export function TchatConversationPanel({
                             href={link.url}
                             target="_blank"
                             rel="noreferrer"
-                            className={`block rounded-2xl border px-3 py-3 transition-colors ${isMe ? 'border-white/10 bg-white/10 hover:bg-white/15' : 'border-white/10 bg-black/10 hover:bg-black/20'}`}
+                            className={`block rounded-2xl border px-3 py-3 transition-colors ${isMe ? 'border-white/10 bg-surface/10 hover:bg-surface/15' : 'border-white/10 bg-black/10 hover:bg-black/20'}`}
                           >
-                            <p className={`text-[11px] uppercase tracking-[0.18em] ${isMe ? 'text-blue-100/80' : 'text-slate-400'}`}>{link.hostname}</p>
+                            <p className={`text-[11px] uppercase tracking-[0.18em] ${isMe ? 'text-blue-100/80' : 'text-muted'}`}>{link.hostname}</p>
                             <p className="mt-1 text-sm font-semibold">{link.title}</p>
-                            {link.description && <p className={`mt-1 text-xs ${isMe ? 'text-blue-100/80' : 'text-slate-400'}`}>{link.description}</p>}
+                            {link.description && <p className={`mt-1 text-xs ${isMe ? 'text-blue-100/80' : 'text-muted'}`}>{link.description}</p>}
                           </a>
                         ))}
                       </div>
@@ -352,7 +352,7 @@ export function TchatConversationPanel({
                     )}
 
                     <div className={`mt-2 flex items-center gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      <p className={`text-[10px] ${isMe ? 'text-blue-200' : 'text-slate-500'}`}>
+                      <p className={`text-[10px] ${isMe ? 'text-blue-200' : 'text-discreet'}`}>
                         {new Date(message.created_at).toLocaleTimeString('fr-FR', {
                           hour: '2-digit',
                           minute: '2-digit',
@@ -360,7 +360,7 @@ export function TchatConversationPanel({
                       </p>
                       {status && (
                         <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${status === 'read' ? 'bg-sky-400/20 text-sky-100' : 'bg-white/12 text-blue-100'}`}
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${status === 'read' ? 'bg-sky-400/20 text-sky-100' : 'bg-surface/12 text-blue-100'}`}
                         >
                           <span className="tracking-[-0.18em]">{status === 'read' ? CHECK_DOUBLE : CHECK_SINGLE}</span>
                           <span>{status === 'read' ? 'Vu' : 'Distribue'}</span>
@@ -385,11 +385,11 @@ export function TchatConversationPanel({
               : `${typingNames.slice(0, 2).join(', ')}${typingNames.length > 2 ? ` +${typingNames.length - 2}` : ''} sont en train d'ecrire...`}
           </p>
         )}
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Texte</span>
-          <button type="button" onClick={() => setDraftStyle(current => ({ ...current, bold: !current.bold }))} className={`rounded-lg px-2 py-1 text-xs font-semibold ${draftStyle.bold ? 'bg-blue-500 text-white' : 'bg-white/5 text-slate-300'}`}>Gras</button>
-          <button type="button" onClick={() => setDraftStyle(current => ({ ...current, italic: !current.italic }))} className={`rounded-lg px-2 py-1 text-xs font-semibold ${draftStyle.italic ? 'bg-blue-500 text-white' : 'bg-white/5 text-slate-300'}`}>Italique</button>
-          <div className="flex items-center gap-1 rounded-xl bg-white/5 p-1">
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-surface/5 px-3 py-2">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-discreet">Texte</span>
+          <button type="button" onClick={() => setDraftStyle(current => ({ ...current, bold: !current.bold }))} className={`rounded-lg px-2 py-1 text-xs font-semibold ${draftStyle.bold ? 'bg-blue-500 text-white' : 'bg-surface/5 text-slate-300'}`}>Gras</button>
+          <button type="button" onClick={() => setDraftStyle(current => ({ ...current, italic: !current.italic }))} className={`rounded-lg px-2 py-1 text-xs font-semibold ${draftStyle.italic ? 'bg-blue-500 text-white' : 'bg-surface/5 text-slate-300'}`}>Italique</button>
+          <div className="flex items-center gap-1 rounded-xl bg-surface/5 p-1">
             {(['left', 'center', 'right'] as const).map(align => (
               <button
                 key={align}
@@ -428,11 +428,11 @@ export function TchatConversationPanel({
                 key={attachment.id}
                 type="button"
                 onClick={() => setDraftAttachments(current => current.filter(item => item.id !== attachment.id))}
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-left"
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-surface/5 px-3 py-2 text-left"
               >
                 <span className="text-sm">{attachment.kind === 'image' ? PREVIEW_IMAGE_ICON : PREVIEW_DOCUMENT_ICON}</span>
                 <span className="max-w-[180px] truncate text-xs text-slate-200">{attachment.name}</span>
-                <span className="text-[10px] text-slate-500">x</span>
+                <span className="text-[10px] text-discreet">x</span>
               </button>
             ))}
           </div>
@@ -445,7 +445,7 @@ export function TchatConversationPanel({
                 key={emoji}
                 type="button"
                 onClick={() => appendEmoji(emoji)}
-                className="rounded-xl bg-white/5 px-3 py-2 text-xl transition-colors hover:bg-white/10"
+                className="rounded-xl bg-surface/5 px-3 py-2 text-xl transition-colors hover:bg-surface/10"
               >
                 {emoji}
               </button>
@@ -470,7 +470,7 @@ export function TchatConversationPanel({
             <button
               type="button"
               onClick={() => setShowEmojiPicker(current => !current)}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-lg text-slate-200 transition-colors hover:bg-white/10"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-surface/5 text-lg text-slate-200 transition-colors hover:bg-surface/10"
               title="Emoji"
             >
               {COMPOSER_EMOJI_ICON}
@@ -478,7 +478,7 @@ export function TchatConversationPanel({
             <button
               type="button"
               onClick={() => imageInputRef.current?.click()}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-200 transition-colors hover:bg-white/10"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-surface/5 text-slate-200 transition-colors hover:bg-surface/10"
               title="Ajouter une photo"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -489,7 +489,7 @@ export function TchatConversationPanel({
             <button
               type="button"
               onClick={() => documentInputRef.current?.click()}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-200 transition-colors hover:bg-white/10"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-surface/5 text-slate-200 transition-colors hover:bg-surface/10"
               title="Ajouter un document"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -534,7 +534,7 @@ export function TchatConversationPanel({
               placeholder={demoMode ? 'Ecrire un message demo ou coller un lien... (Entree pour envoyer)' : 'Ecrire un message ou coller un lien... (Entree pour envoyer)'}
               rows={1}
               maxLength={4000}
-              className="flex-1 resize-none rounded-xl border bg-white/5 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30"
+              className="flex-1 resize-none rounded-xl border bg-surface/5 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-discreet focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30"
               style={{ borderColor: 'rgba(255,255,255,0.1)', maxHeight: '120px' }}
             />
 
@@ -587,7 +587,7 @@ function AttachmentPreview({ attachment, compact, ownerId, sourceLabel }: { atta
           <img src={attachment.url} alt={attachment.name} className={`h-40 w-full object-cover ${compact ? 'opacity-95' : ''}`} />
         </a>
         <div className="flex flex-wrap items-center gap-2 border-t border-white/10 bg-black/10 px-3 py-3">
-          <a href={attachment.url} download={attachment.name} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-slate-100 hover:bg-white/5">Appareil</a>
+          <a href={attachment.url} download={attachment.name} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-slate-100 hover:bg-surface/5">Appareil</a>
           <button type="button" onClick={saveToVault} disabled={!ownerId} className="rounded-xl bg-[color:var(--primary)] px-3 py-2 text-xs font-medium text-white disabled:opacity-50">Coffre</button>
           {saved && <span className="text-[11px] text-emerald-300">Enregistre dans le coffre</span>}
         </div>
@@ -607,7 +607,7 @@ function AttachmentPreview({ attachment, compact, ownerId, sourceLabel }: { atta
         </div>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <a href={attachment.url} download={attachment.name} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-slate-100 hover:bg-white/5">Appareil</a>
+        <a href={attachment.url} download={attachment.name} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-slate-100 hover:bg-surface/5">Appareil</a>
         <button type="button" onClick={saveToVault} disabled={!ownerId} className="rounded-xl bg-[color:var(--primary)] px-3 py-2 text-xs font-medium text-white disabled:opacity-50">Coffre</button>
         {saved && <span className="text-[11px] text-emerald-300">Enregistre dans le coffre</span>}
       </div>

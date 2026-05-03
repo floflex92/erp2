@@ -63,7 +63,7 @@ function fmtPct(v: number): string {
 }
 
 function statusColor(tauxAmorti: number, moisRestants: number): string {
-  if (moisRestants === 0) return 'text-slate-400'
+  if (moisRestants === 0) return 'text-muted'
   if (tauxAmorti >= 80) return 'text-orange-600'
   if (tauxAmorti >= 50) return 'text-amber-600'
   return 'text-emerald-700'
@@ -80,12 +80,12 @@ function vncBgBar(tauxAmorti: number): string {
 // ---------------------------------------------------------------------------
 
 function MetricKpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'amber' | 'red' | 'emerald' | 'default' }) {
-  const cls = tone === 'amber' ? 'text-amber-700' : tone === 'red' ? 'text-red-600' : tone === 'emerald' ? 'text-emerald-700' : 'text-slate-800'
+  const cls = tone === 'amber' ? 'text-amber-700' : tone === 'red' ? 'text-red-600' : tone === 'emerald' ? 'text-emerald-700' : 'text-foreground'
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+    <div className="rounded-xl border border-line bg-surface px-4 py-4 shadow-sm">
+      <p className="text-xs font-medium uppercase tracking-wide text-discreet">{label}</p>
       <p className={`mt-1 text-2xl font-bold ${cls}`}>{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-slate-400">{sub}</p>}
+      {sub && <p className="mt-0.5 text-xs text-muted">{sub}</p>}
     </div>
   )
 }
@@ -108,15 +108,15 @@ function DetailPanel({ asset, methode, duree, valRes, kmMensuels, onChangeMethod
   const planVisible = asset.plan.slice(0, 60)
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 mt-2 space-y-4">
+    <div className="rounded-xl border border-line bg-surface-soft p-4 mt-2 space-y-4">
       {/* Paramètres */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Méthode</label>
+          <label className="block text-xs font-medium text-discreet mb-1">Méthode</label>
           <select
             value={methode}
             onChange={e => onChangeMethode(e.target.value as MethodeAmortissement)}
-            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-400"
+            className="w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-slate-400"
           >
             {(Object.entries(METHODE_LABELS) as Array<[MethodeAmortissement, string]>).map(([k, v]) => (
               <option key={k} value={k}>{v}</option>
@@ -124,11 +124,11 @@ function DetailPanel({ asset, methode, duree, valRes, kmMensuels, onChangeMethod
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Durée</label>
+          <label className="block text-xs font-medium text-discreet mb-1">Durée</label>
           <select
             value={duree}
             onChange={e => onChangeDuree(Number(e.target.value))}
-            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-400"
+            className="w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-slate-400"
           >
             {DUREES_VEHICULE.map(d => (
               <option key={d.value} value={d.value}>{d.label}</option>
@@ -136,26 +136,26 @@ function DetailPanel({ asset, methode, duree, valRes, kmMensuels, onChangeMethod
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Valeur résid. (€ HT)</label>
+          <label className="block text-xs font-medium text-discreet mb-1">Valeur résid. (€ HT)</label>
           <input
             type="number"
             min="0"
             value={valRes}
             onChange={e => onChangeValRes(e.target.value)}
             placeholder="0"
-            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-400"
+            className="w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-slate-400"
           />
         </div>
         {methode === 'unites_production' && (
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Km/mois moy.</label>
+            <label className="block text-xs font-medium text-discreet mb-1">Km/mois moy.</label>
             <input
               type="number"
               min="0"
               value={kmMensuels}
               onChange={e => onChangeKmMensuels(e.target.value)}
               placeholder="5000"
-              className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-400"
+              className="w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-slate-400"
             />
           </div>
         )}
@@ -169,13 +169,13 @@ function DetailPanel({ asset, methode, duree, valRes, kmMensuels, onChangeMethod
       )}
 
       {/* Onglets résumé / plan */}
-      <div className="flex gap-2 border-b border-slate-200 pb-1">
+      <div className="flex gap-2 border-b border-line pb-1">
         {(['resume', 'plan'] as const).map(t => (
           <button
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${tab === t ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-800'}`}
+            className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${tab === t ? 'bg-slate-800 text-white' : 'text-discreet hover:text-foreground'}`}
           >
             {t === 'resume' ? 'Résumé' : `Plan (${asset.plan.length} mois)`}
           </button>
@@ -199,9 +199,9 @@ function DetailPanel({ asset, methode, duree, valRes, kmMensuels, onChangeMethod
       )}
 
       {tab === 'plan' && (
-        <div className="overflow-x-auto rounded-lg border border-slate-200">
+        <div className="overflow-x-auto rounded-lg border border-line">
           <table className="w-full text-xs">
-            <thead className="bg-slate-100 text-slate-500 uppercase tracking-wide text-[10px]">
+            <thead className="bg-surface-2 text-discreet uppercase tracking-wide text-[10px]">
               <tr>
                 <th className="px-3 py-2 text-left">Période</th>
                 <th className="px-3 py-2 text-right">Dotation HT</th>
@@ -214,18 +214,18 @@ function DetailPanel({ asset, methode, duree, valRes, kmMensuels, onChangeMethod
               {planVisible.map(p => {
                 const isToday = p.periode === new Date().toISOString().slice(0, 7)
                 return (
-                  <tr key={p.periode} className={isToday ? 'bg-blue-50 font-semibold' : 'hover:bg-slate-50'}>
-                    <td className="px-3 py-1.5 text-slate-700">{p.label}{isToday && <span className="ml-1 text-[9px] text-blue-600 font-bold">◀ Auj.</span>}</td>
-                    <td className="px-3 py-1.5 text-right text-slate-600">{fmtEurPrecis(p.dotationHt)}</td>
-                    <td className="px-3 py-1.5 text-right text-slate-600">{fmtEur(p.amortissementCumule)}</td>
-                    <td className="px-3 py-1.5 text-right font-medium text-slate-800">{fmtEur(p.vncHt)}</td>
-                    <td className="px-3 py-1.5 text-right text-slate-500">{fmtPct(p.tauxAmortissementPct)}</td>
+                  <tr key={p.periode} className={isToday ? 'bg-blue-50 font-semibold' : 'hover:bg-surface-soft'}>
+                    <td className="px-3 py-1.5 text-foreground">{p.label}{isToday && <span className="ml-1 text-[9px] text-blue-600 font-bold">◀ Auj.</span>}</td>
+                    <td className="px-3 py-1.5 text-right text-secondary">{fmtEurPrecis(p.dotationHt)}</td>
+                    <td className="px-3 py-1.5 text-right text-secondary">{fmtEur(p.amortissementCumule)}</td>
+                    <td className="px-3 py-1.5 text-right font-medium text-foreground">{fmtEur(p.vncHt)}</td>
+                    <td className="px-3 py-1.5 text-right text-discreet">{fmtPct(p.tauxAmortissementPct)}</td>
                   </tr>
                 )
               })}
               {asset.plan.length > 60 && (
                 <tr>
-                  <td colSpan={5} className="px-3 py-2 text-slate-400 text-center text-[10px]">
+                  <td colSpan={5} className="px-3 py-2 text-muted text-center text-[10px]">
                     … {asset.plan.length - 60} mois supplémentaires non affichés
                   </td>
                 </tr>
@@ -240,9 +240,9 @@ function DetailPanel({ asset, methode, duree, valRes, kmMensuels, onChangeMethod
 
 function MiniKpi({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-0.5 text-sm font-bold text-slate-800">{value}</p>
+    <div className="rounded-lg border border-line bg-surface px-3 py-2">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted">{label}</p>
+      <p className="mt-0.5 text-sm font-bold text-foreground">{value}</p>
     </div>
   )
 }
@@ -386,9 +386,9 @@ export default function FlotteAmortissements({ vehicules, remorques }: FlotteAmo
       )}
 
       {filterSansCoût && assetsWithoutCost.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div className="rounded-xl border border-line bg-surface overflow-hidden">
           <table className="w-full text-xs">
-            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide text-[10px]">
+            <thead className="bg-surface-soft text-discreet uppercase tracking-wide text-[10px]">
               <tr>
                 <th className="px-4 py-2 text-left">Actif</th>
                 <th className="px-4 py-2 text-left">Type</th>
@@ -398,9 +398,9 @@ export default function FlotteAmortissements({ vehicules, remorques }: FlotteAmo
             <tbody className="divide-y divide-slate-100">
               {assetsWithoutCost.map(a => (
                 <tr key={a.id}>
-                  <td className="px-4 py-2 font-medium text-slate-800">{a.immatriculation}{a.marque ? ` — ${a.marque}` : ''}</td>
-                  <td className="px-4 py-2 text-slate-500">{a.type === 'remorque' ? 'Remorque' : 'Véhicule'}</td>
-                  <td className="px-4 py-2 text-slate-400">{a.date_achat ? new Date(a.date_achat).toLocaleDateString('fr-FR') : 'Non renseignée'}</td>
+                  <td className="px-4 py-2 font-medium text-foreground">{a.immatriculation}{a.marque ? ` — ${a.marque}` : ''}</td>
+                  <td className="px-4 py-2 text-discreet">{a.type === 'remorque' ? 'Remorque' : 'Véhicule'}</td>
+                  <td className="px-4 py-2 text-muted">{a.date_achat ? new Date(a.date_achat).toLocaleDateString('fr-FR') : 'Non renseignée'}</td>
                 </tr>
               ))}
             </tbody>
@@ -416,19 +416,19 @@ export default function FlotteAmortissements({ vehicules, remorques }: FlotteAmo
               key={t}
               type="button"
               onClick={() => setFilterType(t)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${filterType === t ? 'bg-slate-800 text-white' : 'border border-slate-300 text-slate-600 hover:bg-slate-100'}`}
+              className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${filterType === t ? 'bg-slate-800 text-white' : 'border border-line-strong text-secondary hover:bg-surface-2'}`}
             >
               {t === 'all' ? 'Tous' : t === 'vehicule' ? 'Véhicules' : 'Remorques'}
             </button>
           ))}
           <div className="ml-auto flex items-center gap-1.5">
-            <span className="text-xs text-slate-400">Trier par</span>
+            <span className="text-xs text-muted">Trier par</span>
             {(['label', 'vnc', 'taux', 'dotation'] as const).map(s => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setSortBy(s)}
-                className={`rounded-full px-2.5 py-1 text-xs transition-colors ${sortBy === s ? 'bg-slate-200 text-slate-800 font-semibold' : 'text-slate-400 hover:text-slate-600'}`}
+                className={`rounded-full px-2.5 py-1 text-xs transition-colors ${sortBy === s ? 'bg-slate-200 text-foreground font-semibold' : 'text-muted hover:text-secondary'}`}
               >
                 {s === 'label' ? 'Nom' : s === 'vnc' ? 'VNC' : s === 'taux' ? '% amorti' : 'Dotation'}
               </button>
@@ -447,22 +447,22 @@ export default function FlotteAmortissements({ vehicules, remorques }: FlotteAmo
             const isExpanded = expandedId === asset.id
 
             return (
-              <div key={asset.id} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div key={asset.id} className="rounded-xl border border-line bg-surface shadow-sm overflow-hidden">
                 {/* Ligne principale */}
                 <button
                   type="button"
                   onClick={() => setExpandedId(isExpanded ? null : asset.id)}
-                  className="w-full text-left px-4 py-3.5 flex items-center gap-4 hover:bg-slate-50 transition-colors"
+                  className="w-full text-left px-4 py-3.5 flex items-center gap-4 hover:bg-surface-soft transition-colors"
                 >
                   {/* Type badge */}
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${asset.type === 'remorque' ? 'bg-sky-100 text-sky-700' : 'bg-slate-200 text-slate-700'}`}>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${asset.type === 'remorque' ? 'bg-sky-100 text-sky-700' : 'bg-slate-200 text-foreground'}`}>
                     {asset.type === 'remorque' ? 'REM' : 'VEH'}
                   </span>
 
                   {/* Label */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{asset.label}</p>
-                    <p className="text-[10px] text-slate-400">
+                    <p className="text-sm font-semibold text-foreground truncate">{asset.label}</p>
+                    <p className="text-[10px] text-muted">
                       {METHODE_LABELS[asset.methode]} · {asset.dureeMois} mois
                       {asset.dateFinEstimee && ` · fin ${new Date(asset.dateFinEstimee).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}`}
                     </p>
@@ -470,8 +470,8 @@ export default function FlotteAmortissements({ vehicules, remorques }: FlotteAmo
 
                   {/* VNC + barre */}
                   <div className="hidden sm:flex flex-col items-end w-36 shrink-0">
-                    <span className="text-xs font-bold text-slate-800">{fmtEur(asset.vncActuelle)}</span>
-                    <span className="text-[10px] text-slate-400">VNC actuelle</span>
+                    <span className="text-xs font-bold text-foreground">{fmtEur(asset.vncActuelle)}</span>
+                    <span className="text-[10px] text-muted">VNC actuelle</span>
                     <div className="mt-1 w-full h-1.5 rounded-full bg-slate-200">
                       <div
                         className={`h-1.5 rounded-full transition-all ${vncBgBar(asset.tauxAmortiPct)}`}
@@ -485,26 +485,26 @@ export default function FlotteAmortissements({ vehicules, remorques }: FlotteAmo
                     <span className={`text-sm font-bold ${statusColor(asset.tauxAmortiPct, asset.moisRestants)}`}>
                       {fmtPct(asset.tauxAmortiPct)}
                     </span>
-                    <span className="text-[10px] text-slate-400">% amorti</span>
+                    <span className="text-[10px] text-muted">% amorti</span>
                   </div>
 
                   {/* Dotation mensuelle */}
                   <div className="hidden lg:flex flex-col items-end w-28 shrink-0">
-                    <span className="text-sm font-semibold text-slate-700">{fmtEur(asset.dotationMensuelle)}</span>
-                    <span className="text-[10px] text-slate-400">/ mois</span>
+                    <span className="text-sm font-semibold text-foreground">{fmtEur(asset.dotationMensuelle)}</span>
+                    <span className="text-[10px] text-muted">/ mois</span>
                   </div>
 
                   {/* Coût/km */}
                   <div className="hidden xl:flex flex-col items-end w-24 shrink-0">
-                    <span className="text-sm font-semibold text-slate-600">
+                    <span className="text-sm font-semibold text-secondary">
                       {asset.coutAmortissementParKm != null ? `${asset.coutAmortissementParKm.toFixed(3)} €` : '—'}
                     </span>
-                    <span className="text-[10px] text-slate-400">/ km</span>
+                    <span className="text-[10px] text-muted">/ km</span>
                   </div>
 
                   {/* Expand arrow */}
                   <svg
-                    className={`h-4 w-4 text-slate-400 shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                    className={`h-4 w-4 text-muted shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
                     viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -544,19 +544,19 @@ export default function FlotteAmortissements({ vehicules, remorques }: FlotteAmo
           })}
         </div>
       ) : !hasSummary ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-8 text-center text-slate-400 text-sm">
+        <div className="rounded-xl border border-line bg-surface-soft p-8 text-center text-muted text-sm">
           Aucun véhicule ou remorque avec un coût d'achat renseigné.
           <br />
           <span className="text-xs">Renseignez le champ "Coût d'achat HT" dans chaque fiche véhicule.</span>
         </div>
       ) : (
-        <div className="text-center py-4 text-slate-400 text-sm">Aucun résultat pour ce filtre.</div>
+        <div className="text-center py-4 text-muted text-sm">Aucun résultat pour ce filtre.</div>
       )}
 
       {/* ─── Note explicative ─── */}
       {hasSummary && (
-        <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-500 space-y-1">
-          <p className="font-semibold text-slate-600">À propos des calculs</p>
+        <div className="rounded-xl border border-slate-100 bg-surface-soft px-4 py-3 text-xs text-discreet space-y-1">
+          <p className="font-semibold text-secondary">À propos des calculs</p>
           <p>• <strong>Linéaire</strong> : dotation constante = (Prix achat − Valeur résiduelle) ÷ durée.</p>
           <p>• <strong>Dégressif fiscal</strong> : taux linéaire × coefficient légal (1,25 × pour ≤3 ans, 1,75 × pour 4-5 ans, 2,25 × pour ≥6 ans). Bascule en linéaire résiduel quand le linéaire devient supérieur.</p>
           <p>• <strong>Unités de production</strong> : dotation = (Prix amorti ÷ km vie estimée) × km/mois.</p>

@@ -7,6 +7,8 @@ import { STATUT_OPS, StatutOpsDot, type StatutOps } from '@/lib/statut-ops'
 import SiteMapPicker from '@/components/transports/SiteMapPicker'
 import RouteOptimizerPanel from '@/components/transports/RouteOptimizerPanel'
 import { ComplianceCountersBar } from '@/components/planning/ComplianceCountersBar'
+import { PlanningCommandBar } from '@/components/planning/PlanningCommandBar'
+import { PlanningDecisionBar } from '@/components/planning/PlanningDecisionBar'
 import {
   getAffretementContextByOtId,
   listAffretementContracts,
@@ -75,6 +77,7 @@ import {
   getOtInterval,
 } from './planning/planningConflictUtils'
 import { buildPlanningUrgences } from './planning/planningUrgenceUtils'
+import { logOtHistory, logOtHistoryBatch } from '@/lib/otHistory'
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'nexora_sidebar_collapsed_v2'
 const SIDEBAR_COLLAPSED_EVENT = 'nexora:sidebar-collapsed-change'
@@ -135,11 +138,22 @@ function isAssetAvailableStatus(value: string | null | undefined): boolean {
 }
 
 export default function Planning() {
-  const { role } = useAuth()
+  const { role, companyId } = useAuth()
   const navigate = useNavigate()
   const planningComplianceService = usePlanningCompliance()
+
+  // ── Utilitaire : OT considéré en retard si > 12h passé la date prévue ──────
+  function isOtLate12h(ot: { statut?: string; date_livraison_prevue?: string | null }): boolean {
+    if (!ot.date_livraison_prevue) return false
+    if (['facture', 'annule', 'livre'].includes(ot.statut ?? '')) return false
+    const deliveryMs = new Date(ot.date_livraison_prevue).getTime()
+    return Date.now() > deliveryMs + 12 * 60 * 60 * 1000
+  }
   // Guard contre les race conditions : on ne rechargera pas pendant une �criture active.
   const isMutatingRef = useRef(false)
+  // Activation nouveaux composants UI (refonte Phase 1)
+  const useNewCommandBar = true
+  const useNewDecisionBar = true
   // -- Performance : �tat de chargement et transition non-bloquante --
   const [isLoadingOTs, setIsLoadingOTs] = useState(true)
   const [, startTransition] = useTransition()
@@ -308,8 +322,14 @@ export default function Planning() {
   const [autoPauseReglementaire, setAutoPauseReglementaire] = useState<boolean>(() => loadBooleanSetting(AUTO_PAUSE_KEY, true))
   const [planningHeaderCollapsed, setPlanningHeaderCollapsed] = useState<boolean>(() => loadBooleanSetting(PLANNING_HEADER_COLLAPSED_KEY, false))
   const [bottomDockHeight, setBottomDockHeight] = useState<number>(() => loadNumberSetting(BOTTOM_DOCK_HEIGHT_KEY, 260))
-  const [bottomDockCollapsed, setBottomDockCollapsed] = useState<boolean>(() => loadBooleanSetting(BOTTOM_DOCK_COLLAPSED_KEY, false))
+  const [bottomDockCollapsed, setBottomDockCollapsed] = useState<boolean>(() => loadBooleanSetting(BOTTOM_DOCK_COLLAPSED_KEY, true))
   const [isResizingBottomDock, setIsResizingBottomDock] = useState(false)
+  const [decisionBarCollapsed, setDecisionBarCollapsed] = useState(false)
+  // Modal "valider retard" — s'ouvre quand l'exploitant clique sur le bouton retard d'un OT
+  const [retardModal, setRetardModal] = useState<{ ot: OT } | null>(null)
+  const [retardCommentaire, setRetardCommentaire] = useState('')
+  const [retardNouvelleDateLivraison, setRetardNouvelleDateLivraison] = useState('')
+  const [retardSaving, setRetardSaving] = useState(false)
   const [showExploitantControls, setShowExploitantControls] = useState(false)
   const [exploitantFeatures, setExploitantFeatures] = useState<Record<ExploitantFeatureKey, boolean>>(() => {
     try {
@@ -973,7 +993,7 @@ export default function Planning() {
     setIsLoadingOTs(true)
     // -- S�lect OT canonique (schema stable depuis les migrations du 2026-03-30) --
     const OT_SELECT = 'id, reference, statut, statut_transport, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, donneur_ordre_id, chargement_site_id, livraison_site_id, mission_id, groupage_fige, est_affretee, type_chargement, poids_kg, tonnage, volume_m3, longueur_m, hors_gabarit, temperature_dirigee, charge_indivisible, clients!ordres_transport_client_id_fkey(nom)'
-    const SITE_SELECT = 'id, nom, adresse, entreprise_id, usage_type, horaires_ouverture, jours_ouverture, notes_livraison, latitude, longitude, created_at, updated_at'
+    const SITE_SELECT = 'id, nom, adresse, company_id, entreprise_id, usage_type, horaires_ouverture, jours_ouverture, notes_livraison, latitude, longitude, code_postal, contact_nom, contact_tel, est_depot_relais, ville, pays, type_site, capacite_m3, notes, created_at, updated_at'
 
     // Fen�tre glissante adapt�e selon le mode :
     //   � 'mois'    : 1er du mois ? dernier jour du mois (� 2j buffer)
@@ -1036,7 +1056,7 @@ export default function Planning() {
 
       const [otResult, siteR, cR, vR, rR, clientR, aR] = await Promise.all([
         otPromise,
-        looseSupabase.from('sites_logistiques').select(SITE_SELECT).order('nom'),
+        looseSupabase.from('sites_logistiques').select(SITE_SELECT).eq('company_id', companyId ?? 1).order('nom'),
         loadConducteurs(),
         loadVehicules(),
         loadRemorques(),
@@ -1261,7 +1281,7 @@ export default function Planning() {
     } else {
       setConducteurAbsences(new Map())
     }
-  }, [planningScope, weekStart, viewMode, monthStart])
+    }, [companyId, planningScope, weekStart, viewMode, monthStart])
 
   useEffect(() => { void loadAll() }, [loadAll])
 
@@ -1507,6 +1527,7 @@ export default function Planning() {
         : `Livraison - ${companyName}`
 
       const created = await createLogisticSite({
+          company_id: companyId ?? 1,
         nom: draft.nom.trim() || defaultName,
         adresse,
         entreprise_id: entrepriseId,
@@ -1709,6 +1730,21 @@ export default function Planning() {
       if (upd.length !== prev.length) saveCustomBlocks(upd)
       return upd
     })
+    // Log historique en fire-and-forget
+    void logOtHistoryBatch(
+      targets.map(t => t.id),
+      {
+        companyId: companyId ?? 1,
+        action: 'affectation',
+        nouveauStatut: 'planifie',
+        details: {
+          conducteur_id: assignModal.conducteur_id || null,
+          vehicule_id: assignModal.vehicule_id || null,
+          date_chargement: plannedStartISO,
+          date_livraison: plannedEndISO,
+        },
+      },
+    )
     setSaving(false); isMutatingRef.current = false; setAssignModal(null); loadAll()
     pushPlanningNotice(
       lastAuditSummary
@@ -1802,6 +1838,13 @@ export default function Planning() {
     await supabase.from('ordres_transport').update({
       statut: newStatut, conducteur_id:null, vehicule_id:null, remorque_id:null,
     }).eq('id', ot.id)
+    void logOtHistory({
+      otId: ot.id,
+      companyId: companyId ?? 1,
+      action: 'desaffectation',
+      ancienStatut: ot.statut,
+      nouveauStatut: newStatut,
+    })
     setCustomBlocks(prev => {
       const upd = prev.filter(block => block.otId !== ot.id)
       if (upd.length !== prev.length) saveCustomBlocks(upd)
@@ -1958,6 +2001,8 @@ export default function Planning() {
       const payload: Record<string, string | null> = {
         date_chargement_prevue: shiftedStartIso,
         date_livraison_prevue: shiftedEndIso,
+        // Auto-passage en planifié lors du placement/déplacement sur le gantt
+        statut: ['brouillon', 'confirme'].includes(member.statut) ? 'planifie' : member.statut,
       }
       if (tab === 'conducteurs') payload.conducteur_id = resourceId
       else if (tab === 'camions') payload.vehicule_id = resourceId
@@ -2027,13 +2072,29 @@ export default function Planning() {
 
     if (failureMessage) {
       pushPlanningNotice(`Deplacement impossible: ${failureMessage}`, 'error')
-    } else if (notifySuccess) {
-      pushPlanningNotice(
-        lastAuditSummary
-          ? `${moveTargets.length > 1 ? 'Mission deplacee.' : 'Deplacement enregistre.'} ${lastAuditSummary.message}`
-          : moveTargets.length > 1 ? 'Mission deplacee.' : 'Deplacement enregistre.',
-        blockOnCompliance && lastAuditSummary?.hasBlocking ? 'error' : 'success',
+    } else {
+      // Log historique en fire-and-forget
+      void logOtHistoryBatch(
+        moveTargets.map(t => t.member.id),
+        {
+          companyId: companyId ?? 1,
+          action: 'deplacement',
+          details: {
+            resource_id: resourceId,
+            tab,
+            new_start: moveTargets[0]?.shiftedStartIso,
+            new_end: moveTargets[0]?.shiftedEndIso,
+          },
+        },
       )
+      if (notifySuccess) {
+        pushPlanningNotice(
+          lastAuditSummary
+            ? `${moveTargets.length > 1 ? 'Mission deplacee.' : 'Deplacement enregistre.'} ${lastAuditSummary.message}`
+            : moveTargets.length > 1 ? 'Mission deplacee.' : 'Deplacement enregistre.',
+          blockOnCompliance && lastAuditSummary?.hasBlocking ? 'error' : 'success',
+        )
+      }
     }
     setSavingOtId(null)
   }
@@ -2176,8 +2237,57 @@ export default function Planning() {
     }
 
     setContextMenu(null)
+    void logOtHistory({
+      otId: ot.id,
+      companyId: companyId ?? 1,
+      action: 'statut_change',
+      ancienStatut: ot.statut,
+      nouveauStatut: nextStatus,
+    })
     await loadAll()
     pushPlanningNotice(`Statut mis a jour: ${STATUT_LABEL[nextStatus] ?? nextStatus}.`)
+  }
+
+  // ── Valider un retard : marque l'OT + optionnellement reporte la date ──────
+  async function handleValiderRetard() {
+    if (!retardModal) return
+    const { ot } = retardModal
+    setRetardSaving(true)
+    const updatePayload: Record<string, unknown> = {
+      retard_valide: true,
+      retard_valide_at: new Date().toISOString(),
+      retard_commentaire: retardCommentaire || null,
+    }
+    if (retardNouvelleDateLivraison) {
+      updatePayload.date_livraison_prevue = retardNouvelleDateLivraison
+    }
+    const { error } = await supabase
+      .from('ordres_transport')
+      .update(updatePayload)
+      .eq('id', ot.id)
+    if (error) {
+      pushPlanningNotice(`Retard impossible a valider: ${error.message}`, 'error')
+      setRetardSaving(false)
+      return
+    }
+    void logOtHistory({
+      otId: ot.id,
+      companyId: companyId ?? 1,
+      action: 'retard_valide',
+      ancienStatut: ot.statut,
+      nouveauStatut: ot.statut,
+      details: {
+        ancienne_date_livraison: ot.date_livraison_prevue,
+        nouvelle_date_livraison: retardNouvelleDateLivraison || null,
+        commentaire: retardCommentaire || null,
+      },
+    })
+    setRetardSaving(false)
+    setRetardModal(null)
+    setRetardCommentaire('')
+    setRetardNouvelleDateLivraison('')
+    await loadAll()
+    pushPlanningNotice('Retard validé' + (retardNouvelleDateLivraison ? ' et date de livraison reportée.' : '.'))
   }
 
   async function toggleGroupageFreeze(ot: OT, nextFrozen: boolean) {
@@ -3271,7 +3381,9 @@ export default function Planning() {
     const caPlanning = ganttOTs.filter(o => o.statut !== 'facture').reduce((s,o) => s + (o.prix_ht ?? 0), 0)
     const nbAff = ganttOTs.filter(o => !!affretementContextByOtId[o.id]).length
     const conflits = Object.values(rowConflictCountById).reduce((sum, n) => sum + n, 0)
-    return { retard, aFacturer, caPlanning, nbAff, conflits }
+    const sansVehicule = ganttOTs.filter(o => o.conducteur_id && !o.vehicule_id && !['facture', 'annule'].includes(o.statut)).length
+    const planifies = ganttOTs.filter(o => ['planifie', 'confirme', 'en_cours', 'livre'].includes(o.statut)).length
+    return { retard, aFacturer, caPlanning, nbAff, conflits, sansVehicule, planifies }
   }, [ganttOTs, affretementContextByOtId, rowConflictCountById])
 
   // Pool filtre
@@ -3914,7 +4026,7 @@ export default function Planning() {
     const rowCount  = rowOtList.filter(o =>
       viewMode === 'semaine' ? blockPos(o, weekStart) !== null : isoToDate(o.date_chargement_prevue) === selectedDay
     ).length
-    const hasLateOT = rowOtList.some(o => o.statut !== 'facture' && o.date_livraison_prevue && o.date_livraison_prevue.slice(0,10) < today)
+    const hasLateOT = rowOtList.some(o => isOtLate12h(o))
     const conflictCount = rowConflictCountById[row.id] ?? 0
     return (
       <div
@@ -3947,7 +4059,7 @@ export default function Planning() {
         <div className="flex items-center gap-1.5 min-w-0">
           {/* Drag handle - row edit mode */}
           {isRowEditMode && (
-            <svg className="w-3 h-4 text-slate-500 flex-shrink-0" viewBox="0 0 12 16" fill="currentColor">
+            <svg className="w-3 h-4 text-discreet flex-shrink-0" viewBox="0 0 12 16" fill="currentColor">
               <circle cx="4" cy="3" r="1.2"/><circle cx="8" cy="3" r="1.2"/>
               <circle cx="4" cy="8" r="1.2"/><circle cx="8" cy="8" r="1.2"/>
               <circle cx="4" cy="13" r="1.2"/><circle cx="8" cy="13" r="1.2"/>
@@ -3966,7 +4078,7 @@ export default function Planning() {
               {colorPickerFor === row.id && (
                 <div className="absolute left-0 top-5 z-50 bg-slate-800 border border-slate-600 rounded-xl p-2 shadow-2xl"
                   style={{ width:152 }} onClick={e => e.stopPropagation()}>
-                  <p className="text-[9px] text-slate-500 font-semibold uppercase tracking-widest mb-1.5">Couleur conducteur</p>
+                  <p className="text-[9px] text-discreet font-semibold uppercase tracking-widest mb-1.5">Couleur conducteur</p>
                   <div className="grid grid-cols-6 gap-1 mb-1">
                     {COLOR_PALETTE.map(hex => (
                       <button key={hex}
@@ -3977,7 +4089,7 @@ export default function Planning() {
                     ))}
                   </div>
                   {accentColor && (
-                    <button className="w-full text-[10px] text-slate-500 hover:text-rose-400 transition-colors py-0.5 border-t border-slate-700 mt-1 pt-1.5"
+                    <button className="w-full text-[10px] text-discreet hover:text-rose-400 transition-colors py-0.5 border-t border-slate-700 mt-1 pt-1.5"
                       onClick={e => {
                         e.stopPropagation()
                         const rest = Object.fromEntries(
@@ -4001,62 +4113,92 @@ export default function Planning() {
           )}
           {row.isCustom && <span className="text-[9px] bg-amber-500/20 text-amber-400 rounded px-1 py-0.5 font-semibold flex-shrink-0">Libre</span>}
 
-          {/* Badge statut maintenance v�hicule */}
-          {tab === 'camions' && !row.isCustom && !row.isAffretementAsset && (() => {
-            const vStatut = vehiculeById.get(row.id)?.statut
-            if (vStatut === 'maintenance') return <span className="text-[9px] bg-orange-600/30 text-orange-300 rounded px-1 py-0.5 font-bold flex-shrink-0" title="V�hicule en maintenance">MAINT</span>
-            if (vStatut === 'hs') return <span className="text-[9px] bg-red-600/30 text-red-300 rounded px-1 py-0.5 font-bold flex-shrink-0" title="Hors service">HS</span>
-            return null
-          })()}
+          {/* ── PRIORITÉ 1 : avant le nom — rouge — action requise ─────────── */}
 
-          {/* Alerte retard */}
+          {/* Retard actif */}
           {hasLateOT && !row.isCustom && (
-            <span className="text-[9px] text-red-400 flex-shrink-0" title="OT en retard">?</span>
+            <span
+              className="flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/25 border border-red-500/40 text-red-300 flex-shrink-0"
+              title="Cet conducteur/ressource a au moins un OT en retard"
+            >
+              <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm0 11a1 1 0 0 1-1-1V7a1 1 0 0 1 2 0v5a1 1 0 0 1-1 1zm0 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
+              Retard
+            </span>
           )}
 
-          {/* Badge absence RH */}
+          {/* Absence RH */}
           {tab === 'conducteurs' && !row.isCustom && !row.isAffretementAsset && (() => {
             const abs = conducteurAbsences.get(row.id)
             if (!abs || abs.length === 0) return null
             const labels = abs.map(a => `${TYPE_ABSENCE_LABELS[a.type_absence]} du ${a.date_debut} au ${a.date_fin}`).join('\n')
-            return <span className="text-[9px] bg-rose-700/40 text-rose-200 rounded px-1 py-0.5 font-bold flex-shrink-0" title={labels}>ABSENT</span>
+            return (
+              <span
+                className="text-[9px] bg-rose-700/40 border border-rose-600/40 text-rose-200 rounded-full px-1.5 py-0.5 font-bold flex-shrink-0"
+                title={labels}
+              >
+                Absent
+              </span>
+            )
           })()}
 
+          {/* ── NOM de la ressource ──────────────────────────────────────────── */}
           <p className={`text-sm font-semibold truncate ${row.isAffretementAsset ? 'text-blue-200' : 'text-slate-200'}`}>{row.primary}</p>
 
-          {/* Badge scan CE561 */}
+          {/* ── PRIORITÉ 2 : après le nom — orange — attention ───────────────── */}
+
+          {/* CE561 scan résultat */}
           {!row.isCustom && !row.isAffretementAsset && weekScanResults[row.id] && (
             <span
-              title={weekScanResults[row.id].alerts.map(a => `${a.type === 'bloquant' ? '?' : '?'} ${a.code}: ${a.message}`).join('\n')}
-              className={`text-[9px] px-1 py-0.5 rounded font-bold flex-shrink-0 cursor-default ${
+              title={weekScanResults[row.id].alerts.map(a => `[${a.type === 'bloquant' ? '!' : '~'}] ${a.code}: ${a.message}`).join('\n')}
+              className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 cursor-default border ${
                 weekScanResults[row.id].hasBlocking
-                  ? 'bg-rose-500/30 text-rose-200'
-                  : 'bg-amber-500/20 text-amber-300'
+                  ? 'bg-rose-500/25 border-rose-500/40 text-rose-200'
+                  : 'bg-amber-500/15 border-amber-500/30 text-amber-300'
               }`}
             >
-              {weekScanResults[row.id].hasBlocking ? '?' : '?'} CE561
+              CE561
             </span>
           )}
 
-          {/* Badge nombre d'OT */}
+          {/* Statut maintenance véhicule */}
+          {tab === 'camions' && !row.isCustom && !row.isAffretementAsset && (() => {
+            const vStatut = vehiculeById.get(row.id)?.statut
+            if (vStatut === 'maintenance') return (
+              <span className="text-[9px] bg-orange-600/20 border border-orange-500/30 text-orange-300 rounded-full px-1.5 py-0.5 font-semibold flex-shrink-0" title="Véhicule en maintenance">
+                Maint.
+              </span>
+            )
+            if (vStatut === 'hs') return (
+              <span className="text-[9px] bg-red-600/20 border border-red-500/30 text-red-300 rounded-full px-1.5 py-0.5 font-semibold flex-shrink-0" title="Hors service">
+                H.S.
+              </span>
+            )
+            return null
+          })()}
+
+          {/* ── PRIORITÉ 3 : droite — gris — information ─────────────────────── */}
+
+          {/* Nombre d'OT */}
           {!row.isCustom && rowCount > 0 && !isRowEditMode && (
             <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 ml-auto ${
-              rowCount >= 3 ? 'bg-orange-600/30 text-orange-300' : 'bg-slate-700 text-slate-400'
+              rowCount >= 3 ? 'bg-orange-600/20 border border-orange-500/25 text-orange-400' : 'bg-slate-700/60 border border-slate-600/40 text-discreet'
             }`}>{rowCount}</span>
           )}
+
+          {/* Conflits */}
           {!row.isCustom && conflictCount > 0 && !isRowEditMode && (
             <button
               type="button"
               onClick={() => setConflictPanelRowId(row.id)}
-              className="text-[9px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 bg-rose-600/30 text-rose-300 hover:bg-rose-600/45 transition-colors"
-              title="Afficher les details de conflit"
+              className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 bg-rose-600/25 border border-rose-500/35 text-rose-300 hover:bg-rose-600/40 transition-colors ${rowCount === 0 ? 'ml-auto' : ''}`}
+              title="Afficher les détails de conflit"
             >
               C{conflictCount}
             </button>
           )}
         </div>
 
-        {row.secondary && <p className="text-[10px] text-slate-600 truncate mt-0.5 pl-0.5">{row.secondary}</p>}
+        {row.secondary && <p className="text-[10px] text-secondary truncate mt-0.5 pl-0.5">{row.secondary}</p>}
 
         {/* Badge km � vide + taux de charge (camions uniquement) */}
         {tab === 'camions' && !row.isCustom && !row.isAffretementAsset && (() => {
@@ -4076,7 +4218,7 @@ export default function Planning() {
         {row.isCustom && !isRowEditMode && (
           <div className="flex items-center gap-1 mt-1">
             <button onClick={() => openPlanningCreationModal({ rowId: row.id, dateStart: toISO(weekStart), type: 'hlp' })}
-              className="text-[9px] text-slate-600 hover:text-slate-400 transition-colors">+ bloc</button>
+              className="text-[9px] text-secondary hover:text-muted transition-colors">+ bloc</button>
             <button onClick={() => deleteCustomRow(row.id)}
               className="text-[9px] text-red-800 hover:text-red-500 transition-colors ml-1">suppr.</button>
           </div>
@@ -4118,7 +4260,7 @@ export default function Planning() {
             <button
               type="button"
               onClick={() => setLastComplianceAudit(null)}
-              className="text-[10px] px-2 py-0.5 rounded border border-slate-700 text-slate-400 hover:text-slate-200"
+              className="text-[10px] px-2 py-0.5 rounded border border-slate-700 text-muted hover:text-slate-200"
             >
               masquer
             </button>
@@ -4128,7 +4270,7 @@ export default function Planning() {
               Audit informatif: vous pouvez affecter, puis activer le mode CE561 bloquant si vous souhaitez imposer la conformite.
             </p>
           )}
-          <p className="text-[10px] text-slate-400 mt-1">Source regles: {lastComplianceAudit.sourceLabel}</p>
+          <p className="text-[10px] text-muted mt-1">Source regles: {lastComplianceAudit.sourceLabel}</p>
           <div className="mt-2 space-y-1.5">
             {lastComplianceAudit.alerts.map((alert, idx) => {
               const activeBlock = alert.type === 'bloquant' && isRuleBlocking(alert.code)
@@ -4160,10 +4302,10 @@ export default function Planning() {
         <div className="px-3 pt-2.5 pb-2 border-b border-slate-700/60 flex-shrink-0 space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">File d'attente</p>
+              <p className="text-[10px] font-bold text-muted uppercase tracking-widest leading-none">File d'attente</p>
               <div className="flex items-baseline gap-1.5 mt-1">
                 <span className="text-xl font-bold text-white">{visiblePool.length}</span>
-                <span className="text-xs text-slate-500">OT{visiblePool.length !== 1 ? 's' : ''} � placer</span>
+                <span className="text-xs text-discreet">OT{visiblePool.length !== 1 ? 's' : ''} � placer</span>
               </div>
             </div>
             {kpi.retard > 0 && (
@@ -4175,7 +4317,7 @@ export default function Planning() {
           </div>
           {/* Recherche */}
           <div className="relative">
-            <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-secondary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
             <input
               value={poolSearch} onChange={e => setPoolSearch(e.target.value)}
               placeholder="Ref., client"
@@ -4186,13 +4328,16 @@ export default function Planning() {
           <div className="flex gap-1 flex-wrap">
             {(['complet','groupage','express'] as string[]).map(t => (
               <button key={t} onClick={() => setFilterType(v => v === t ? '' : t)}
-                className={`px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors ${filterType === t ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-slate-700 text-slate-600 hover:text-slate-400'}`}>
+                className={`px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors ${filterType === t ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-slate-700 text-secondary hover:text-muted'}`}>
                 {t}
               </button>
             ))}
           </div>
           {drag?.kind === 'pool' && (
-            <p className="text-[10px] text-indigo-400 animate-pulse">Deposer sur une ligne</p>
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-dashed border-indigo-500/50 bg-indigo-500/8 text-indigo-400 animate-pulse">
+              <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              <span className="text-[10px] font-medium">Déposer sur une ligne</span>
+            </div>
           )}
         </div>
 
@@ -4203,7 +4348,7 @@ export default function Planning() {
           {visiblePool.length === 0 ? (
             <div className="py-10 text-center">
               <p className="text-2xl mb-2">?</p>
-              <p className="text-xs text-slate-600">Aucune OT non affectee sur la vue active</p>
+              <p className="text-xs text-secondary">Aucune OT non affectee sur la vue active</p>
             </div>
           ) : (() => {
             const nowDate = toISO(new Date())
@@ -4214,7 +4359,7 @@ export default function Planning() {
             const groups: PoolGroup[] = [
               { label: 'Urgent / retard', color: 'text-red-400', list: urgents },
               { label: 'Affrete', color: 'text-blue-400', list: affrete },
-              { label: 'A planifier', color: 'text-slate-500', list: standard },
+              { label: 'A planifier', color: 'text-discreet', list: standard },
             ]
             return groups.filter(g => g.list.length > 0).map(group => {
               const isCollapsed = collapsedPoolGroups.has(group.label)
@@ -4237,7 +4382,7 @@ export default function Planning() {
                   <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isCollapsed ? '-rotate-90' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m6 9 6 6 6-6"/></svg>
                 </button>
                 {!isCollapsed && group.list.map(ot => {
-                  const isLate = !!ot.date_livraison_prevue && ot.date_livraison_prevue.slice(0,10) < nowDate
+                  const isLate = isOtLate12h(ot)
                   const clientDot = clientColorMap[ot.client_nom]
                   const chargSite = ot.chargement_site_id ? logisticSites.find(s => s.id === ot.chargement_site_id) : null
                   const livrSite  = ot.livraison_site_id  ? logisticSites.find(s => s.id === ot.livraison_site_id)  : null
@@ -4245,7 +4390,7 @@ export default function Planning() {
                     <div key={ot.id} role="button" tabIndex={0} draggable
                       onDragStart={e => onDragStartPool(ot, e)} onDragEnd={onDragEnd}
                       onClick={() => openAssign(ot)}
-                      className={`w-full text-left p-2.5 rounded-lg border transition-all cursor-grab active:cursor-grabbing mb-1 select-none ${
+                      className={`w-full text-left p-3 rounded-lg border transition-all cursor-grab active:cursor-grabbing mb-1 select-none ${
                         drag?.ot?.id === ot.id
                           ? 'border-indigo-500 bg-indigo-900/30 opacity-40'
                           : isLate
@@ -4257,7 +4402,7 @@ export default function Planning() {
                           <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: clientDot ?? '#4b5563' }} />
                           {isAffretedOt(ot.id) && <span className="rounded px-1 py-0.5 text-[9px] font-bold bg-blue-500/20 text-blue-300 flex-shrink-0">AFF</span>}
                           <StatutOpsDot statut={ot.statut_operationnel} size="xs" />
-                          <span className="text-[10px] font-mono text-slate-500 truncate">{ot.reference}</span>
+                          <span className="text-[10px] font-mono text-discreet truncate">{ot.reference}</span>
                         </span>
                         <button
                           type="button"
@@ -4267,7 +4412,7 @@ export default function Planning() {
                             e.stopPropagation()
                             void updateOtStatusFromPlanning(ot, getNextOtStatus(ot.statut))
                           }}
-                          className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 transition-opacity hover:opacity-85 ${BADGE_CLS[ot.statut] ?? 'bg-slate-700 text-slate-400'}`}
+                          className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 transition-opacity hover:opacity-85 ${BADGE_CLS[ot.statut] ?? 'bg-slate-700 text-muted'}`}
                         >
                           {STATUT_LABEL[ot.statut] ?? ot.statut}
                         </button>
@@ -4281,22 +4426,38 @@ export default function Planning() {
                           {chargSite && (
                             <div className="flex items-center gap-1 min-w-0">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0"/>
-                              <span className="text-[10px] text-slate-400 truncate">{chargSite.ville ?? chargSite.nom}</span>
+                              <span className="text-[10px] text-muted truncate">{chargSite.ville ?? chargSite.nom}</span>
                             </div>
                           )}
                           {livrSite && (
                             <div className="flex items-center gap-1 min-w-0">
                               <span className="w-1.5 h-1.5 rounded-full bg-rose-400 flex-shrink-0"/>
-                              <span className="text-[10px] text-slate-400 truncate">{livrSite.ville ?? livrSite.nom}</span>
+                              <span className="text-[10px] text-muted truncate">{livrSite.ville ?? livrSite.nom}</span>
                             </div>
                           )}
                         </div>
                       )}
                       <div className="flex items-center justify-between mt-1">
-                        <p className="text-[10px] text-slate-500 font-mono">
+                        <p className="text-[10px] text-discreet font-mono">
                           {ot.date_chargement_prevue?.slice(5,10).replace('-','/') ?? '?'} - {ot.date_livraison_prevue?.slice(5,10).replace('-','/') ?? '?'}
                         </p>
-                        {ot.type_transport && <span className="text-[9px] text-slate-600 capitalize">{ot.type_transport}</span>}
+                        {isLate && ot.date_livraison_prevue ? (
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.preventDefault(); e.stopPropagation()
+                              setRetardNouvelleDateLivraison(ot.date_livraison_prevue?.slice(0,10) ?? '')
+                              setRetardCommentaire('')
+                              setRetardModal({ ot })
+                            }}
+                            className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/25 border border-red-500/40 text-red-300 hover:bg-red-500/40 transition-colors flex-shrink-0"
+                            title="Cliquer pour valider / gérer ce retard"
+                          >
+                            +{daysDiff(parseDay(ot.date_livraison_prevue.slice(0,10)), parseDay(nowDate))}j Retard
+                          </button>
+                        ) : ot.type_transport ? (
+                          <span className="text-[9px] text-secondary capitalize">{ot.type_transport}</span>
+                        ) : null}
                       </div>
                       {ot.prix_ht != null && (
                         <p className="text-[10px] text-emerald-500/70 mt-0.5 font-medium">{ot.prix_ht.toFixed(0)} EUR HT</p>
@@ -4315,20 +4476,53 @@ export default function Planning() {
       <div className="flex-1 flex flex-col min-w-0">
 
         {/* ── Top bar ── */}
-        <div className="flex flex-wrap gap-2 px-4 py-2.5 border-b border-slate-700 bg-slate-900 flex-shrink-0 items-start">
+        {useNewCommandBar && <PlanningCommandBar
+          viewMode={viewMode}
+          onViewModeChange={v => { if (v === 'mois') setMonthStart(getMonthStart(weekStart)); setViewMode(v) }}
+          weekStart={weekStart}
+          onWeekChange={setWeekStart}
+          monthStart={monthStart}
+          onMonthChange={setMonthStart}
+          selectedDay={selectedDay}
+          onDayChange={setSelectedDay}
+          planningScope={planningScope}
+          onScopeChange={setPlanningScope}
+          onCreateCourse={() => openPlanningCreationModal({ type: 'course' })}
+          onCreateHlp={() => openPlanningCreationModal({ type: 'hlp' })}
+          onNavigateOT={() => navigate('/transports')}
+          onExportPDF={() => generatePlanningWeekPDF({ weekStart, rows: visibleRows.map(r => ({ id: r.id, label: r.primary, subtitle: r.secondary })), getRowOTs: rowId => rowOTs(rowId) })}
+          isRowEditMode={isRowEditMode}
+          onRowEditModeChange={setIsRowEditMode}
+          blockImpossibleAssignments={blockImpossibleAssignments}
+          onBlockImpossibleChange={next => { saveBooleanSetting(ASSIGNMENT_IMPOSSIBLE_BLOCK_KEY, next); setBlockImpossibleAssignments(next) }}
+          blockOnCompliance={blockOnCompliance}
+          onBlockOnComplianceChange={next => { saveComplianceBlockMode(next); setBlockOnCompliance(next) }}
+          simulationMode={simulationMode}
+          onSimulationModeChange={next => { setSimulationMode(next); saveBooleanSetting(SIMULATION_MODE_KEY, next) }}
+          scanningWeek={scanningWeek}
+          hasScanResults={Object.keys(weekScanResults).length > 0}
+          onScanWeek={() => void scanWeekCompliance()}
+          onClearScan={() => setWeekScanResults({})}
+          complianceRuleCodes={complianceRuleCodes}
+          isRuleBlocking={isRuleBlocking}
+          onRuleBlockingChange={updateRuleBlocking}
+          complianceRuleLabels={COMPLIANCE_RULE_LABELS}
+          isDragging={!!drag}
+        />}
+        {!useNewCommandBar && <div className="flex flex-wrap gap-2 px-4 py-2.5 border-b border-slate-700 bg-slate-900 flex-shrink-0 items-start">
           <div className="flex min-w-[260px] flex-1 flex-wrap items-center gap-1.5 xl:gap-2">
             <div className="flex rounded-lg border border-slate-700 overflow-hidden flex-shrink-0">
               <button
                 type="button"
                 onClick={() => setPlanningScope('principal')}
-                className={`px-3 py-1 text-xs font-semibold transition-colors ${planningScope === 'principal' ? 'bg-blue-200 text-blue-900' : 'text-slate-600 hover:text-slate-900'}`}
+                className={`px-3 py-1 text-xs font-semibold transition-colors ${planningScope === 'principal' ? 'bg-blue-200 text-blue-900' : 'text-secondary hover:text-heading'}`}
               >
                 Principal
               </button>
               <button
                 type="button"
                 onClick={() => setPlanningScope('affretement')}
-                className={`px-3 py-1 text-xs font-semibold transition-colors ${planningScope === 'affretement' ? 'bg-blue-200 text-blue-900' : 'text-slate-600 hover:text-slate-900'}`}
+                className={`px-3 py-1 text-xs font-semibold transition-colors ${planningScope === 'affretement' ? 'bg-blue-200 text-blue-900' : 'text-secondary hover:text-heading'}`}
               >
                 Affreteur dedie
               </button>
@@ -4341,14 +4535,14 @@ export default function Planning() {
                   if (v === 'mois') setMonthStart(getMonthStart(weekStart))
                   setViewMode(v)
                 }}
-                  className={`px-3 py-1 text-xs font-semibold transition-colors ${viewMode===v ? 'bg-blue-200 text-blue-900' : 'text-slate-600 hover:text-slate-900'}`}>
+                  className={`px-3 py-1 text-xs font-semibold transition-colors ${viewMode===v ? 'bg-blue-200 text-blue-900' : 'text-secondary hover:text-heading'}`}>
                   {v === 'semaine' ? '7 jours' : v === 'jour' ? 'Journee' : 'Mois'}
                 </button>
               ))}
             </div>
 
             <div className="relative w-[210px]">
-              <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-secondary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
               <input
                 value={resourceSearch}
                 onChange={e => setResourceSearch(e.target.value)}
@@ -4365,8 +4559,8 @@ export default function Planning() {
               title={isRowEditMode ? 'Verrouiller les lignes' : 'Reorganiser les lignes'}
               className={`flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-xs font-medium border transition-all ${
                 isRowEditMode
-                  ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
-                  : 'border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-600'
+                  ? 'bg-amber-600 border-amber-500 text-white'
+                  : 'border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'
               }`}>
               {isRowEditMode ? (
                 <>
@@ -4423,7 +4617,7 @@ export default function Planning() {
               title="Lancer l audit CE561 sur tous les OT de la semaine affichee"
               className={`flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-xs font-medium border transition-all ${
                 scanningWeek
-                  ? 'border-slate-700 text-slate-500 cursor-wait'
+                  ? 'border-slate-700 text-discreet cursor-wait'
                   : 'bg-amber-100 border-amber-400 text-amber-900 hover:bg-amber-200'
               }`}
             >
@@ -4433,7 +4627,7 @@ export default function Planning() {
               <button
                 onClick={() => setWeekScanResults({})}
                 title="Effacer les resultats du scan"
-                className="h-8 w-8 flex items-center justify-center rounded-lg text-xs border border-slate-700 text-slate-500 hover:text-slate-300"
+                className="h-8 w-8 flex items-center justify-center rounded-lg text-xs border border-slate-700 text-discreet hover:text-slate-300"
               >?</button>
             )}
 
@@ -4466,7 +4660,7 @@ export default function Planning() {
             {showComplianceRules && (
               <div className={`absolute right-0 top-10 z-[81] w-80 rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-2xl max-h-96 overflow-y-auto ${drag ? 'pointer-events-none' : ''}`}>
                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-300">Blocage par regle</p>
-                <p className="text-[10px] text-slate-500 mt-1">Ces bascules s appliquent seulement quand le mode CE561 bloquant est actif.</p>
+                <p className="text-[10px] text-discreet mt-1">Ces bascules s appliquent seulement quand le mode CE561 bloquant est actif.</p>
                 <div className="mt-2 space-y-1.5">
                   {complianceRuleCodes.map(code => (
                     <label key={code} className="flex items-start gap-2 rounded-lg border border-slate-700/70 bg-slate-800/70 px-2 py-1.5">
@@ -4478,7 +4672,7 @@ export default function Planning() {
                       />
                       <span className="text-[11px] text-slate-200">
                         <span className="font-semibold">{COMPLIANCE_RULE_LABELS[code] ?? code}</span>
-                        <span className="text-slate-500"> ({code})</span>
+                        <span className="text-discreet"> ({code})</span>
                       </span>
                     </label>
                   ))}
@@ -4490,7 +4684,7 @@ export default function Planning() {
               if (viewMode==='semaine') setWeekStart(w => addDays(w,-7))
               else if (viewMode==='mois') setMonthStart(m => addMonths(m,-1))
               else { const d = parseDay(selectedDay); d.setDate(d.getDate()-1); setSelectedDay(toISO(d)) }
-            }} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-xl font-light transition-colors">&lt;</button>
+            }} className="w-8 h-8 flex items-center justify-center text-muted hover:text-white hover:bg-slate-800 rounded-lg text-xl font-light transition-colors">&lt;</button>
 
             <button onClick={() => {
               const todayDate = new Date(); setWeekStart(getMonday(todayDate)); setSelectedDay(toISO(todayDate)); setMonthStart(getMonthStart(todayDate))
@@ -4502,14 +4696,14 @@ export default function Planning() {
               if (viewMode==='semaine') setWeekStart(w => addDays(w,7))
               else if (viewMode==='mois') setMonthStart(m => addMonths(m,1))
               else { const d = parseDay(selectedDay); d.setDate(d.getDate()+1); setSelectedDay(toISO(d)) }
-            }} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-xl font-light transition-colors">&gt;</button>
+            }} className="w-8 h-8 flex items-center justify-center text-muted hover:text-white hover:bg-slate-800 rounded-lg text-xl font-light transition-colors">&gt;</button>
 
             <span className="mx-0.5 h-5 w-px bg-slate-700/80" aria-hidden="true" />
 
             <button
               type="button"
               onClick={() => openPlanningCreationModal({ type: 'course' })}
-              className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold transition-colors border border-emerald-600/50 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30"
+              className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold transition-colors border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-500"
             >
               <span className="text-sm leading-none">+</span>
               Nouvelle course
@@ -4525,33 +4719,51 @@ export default function Planning() {
             <button
               type="button"
               onClick={() => navigate('/transports')}
-              className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium transition-colors border border-blue-600/50 bg-blue-500/15 text-blue-300 hover:bg-blue-500/25"
+              className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium transition-colors border border-blue-600 bg-blue-600 text-white hover:bg-blue-500"
               title="Aller saisir un OT complet"
             >
               OT / Fret ↗
             </button>
           </div>
-        </div>
+        </div>}
 
         {/* -- KPI Strip exploitation -- */}
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-slate-800/60 bg-slate-950/60 flex-shrink-0 overflow-x-hidden">
+        {useNewDecisionBar && <PlanningDecisionBar
+          aPlacerCount={unresourced.length}
+          retardCount={kpi.retard}
+          conflitsCount={kpi.conflits}
+          sansVehiculeCount={kpi.sansVehicule}
+          planifiesCount={kpi.planifies}
+          nbAffretement={kpi.nbAff}
+          caPlanning={kpi.caPlanning}
+          conducteursCount={conducteurs.length}
+          vehiculesCount={vehicules.length}
+          remoquesCount={remorques.length}
+          showOnlyAlert={showOnlyAlert}
+          showOnlyConflicts={showOnlyConflicts}
+          onToggleAlerts={() => setShowOnlyAlert(v => !v)}
+          onToggleConflicts={() => setShowOnlyConflicts(v => !v)}
+          collapsed={decisionBarCollapsed}
+          onToggleCollapse={() => setDecisionBarCollapsed(v => !v)}
+        />}
+        {!useNewDecisionBar && <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-slate-800/60 bg-slate-950/60 flex-shrink-0 overflow-x-hidden">
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/40 flex-shrink-0">
-            <span className="text-[10px] text-slate-500 whitespace-nowrap">A placer</span>
+            <span className="text-[10px] text-discreet whitespace-nowrap">A placer</span>
             <span className="text-sm font-bold text-white">{unresourced.length}</span>
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/40 flex-shrink-0">
             <span className="w-1.5 h-1.5 rounded-full bg-slate-400 flex-shrink-0"/>
-            <span className="text-[10px] text-slate-500 whitespace-nowrap">Conducteurs</span>
+            <span className="text-[10px] text-discreet whitespace-nowrap">Conducteurs</span>
             <span className="text-sm font-bold text-white">{conducteurs.length}</span>
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/40 flex-shrink-0">
             <span className="w-1.5 h-1.5 rounded-full bg-slate-400 flex-shrink-0"/>
-            <span className="text-[10px] text-slate-500 whitespace-nowrap">Vehicules</span>
+            <span className="text-[10px] text-discreet whitespace-nowrap">Vehicules</span>
             <span className="text-sm font-bold text-white">{vehicules.length}</span>
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/40 flex-shrink-0">
             <span className="w-1.5 h-1.5 rounded-full bg-slate-400 flex-shrink-0"/>
-            <span className="text-[10px] text-slate-500 whitespace-nowrap">Remorques</span>
+            <span className="text-[10px] text-discreet whitespace-nowrap">Remorques</span>
             <span className="text-sm font-bold text-white">{remorques.length}</span>
           </div>
           {kpi.retard > 0 && (
@@ -4583,14 +4795,14 @@ export default function Planning() {
             </div>
           )}
           <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/40 flex-shrink-0">
-            <span className="text-[10px] text-slate-500 whitespace-nowrap">CA planifie</span>
+            <span className="text-[10px] text-discreet whitespace-nowrap">CA planifie</span>
             <span className="text-sm font-bold text-slate-100">{kpi.caPlanning > 0 ? `${(kpi.caPlanning/1000).toFixed(0)}k EUR` : '-'}</span>
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/40 flex-shrink-0">
-            <span className="text-[10px] text-slate-500 whitespace-nowrap">Scope</span>
+            <span className="text-[10px] text-discreet whitespace-nowrap">Scope</span>
             <span className="text-sm font-bold text-white">{planningScope === 'affretement' ? 'Affretement' : 'Principal'}</span>
           </div>
-        </div>
+        </div>}
 
         {tab === 'conducteurs' && (
           <div className="border-b border-slate-800/60 bg-slate-950/60 flex-shrink-0">
@@ -4624,8 +4836,8 @@ export default function Planning() {
                     className={`flex-1 flex flex-col items-center py-1 rounded-lg text-[10px] font-medium transition-all ${
                       isSel  ? 'bg-indigo-500/25 text-indigo-100 border border-indigo-400/45'
                       : isT  ? 'border border-blue-500/40 text-blue-400 hover:bg-slate-800'
-                      : isWE ? 'text-slate-600 hover:bg-slate-800'
-                               : 'text-slate-400 hover:bg-slate-800'
+                      : isWE ? 'text-secondary hover:bg-slate-800'
+                               : 'text-muted hover:bg-slate-800'
                     }`}>
                     <span>{DAY_NAMES[i]}</span>
                     <span className="font-bold">{day.getDate()}</span>
@@ -4647,10 +4859,10 @@ export default function Planning() {
             ]).map(t => (
               <button key={t.key} type="button" onClick={() => setTab(t.key)}
                 className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  tab===t.key ? 'border-indigo-400 text-white' : 'border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-600'
+                  tab===t.key ? 'border-indigo-400 text-white' : 'border-transparent text-discreet hover:text-slate-300 hover:border-slate-600'
                 }`}>
                 {t.label}
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${tab===t.key ? 'bg-blue-200 text-blue-900' : 'bg-slate-200 text-slate-800'}`}>{t.count}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${tab===t.key ? 'bg-blue-200 text-blue-900' : 'bg-slate-200 text-foreground'}`}>{t.count}</span>
               </button>
             ))}
           </div>
@@ -4660,13 +4872,13 @@ export default function Planning() {
 
           {/* Couleur */}
           <div className="flex items-center gap-1 flex-shrink-0">
-            <span className="text-[10px] text-slate-600 mr-0.5 whitespace-nowrap">Couleur :</span>
+            <span className="text-[10px] text-secondary mr-0.5 whitespace-nowrap">Couleur :</span>
             {(['statut','conducteur','type','client'] as ColorMode[]).map(mode => {
               if (mode==='conducteur' && tab!=='conducteurs') return null
               return (
                 <button key={mode} onClick={() => setColorMode(mode)}
                   className={`px-2 py-0.5 text-[10px] rounded-full font-medium transition-colors whitespace-nowrap ${
-                    colorMode===mode ? 'bg-indigo-600/80 text-white border border-indigo-500' : 'text-slate-600 hover:text-slate-400 border border-transparent'
+                    colorMode===mode ? 'bg-indigo-600/80 text-white border border-indigo-500' : 'text-secondary hover:text-muted border border-transparent'
                   }`}>
                   {mode==='statut' ? 'Statut' : mode==='conducteur' ? 'Conducteur' : mode==='type' ? 'Type' : 'Client'}
                 </button>
@@ -4679,7 +4891,7 @@ export default function Planning() {
 
           {/* Filtre client */}
           <div className="flex items-center gap-1 flex-shrink-0">
-            <span className="text-[10px] text-slate-600 whitespace-nowrap">Client :</span>
+            <span className="text-[10px] text-secondary whitespace-nowrap">Client :</span>
             <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
               className="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-indigo-500 transition-colors max-w-[110px]">
               <option value="">Tous</option>
@@ -4690,7 +4902,7 @@ export default function Planning() {
           </div>
 
           <div className="flex items-center gap-1 flex-shrink-0">
-            <span className="text-[10px] text-slate-600 whitespace-nowrap">Centre :</span>
+            <span className="text-[10px] text-secondary whitespace-nowrap">Centre :</span>
             <select value={centerFilter} onChange={e => setCenterFilter(e.target.value)}
               className="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-indigo-500 transition-colors max-w-[140px]">
               <option value="">Tous</option>
@@ -4701,7 +4913,7 @@ export default function Planning() {
           </div>
 
           {/* Legende */}
-          <div className="ml-auto flex items-center gap-2 text-[10px] text-slate-600 py-2 flex-wrap justify-end flex-shrink-0">
+          <div className="ml-auto flex items-center gap-2 text-[10px] text-secondary py-2 flex-wrap justify-end flex-shrink-0">
             {colorMode==='statut' && Object.entries(STATUT_CLS).map(([k,cls]) => (
               <span key={k} className="flex items-center gap-1">
                 <span className={`w-2 h-2 rounded-sm ${cls.split(' ')[0]}`}/>{STATUT_LABEL[k]}
@@ -4717,7 +4929,7 @@ export default function Planning() {
                 <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{background:hex}}/><span className="truncate">{c}</span>
               </span>
             ))}
-            {colorMode==='conducteur' && <span className="italic text-slate-600">? cliquer sur le point pour choisir</span>}
+            {colorMode==='conducteur' && <span className="italic text-secondary">? cliquer sur le point pour choisir</span>}
           </div>
         </div>
 
@@ -4755,8 +4967,8 @@ export default function Planning() {
                       onClick={() => { setSelectedDay(toISO(day)); setViewMode('jour') }}
                       title="Voir ce jour en detail"
                     >
-                      <p className={`text-[10px] font-medium ${isToday?'text-blue-400':isWE?'text-slate-600':'text-slate-500'}`}>{DAY_NAMES[i]}</p>
-                      <p className={`text-base font-bold leading-tight ${isToday?'text-blue-400':isWE?'text-slate-600':'text-slate-300'}`}>{day.getDate()}</p>
+                      <p className={`text-[10px] font-medium ${isToday?'text-blue-400':isWE?'text-secondary':'text-discreet'}`}>{DAY_NAMES[i]}</p>
+                      <p className={`text-base font-bold leading-tight ${isToday?'text-blue-400':isWE?'text-secondary':'text-slate-300'}`}>{day.getDate()}</p>
                       {isToday && <div className="w-1 h-1 bg-blue-400 rounded-full mx-auto mt-0.5"/>}
                     </button>
                   )
@@ -4766,7 +4978,7 @@ export default function Planning() {
 
             {/* Resource rows */}
             {visibleRows.length === 0 ? (
-              <div className="p-16 text-center text-slate-600 text-sm">Aucune ressource disponible</div>
+              <div className="p-16 text-center text-secondary text-sm">Aucune ressource disponible</div>
             ) : visibleRows.map(row => {
               const ots = row.isCustom ? [] : rowOTs(row.id)
               const cBlocks = row.isCustom ? customBlocks.filter(b => b.rowId===row.id) : []
@@ -4782,7 +4994,7 @@ export default function Planning() {
                 <div key={row.id}
                   onDragOver={!isRowEditMode ? e => { e.preventDefault(); e.stopPropagation() } : undefined}
                   onDrop={!isRowEditMode ? e => onRowDrop(e, row.id, !!row.isCustom) : undefined}
-                  className={`flex border-b border-slate-800/50 transition-colors group ${isDropTarget?'bg-indigo-950/30':'hover:bg-white/[0.01]'}`}>
+                  className={`flex border-b border-slate-800/50 transition-colors group ${isDropTarget?'bg-indigo-950/30':'hover:bg-surface/[0.01]'}`}>
                   {renderRowLabel(row)}
                   {/* Timeline */}
                   <div className="flex-1 relative" style={{ height:ROW_H }}
@@ -4837,14 +5049,14 @@ export default function Planning() {
                         </div>
                         <div className="grid h-[calc(100%-22px)] divide-x divide-white/8" style={{ gridTemplateColumns: `repeat(${card.members.length}, minmax(0, 1fr))` }}>
                           {card.members.map(member => {
-                            const isLate = member.statut !== 'facture' && member.date_livraison_prevue && member.date_livraison_prevue.slice(0,10) < today
+                            const isLate = isOtLate12h(member)
                             return (
                               <button
                                 key={member.id}
                                 type="button"
                                 onClick={() => !isRowEditMode && openSelected(member)}
                                 onContextMenu={e => { e.preventDefault(); setContextMenu({ x:e.clientX, y:e.clientY, ot:member }) }}
-                                className={`flex min-w-0 flex-col justify-center px-2 text-left transition-colors ${isRowEditMode ? 'cursor-default' : 'cursor-pointer hover:bg-white/5'}`}
+                                className={`flex min-w-0 flex-col justify-center px-2 text-left transition-colors ${isRowEditMode ? 'cursor-default' : 'cursor-pointer hover:bg-surface/5'}`}
                               >
                                 <div className="flex items-center gap-1 min-w-0">
                                   {isAffretedOt(member.id) && <span className="rounded px-1 text-[8px] font-bold bg-blue-500/30 text-blue-200 flex-shrink-0">AFF</span>}
@@ -4852,8 +5064,8 @@ export default function Planning() {
                                   <StatutOpsDot statut={member.statut_operationnel} size="xs"/>
                                   <span className={`truncate font-mono text-[10px] font-bold ${card.frozen ? 'text-white' : 'text-slate-950'}`}>{member.reference}</span>
                                 </div>
-                                <span className={`truncate text-[10px] font-semibold ${card.frozen ? 'text-white/80' : 'text-slate-700'}`}>{member.client_nom}</span>
-                                <span className={`truncate text-[9px] font-mono ${card.frozen ? 'text-white/45' : 'text-slate-500'}`}>{isoToTime(member.date_chargement_prevue)}-{isoToTime(member.date_livraison_prevue)}</span>
+                                <span className={`truncate text-[10px] font-semibold ${card.frozen ? 'text-white/80' : 'text-foreground'}`}>{member.client_nom}</span>
+                                <span className={`truncate text-[9px] font-mono ${card.frozen ? 'text-white/45' : 'text-discreet'}`}>{isoToTime(member.date_chargement_prevue)}-{isoToTime(member.date_livraison_prevue)}</span>
                               </button>
                             )
                           })}
@@ -4868,7 +5080,7 @@ export default function Planning() {
                       const groupageBubbleLabel = getGroupageBubbleLabel(ot)
                       const isSaving   = savingOtId === ot.id
                       const isDragging = drag?.ot?.id === ot.id
-                      const isLate = ot.statut !== 'facture' && ot.date_livraison_prevue && ot.date_livraison_prevue.slice(0,10) < today
+                      const isLate = isOtLate12h(ot)
                       const hCharge = ot.date_chargement_prevue?.includes('T') ? ot.date_chargement_prevue.slice(11,16) : ''
                       const hLivre  = ot.date_livraison_prevue?.includes('T')  ? ot.date_livraison_prevue.slice(11,16)  : ''
                       return (
@@ -4903,7 +5115,7 @@ export default function Planning() {
                               </>
                             )}
                             {!isRowEditMode && (
-                              <button title="Desaffecter" className="opacity-0 group-hover/block:opacity-100 transition-opacity flex-shrink-0 w-3.5 h-3.5 flex items-center justify-center rounded hover:bg-white/20 text-[10px]"
+                              <button title="Desaffecter" className="opacity-0 group-hover/block:opacity-100 transition-opacity flex-shrink-0 w-3.5 h-3.5 flex items-center justify-center rounded hover:bg-surface/20 text-[10px]"
                                 onClick={e => { e.stopPropagation(); unassign(ot) }}>x</button>
                             )}
                           </div>
@@ -4937,7 +5149,7 @@ export default function Planning() {
                       if (linkedOT) {
                         const { cls:cCls, style:cStyle } = getBlockColors(linkedOT, row.id)
                         const groupageBubbleLabel = getGroupageBubbleLabel(linkedOT)
-                        const isLate = linkedOT.statut !== 'facture' && linkedOT.date_livraison_prevue && linkedOT.date_livraison_prevue.slice(0,10) < today
+                        const isLate = isOtLate12h(linkedOT)
                         const hCharge = linkedOT.date_chargement_prevue?.includes('T') ? linkedOT.date_chargement_prevue.slice(11,16) : ''
                         const hLivre  = linkedOT.date_livraison_prevue?.includes('T')  ? linkedOT.date_livraison_prevue.slice(11,16)  : ''
                         return (
@@ -4962,7 +5174,7 @@ export default function Planning() {
                               <StatutOpsDot statut={linkedOT.statut_operationnel} size="xs"/>
                               <span className="font-mono text-[10px] font-bold truncate flex-1">{linkedOT.reference}</span>
                               {!isRowEditMode && (
-                                <button title="Desaffecter" className="opacity-0 group-hover/cblock:opacity-100 transition-opacity flex-shrink-0 w-3.5 h-3.5 flex items-center justify-center rounded hover:bg-white/20 text-[10px]"
+                                <button title="Desaffecter" className="opacity-0 group-hover/cblock:opacity-100 transition-opacity flex-shrink-0 w-3.5 h-3.5 flex items-center justify-center rounded hover:bg-surface/20 text-[10px]"
                                   onClick={async e => { e.stopPropagation(); await unassignFromCustomBlock(block) }}>x</button>
                               )}
                             </div>
@@ -4992,11 +5204,11 @@ export default function Planning() {
                           onClick={() => !isRowEditMode && openPlanningBlockEditor(block)}
                           className={`${block.color} border rounded-md text-white text-[11px] font-medium flex items-center px-2 gap-1.5 cursor-grab active:cursor-grabbing group/cblock overflow-hidden shadow-sm ${drag?.customBlockId===block.id?'opacity-30':''} ${drag && drag.customBlockId !== block.id ? 'pointer-events-none' : ''} ${hoveredMissionId ? 'opacity-40 saturate-50' : ''}`}>
                           <span className="truncate flex-1">{block.label}</span>
-                          {!isRowEditMode && <button className="opacity-0 group-hover/cblock:opacity-100 transition-opacity flex-shrink-0 w-4 h-4 flex items-center justify-center rounded hover:bg-white/20 text-xs"
+                          {!isRowEditMode && <button className="opacity-0 group-hover/cblock:opacity-100 transition-opacity flex-shrink-0 w-4 h-4 flex items-center justify-center rounded hover:bg-surface/20 text-xs"
                             title="Modifier"
                             onClick={e => { e.stopPropagation(); openPlanningBlockEditor(block) }}>
                             ?</button>}
-                          {!isRowEditMode && <button className="opacity-0 group-hover/cblock:opacity-100 transition-opacity flex-shrink-0 w-4 h-4 flex items-center justify-center rounded hover:bg-white/20 text-xs"
+                          {!isRowEditMode && <button className="opacity-0 group-hover/cblock:opacity-100 transition-opacity flex-shrink-0 w-4 h-4 flex items-center justify-center rounded hover:bg-surface/20 text-xs"
                             onClick={async e => { e.stopPropagation(); await unassignFromCustomBlock(block) }}>x</button>}
                         </div>
                       )
@@ -5056,7 +5268,7 @@ export default function Planning() {
             {unresourced.length > 0 && (
               <div className="flex border-b border-slate-800/30 border-dashed opacity-60 hover:opacity-100 transition-opacity">
                 <div className="w-44 flex-shrink-0 border-r border-slate-700/30 px-3 py-3 flex items-center bg-slate-900">
-                  <p className="text-[11px] text-slate-600 italic">Non affecte</p>
+                  <p className="text-[11px] text-secondary italic">Non affecte</p>
                 </div>
                 <div className="flex-1 relative" style={{ height:ROW_H }}>
                   <div className="absolute inset-0 grid grid-cols-7 pointer-events-none">
@@ -5066,7 +5278,7 @@ export default function Planning() {
                     const pos=blockPos(ot,weekStart); if(!pos) return null
                     return (
                       <div key={ot.id} style={pos}
-                        className="border border-slate-600/40 bg-slate-700/30 rounded-md text-[11px] text-slate-500 flex items-center px-2 cursor-pointer hover:bg-slate-700/50 overflow-hidden"
+                        className="border border-slate-600/40 bg-slate-700/30 rounded-md text-[11px] text-discreet flex items-center px-2 cursor-pointer hover:bg-slate-700/50 overflow-hidden"
                         onClick={() => openAssign(ot)}>
                         {isAffretedOt(ot.id) && <span className="rounded px-1 py-0.5 text-[9px] font-semibold bg-blue-500/20 text-blue-300 mr-1">AFF</span>}
                         <span className="font-mono truncate">{ot.reference}</span>
@@ -5080,7 +5292,7 @@ export default function Planning() {
             {/* Add row */}
             {!showAddRow ? (
               <button onClick={() => setShowAddRow(true)}
-                className="flex items-center gap-2 w-full px-3 py-3 text-xs text-slate-600 hover:text-slate-400 hover:bg-white/3 transition-colors border-b border-slate-800/30">
+                className="flex items-center gap-2 w-full px-3 py-3 text-xs text-secondary hover:text-muted hover:bg-surface/3 transition-colors border-b border-slate-800/30">
                 <span className="w-44 flex-shrink-0 px-3 flex items-center gap-1.5"><span className="text-lg leading-none">+</span>Ajouter une ligne</span>
               </button>
             ) : (
@@ -5092,7 +5304,7 @@ export default function Planning() {
                     className="w-full bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-indigo-500 transition-colors"/>
                 </div>
                 <button onClick={addCustomRow} className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-lg transition-colors">OK</button>
-                <button onClick={() => { setShowAddRow(false); setNewRowLabel('') }} className="px-2.5 py-1.5 text-slate-500 hover:text-white text-xs transition-colors">Annuler</button>
+                <button onClick={() => { setShowAddRow(false); setNewRowLabel('') }} className="px-2.5 py-1.5 text-discreet hover:text-white text-xs transition-colors">Annuler</button>
               </div>
             )}
           </div>
@@ -5108,7 +5320,7 @@ export default function Planning() {
                 <div className="flex w-full">
                   {hourSlots.map(h => (
                     <div key={h} className="min-w-0 flex-1 border-r border-slate-700/50">
-                      <p className={`text-[10px] font-mono text-center py-2 ${h===new Date().getHours()&&selectedDay===today?'text-blue-400':'text-slate-500'}`}>
+                      <p className={`text-[10px] font-mono text-center py-2 ${h===new Date().getHours()&&selectedDay===today?'text-blue-400':'text-discreet'}`}>
                         {String(h).padStart(2,'0')}:00
                       </p>
                       <div className="flex">
@@ -5137,7 +5349,7 @@ export default function Planning() {
                   <div key={row.id}
                     onDragOver={!isRowEditMode ? e => { e.preventDefault(); e.stopPropagation() } : undefined}
                     onDrop={!isRowEditMode ? e => onRowDrop(e, row.id, !!row.isCustom) : undefined}
-                    className={`flex border-b border-slate-800/50 transition-colors group ${isDropTarget?'bg-indigo-950/30':'hover:bg-white/[0.01]'}`}>
+                    className={`flex border-b border-slate-800/50 transition-colors group ${isDropTarget?'bg-indigo-950/30':'hover:bg-surface/[0.01]'}`}>
                     {renderRowLabel(row)}
                     <div className="flex-1 relative overflow-hidden" style={{ height:ROW_H }}
                       onDragOver={!isRowEditMode ? e => onRowDragOver(e, row.id) : undefined}
@@ -5211,7 +5423,7 @@ export default function Planning() {
                           </div>
                           <div className="grid h-[calc(100%-22px)] divide-x divide-white/8" style={{ gridTemplateColumns: `repeat(${card.members.length}, minmax(0, 1fr))` }}>
                             {card.members.map(member => {
-                              const isLate = member.statut !== 'facture' && member.date_livraison_prevue && member.date_livraison_prevue.slice(0,10) < today
+                              const isLate = isOtLate12h(member)
                               return (
                                 <div
                                   key={member.id}
@@ -5226,7 +5438,7 @@ export default function Planning() {
                                     }
                                   }}
                                   onContextMenu={e => { e.preventDefault(); setContextMenu({ x:e.clientX, y:e.clientY, ot:member }) }}
-                                  className={`flex min-w-0 flex-col justify-center px-2 text-left transition-colors ${isRowEditMode ? 'cursor-default' : 'cursor-pointer hover:bg-white/5'}`}
+                                  className={`flex min-w-0 flex-col justify-center px-2 text-left transition-colors ${isRowEditMode ? 'cursor-default' : 'cursor-pointer hover:bg-surface/5'}`}
                                 >
                                   <div className="flex items-center gap-1 min-w-0">
                                     {isAffretedOt(member.id) && <span className="rounded px-1 text-[8px] font-bold bg-blue-500/30 text-blue-200 flex-shrink-0">AFF</span>}
@@ -5234,8 +5446,8 @@ export default function Planning() {
                                     <StatutOpsDot statut={member.statut_operationnel} size="xs"/>
                                     <span className={`truncate font-mono text-[10px] font-bold ${card.frozen ? 'text-white' : 'text-slate-950'}`}>{member.reference}</span>
                                   </div>
-                                  <span className={`truncate text-[10px] font-semibold ${card.frozen ? 'text-white/80' : 'text-slate-700'}`}>{member.client_nom}</span>
-                                  <span className={`truncate text-[9px] font-mono ${card.frozen ? 'text-white/45' : 'text-slate-500'}`}>{isoToTime(member.date_chargement_prevue)}-{isoToTime(member.date_livraison_prevue)}</span>
+                                  <span className={`truncate text-[10px] font-semibold ${card.frozen ? 'text-white/80' : 'text-foreground'}`}>{member.client_nom}</span>
+                                  <span className={`truncate text-[9px] font-mono ${card.frozen ? 'text-white/45' : 'text-discreet'}`}>{isoToTime(member.date_chargement_prevue)}-{isoToTime(member.date_livraison_prevue)}</span>
                                   {!isRowEditMode && (
                                     <span className="mt-1 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                                       <button type="button" className="rounded px-1 py-0.5 text-[8px] font-bold bg-slate-950/70 hover:bg-slate-950"
@@ -5258,7 +5470,7 @@ export default function Planning() {
                         const groupedLayout = groupedBlockLayout[ot.id]
                         const groupageBubbleLabel = getGroupageBubbleLabel(ot)
                         const isDragging = drag?.ot?.id===ot.id
-                        const isLate = ot.statut !== 'facture' && ot.date_livraison_prevue && ot.date_livraison_prevue.slice(0,10) < today
+                        const isLate = isOtLate12h(ot)
                         return (
                           <div key={ot.id} style={{...pos,...cStyle, ...(groupedLayout ? { top:`${groupedLayout.top}px`, height:`${groupedLayout.height}px` } : null)}}
                             draggable={canMove(ot) && !isRowEditMode}
@@ -5315,7 +5527,7 @@ export default function Planning() {
                         if (linkedOT) {
                           const { cls:cCls, style:cStyle } = getBlockColors(linkedOT, row.id)
                           const groupageBubbleLabel = getGroupageBubbleLabel(linkedOT)
-                          const isLate = linkedOT.statut !== 'facture' && linkedOT.date_livraison_prevue && linkedOT.date_livraison_prevue.slice(0,10) < today
+                          const isLate = isOtLate12h(linkedOT)
                           return (
                             <div key={block.id} style={{...pos,...cStyle}}
                               draggable={!isRowEditMode}
@@ -5338,7 +5550,7 @@ export default function Planning() {
                                 <StatutOpsDot statut={linkedOT.statut_operationnel} size="xs"/>
                                 <span className="font-mono font-bold truncate flex-1">{linkedOT.reference}</span>
                                 {!isRowEditMode && (
-                                  <button title="Desaffecter" className="opacity-0 group-hover/cblock:opacity-100 transition-opacity flex-shrink-0 w-3.5 h-3.5 flex items-center justify-center rounded hover:bg-white/20 text-[10px]"
+                                  <button title="Desaffecter" className="opacity-0 group-hover/cblock:opacity-100 transition-opacity flex-shrink-0 w-3.5 h-3.5 flex items-center justify-center rounded hover:bg-surface/20 text-[10px]"
                                     onClick={async e => { e.stopPropagation(); await unassignFromCustomBlock(block) }}>x</button>
                                 )}
                               </div>
@@ -5367,10 +5579,10 @@ export default function Planning() {
                             className={`${block.color} border rounded-md text-white text-[11px] font-medium flex flex-col justify-center px-2 cursor-grab active:cursor-grabbing group/cblock overflow-hidden shadow-sm ${drag && drag.customBlockId !== block.id ? 'pointer-events-none' : ''} ${hoveredMissionId ? 'opacity-40 saturate-50' : ''}`}>
                             <span className="truncate leading-tight">{block.label}</span>
                               <span className="text-white/60 text-[9px]">{block.dateStart.slice(11,16)}-{block.dateEnd.slice(11,16)}</span>
-                            {!isRowEditMode && <button className="absolute right-5 top-1 opacity-0 group-hover/cblock:opacity-100 w-4 h-4 flex items-center justify-center rounded hover:bg-white/20 text-xs"
+                            {!isRowEditMode && <button className="absolute right-5 top-1 opacity-0 group-hover/cblock:opacity-100 w-4 h-4 flex items-center justify-center rounded hover:bg-surface/20 text-xs"
                               title="Modifier"
                               onClick={e => { e.stopPropagation(); openPlanningBlockEditor(block) }}>?</button>}
-                            {!isRowEditMode && <button className="absolute right-1 top-1 opacity-0 group-hover/cblock:opacity-100 w-4 h-4 flex items-center justify-center rounded hover:bg-white/20 text-xs"
+                            {!isRowEditMode && <button className="absolute right-1 top-1 opacity-0 group-hover/cblock:opacity-100 w-4 h-4 flex items-center justify-center rounded hover:bg-surface/20 text-xs"
                               onClick={async e => { e.stopPropagation(); await unassignFromCustomBlock(block) }}>x</button>}
                           </div>
                         )
@@ -5409,7 +5621,7 @@ export default function Planning() {
               {/* Add row */}
               {!showAddRow ? (
                 <button onClick={() => setShowAddRow(true)}
-                  className="flex items-center gap-2 px-3 py-3 text-xs text-slate-600 hover:text-slate-400 transition-colors border-b border-slate-800/30">
+                  className="flex items-center gap-2 px-3 py-3 text-xs text-secondary hover:text-muted transition-colors border-b border-slate-800/30">
                   <span className="w-44 flex-shrink-0 flex items-center gap-1.5"><span className="text-lg">+</span>Ajouter une ligne</span>
                 </button>
               ) : (
@@ -5421,7 +5633,7 @@ export default function Planning() {
                       className="w-full bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-indigo-500 transition-colors"/>
                   </div>
                   <button onClick={addCustomRow} className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-lg">OK</button>
-                  <button onClick={() => { setShowAddRow(false); setNewRowLabel('') }} className="px-2.5 py-1.5 text-slate-500 hover:text-white text-xs">Annuler</button>
+                  <button onClick={() => { setShowAddRow(false); setNewRowLabel('') }} className="px-2.5 py-1.5 text-discreet hover:text-white text-xs">Annuler</button>
                 </div>
               )}
             </div>
@@ -5449,10 +5661,10 @@ export default function Planning() {
                     const isWE = day.getDay() === 0 || day.getDay() === 6
                     return (
                       <div key={i} className={`w-9 flex-shrink-0 border-r border-slate-700/40 last:border-r-0 text-center py-2 ${isWE ? 'bg-slate-800/40' : ''}`}>
-                        <p className={`text-[9px] font-medium ${isToday ? 'text-blue-400' : isWE ? 'text-slate-600' : 'text-slate-500'}`}>
+                        <p className={`text-[9px] font-medium ${isToday ? 'text-blue-400' : isWE ? 'text-secondary' : 'text-discreet'}`}>
                           {DAY_ABBR[day.getDay()]}
                         </p>
-                        <p className={`text-[11px] font-bold leading-tight ${isToday ? 'text-blue-400' : isWE ? 'text-slate-600' : 'text-slate-300'}`}>
+                        <p className={`text-[11px] font-bold leading-tight ${isToday ? 'text-blue-400' : isWE ? 'text-secondary' : 'text-slate-300'}`}>
                           {day.getDate()}
                         </p>
                       </div>
@@ -5461,11 +5673,11 @@ export default function Planning() {
                 </div>
                 {/* Resource rows */}
                 {visibleRows.length === 0 ? (
-                  <div className="p-16 text-center text-slate-600 text-sm">Aucune ressource disponible</div>
+                  <div className="p-16 text-center text-secondary text-sm">Aucune ressource disponible</div>
                 ) : visibleRows.map(row => {
                   const allRowOTs = row.isCustom ? [] : rowOTs(row.id)
                   return (
-                    <div key={row.id} className="flex border-b border-slate-800/50 hover:bg-white/[0.01] transition-colors" style={{ height: '44px' }}>
+                    <div key={row.id} className="flex border-b border-slate-800/50 hover:bg-surface/[0.01] transition-colors" style={{ height: '44px' }}>
                       {renderRowLabel(row)}
                       {monthDaysList.map((day, i) => {
                         const dayISO = toISO(day)
@@ -5489,7 +5701,7 @@ export default function Planning() {
                               'w-9 flex-shrink-0 border-r border-slate-800/40 last:border-r-0 flex flex-col items-center justify-center gap-0.5 transition-colors',
                               isWE ? 'bg-slate-800/15' : '',
                               isToday ? 'bg-blue-950/20' : '',
-                              dayOTs.length > 0 ? 'hover:bg-indigo-950/40 cursor-pointer' : 'hover:bg-white/[0.02]',
+                              dayOTs.length > 0 ? 'hover:bg-indigo-950/40 cursor-pointer' : 'hover:bg-surface/[0.02]',
                             ].join(' ')}
                             title={dayOTs.length > 0 ? dayOTs.map(o => o.reference).join(', ') : undefined}
                           >
@@ -5498,7 +5710,7 @@ export default function Planning() {
                                 {shown.map(ot => (
                                   <span key={ot.id} className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatutDotCls(ot.statut)}`} />
                                 ))}
-                                {extra > 0 && <span className="text-[8px] font-bold text-slate-400 leading-none">+{extra}</span>}
+                                {extra > 0 && <span className="text-[8px] font-bold text-muted leading-none">+{extra}</span>}
                               </div>
                             )}
                           </button>
@@ -5521,18 +5733,46 @@ export default function Planning() {
             : { left: 0, right: 0 }}
         >
           {bottomDockCollapsed ? (
-            <div className="border border-slate-800 bg-slate-950/95 px-4 py-2 rounded-t-xl">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                  Panneau operations replie
-                </p>
+            <div className="border-t border-slate-800 bg-slate-950/98 px-3 py-1.5 rounded-t-xl shadow-lg">
+              <div className="flex items-center gap-2 overflow-x-auto overflow-y-hidden">
+                {/* Chevron ouvrir */}
                 <button
                   type="button"
                   onClick={() => setBottomDockCollapsed(false)}
-                  className="rounded-full border border-indigo-500/50 bg-indigo-500/20 px-3 py-1 text-[11px] font-semibold text-indigo-200 hover:bg-indigo-500/30"
+                  className="flex items-center gap-1 flex-shrink-0 rounded-lg border border-slate-700 bg-slate-800/80 px-2 py-1 text-[10px] font-semibold text-muted hover:text-white hover:border-indigo-500/50 transition-colors"
+                  title="Développer le panneau opérations"
                 >
-                  Ouvrir le panneau
+                  <svg className="w-3 h-3 rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M19 9l-7 7-7-7"/></svg>
+                  Opérations
                 </button>
+
+                <div className="h-4 w-px bg-slate-700/60 flex-shrink-0" />
+
+                {/* Onglets avec count — clic ouvre directement sur cet onglet */}
+                {visibleBottomDockTabs.map(item => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => {
+                      setBottomDockTab(item.key)
+                      setBottomDockCollapsed(false)
+                      if (item.key === 'relais' || item.key === 'entrepots') void loadRelais()
+                    }}
+                    className={`flex items-center gap-1 flex-shrink-0 whitespace-nowrap rounded-md px-2 py-1 text-[10px] font-semibold transition-colors border ${
+                      item.count > 0
+                        ? 'border-amber-600/40 bg-amber-600/10 text-amber-300 hover:bg-amber-600/20'
+                        : 'border-slate-700/60 text-slate-400 hover:text-slate-200 hover:border-slate-600'
+                    }`}
+                    title={`Ouvrir ${item.label}`}
+                  >
+                    {item.label}
+                    {item.count > 0 && (
+                      <span className="min-w-[16px] text-center rounded-full bg-amber-500/30 px-1 text-amber-200 text-[9px] font-bold">
+                        {item.count}
+                      </span>
+                    )}
+                  </button>
+                ))}
               </div>
             </div>
           ) : (
@@ -5568,7 +5808,7 @@ export default function Planning() {
               >
                 {item.label}
                 {item.count > 0 && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${bottomDockTab === item.key ? 'bg-blue-200 text-blue-900' : 'bg-slate-200 text-slate-800'}`}>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${bottomDockTab === item.key ? 'bg-blue-200 text-blue-900' : 'bg-slate-700/80 text-slate-300'}`}>
                     {item.count}
                   </span>
                 )}
@@ -5620,7 +5860,7 @@ export default function Planning() {
                   setSimulationMode(next)
                   saveBooleanSetting(SIMULATION_MODE_KEY, next)
                 }}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${simulationMode ? 'bg-blue-600/25 border-blue-500/50 text-blue-100' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${simulationMode ? 'bg-amber-600 border-amber-500 text-white' : 'border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'}`}
               >
                 Mode simulation {simulationMode ? 'ON' : 'OFF'}
               </button>
@@ -5631,7 +5871,7 @@ export default function Planning() {
                   setAutoHabillage(next)
                   saveBooleanSetting(AUTO_HABILLAGE_KEY, next)
                 }}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${autoHabillage ? 'bg-blue-600/25 border-blue-500/50 text-blue-100' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${autoHabillage ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'}`}
               >
                 Habillage auto {autoHabillage ? 'active' : 'off'}
               </button>
@@ -5642,14 +5882,14 @@ export default function Planning() {
                   setAutoPauseReglementaire(next)
                   saveBooleanSetting(AUTO_PAUSE_KEY, next)
                 }}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${autoPauseReglementaire ? 'bg-blue-600/25 border-blue-500/50 text-blue-100' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${autoPauseReglementaire ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'}`}
               >
                 Pause 45 min {autoPauseReglementaire ? 'activee' : 'off'}
               </button>
               <button
                 type="button"
                 onClick={() => setPlanningHeaderCollapsed(current => !current)}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${planningHeaderCollapsed ? 'bg-blue-600/25 border-blue-500/50 text-blue-100' : 'border-slate-700 text-slate-300 hover:text-white'}`}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${planningHeaderCollapsed ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'}`}
               >
                 {planningHeaderCollapsed ? 'Afficher bandeau haut' : 'Retracter bandeau haut'}
               </button>
@@ -5663,7 +5903,7 @@ export default function Planning() {
               <button
                 type="button"
                 onClick={() => setShowExploitantControls(value => !value)}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${showExploitantControls ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-100' : 'border-slate-700 text-slate-300 hover:text-white'}`}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${showExploitantControls ? 'bg-emerald-600 border-emerald-500 text-white' : 'border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'}`}
               >
                 Parametres exploitant
               </button>
@@ -5671,31 +5911,31 @@ export default function Planning() {
             {showExploitantControls && (
               <div className="w-full rounded-xl border border-slate-700/70 bg-slate-900/70 px-3 py-2.5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Mode planning</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-muted">Mode planning</p>
                   <button
                     type="button"
                     onClick={() => applyExploitantPreset('leger')}
-                    className="rounded-full border border-emerald-500/60 bg-emerald-500/20 px-2.5 py-1 text-[10px] font-semibold text-emerald-100 hover:bg-emerald-500/30"
+                    className="rounded-full border border-emerald-600 bg-emerald-600 px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-emerald-500"
                   >
                     Preset leger
                   </button>
                   <button
                     type="button"
                     onClick={() => applyExploitantPreset('complet')}
-                    className="rounded-full border border-blue-500/60 bg-blue-500/20 px-2.5 py-1 text-[10px] font-semibold text-blue-100 hover:bg-blue-500/30"
+                    className="rounded-full border border-blue-600 bg-blue-600 px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-blue-500"
                   >
                     Preset complet
                   </button>
                 </div>
                 <div className="mt-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Onglets du panneau</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-muted mb-1">Onglets du panneau</p>
                   <div className="flex flex-wrap gap-1.5">
                     {exploitantTabOptions.map(option => (
                       <button
                         key={option.key}
                         type="button"
                         onClick={() => toggleExploitantFeature(option.key)}
-                        className={`rounded-full border px-2 py-1 text-[10px] font-semibold transition-colors ${isFeatureEnabled(option.key) ? 'border-emerald-500/55 bg-emerald-500/20 text-emerald-100' : 'border-slate-700 text-slate-400 hover:text-slate-200'}`}
+                    className={`rounded-full border px-2 py-1 text-[10px] font-semibold transition-colors ${isFeatureEnabled(option.key) ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-700 text-slate-300 hover:text-white'}`}
                       >
                         {option.label} {option.count > 0 ? `(${option.count})` : ''}
                       </button>
@@ -5703,14 +5943,14 @@ export default function Planning() {
                   </div>
                 </div>
                 <div className="mt-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Actions operateur</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-muted mb-1">Actions operateur</p>
                   <div className="flex flex-wrap gap-1.5">
                     {exploitantActionOptions.map(option => (
                       <button
                         key={option.key}
                         type="button"
                         onClick={() => toggleExploitantFeature(option.key)}
-                        className={`rounded-full border px-2 py-1 text-[10px] font-semibold transition-colors ${isFeatureEnabled(option.key) ? 'border-blue-500/55 bg-blue-500/20 text-blue-100' : 'border-slate-700 text-slate-400 hover:text-slate-200'}`}
+                        className={`rounded-full border px-2 py-1 text-[10px] font-semibold transition-colors ${isFeatureEnabled(option.key) ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-700 text-slate-300 hover:text-white'}`}
                       >
                         {option.label}
                       </button>
@@ -5726,7 +5966,7 @@ export default function Planning() {
               {bottomDockTab === 'missions' && (
                 <div className="overflow-auto">
                   <table className="w-full text-xs">
-                    <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
+                    <thead className="bg-slate-900/90 text-discreet uppercase tracking-wide text-[10px]">
                       <tr>
                         <th className="text-left px-3 py-2">Mission / course</th>
                         <th className="text-left px-3 py-2">Synthese</th>
@@ -5737,7 +5977,7 @@ export default function Planning() {
                     </thead>
                     <tbody>
                       {bottomDockMissions.length === 0 && (
-                        <tr><td className="px-3 py-3 text-slate-500" colSpan={5}>Aucune mission planifiee.</td></tr>
+                        <tr><td className="px-3 py-3 text-discreet" colSpan={5}>Aucune mission planifiee.</td></tr>
                       )}
                       {bottomDockMissions.map(ot => {
                         const summary = getMissionSummary(ot)
@@ -5756,17 +5996,17 @@ export default function Planning() {
                                   <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${ot.groupage_fige ? 'bg-indigo-500/20 text-indigo-200' : 'bg-amber-100 text-amber-950'}`}>{summary.badge}</span>
                                 )}
                               </div>
-                              <span className="text-[10px] text-slate-500">{summary.missionType === 'groupage' ? `Mission ${summary.missionId.slice(0, 8)}` : 'Course simple'}</span>
+                              <span className="text-[10px] text-discreet">{summary.missionType === 'groupage' ? `Mission ${summary.missionId.slice(0, 8)}` : 'Course simple'}</span>
                             </div>
                           </td>
                           <td className="px-3 py-2 text-slate-200">
                             <div className="flex flex-col gap-0.5">
                               <span>{summary.missionType === 'groupage' ? summary.subtitle : ot.client_nom}</span>
-                              <span className="text-[10px] text-slate-500 truncate">{summary.missionType === 'groupage' ? summary.referencesLabel : summary.timeRange}</span>
+                              <span className="text-[10px] text-discreet truncate">{summary.missionType === 'groupage' ? summary.referencesLabel : summary.timeRange}</span>
                             </div>
                           </td>
-                          <td className="px-3 py-2 text-slate-400">{resolveRowId(ot) ? (orderedRows.find(row => row.id === resolveRowId(ot))?.primary ?? '-') : '-'}</td>
-                          <td className="px-3 py-2 text-slate-400">{isoToDate(ot.date_chargement_prevue)} {isoToTime(ot.date_chargement_prevue)} - {isoToDate(ot.date_livraison_prevue)} {isoToTime(ot.date_livraison_prevue)}</td>
+                          <td className="px-3 py-2 text-muted">{resolveRowId(ot) ? (orderedRows.find(row => row.id === resolveRowId(ot))?.primary ?? '-') : '-'}</td>
+                          <td className="px-3 py-2 text-muted">{isoToDate(ot.date_chargement_prevue)} {isoToTime(ot.date_chargement_prevue)} - {isoToDate(ot.date_livraison_prevue)} {isoToTime(ot.date_livraison_prevue)}</td>
                           <td className="px-3 py-2">
                             <button
                               type="button"
@@ -5792,7 +6032,7 @@ export default function Planning() {
               {bottomDockTab === 'urgences' && (
                 <div className="overflow-auto">
                   <table className="w-full text-xs">
-                    <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
+                    <thead className="bg-slate-900/90 text-discreet uppercase tracking-wide text-[10px]">
                       <tr>
                         <th className="text-left px-3 py-2">Priorite</th>
                         <th className="text-left px-3 py-2">Objet</th>
@@ -5802,7 +6042,7 @@ export default function Planning() {
                     </thead>
                     <tbody>
                       {bottomDockUrgences.length === 0 && (
-                        <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucune urgence immediate.</td></tr>
+                        <tr><td className="px-3 py-3 text-discreet" colSpan={4}>Aucune urgence immediate.</td></tr>
                       )}
                       {bottomDockUrgences.map(item => (
                         <tr key={item.id} className="border-t border-slate-800/70 hover:bg-slate-800/40">
@@ -5837,7 +6077,7 @@ export default function Planning() {
                                   Affecter
                                 </button>
                               ) : (
-                                <span className="text-slate-500">Affectation desactivee</span>
+                                <span className="text-discreet">Affectation desactivee</span>
                               )
                             ) : (
                               <button
@@ -5861,11 +6101,11 @@ export default function Planning() {
 
               {bottomDockTab === 'non_affectees' && (
                 <div className="overflow-auto">
-                  <div className="px-3 py-2 text-[10px] text-slate-400 border-b border-slate-800/70">
+                  <div className="px-3 py-2 text-[10px] text-muted border-b border-slate-800/70">
                     Liste calculee selon l'onglet actif (conducteurs, camions ou remorques).
                   </div>
                   <table className="w-full text-xs">
-                    <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
+                    <thead className="bg-slate-900/90 text-discreet uppercase tracking-wide text-[10px]">
                       <tr>
                         <th className="text-left px-3 py-2">Reference</th>
                         <th className="text-left px-3 py-2">Client</th>
@@ -5875,7 +6115,7 @@ export default function Planning() {
                     </thead>
                     <tbody>
                       {unresourced.length === 0 && (
-                        <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucune mission non affectee.</td></tr>
+                        <tr><td className="px-3 py-3 text-discreet" colSpan={4}>Aucune mission non affectee.</td></tr>
                       )}
                       {unresourced.map(ot => {
                         const summary = getMissionSummary(ot)
@@ -5894,15 +6134,15 @@ export default function Planning() {
                           <td className="px-3 py-2 text-slate-200">
                             <div className="flex flex-col gap-0.5">
                               <span>{summary.missionType === 'groupage' ? summary.subtitle : ot.client_nom}</span>
-                              {summary.missionType === 'groupage' && <span className="text-[10px] text-slate-500 truncate">{summary.referencesLabel}</span>}
+                              {summary.missionType === 'groupage' && <span className="text-[10px] text-discreet truncate">{summary.referencesLabel}</span>}
                             </div>
                           </td>
-                          <td className="px-3 py-2 text-slate-400">{isoToDate(ot.date_chargement_prevue)} {isoToTime(ot.date_chargement_prevue)}</td>
+                          <td className="px-3 py-2 text-muted">{isoToDate(ot.date_chargement_prevue)} {isoToTime(ot.date_chargement_prevue)}</td>
                           <td className="px-3 py-2">
                             {isFeatureEnabled('action_affecter') ? (
                               <button type="button" onClick={() => openAssign(ot)} className="text-indigo-300 hover:text-indigo-200">Affecter</button>
                             ) : (
-                              <span className="text-slate-500">Desactivee</span>
+                              <span className="text-discreet">Desactivee</span>
                             )}
                           </td>
                         </tr>
@@ -5916,7 +6156,7 @@ export default function Planning() {
               {bottomDockTab === 'conflits' && (
                 <div className="overflow-auto">
                   <table className="w-full text-xs">
-                    <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
+                    <thead className="bg-slate-900/90 text-discreet uppercase tracking-wide text-[10px]">
                       <tr>
                         <th className="text-left px-3 py-2">Ressource</th>
                         <th className="text-left px-3 py-2">Courses</th>
@@ -5926,7 +6166,7 @@ export default function Planning() {
                     </thead>
                     <tbody>
                       {bottomDockConflicts.length === 0 && (
-                        <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucun conflit detecte.</td></tr>
+                        <tr><td className="px-3 py-3 text-discreet" colSpan={4}>Aucun conflit detecte.</td></tr>
                       )}
                       {bottomDockConflicts.flatMap(item => item.pairs.map((pair, idx) => (
                         <tr key={`${item.rowId}-${pair.first.id}-${pair.second.id}-${idx}`} className="border-t border-slate-800/70 hover:bg-slate-800/40">
@@ -5944,7 +6184,7 @@ export default function Planning() {
               {bottomDockTab === 'affretement' && (
                 <div className="overflow-auto">
                   <table className="w-full text-xs">
-                    <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
+                    <thead className="bg-slate-900/90 text-discreet uppercase tracking-wide text-[10px]">
                       <tr>
                         <th className="text-left px-3 py-2">Course</th>
                         <th className="text-left px-3 py-2">Affreteur</th>
@@ -5954,7 +6194,7 @@ export default function Planning() {
                     </thead>
                     <tbody>
                       {activeAffretementContracts.length === 0 && (
-                        <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucune course affretee en cours.</td></tr>
+                        <tr><td className="px-3 py-3 text-discreet" colSpan={4}>Aucune course affretee en cours.</td></tr>
                       )}
                       {activeAffretementContracts.map(contract => {
                         const ot = ganttOTs.find(item => item.id === contract.otId) ?? pool.find(item => item.id === contract.otId)
@@ -5964,7 +6204,7 @@ export default function Planning() {
                             <td className="px-3 py-2 font-mono text-slate-300">{ot?.reference ?? contract.otId.slice(0, 8)}</td>
                             <td className="px-3 py-2 text-slate-200">{context?.onboarding?.companyName ?? '-'}</td>
                             <td className="px-3 py-2"><span className="px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-[10px]">{contract.status}</span></td>
-                            <td className="px-3 py-2 text-slate-400">
+                            <td className="px-3 py-2 text-muted">
                               {context?.driver ? `Cond. ${context.driver.fullName}` : 'Cond. -'}
                               {' / '}
                               {context?.vehicle ? `Veh. ${context.vehicle.plate}` : 'Veh. -'}
@@ -5980,7 +6220,7 @@ export default function Planning() {
               {bottomDockTab === 'groupages' && (
                 <div className="overflow-auto">
                   <table className="w-full text-xs">
-                    <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
+                    <thead className="bg-slate-900/90 text-discreet uppercase tracking-wide text-[10px]">
                       <tr>
                         <th className="text-left px-3 py-2">Mission</th>
                         <th className="text-left px-3 py-2">Synthese</th>
@@ -5990,7 +6230,7 @@ export default function Planning() {
                     </thead>
                     <tbody>
                       {bottomDockGroupages.length === 0 && (
-                        <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucune mission groupage active.</td></tr>
+                        <tr><td className="px-3 py-3 text-discreet" colSpan={4}>Aucune mission groupage active.</td></tr>
                       )}
                       {bottomDockGroupages.map(group => {
                         const summary = getMissionSummaryFromMembers(group.members)
@@ -6004,13 +6244,13 @@ export default function Planning() {
                           <td className="px-3 py-2">
                             <div className="flex flex-col gap-0.5">
                               <span className="font-semibold text-slate-100 flex items-center gap-2">{summary.label}<span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${group.frozen ? 'bg-indigo-500/25 text-indigo-200' : 'bg-amber-100 text-amber-950'}`}>{summary.badge}</span></span>
-                              <span className="font-mono text-[10px] text-slate-500">{group.groupId.slice(0, 8)}</span>
+                              <span className="font-mono text-[10px] text-discreet">{group.groupId.slice(0, 8)}</span>
                             </div>
                           </td>
                           <td className="px-3 py-2 text-slate-200">
                             <div className="flex flex-col gap-0.5">
                               <span>{summary.subtitle}</span>
-                              <span className="text-[10px] text-slate-500">{summary.timeRange} � {summary.referencesLabel}</span>
+                              <span className="text-[10px] text-discreet">{summary.timeRange} � {summary.referencesLabel}</span>
                             </div>
                           </td>
                           <td className="px-3 py-2">
@@ -6032,7 +6272,7 @@ export default function Planning() {
               {bottomDockTab === 'non_programmees' && (
                 <div className="overflow-auto">
                   <table className="w-full text-xs">
-                    <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
+                    <thead className="bg-slate-900/90 text-discreet uppercase tracking-wide text-[10px]">
                       <tr>
                         <th className="text-left px-3 py-2">Reference</th>
                         <th className="text-left px-3 py-2">Client</th>
@@ -6042,7 +6282,7 @@ export default function Planning() {
                     </thead>
                     <tbody>
                       {bottomDockNonProgrammees.length === 0 && (
-                        <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucune course non programmee.</td></tr>
+                        <tr><td className="px-3 py-3 text-discreet" colSpan={4}>Aucune course non programmee.</td></tr>
                       )}
                       {bottomDockNonProgrammees.map(ot => {
                         const summary = getMissionSummary(ot)
@@ -6061,7 +6301,7 @@ export default function Planning() {
                           <td className="px-3 py-2 text-slate-200">
                             <div className="flex flex-col gap-0.5">
                               <span>{summary.missionType === 'groupage' ? summary.subtitle : ot.client_nom}</span>
-                              {summary.missionType === 'groupage' && <span className="text-[10px] text-slate-500 truncate">{summary.referencesLabel}</span>}
+                              {summary.missionType === 'groupage' && <span className="text-[10px] text-discreet truncate">{summary.referencesLabel}</span>}
                             </div>
                           </td>
                           <td className="px-3 py-2">
@@ -6082,7 +6322,7 @@ export default function Planning() {
                             {isFeatureEnabled('action_affecter') ? (
                               <button type="button" onClick={() => openAssign(ot)} className="text-indigo-300 hover:text-indigo-200">Programmer</button>
                             ) : (
-                              <span className="text-slate-500">Desactivee</span>
+                              <span className="text-discreet">Desactivee</span>
                             )}
                           </td>
                         </tr>
@@ -6096,7 +6336,7 @@ export default function Planning() {
               {bottomDockTab === 'annulees' && (
                 <div className="overflow-auto">
                   <table className="w-full text-xs">
-                    <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
+                    <thead className="bg-slate-900/90 text-discreet uppercase tracking-wide text-[10px]">
                       <tr>
                         <th className="text-left px-3 py-2">Reference</th>
                         <th className="text-left px-3 py-2">Client</th>
@@ -6106,7 +6346,7 @@ export default function Planning() {
                     </thead>
                     <tbody>
                       {bottomDockAnnulees.length === 0 && (
-                        <tr><td className="px-3 py-3 text-slate-500" colSpan={4}>Aucune course annulee.</td></tr>
+                        <tr><td className="px-3 py-3 text-discreet" colSpan={4}>Aucune course annulee.</td></tr>
                       )}
                       {bottomDockAnnulees.map(ot => {
                         const summary = getMissionSummary(ot)
@@ -6125,10 +6365,10 @@ export default function Planning() {
                           <td className="px-3 py-2 text-slate-200">
                             <div className="flex flex-col gap-0.5">
                               <span>{summary.missionType === 'groupage' ? summary.subtitle : ot.client_nom}</span>
-                              {summary.missionType === 'groupage' && <span className="text-[10px] text-slate-500 truncate">{summary.referencesLabel}</span>}
+                              {summary.missionType === 'groupage' && <span className="text-[10px] text-discreet truncate">{summary.referencesLabel}</span>}
                             </div>
                           </td>
-                          <td className="px-3 py-2 text-slate-400">{isoToDate(ot.date_chargement_prevue)} {isoToTime(ot.date_chargement_prevue)}</td>
+                          <td className="px-3 py-2 text-muted">{isoToDate(ot.date_chargement_prevue)} {isoToTime(ot.date_chargement_prevue)}</td>
                           <td className="px-3 py-2"><button type="button" onClick={() => openSelected(ot)} className="text-indigo-300 hover:text-indigo-200">Consulter</button></td>
                         </tr>
                         )
@@ -6152,7 +6392,7 @@ export default function Planning() {
 
                   <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
                     <div>
-                      <label className="block text-[10px] text-slate-400 mb-1 uppercase tracking-wide">Vehicule</label>
+                      <label className="block text-[10px] text-muted mb-1 uppercase tracking-wide">Vehicule</label>
                       <select
                         className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs px-2 py-2 outline-none"
                         value={retourChargeForm.vehicule_id}
@@ -6165,7 +6405,7 @@ export default function Planning() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[10px] text-slate-400 mb-1 uppercase tracking-wide">Date debut</label>
+                      <label className="block text-[10px] text-muted mb-1 uppercase tracking-wide">Date debut</label>
                       <input
                         type="date"
                         className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs px-2 py-2 outline-none"
@@ -6174,7 +6414,7 @@ export default function Planning() {
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-slate-400 mb-1 uppercase tracking-wide">Date fin</label>
+                      <label className="block text-[10px] text-muted mb-1 uppercase tracking-wide">Date fin</label>
                       <input
                         type="date"
                         className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs px-2 py-2 outline-none"
@@ -6183,7 +6423,7 @@ export default function Planning() {
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-slate-400 mb-1 uppercase tracking-wide">Retour depot avant</label>
+                      <label className="block text-[10px] text-muted mb-1 uppercase tracking-wide">Retour depot avant</label>
                       <input
                         type="datetime-local"
                         className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs px-2 py-2 outline-none"
@@ -6192,7 +6432,7 @@ export default function Planning() {
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-slate-400 mb-1 uppercase tracking-wide">Rayon (km)</label>
+                      <label className="block text-[10px] text-muted mb-1 uppercase tracking-wide">Rayon (km)</label>
                       <input
                         type="number"
                         min={10}
@@ -6274,7 +6514,7 @@ export default function Planning() {
 
                   {!retourChargeLoading && retourChargeSuggestions.length > 0 && (
                     <table className="w-full text-xs">
-                      <thead className="bg-slate-900/90 text-slate-500 uppercase tracking-wide text-[10px]">
+                      <thead className="bg-slate-900/90 text-discreet uppercase tracking-wide text-[10px]">
                         <tr>
                           <th className="text-left px-3 py-2">Reference</th>
                           <th className="text-left px-3 py-2">Client</th>
@@ -6296,13 +6536,13 @@ export default function Planning() {
                                 <span className="font-mono text-slate-300">{s.reference}</span>
                               </td>
                               <td className="px-3 py-2 text-slate-200">{s.client_nom}</td>
-                              <td className="px-3 py-2 text-slate-400">{isoToDate(s.date_chargement_prevue)}</td>
+                              <td className="px-3 py-2 text-muted">{isoToDate(s.date_chargement_prevue)}</td>
                               <td className="px-3 py-2">
                                 {s.dist_vide_km != null
                                   ? <span className={`font-semibold ${s.dist_vide_km < 50 ? 'text-emerald-300' : s.dist_vide_km < 150 ? 'text-amber-300' : 'text-red-300'}`}>
                                       {s.dist_vide_km} km
                                     </span>
-                                  : <span className="text-slate-500">N/A</span>
+                                  : <span className="text-discreet">N/A</span>
                                 }
                               </td>
                               <td className="px-3 py-2 text-slate-300">{s.prix_ht != null ? `${s.prix_ht.toFixed(0)} �` : '�'}</td>
@@ -6323,7 +6563,7 @@ export default function Planning() {
                                     Affecter
                                   </button>
                                 ) : (
-                                  <span className="text-slate-500">�</span>
+                                  <span className="text-discreet">�</span>
                                 )}
                               </td>
                             </tr>
@@ -6334,7 +6574,7 @@ export default function Planning() {
                   )}
 
                   {!retourChargeLoading && retourChargeSuggestions.length === 0 && retourChargeForm.vehicule_id && (
-                    <p className="text-xs text-slate-500 px-1">
+                    <p className="text-xs text-discreet px-1">
                       Aucune suggestion. Elargissez la plage de dates ou le rayon.
                     </p>
                   )}
@@ -6354,25 +6594,25 @@ export default function Planning() {
                       Actualiser
                     </button>
                   </div>
-                  {relaisLoading && <p className="text-xs text-slate-500 px-1">Chargement...</p>}
+                  {relaisLoading && <p className="text-xs text-discreet px-1">Chargement...</p>}
                   {relaisError && <p className="text-xs text-red-400 px-1">{relaisError}</p>}
                   {!relaisLoading && (() => {
                     const enEntrepot = relaisList.filter(r => r.type_relais === 'depot_marchandise' && r.statut !== 'termine' && r.statut !== 'annule')
                     if (enEntrepot.length === 0) return (
-                      <p className="text-xs text-slate-500 px-1">Aucune marchandise en depot pour l instant.</p>
+                      <p className="text-xs text-discreet px-1">Aucune marchandise en depot pour l instant.</p>
                     )
                     return (
                       <table className="w-full text-xs border-collapse">
                         <thead>
                           <tr className="border-b border-slate-800 text-left">
-                            <th className="px-3 py-2 text-slate-400 font-medium">Course</th>
-                            <th className="px-3 py-2 text-slate-400 font-medium">Client</th>
-                            <th className="px-3 py-2 text-slate-400 font-medium">Depot / Site</th>
-                            <th className="px-3 py-2 text-slate-400 font-medium">Depose le</th>
-                            <th className="px-3 py-2 text-slate-400 font-medium">Reprise prevue</th>
-                            <th className="px-3 py-2 text-slate-400 font-medium">Conducteur reprise</th>
-                            <th className="px-3 py-2 text-slate-400 font-medium">Statut</th>
-                            <th className="px-3 py-2 text-slate-400 font-medium">Actions</th>
+                            <th className="px-3 py-2 text-muted font-medium">Course</th>
+                            <th className="px-3 py-2 text-muted font-medium">Client</th>
+                            <th className="px-3 py-2 text-muted font-medium">Depot / Site</th>
+                            <th className="px-3 py-2 text-muted font-medium">Depose le</th>
+                            <th className="px-3 py-2 text-muted font-medium">Reprise prevue</th>
+                            <th className="px-3 py-2 text-muted font-medium">Conducteur reprise</th>
+                            <th className="px-3 py-2 text-muted font-medium">Statut</th>
+                            <th className="px-3 py-2 text-muted font-medium">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -6388,14 +6628,14 @@ export default function Planning() {
                               <td className="px-3 py-2 text-slate-300">{relais.ordres_transport?.client_nom ?? '�'}</td>
                               <td className="px-3 py-2">
                                 <p className="text-slate-200 font-medium">{relais.lieu_nom}</p>
-                                {relais.lieu_adresse && <p className="text-slate-500 text-[10px]">{relais.lieu_adresse}</p>}
+                                {relais.lieu_adresse && <p className="text-discreet text-[10px]">{relais.lieu_adresse}</p>}
                               </td>
-                              <td className="px-3 py-2 text-slate-400">{new Date(relais.date_depot).toLocaleString('fr-FR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</td>
-                              <td className="px-3 py-2 text-slate-400">
+                              <td className="px-3 py-2 text-muted">{new Date(relais.date_depot).toLocaleString('fr-FR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</td>
+                              <td className="px-3 py-2 text-muted">
                                 {relais.date_reprise_prevue ? new Date(relais.date_reprise_prevue).toLocaleDateString('fr-FR', { day:'2-digit', month:'short' }) : '�'}
                               </td>
                               <td className="px-3 py-2 text-slate-300">
-                                {relais.conducteur_reprise ? `${relais.conducteur_reprise.prenom} ${relais.conducteur_reprise.nom}` : <span className="text-slate-500 italic">Non assigne</span>}
+                                {relais.conducteur_reprise ? `${relais.conducteur_reprise.prenom} ${relais.conducteur_reprise.nom}` : <span className="text-discreet italic">Non assigne</span>}
                               </td>
                               <td className="px-3 py-2">
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
@@ -6440,25 +6680,25 @@ export default function Planning() {
                       Actualiser
                     </button>
                   </div>
-                  {relaisLoading && <p className="text-xs text-slate-500 px-1">Chargement...</p>}
+                  {relaisLoading && <p className="text-xs text-discreet px-1">Chargement...</p>}
                   {relaisError && <p className="text-xs text-red-400 px-1">{relaisError}</p>}
                   {!relaisLoading && (() => {
                     const relaisConducteur = relaisList.filter(r => r.type_relais === 'relais_conducteur' && r.statut !== 'termine' && r.statut !== 'annule')
                     if (relaisConducteur.length === 0) return (
-                      <p className="text-xs text-slate-500 px-1">Aucun relais conducteur actif.</p>
+                      <p className="text-xs text-discreet px-1">Aucun relais conducteur actif.</p>
                     )
                     return (
                       <table className="w-full text-xs border-collapse">
                         <thead>
                           <tr className="border-b border-slate-800 text-left">
-                            <th className="px-3 py-2 text-slate-400 font-medium">Course</th>
-                            <th className="px-3 py-2 text-slate-400 font-medium">Client</th>
-                            <th className="px-3 py-2 text-slate-400 font-medium">Point de relais</th>
-                            <th className="px-3 py-2 text-slate-400 font-medium">Cond. depart</th>
-                            <th className="px-3 py-2 text-slate-400 font-medium">Cond. arrivee</th>
-                            <th className="px-3 py-2 text-slate-400 font-medium">RDV prevu</th>
-                            <th className="px-3 py-2 text-slate-400 font-medium">Statut</th>
-                            <th className="px-3 py-2 text-slate-400 font-medium">Actions</th>
+                            <th className="px-3 py-2 text-muted font-medium">Course</th>
+                            <th className="px-3 py-2 text-muted font-medium">Client</th>
+                            <th className="px-3 py-2 text-muted font-medium">Point de relais</th>
+                            <th className="px-3 py-2 text-muted font-medium">Cond. depart</th>
+                            <th className="px-3 py-2 text-muted font-medium">Cond. arrivee</th>
+                            <th className="px-3 py-2 text-muted font-medium">RDV prevu</th>
+                            <th className="px-3 py-2 text-muted font-medium">Statut</th>
+                            <th className="px-3 py-2 text-muted font-medium">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -6474,15 +6714,15 @@ export default function Planning() {
                               <td className="px-3 py-2 text-slate-300">{relais.ordres_transport?.client_nom ?? '�'}</td>
                               <td className="px-3 py-2">
                                 <p className="text-slate-200 font-medium">{relais.lieu_nom}</p>
-                                {relais.lieu_adresse && <p className="text-slate-500 text-[10px]">{relais.lieu_adresse}</p>}
+                                {relais.lieu_adresse && <p className="text-discreet text-[10px]">{relais.lieu_adresse}</p>}
                               </td>
                               <td className="px-3 py-2 text-slate-300">
                                 {relais.conducteur_depose ? `${relais.conducteur_depose.prenom} ${relais.conducteur_depose.nom}` : '�'}
                               </td>
                               <td className="px-3 py-2 text-slate-300">
-                                {relais.conducteur_reprise ? `${relais.conducteur_reprise.prenom} ${relais.conducteur_reprise.nom}` : <span className="text-slate-500 italic">Non assigne</span>}
+                                {relais.conducteur_reprise ? `${relais.conducteur_reprise.prenom} ${relais.conducteur_reprise.nom}` : <span className="text-discreet italic">Non assigne</span>}
                               </td>
-                              <td className="px-3 py-2 text-slate-400">
+                              <td className="px-3 py-2 text-muted">
                                 {relais.date_reprise_prevue ? new Date(relais.date_reprise_prevue).toLocaleString('fr-FR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '�'}
                               </td>
                               <td className="px-3 py-2">
@@ -6521,17 +6761,17 @@ export default function Planning() {
             </div>
 
             <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
-              <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">Charge ressource</p>
+              <p className="text-[10px] uppercase tracking-widest text-discreet font-bold mb-2">Charge ressource</p>
               <div className="space-y-1.5 max-h-48 overflow-auto">
-                {resourceLoadRows.length === 0 && <p className="text-xs text-slate-500">Aucune donnee de charge.</p>}
+                {resourceLoadRows.length === 0 && <p className="text-xs text-discreet">Aucune donnee de charge.</p>}
                 {resourceLoadRows.slice(0, 12).map(item => (
                   <div key={item.rowId} className="rounded-lg border border-slate-800/80 bg-slate-950/40 px-2.5 py-2">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs font-semibold text-slate-200 truncate">{item.label}</p>
-                      <span className="text-[10px] text-slate-500">{item.missionCount} mission{item.missionCount > 1 ? 's' : ''}</span>
+                      <span className="text-[10px] text-discreet">{item.missionCount} mission{item.missionCount > 1 ? 's' : ''}</span>
                     </div>
                     <div className="mt-1 flex items-center gap-2 text-[10px]">
-                      <span className="text-slate-400">Temps planifie: {formatMinutes(item.plannedMinutes)}</span>
+                      <span className="text-muted">Temps planifie: {formatMinutes(item.plannedMinutes)}</span>
                       {item.conflictCount > 0 && <span className="text-rose-300">Conflits: {item.conflictCount}</span>}
                       {item.hasLate && <span className="text-red-300">Retard</span>}
                     </div>
@@ -6559,10 +6799,10 @@ export default function Planning() {
                   Duree: {assignDurationLabel}
                 </span>
               </div>
-              <p className="text-slate-400 text-sm mt-1 flex flex-wrap items-center gap-2">
+              <p className="text-muted text-sm mt-1 flex flex-wrap items-center gap-2">
                 <span className="font-mono">{assignModal.ot.reference}</span>
-                <span className="text-slate-600">-</span><span>{assignModal.ot.client_nom}</span>
-                {assignModal.ot.prix_ht && <span className="ml-auto text-slate-500">{assignModal.ot.prix_ht.toFixed(0)} EUR HT</span>}
+                <span className="text-secondary">-</span><span>{assignModal.ot.client_nom}</span>
+                {assignModal.ot.prix_ht && <span className="ml-auto text-discreet">{assignModal.ot.prix_ht.toFixed(0)} EUR HT</span>}
               </p>
             </div>
 
@@ -6573,7 +6813,7 @@ export default function Planning() {
                     <button
                       type="button"
                       onClick={() => setAssignModal(m => m ? { ...m, applyToGroupage: false } : m)}
-                      className={`rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${assignModal.applyToGroupage ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white text-slate-900'}`}
+                      className={`rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${assignModal.applyToGroupage ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-surface text-heading'}`}
                     >
                       Modifier cette course
                     </button>
@@ -6596,7 +6836,7 @@ export default function Planning() {
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Planification</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted">Planification</p>
                     <label className="inline-flex items-center gap-2 text-[11px] text-slate-300">
                       <input
                         type="checkbox"
@@ -6609,7 +6849,7 @@ export default function Planning() {
 
                   <div className="grid grid-cols-2 gap-3">
                     <label className="block">
-                      <span className="text-xs font-medium text-slate-400">Date chargement</span>
+                      <span className="text-xs font-medium text-muted">Date chargement</span>
                       <input
                         type="date"
                         value={assignModal.date_chargement}
@@ -6618,7 +6858,7 @@ export default function Planning() {
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs font-medium text-slate-400">Heure depart</span>
+                      <span className="text-xs font-medium text-muted">Heure depart</span>
                       <input
                         type="time"
                         step={900}
@@ -6628,7 +6868,7 @@ export default function Planning() {
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs font-medium text-slate-400">Date livraison</span>
+                      <span className="text-xs font-medium text-muted">Date livraison</span>
                       <input
                         type="date"
                         value={assignModal.date_livraison}
@@ -6637,7 +6877,7 @@ export default function Planning() {
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs font-medium text-slate-400">Heure arrivee</span>
+                      <span className="text-xs font-medium text-muted">Heure arrivee</span>
                       <input
                         type="time"
                         step={900}
@@ -6671,7 +6911,7 @@ export default function Planning() {
                 </section>
 
                 <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Ressources</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-muted">Ressources</p>
                   {[
                     { label:'Conducteur', key:'conducteur_id' as const, items: conducteurs.map(c => {
                       const isAbsent = assignModal && getConducteurAbsencesForPeriod(c.id, assignModal.date_chargement, assignModal.date_livraison).length > 0
@@ -6681,7 +6921,7 @@ export default function Planning() {
                     { label:'Remorque',   key:'remorque_id'   as const, items: remorques.map(r  => ({ id:r.id, label:`${r.immatriculation} - ${r.type_remorque}`, absent: false })), placeholder:'Sans remorque' },
                   ].map(({ label, key, items, placeholder }) => (
                     <label key={key} className="block">
-                      <span className="text-xs font-medium text-slate-400">{label}</span>
+                      <span className="text-xs font-medium text-muted">{label}</span>
                       <select value={assignModal[key]}
                         onChange={e => setAssignModal(m => m && { ...m, [key]: e.target.value })}
                         className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-slate-500 transition-colors">
@@ -6704,9 +6944,9 @@ export default function Planning() {
             </div>
 
             <div className="p-5 border-t border-slate-800 flex gap-3 justify-end bg-slate-900/95">
-              <button onClick={() => setAssignModal(null)} className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors">Annuler</button>
+              <button onClick={() => setAssignModal(null)} className="px-4 py-2 text-sm text-muted hover:text-white transition-colors">Annuler</button>
               <button onClick={saveAssign} disabled={saving}
-                className="px-5 py-2.5 bg-white text-slate-900 text-sm font-semibold rounded-xl hover:bg-slate-100 disabled:opacity-50 transition-colors">
+                className="px-5 py-2.5 bg-surface text-heading text-sm font-semibold rounded-xl hover:bg-surface-2 disabled:opacity-50 transition-colors">
                 {saving ? 'Enregistrement...' : 'Placer sur le planning'}
               </button>
             </div>
@@ -6719,7 +6959,7 @@ export default function Planning() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[160] p-4" onClick={() => setAddBlockFor(null)}>
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 w-full max-w-xl shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-sm font-semibold text-white mb-1">{newBlockType === 'course' ? 'Creer une course' : editingCustomBlockId ? 'Modifier un evenement planning' : 'Ajouter un evenement planning'}</h3>
-            <p className="text-[11px] text-slate-400 mb-3">
+            <p className="text-[11px] text-muted mb-3">
               {newBlockType === 'course'
                 ? 'Creer une course directement depuis la ligne du planning.'
                 : editingCustomBlockId
@@ -6729,7 +6969,7 @@ export default function Planning() {
             {/* Mod�les de courses */}
             {newBlockType === 'course' && courseTemplates.length > 0 && (
               <div className="mb-3 rounded-xl border border-slate-700 bg-slate-800/50 px-3 py-2.5">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Charger un modele</p>
+                <p className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Charger un modele</p>
                 <div className="flex flex-wrap gap-1.5">
                   {courseTemplates.map(tpl => (
                     <div key={tpl.id} className="group flex items-center gap-1 rounded-full border border-slate-600 bg-slate-800 px-2.5 py-1">
@@ -6743,7 +6983,7 @@ export default function Planning() {
               </div>
             )}
             <label className="block mb-2">
-              <span className="text-[11px] text-slate-400">Type</span>
+              <span className="text-[11px] text-muted">Type</span>
               <select
                 value={newBlockType}
                 onChange={e => setNewBlockType(e.target.value as PlanningInlineType)}
@@ -6761,7 +7001,7 @@ export default function Planning() {
             {newBlockType === 'course' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
                 <label className="block">
-                  <span className="text-[11px] text-slate-400">Client</span>
+                  <span className="text-[11px] text-muted">Client</span>
                   <select
                     value={newBlockClientId}
                     onChange={e => setNewBlockClientId(e.target.value)}
@@ -6772,7 +7012,7 @@ export default function Planning() {
                   </select>
                 </label>
                 <label className="block">
-                  <span className="text-[11px] text-slate-400">Donneur d ordre</span>
+                  <span className="text-[11px] text-muted">Donneur d ordre</span>
                   <select
                     value={newBlockDonneurOrdreId}
                     onChange={e => setNewBlockDonneurOrdreId(e.target.value)}
@@ -6783,7 +7023,7 @@ export default function Planning() {
                   </select>
                 </label>
                 <label className="block md:col-span-2">
-                  <span className="text-[11px] text-slate-400">Numero de reference course</span>
+                  <span className="text-[11px] text-muted">Numero de reference course</span>
                   <input
                     value={newBlockReferenceCourse}
                     onChange={e => setNewBlockReferenceCourse(e.target.value)}
@@ -6791,7 +7031,7 @@ export default function Planning() {
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[11px] text-slate-400">Lieu de chargement</span>
+                  <span className="text-[11px] text-muted">Lieu de chargement</span>
                   <select
                     value={newBlockChargementSiteId}
                     onChange={e => setNewBlockChargementSiteId(e.target.value)}
@@ -6802,7 +7042,7 @@ export default function Planning() {
                   </select>
                 </label>
                 <label className="block">
-                  <span className="text-[11px] text-slate-400">Lieu de livraison</span>
+                  <span className="text-[11px] text-muted">Lieu de livraison</span>
                   <select
                     value={newBlockLivraisonSiteId}
                     onChange={e => setNewBlockLivraisonSiteId(e.target.value)}
@@ -6813,7 +7053,7 @@ export default function Planning() {
                   </select>
                 </label>
                 <label className="block">
-                  <span className="text-[11px] text-slate-400">Date chargement</span>
+                  <span className="text-[11px] text-muted">Date chargement</span>
                   <input
                     type="date"
                     value={newBlockDateChargement}
@@ -6822,7 +7062,7 @@ export default function Planning() {
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[11px] text-slate-400">Heure chargement</span>
+                  <span className="text-[11px] text-muted">Heure chargement</span>
                   <input
                     type="time"
                     step={900}
@@ -6832,7 +7072,7 @@ export default function Planning() {
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[11px] text-slate-400">Date livraison</span>
+                  <span className="text-[11px] text-muted">Date livraison</span>
                   <input
                     type="date"
                     value={newBlockDateLivraison}
@@ -6841,7 +7081,7 @@ export default function Planning() {
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[11px] text-slate-400">Heure livraison</span>
+                  <span className="text-[11px] text-muted">Heure livraison</span>
                   <input
                     type="time"
                     step={900}
@@ -6851,7 +7091,7 @@ export default function Planning() {
                   />
                 </label>
                 <label className="block md:col-span-2">
-                  <span className="text-[11px] text-slate-400">Distance du parcours (km)</span>
+                  <span className="text-[11px] text-muted">Distance du parcours (km)</span>
                   <input
                     type="number"
                     min={0}
@@ -6867,7 +7107,7 @@ export default function Planning() {
               <>
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   <label className="block">
-                    <span className="text-[11px] text-slate-400">Date debut</span>
+                    <span className="text-[11px] text-muted">Date debut</span>
                     <input
                       type="date"
                       value={newBlockDateChargement}
@@ -6876,7 +7116,7 @@ export default function Planning() {
                     />
                   </label>
                   <label className="block">
-                    <span className="text-[11px] text-slate-400">Heure debut</span>
+                    <span className="text-[11px] text-muted">Heure debut</span>
                     <input
                       type="time"
                       step={300}
@@ -6916,7 +7156,7 @@ export default function Planning() {
                 )}
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   <label className="block">
-                    <span className="text-[11px] text-slate-400">Duree heures</span>
+                    <span className="text-[11px] text-muted">Duree heures</span>
                     <input
                       type="number"
                       min={0}
@@ -6927,7 +7167,7 @@ export default function Planning() {
                     />
                   </label>
                   <label className="block">
-                    <span className="text-[11px] text-slate-400">Duree minutes</span>
+                    <span className="text-[11px] text-muted">Duree minutes</span>
                     <input
                       type="number"
                       min={0}
@@ -6941,7 +7181,7 @@ export default function Planning() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   <label className="block">
-                    <span className="text-[11px] text-slate-400">Date fin</span>
+                    <span className="text-[11px] text-muted">Date fin</span>
                     <input
                       type="date"
                       value={newBlockDateLivraison}
@@ -6950,7 +7190,7 @@ export default function Planning() {
                     />
                   </label>
                   <label className="block">
-                    <span className="text-[11px] text-slate-400">Heure fin</span>
+                    <span className="text-[11px] text-muted">Heure fin</span>
                     <input
                       type="time"
                       step={300}
@@ -6978,19 +7218,19 @@ export default function Planning() {
                     <button type="button" onClick={() => void handleSaveAsTemplate()} disabled={savingTemplate || !saveAsTemplateLabel.trim()} className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs rounded-xl disabled:opacity-60 transition-colors">
                       {savingTemplate ? '...' : 'Sauvegarder'}
                     </button>
-                    <button type="button" onClick={() => setShowSaveTemplate(false)} className="px-3 py-2 text-slate-400 hover:text-white text-xs transition-colors">
+                    <button type="button" onClick={() => setShowSaveTemplate(false)} className="px-3 py-2 text-muted hover:text-white text-xs transition-colors">
                       Annuler
                     </button>
                   </div>
                 ) : (
-                  <button type="button" onClick={() => { setSaveAsTemplateLabel(newBlockLabel || ''); setShowSaveTemplate(true) }} className="text-[11px] text-slate-500 hover:text-emerald-400 transition-colors">
+                  <button type="button" onClick={() => { setSaveAsTemplateLabel(newBlockLabel || ''); setShowSaveTemplate(true) }} className="text-[11px] text-discreet hover:text-emerald-400 transition-colors">
                     + Sauvegarder comme modele
                   </button>
                 )}
               </div>
             )}
             <div className="flex gap-2 justify-end">
-              <button onClick={() => { setAddBlockFor(null); setEditingCustomBlockId(null) }} className="px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">Annuler</button>
+              <button onClick={() => { setAddBlockFor(null); setEditingCustomBlockId(null) }} className="px-3 py-2 text-sm text-muted hover:text-white transition-colors">Annuler</button>
               <button onClick={() => void addCustomBlock()} disabled={creatingInlineEvent} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-60">
                 {creatingInlineEvent ? 'Creation...' : newBlockType === 'course' ? 'Creer la course' : editingCustomBlockId ? 'Mettre a jour' : 'Ajouter'}
               </button>
@@ -7032,7 +7272,7 @@ export default function Planning() {
             <div className="p-5 space-y-5 max-h-[65vh] overflow-y-auto">
               {/* Planification */}
               <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Planification</p>
+                <p className="text-[10px] font-bold text-discreet uppercase tracking-widest mb-2">Planification</p>
                 <div className="grid grid-cols-2 gap-2.5">
                   {([
                     { label: 'Date chargement', type: 'date', key: 'date_chargement' as const },
@@ -7041,7 +7281,7 @@ export default function Planning() {
                     { label: 'Heure arrivee',   type: 'time', key: 'time_livraison'  as const },
                   ] as const).map(({ label, type, key }) => (
                     <label key={key} className="block">
-                      <span className="text-[10px] text-slate-500">{label}</span>
+                      <span className="text-[10px] text-discreet">{label}</span>
                       <input type={type} step={type === 'time' ? 900 : undefined}
                         value={editDraft[key]}
                         onChange={e => setEditDraft(d => d && { ...d, [key]: e.target.value })}
@@ -7053,7 +7293,7 @@ export default function Planning() {
 
               {/* Ressources */}
               <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Ressources</p>
+                <p className="text-[10px] font-bold text-discreet uppercase tracking-widest mb-2">Ressources</p>
                 <div className="space-y-2">
                   {([
                     { label: 'Conducteur', key: 'conducteur_id' as const, items: conducteurs.map(c => {
@@ -7064,7 +7304,7 @@ export default function Planning() {
                     { label: 'Remorque',   key: 'remorque_id'   as const, items: remorques.map(r  => ({ id:r.id, label:`${r.immatriculation} - ${r.type_remorque}` })), placeholder: 'Sans remorque' },
                   ] as const).map(({ label, key, items, placeholder }) => (
                     <label key={key} className="flex items-center gap-3">
-                      <span className="text-[10px] text-slate-500 w-20 flex-shrink-0">{label}</span>
+                      <span className="text-[10px] text-discreet w-20 flex-shrink-0">{label}</span>
                       <select value={editDraft[key]}
                         onChange={e => setEditDraft(d => d && { ...d, [key]: e.target.value })}
                         className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-white text-xs outline-none focus:border-indigo-500 transition-colors">
@@ -7078,24 +7318,24 @@ export default function Planning() {
 
               {/* Details */}
               <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Details course</p>
+                <p className="text-[10px] font-bold text-discreet uppercase tracking-widest mb-2">Details course</p>
                 <div className="grid grid-cols-2 gap-2.5">
                   <label className="block">
-                    <span className="text-[10px] text-slate-500">Marchandise</span>
+                    <span className="text-[10px] text-discreet">Marchandise</span>
                     <input value={editDraft.nature_marchandise}
                       onChange={e => setEditDraft(d => d && { ...d, nature_marchandise: e.target.value })}
                       placeholder="Nature de la marchandise"
                       className="mt-0.5 w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-white text-xs outline-none focus:border-indigo-500 transition-colors placeholder-slate-600" />
                   </label>
                   <label className="block">
-                    <span className="text-[10px] text-slate-500">Prix HT (EUR)</span>
+                    <span className="text-[10px] text-discreet">Prix HT (EUR)</span>
                     <input type="number" min="0" step="0.01" value={editDraft.prix_ht}
                       onChange={e => setEditDraft(d => d && { ...d, prix_ht: e.target.value })}
                       placeholder="0.00"
                       className="mt-0.5 w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-white text-xs outline-none focus:border-indigo-500 transition-colors placeholder-slate-600" />
                   </label>
                   <label className="block">
-                    <span className="text-[10px] text-slate-500">Donneur d ordre</span>
+                    <span className="text-[10px] text-discreet">Donneur d ordre</span>
                     <select
                       value={editDraft.donneur_ordre_id}
                       onChange={e => setEditDraft(d => d && { ...d, donneur_ordre_id: e.target.value })}
@@ -7106,7 +7346,7 @@ export default function Planning() {
                     </select>
                   </label>
                   <label className="block">
-                    <span className="text-[10px] text-slate-500">Distance du parcours (km)</span>
+                    <span className="text-[10px] text-discreet">Distance du parcours (km)</span>
                     <input
                       type="number"
                       min={0}
@@ -7130,7 +7370,7 @@ export default function Planning() {
                     return (
                       <div key={kind} className="col-span-2 rounded-xl border border-slate-800 bg-slate-900/55 p-3 space-y-2.5">
                         <label className="block">
-                          <span className="text-[10px] text-slate-500">{title}</span>
+                          <span className="text-[10px] text-discreet">{title}</span>
                           <select
                             value={selectedSiteId}
                             onChange={e => setEditDraft(d => d && {
@@ -7150,17 +7390,17 @@ export default function Planning() {
                         {selectedSite && (
                           <div className="rounded-lg border border-slate-800/80 bg-slate-950/60 px-2.5 py-2 text-[11px] text-slate-300">
                             <p className="font-medium text-slate-200">{selectedSite.nom}</p>
-                            <p className="mt-0.5 text-slate-400">{selectedSite.adresse}</p>
+                            <p className="mt-0.5 text-muted">{selectedSite.adresse}</p>
                           </div>
                         )}
                         <details className="rounded-lg border border-slate-800 bg-slate-950/50 p-3">
-                          <summary className="cursor-pointer text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                          <summary className="cursor-pointer text-[10px] font-bold text-discreet uppercase tracking-widest">
                             Ajouter ou lier une adresse
                           </summary>
                           <div className="mt-2.5 space-y-2">
                             <div className="grid grid-cols-2 gap-2.5">
                             <label className="block">
-                              <span className="text-[10px] text-slate-500">Entreprise rattachee</span>
+                              <span className="text-[10px] text-discreet">Entreprise rattachee</span>
                               <select
                                 value={draft.entreprise_id}
                                 onChange={e => setEditSiteDraft(kind, 'entreprise_id', e.target.value)}
@@ -7171,7 +7411,7 @@ export default function Planning() {
                               </select>
                             </label>
                             <label className="block">
-                              <span className="text-[10px] text-slate-500">Nom du lieu</span>
+                              <span className="text-[10px] text-discreet">Nom du lieu</span>
                               <input
                                 value={draft.nom}
                                 onChange={e => setEditSiteDraft(kind, 'nom', e.target.value)}
@@ -7180,7 +7420,7 @@ export default function Planning() {
                               />
                             </label>
                             <label className="col-span-2 block">
-                              <span className="text-[10px] text-slate-500">Adresse</span>
+                              <span className="text-[10px] text-discreet">Adresse</span>
                               <input
                                 value={draft.adresse}
                                 onChange={e => setEditSiteDraft(kind, 'adresse', e.target.value)}
@@ -7189,7 +7429,7 @@ export default function Planning() {
                               />
                             </label>
                             <label className="block">
-                              <span className="text-[10px] text-slate-500">Usage du lieu</span>
+                              <span className="text-[10px] text-discreet">Usage du lieu</span>
                               <select
                                 value={draft.usage_type}
                                 onChange={e => setEditSiteDraft(kind, 'usage_type', e.target.value as SiteUsageType)}
@@ -7199,7 +7439,7 @@ export default function Planning() {
                               </select>
                             </label>
                             <label className="block">
-                              <span className="text-[10px] text-slate-500">Jours d ouverture</span>
+                              <span className="text-[10px] text-discreet">Jours d ouverture</span>
                               <input
                                 value={draft.jours_ouverture}
                                 onChange={e => setEditSiteDraft(kind, 'jours_ouverture', e.target.value)}
@@ -7208,7 +7448,7 @@ export default function Planning() {
                               />
                             </label>
                             <label className="block">
-                              <span className="text-[10px] text-slate-500">Horaires d ouverture</span>
+                              <span className="text-[10px] text-discreet">Horaires d ouverture</span>
                               <input
                                 value={draft.horaires_ouverture}
                                 onChange={e => setEditSiteDraft(kind, 'horaires_ouverture', e.target.value)}
@@ -7217,7 +7457,7 @@ export default function Planning() {
                               />
                             </label>
                             <label className="col-span-2 block">
-                              <span className="text-[10px] text-slate-500">Specificites du lieu</span>
+                              <span className="text-[10px] text-discreet">Specificites du lieu</span>
                               <textarea
                                 value={draft.notes_livraison}
                                 onChange={e => setEditSiteDraft(kind, 'notes_livraison', e.target.value)}
@@ -7237,13 +7477,13 @@ export default function Planning() {
                               <button
                                 type="button"
                                 onClick={() => resetEditSiteDraft(kind)}
-                                className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+                                className="text-[11px] text-discreet hover:text-slate-300 transition-colors"
                               >
                                 Reinitialiser
                               </button>
                             </div>
                             {draft.showMap && (
-                              <div className="rounded-lg border border-slate-800 overflow-hidden bg-white">
+                              <div className="rounded-lg border border-slate-800 overflow-hidden bg-surface">
                                 <SiteMapPicker
                                   onPick={({ latitude, longitude, adresse }) => {
                                     setEditSiteDraft(kind, 'latitude', latitude)
@@ -7270,9 +7510,9 @@ export default function Planning() {
 
               {/* Statut operationnel */}
               <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Statut operationnel</p>
+                <p className="text-[10px] font-bold text-discreet uppercase tracking-widest mb-2">Statut operationnel</p>
                 <div className="rounded-xl border border-slate-800 bg-slate-900/55 p-3 space-y-2.5">
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-muted">
                     Statut actuel: <span className="font-semibold text-slate-200">{editDraft.statut_operationnel ? (STATUT_OPS[editDraft.statut_operationnel as StatutOps]?.label ?? editDraft.statut_operationnel) : 'Non defini'}</span>
                   </p>
                   <div className="flex flex-wrap gap-1.5">
@@ -7282,7 +7522,7 @@ export default function Planning() {
                         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
                           editDraft.statut_operationnel === k
                             ? `${cfg.dot} text-white border-transparent`
-                            : 'bg-transparent text-slate-400 border-slate-700 hover:border-slate-500 hover:text-slate-200'
+                            : 'bg-transparent text-muted border-slate-700 hover:border-slate-500 hover:text-slate-200'
                         }`}>
                         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`}/>{cfg.label}
                       </button>
@@ -7292,7 +7532,7 @@ export default function Planning() {
               </div>
 
               <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Mission / groupage</p>
+                <p className="text-[10px] font-bold text-discreet uppercase tracking-widest mb-2">Mission / groupage</p>
                 <div className="space-y-2.5 rounded-xl border border-slate-800 bg-slate-900/55 p-3">
                   {(() => {
                     const missionSummary = getMissionSummary(selected)
@@ -7319,11 +7559,11 @@ export default function Planning() {
                     ) : null
                   })()}
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`text-[10px] px-2 py-1 rounded-full font-semibold ${selected.mission_id ? (selected.groupage_fige ? 'bg-indigo-500/20 text-indigo-300' : 'bg-emerald-500/20 text-emerald-300') : 'bg-slate-800 text-slate-400'}`}>
+                    <span className={`text-[10px] px-2 py-1 rounded-full font-semibold ${selected.mission_id ? (selected.groupage_fige ? 'bg-indigo-500/20 text-indigo-300' : 'bg-emerald-500/20 text-emerald-300') : 'bg-slate-800 text-muted'}`}>
                       {selected.mission_id ? (selected.groupage_fige ? 'Mission figee' : 'Mission deliable') : 'Course hors mission'}
                     </span>
                     {selected.mission_id && (
-                      <span className="text-[10px] text-slate-500">{selectedGroupMembers.length} course{selectedGroupMembers.length > 1 ? 's' : ''} dans la mission</span>
+                      <span className="text-[10px] text-discreet">{selectedGroupMembers.length} course{selectedGroupMembers.length > 1 ? 's' : ''} dans la mission</span>
                     )}
                   </div>
 
@@ -7406,12 +7646,79 @@ export default function Planning() {
               )}
               <div className="flex-1" />
               <button onClick={closeSelected}
-                className="px-4 py-2 text-xs text-slate-400 hover:text-white transition-colors">
+                className="px-4 py-2 text-xs text-muted hover:text-white transition-colors">
                 Annuler
               </button>
               <button onClick={saveEdit} disabled={saving}
-                className="px-5 py-2.5 bg-white text-slate-900 text-xs font-semibold rounded-xl hover:bg-slate-100 disabled:opacity-50 transition-colors">
+                className="px-5 py-2.5 bg-surface text-heading text-xs font-semibold rounded-xl hover:bg-surface-2 disabled:opacity-50 transition-colors">
                 {saving ? 'Enregistrement...' : 'Sauvegarder'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal validation retard ──────────────────────────────────────────── */}
+      {retardModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[170] p-4" onClick={() => setRetardModal(null)}>
+          <div className="bg-slate-900 border border-red-800/50 rounded-2xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-red-500/20 border border-red-500/30 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-red-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm0 11a1 1 0 0 1-1-1V7a1 1 0 0 1 2 0v5a1 1 0 0 1-1 1zm0 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-white">Gérer le retard</h3>
+                  <p className="text-xs text-muted mt-0.5">{retardModal.ot.reference} · {retardModal.ot.client_nom}</p>
+                </div>
+                <button type="button" onClick={() => setRetardModal(null)} className="ml-auto text-discreet hover:text-white">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="rounded-xl bg-red-950/30 border border-red-800/30 p-3 text-xs text-red-300">
+                Date de livraison prévue : <span className="font-bold">{retardModal.ot.date_livraison_prevue?.slice(0,16).replace('T',' ') ?? '—'}</span>
+                <br/>
+                Retard : <span className="font-bold text-red-200">
+                  {retardModal.ot.date_livraison_prevue
+                    ? `+${Math.floor((Date.now() - new Date(retardModal.ot.date_livraison_prevue).getTime()) / 3600000)}h`
+                    : '—'}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">Reporter la date de livraison (optionnel)</label>
+                <input
+                  type="datetime-local"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                  value={retardNouvelleDateLivraison}
+                  onChange={e => setRetardNouvelleDateLivraison(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">Commentaire / motif du retard</label>
+                <textarea
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none resize-none"
+                  rows={3}
+                  placeholder="Embouteillage, problème mécanique, client absent..."
+                  value={retardCommentaire}
+                  onChange={e => setRetardCommentaire(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-800 flex gap-3 justify-end">
+              <button type="button" onClick={() => setRetardModal(null)} className="px-4 py-2 text-sm text-muted hover:text-white transition-colors">
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={retardSaving}
+                onClick={() => void handleValiderRetard()}
+                className="px-5 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors"
+              >
+                {retardSaving ? 'Enregistrement...' : 'Valider le retard'}
               </button>
             </div>
           </div>
@@ -7424,7 +7731,7 @@ export default function Planning() {
             <div className="p-5 border-b border-slate-800 flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-base font-semibold text-white">Details des conflits</h3>
-                <p className="text-xs text-slate-400 mt-0.5">{conflictRow?.primary ?? 'Ressource'} - {activeRowConflicts.length} chevauchement{activeRowConflicts.length > 1 ? 's' : ''}</p>
+                <p className="text-xs text-muted mt-0.5">{conflictRow?.primary ?? 'Ressource'} - {activeRowConflicts.length} chevauchement{activeRowConflicts.length > 1 ? 's' : ''}</p>
               </div>
               <div className="flex items-center gap-2">
                 {conflictRow && !conflictRow.isCustom && !conflictRow.isAffretementAsset && activeRowConflicts.length > 0 && isFeatureEnabled('action_resoudre_conflits') && (
@@ -7442,17 +7749,17 @@ export default function Planning() {
             </div>
             <div className="p-5 max-h-[65vh] overflow-auto space-y-2">
               {activeRowConflicts.length === 0 ? (
-                <p className="text-sm text-slate-400">Aucun conflit detecte sur la periode affichee.</p>
+                <p className="text-sm text-muted">Aucun conflit detecte sur la periode affichee.</p>
               ) : activeRowConflicts.map((conflict, idx) => (
                 <div key={`${conflict.first.id}-${conflict.second.id}-${idx}`} className="rounded-xl border border-slate-700/70 bg-slate-800/50 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm text-white font-mono">{conflict.first.reference} / {conflict.second.reference}</p>
                     <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-semibold">{formatMinutes(conflict.overlapMinutes)}</span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-xs text-muted mt-1">
                     {isoToDate(conflict.first.date_chargement_prevue)} {isoToTime(conflict.first.date_chargement_prevue)} - {isoToDate(conflict.first.date_livraison_prevue)} {isoToTime(conflict.first.date_livraison_prevue)}
                   </p>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs text-discreet mt-0.5">
                     {isoToDate(conflict.second.date_chargement_prevue)} {isoToTime(conflict.second.date_chargement_prevue)} - {isoToDate(conflict.second.date_livraison_prevue)} {isoToTime(conflict.second.date_livraison_prevue)}
                   </p>
                   {(() => {
@@ -7462,7 +7769,7 @@ export default function Planning() {
                     const freezeActionKey = `${conflict.first.id}:${conflict.second.id}:freeze`
                     return (
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-[11px] text-muted">
                           {frozenGroupage
                             ? 'Lot deja verrouille sur cette paire.'
                             : sameGroupage
@@ -7490,7 +7797,7 @@ export default function Planning() {
                               </button>
                             </>
                           ) : (
-                            <span className="text-[11px] text-slate-500">Actions de groupage desactivees</span>
+                            <span className="text-[11px] text-discreet">Actions de groupage desactivees</span>
                           )}
                         </div>
                       </div>
@@ -7519,8 +7826,8 @@ export default function Planning() {
             <div className="flex items-center gap-1.5 mb-1">
               {isAffretedOt(contextMenu.ot.id) && <span className="rounded px-1.5 py-0.5 text-[9px] font-bold bg-blue-600/30 text-blue-300">AFF</span>}
               {contextMenu.ot.mission_id && <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${contextMenu.ot.groupage_fige ? 'bg-indigo-600/30 text-indigo-300' : 'bg-amber-100 text-amber-950'}`}>{contextMenu.ot.groupage_fige ? 'MISSION FIGEE' : getGroupageBubbleLabel(contextMenu.ot)}</span>}
-              <span className="text-xs font-mono text-slate-400">{contextMenu.ot.reference}</span>
-              <span className={`ml-auto text-[9px] px-2 py-0.5 rounded-full font-medium ${BADGE_CLS[contextMenu.ot.statut] ?? 'bg-slate-700 text-slate-400'}`}>
+              <span className="text-xs font-mono text-muted">{contextMenu.ot.reference}</span>
+              <span className={`ml-auto text-[9px] px-2 py-0.5 rounded-full font-medium ${BADGE_CLS[contextMenu.ot.statut] ?? 'bg-slate-700 text-muted'}`}>
                 {STATUT_LABEL[contextMenu.ot.statut] ?? contextMenu.ot.statut}
               </span>
             </div>
@@ -7529,7 +7836,7 @@ export default function Planning() {
               <div className="mt-1.5 rounded-lg border border-amber-300/20 bg-amber-400/5 px-2 py-1.5">
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-200">Groupage</p>
                 <p className="text-[11px] font-semibold text-slate-100">{missionSummary.courseCount} courses � {missionSummary.timeRange}</p>
-                <p className="truncate text-[10px] text-slate-400">{missionSummary.referencesLabel}</p>
+                <p className="truncate text-[10px] text-muted">{missionSummary.referencesLabel}</p>
               </div>
             )}
             {getAffretementCompany(contextMenu.ot.id) && (
@@ -7548,7 +7855,7 @@ export default function Planning() {
             <button
               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-left"
               onClick={() => { setContextMenu(null); openSelected(contextMenu.ot) }}>
-              <svg className="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <svg className="w-4 h-4 text-discreet" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
               </svg>
               {contextMenu.ot.mission_id ? 'Details mission / statut' : 'Details / statut operationnel'}
@@ -7558,7 +7865,7 @@ export default function Planning() {
               <button
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-left"
                 onClick={() => { setContextMenu(null); openAssign(contextMenu.ot) }}>
-                <svg className="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <svg className="w-4 h-4 text-discreet" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                 </svg>
                 Modifier dates / ressources
@@ -7581,7 +7888,7 @@ export default function Planning() {
             )}
 
             <div className="px-3 pt-2 pb-1">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Statut OT</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-discreet">Statut OT</p>
             </div>
             <div className="px-3 pb-2 grid grid-cols-2 gap-1.5">
               {(['brouillon', 'confirme', 'planifie', 'en_cours', 'livre', 'annule'] as const).map(status => (
@@ -7695,7 +8002,7 @@ export default function Planning() {
           onClick={e => e.stopPropagation()}
         >
           <div className="border-b border-slate-800 bg-slate-800/40 px-3 py-2">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-slate-400">Conducteur</p>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Conducteur</p>
             <p className="truncate text-sm font-semibold text-white">{driverPrintMenu.rowLabel}</p>
           </div>
           <button
@@ -7746,7 +8053,7 @@ export default function Planning() {
           >
             <div className="mb-2 border-b border-slate-800 pb-2">
               <div className="flex items-center justify-between gap-2">
-                <p className={`text-[10px] font-bold uppercase tracking-wider ${missionSummary.missionType === 'groupage' ? 'text-amber-200' : 'text-slate-400'}`}>
+                <p className={`text-[10px] font-bold uppercase tracking-wider ${missionSummary.missionType === 'groupage' ? 'text-amber-200' : 'text-muted'}`}>
                   {missionSummary.missionType === 'groupage' ? 'Groupage' : missionSummary.label}
                 </p>
                 <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${missionSummary.missionType === 'groupage' ? 'bg-amber-100 text-amber-950' : 'bg-slate-800 text-slate-200'}`}>
@@ -7754,9 +8061,9 @@ export default function Planning() {
                 </span>
               </div>
               <p className="mt-1 text-xs font-semibold text-white">{missionSummary.subtitle}</p>
-              <p className="text-[10px] text-slate-400">{missionSummary.timeRange} � {missionSummary.statusLabel}</p>
+              <p className="text-[10px] text-muted">{missionSummary.timeRange} � {missionSummary.statusLabel}</p>
               {hoveredMissionSummary && (
-                <p className="mt-1 text-[10px] text-slate-500">Mission {hoveredMissionSummary.missionId.slice(0, 8)} � {missionSummary.courseCount} course{missionSummary.courseCount > 1 ? 's' : ''}</p>
+                <p className="mt-1 text-[10px] text-discreet">Mission {hoveredMissionSummary.missionId.slice(0, 8)} � {missionSummary.courseCount} course{missionSummary.courseCount > 1 ? 's' : ''}</p>
               )}
             </div>
             {missionSummary.missionType === 'groupage' && (
@@ -7767,19 +8074,19 @@ export default function Planning() {
                     <p key={`${missionSummary.missionId}-${index}`} className="truncate text-[10px] text-slate-200">{line}</p>
                   ))}
                   {missionSummary.coursePreview.length > 4 && (
-                    <p className="text-[10px] text-slate-500">+ {missionSummary.coursePreview.length - 4} autre{missionSummary.coursePreview.length - 4 > 1 ? 's' : ''} course{missionSummary.coursePreview.length - 4 > 1 ? 's' : ''}</p>
+                    <p className="text-[10px] text-discreet">+ {missionSummary.coursePreview.length - 4} autre{missionSummary.coursePreview.length - 4 > 1 ? 's' : ''} course{missionSummary.coursePreview.length - 4 > 1 ? 's' : ''}</p>
                   )}
                 </div>
               </div>
             )}
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Itineraire</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted mb-1.5">Itineraire</p>
             <div className="flex flex-col gap-1">
               {chargSite && (
                 <div className="flex items-start gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 mt-1 flex-shrink-0"/>
                   <div>
                     <p className="text-xs font-semibold text-white leading-tight">{chargSite.nom}</p>
-                    {chargSite.adresse && <p className="text-[10px] text-slate-400 leading-tight">{chargSite.adresse}</p>}
+                    {chargSite.adresse && <p className="text-[10px] text-muted leading-tight">{chargSite.adresse}</p>}
                   </div>
                 </div>
               )}
@@ -7789,15 +8096,15 @@ export default function Planning() {
                   <span className="w-2 h-2 rounded-full bg-red-400 mt-1 flex-shrink-0"/>
                   <div>
                     <p className="text-xs font-semibold text-white leading-tight">{livrSite.nom}</p>
-                    {livrSite.adresse && <p className="text-[10px] text-slate-400 leading-tight">{livrSite.adresse}</p>}
+                    {livrSite.adresse && <p className="text-[10px] text-muted leading-tight">{livrSite.adresse}</p>}
                   </div>
                 </div>
               )}
               {!chargSite && !livrSite && (
-                <p className="text-[10px] text-slate-500">Itineraire non renseigne.</p>
+                <p className="text-[10px] text-discreet">Itineraire non renseigne.</p>
               )}
             </div>
-            <div className="mt-1.5 border-t border-slate-800 pt-1.5 text-[10px] text-slate-400">
+            <div className="mt-1.5 border-t border-slate-800 pt-1.5 text-[10px] text-muted">
               {missionSummary.missionType === 'groupage' && <p>{missionSummary.referencesLabel}</p>}
               {ot.distance_km != null && <p>{Math.round(ot.distance_km)} km</p>}
             </div>
@@ -7811,7 +8118,7 @@ export default function Planning() {
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
             <p className="text-sm text-white mb-4">{confirmModal.message}</p>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => { confirmModal.resolve(false); setConfirmModal(null) }} className="px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">Annuler</button>
+              <button onClick={() => { confirmModal.resolve(false); setConfirmModal(null) }} className="px-3 py-2 text-sm text-muted hover:text-white transition-colors">Annuler</button>
               <button onClick={() => { confirmModal.resolve(true); setConfirmModal(null) }} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-xl transition-colors">Confirmer</button>
             </div>
           </div>
@@ -7823,7 +8130,7 @@ export default function Planning() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[160] p-4" onClick={() => setNotifyClientOt(null)}>
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-sm font-semibold text-white mb-1">Notifier le client</h3>
-            <p className="text-[11px] text-slate-400 mb-3">
+            <p className="text-[11px] text-muted mb-3">
               Course <span className="font-mono text-slate-300">{notifyClientOt.reference}</span> � <span className="text-slate-300">{notifyClientOt.client_nom}</span>
             </p>
             <textarea
@@ -7833,7 +8140,7 @@ export default function Planning() {
               className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-sky-500 resize-none mb-3 font-mono"
             />
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setNotifyClientOt(null)} className="px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">
+              <button onClick={() => setNotifyClientOt(null)} className="px-3 py-2 text-sm text-muted hover:text-white transition-colors">
                 Fermer
               </button>
               <button
@@ -7878,7 +8185,7 @@ export default function Planning() {
               <h3 className="text-base font-semibold text-white">
                 {relaisModal.mode === 'relais_conducteur' ? 'Relais conducteur' : 'Deposer en entrepot / depot'}
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">Course {relaisModal.ot.reference} � {relaisModal.ot.client_nom}</p>
+              <p className="text-xs text-muted mt-0.5">Course {relaisModal.ot.reference} � {relaisModal.ot.client_nom}</p>
             </div>
             <form onSubmit={e => void submitRelaisDepot(e)} className="p-5 space-y-4">
               {/* Site logistique */}
@@ -7964,7 +8271,7 @@ export default function Planning() {
 
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setRelaisModal({ mode: null, ot: null, relais: null })}
-                  className="px-4 py-2 text-xs text-slate-400 hover:text-white transition-colors">Annuler</button>
+                  className="px-4 py-2 text-xs text-muted hover:text-white transition-colors">Annuler</button>
                 <button type="submit" disabled={relaisSaving}
                   className="px-5 py-2.5 text-xs font-semibold rounded-xl bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-50 transition-colors">
                   {relaisSaving ? 'Enregistrement...' : relaisModal.mode === 'relais_conducteur' ? 'Creer le relais' : 'Deposer'}
@@ -7985,7 +8292,7 @@ export default function Planning() {
               <h3 className="text-base font-semibold text-white">
                 {relaisModal.relais.type_relais === 'relais_conducteur' ? 'Affecter conducteur de relais' : 'Affecter la reprise'}
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-muted mt-0.5">
                 {relaisModal.relais.lieu_nom}
                 {relaisModal.relais.ordres_transport ? ` � Course ${relaisModal.relais.ordres_transport.reference}` : ''}
               </p>
@@ -8041,7 +8348,7 @@ export default function Planning() {
 
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setRelaisModal({ mode: null, ot: null, relais: null })}
-                  className="px-4 py-2 text-xs text-slate-400 hover:text-white transition-colors">Annuler</button>
+                  className="px-4 py-2 text-xs text-muted hover:text-white transition-colors">Annuler</button>
                 <button type="submit" disabled={relaisSaving}
                   className="px-5 py-2.5 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50 transition-colors">
                   {relaisSaving ? 'Enregistrement...' : 'Affecter'}

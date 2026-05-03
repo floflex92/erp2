@@ -138,13 +138,13 @@ export default function PrimesRapprochementTab() {
             <button
               key={item.key}
               onClick={() => setStatusFilter(item.key)}
-              className={`${btn} ${statusFilter === item.key ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              className={`${btn} ${statusFilter === item.key ? 'bg-slate-800 text-white' : 'bg-surface-2 text-secondary hover:bg-slate-200'}`}
             >
               {item.label}
             </button>
           ))}
         </div>
-        <button onClick={() => void load()} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-300 text-slate-700 hover:bg-slate-100">
+        <button onClick={() => void load()} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-line-strong text-foreground hover:bg-surface-2">
           Actualiser
         </button>
       </div>
@@ -153,16 +153,16 @@ export default function PrimesRapprochementTab() {
       {notice && <div className="p-3 bg-emerald-50 text-emerald-700 rounded text-sm">{notice}</div>}
 
       {loading ? (
-        <div className="text-center py-10 text-slate-400">Chargement...</div>
+        <div className="text-center py-10 text-muted">Chargement...</div>
       ) : filteredRows.length === 0 ? (
-        <div className="text-center py-10 text-slate-400">Aucun rapprochement pour ce filtre.</div>
+        <div className="text-center py-10 text-muted">Aucun rapprochement pour ce filtre.</div>
       ) : (
-        <div className="overflow-auto rounded-lg border border-slate-200">
+        <div className="overflow-auto rounded-lg border border-line">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-surface-soft">
               <tr>
                 {['Periode', 'Bulletin', 'Bonus', 'OD', 'Statut', 'Maj', 'Details', 'Action'].map(header => (
-                  <th key={header} className="px-3 py-2 text-left text-xs font-semibold text-slate-600 border-b border-slate-200">{header}</th>
+                  <th key={header} className="px-3 py-2 text-left text-xs font-semibold text-secondary border-b border-line">{header}</th>
                 ))}
               </tr>
             </thead>
@@ -170,29 +170,29 @@ export default function PrimesRapprochementTab() {
               {filteredRows.map(row => {
                 const bonus = bonusById[row.bonus_calculation_id]
                 return (
-                  <tr key={row.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                    <td className="px-3 py-2 text-slate-700">{row.payroll_period_label || row.period_key}</td>
-                    <td className="px-3 py-2 font-mono text-xs text-slate-500">{row.payroll_slip_id.slice(0, 16)}</td>
-                    <td className="px-3 py-2 text-slate-700">{bonus ? `${bonus.total_calculated_bonus.toFixed(2)} EUR` : '—'}</td>
-                    <td className="px-3 py-2 font-mono text-xs text-slate-500">{row.compta_ecriture_id ? row.compta_ecriture_id.slice(0, 12) : '—'}</td>
+                  <tr key={row.id} className="border-b border-slate-100 last:border-0 hover:bg-surface-soft">
+                    <td className="px-3 py-2 text-foreground">{row.payroll_period_label || row.period_key}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-discreet">{row.payroll_slip_id.slice(0, 16)}</td>
+                    <td className="px-3 py-2 text-foreground">{bonus ? `${bonus.total_calculated_bonus.toFixed(2)} EUR` : '—'}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-discreet">{row.compta_ecriture_id ? row.compta_ecriture_id.slice(0, 12) : '—'}</td>
                     <td className="px-3 py-2">
                       <StatusPill status={row.statut} />
                     </td>
-                    <td className="px-3 py-2 text-xs text-slate-500">{new Date(row.updated_at).toLocaleString('fr-FR')}</td>
-                    <td className="px-3 py-2 text-xs text-slate-600">
+                    <td className="px-3 py-2 text-xs text-discreet">{new Date(row.updated_at).toLocaleString('fr-FR')}</td>
+                    <td className="px-3 py-2 text-xs text-secondary">
                       {row.error_message ? row.error_message : bonus?.payment_reference ? `Ref: ${bonus.payment_reference}` : 'OK'}
                     </td>
-                    <td className="px-3 py-2 text-xs text-slate-600">
+                    <td className="px-3 py-2 text-xs text-secondary">
                       {(row.statut === 'accounting_failed' || row.statut === 'pending') ? (
                         <button
                           onClick={() => void handleRetry(row)}
                           disabled={retryingSlipIds.includes(row.payroll_slip_id)}
-                          className="px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                          className="px-2 py-1 rounded border border-line-strong text-foreground hover:bg-surface-2 disabled:opacity-50"
                         >
                           {retryingSlipIds.includes(row.payroll_slip_id) ? 'Reprise...' : 'Reprendre'}
                         </button>
                       ) : (
-                        <span className="text-slate-400">—</span>
+                        <span className="text-muted">—</span>
                       )}
                     </td>
                   </tr>
@@ -214,7 +214,7 @@ function StatCard({ label, value, tone }: { label: string; value: number; tone: 
         ? 'bg-amber-50 border-amber-200 text-amber-700'
         : tone === 'red'
           ? 'bg-rose-50 border-rose-200 text-rose-700'
-          : 'bg-slate-50 border-slate-200 text-slate-700'
+          : 'bg-surface-soft border-line text-foreground'
 
   return (
     <div className={`rounded-lg border px-3 py-2 ${toneClass}`}>

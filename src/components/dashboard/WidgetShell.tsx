@@ -98,14 +98,14 @@ export function WidgetShell({
                 </svg>
               </button>
             )}
-            <span className="rounded-full border border-white/80 bg-white/95 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 shadow-sm backdrop-blur-sm">
+            <span className="rounded-full border border-white/80 bg-surface/95 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-discreet shadow-sm backdrop-blur-sm">
               Glisser
             </span>
           </div>
 
           <div className="flex items-center gap-2">
             {(onShrink || onGrow) && (
-              <div className="flex items-center gap-1 rounded-full border border-white/80 bg-white/96 px-1.5 py-1 shadow-lg shadow-slate-200/80 backdrop-blur-sm">
+              <div className="flex items-center gap-1 rounded-full border border-white/80 bg-surface/96 px-1.5 py-1 shadow-lg shadow-slate-200/80 backdrop-blur-sm">
                 {onShrink && (
                   <button
                     type="button"
@@ -114,7 +114,7 @@ export function WidgetShell({
                       onShrink()
                     }}
                     disabled={!canShrink}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-slate-700 transition-all hover:bg-slate-100 hover:shadow-sm disabled:opacity-35"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-foreground transition-all hover:bg-surface-2 hover:shadow-sm disabled:opacity-35"
                     title="Reduire"
                   >
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
@@ -122,7 +122,7 @@ export function WidgetShell({
                     </svg>
                   </button>
                 )}
-                <span className="min-w-7 rounded-full bg-slate-100 px-2 py-1 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{sizeLabel}</span>
+                <span className="min-w-7 rounded-full bg-surface-2 px-2 py-1 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-discreet">{sizeLabel}</span>
                 {onGrow && (
                   <button
                     type="button"
@@ -131,7 +131,7 @@ export function WidgetShell({
                       onGrow()
                     }}
                     disabled={!canGrow}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-slate-700 transition-all hover:bg-slate-100 hover:shadow-sm disabled:opacity-35"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-foreground transition-all hover:bg-surface-2 hover:shadow-sm disabled:opacity-35"
                     title="Agrandir"
                   >
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
@@ -156,7 +156,7 @@ export function WidgetShell({
         <div className="ml-2 flex shrink-0 items-center gap-1">
           <button
             onClick={() => setCollapsed(v => !v)}
-            className="nx-btn nx-btn-ghost flex h-7 w-7 items-center justify-center rounded-full bg-white/80 p-0 shadow-sm"
+            className="nx-btn nx-btn-ghost flex h-7 w-7 items-center justify-center rounded-full bg-surface/80 p-0 shadow-sm"
             title={collapsed ? 'Developper' : 'Reduire'}
           >
             <svg

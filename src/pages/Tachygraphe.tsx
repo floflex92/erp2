@@ -442,11 +442,11 @@ function GraviteBadge({ g }: { g: string }) {
 function StatutBadge({ s }: { s: string }) {
   if (s === 'nouvelle') return <span className="rounded-full bg-blue-500/15 px-2.5 py-0.5 text-[10px] font-medium text-blue-400">Nouvelle</span>
   if (s === 'en_traitement') return <span className="rounded-full bg-violet-500/15 px-2.5 py-0.5 text-[10px] font-medium text-violet-400">En traitement</span>
-  return <span className="rounded-full bg-slate-500/15 px-2.5 py-0.5 text-[10px] font-medium text-slate-400">Clôturée</span>
+  return <span className="rounded-full bg-slate-500/15 px-2.5 py-0.5 text-[10px] font-medium text-muted">Clôturée</span>
 }
 function ProgressBar({ value, max, color }: { value: number; max: number; color: string }) {
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/8">
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface/8">
       <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.round(value / max * 100))}%`, background: color }} />
     </div>
   )
@@ -505,7 +505,7 @@ function ModalReleve({
             {!saved && (
               <>
                 <button type="button" onClick={() => void handleSave(false)} disabled={saving}
-                  className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/8 px-4 py-2 text-sm font-medium text-white hover:bg-white/14 disabled:opacity-50">
+                  className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-surface/8 px-4 py-2 text-sm font-medium text-white hover:bg-surface/14 disabled:opacity-50">
                   {saving ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : null}
                   Sauvegarder
                 </button>
@@ -525,23 +525,23 @@ function ModalReleve({
               <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 9V4h12v5" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v7H6z" /></svg>
               Imprimer
             </button>
-            <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20">✕</button>
+            <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface/10 text-white hover:bg-surface/20">✕</button>
           </div>
         </div>
 
-        <div className="rounded-2xl bg-white text-gray-900 shadow-2xl print:shadow-none" style={{ fontFamily: 'Georgia, serif' }}>
+        <div className="rounded-2xl bg-surface text-heading shadow-2xl print:shadow-none" style={{ fontFamily: 'Georgia, serif' }}>
           <div className="border-b-2 border-gray-800 px-8 py-6">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xl font-bold">{config.societe_nom ?? 'NEXORA truck'}</p>
-                <p className="text-sm text-gray-600">{config.societe_adresse}</p>
-                <p className="text-sm text-gray-600">SIRET : {config.societe_siret}</p>
+                <p className="text-sm text-secondary">{config.societe_adresse}</p>
+                <p className="text-sm text-secondary">SIRET : {config.societe_siret}</p>
               </div>
               <div className="text-right">
-                <p className="text-xs uppercase tracking-widest text-gray-500">Document officiel</p>
+                <p className="text-xs uppercase tracking-widest text-discreet">Document officiel</p>
                 <p className="mt-1 text-2xl font-bold">RELEVÉ D'INFRACTION</p>
-                <p className="mt-1 text-sm text-gray-600">Réf. : INF-2026-{conducteur.id.slice(0, 6).toUpperCase()}</p>
-                <p className="text-sm text-gray-600">Période : {periodeLabel(debut)}</p>
+                <p className="mt-1 text-sm text-secondary">Réf. : INF-2026-{conducteur.id.slice(0, 6).toUpperCase()}</p>
+                <p className="text-sm text-secondary">Période : {periodeLabel(debut)}</p>
               </div>
             </div>
           </div>
@@ -553,8 +553,8 @@ function ModalReleve({
               <span><strong>Par :</strong> {config.responsable_exploitation_nom ?? 'Service Exploitation'}</span>
             </div>
 
-            <div className="rounded border border-gray-300 p-4">
-              <p className="mb-2 text-sm font-bold uppercase tracking-wide text-gray-700">Conducteur</p>
+            <div className="rounded border border-line-strong p-4">
+              <p className="mb-2 text-sm font-bold uppercase tracking-wide text-foreground">Conducteur</p>
               <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
                 <div><strong>Nom :</strong> {conducteur.nom.toUpperCase()}</div>
                 <div><strong>Prénom :</strong> {conducteur.prenom}</div>
@@ -564,29 +564,29 @@ function ModalReleve({
             </div>
 
             <div>
-              <p className="mb-3 text-sm font-bold uppercase tracking-wide text-gray-700">Infractions relevées ({actives.length})</p>
+              <p className="mb-3 text-sm font-bold uppercase tracking-wide text-foreground">Infractions relevées ({actives.length})</p>
               {actives.length === 0 ? (
-                <p className="text-sm text-gray-500 italic">Aucune infraction active sur la période.</p>
+                <p className="text-sm text-discreet italic">Aucune infraction active sur la période.</p>
               ) : (
                 <table className="w-full border-collapse text-xs">
                   <thead>
-                    <tr className="bg-gray-100">
+                    <tr className="bg-surface-2">
                       {['Date','Heure','Type','Description','Constaté','Limite','Gravité','Lieu'].map(h => (
-                        <th key={h} className="border border-gray-300 px-2 py-2 text-left">{h}</th>
+                        <th key={h} className="border border-line-strong px-2 py-2 text-left">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {actives.map((inf, i) => (
-                      <tr key={inf.id} className={i % 2 ? 'bg-gray-50' : ''}>
-                        <td className="border border-gray-300 px-2 py-2 whitespace-nowrap">{fmtDate(inf.date)}</td>
-                        <td className="border border-gray-300 px-2 py-2">{inf.heure}</td>
-                        <td className="border border-gray-300 px-2 py-2 whitespace-nowrap">{TYPE_INFRACTION_LABELS[inf.type]}</td>
-                        <td className="border border-gray-300 px-2 py-2">{inf.description}</td>
-                        <td className="border border-gray-300 px-2 py-2 font-semibold">{inf.valeurMesuree}</td>
-                        <td className="border border-gray-300 px-2 py-2">{inf.valeurLimite}</td>
-                        <td className="border border-gray-300 px-2 py-2 capitalize">{inf.gravite}</td>
-                        <td className="border border-gray-300 px-2 py-2">{inf.lieu}</td>
+                      <tr key={inf.id} className={i % 2 ? 'bg-surface-soft' : ''}>
+                        <td className="border border-line-strong px-2 py-2 whitespace-nowrap">{fmtDate(inf.date)}</td>
+                        <td className="border border-line-strong px-2 py-2">{inf.heure}</td>
+                        <td className="border border-line-strong px-2 py-2 whitespace-nowrap">{TYPE_INFRACTION_LABELS[inf.type]}</td>
+                        <td className="border border-line-strong px-2 py-2">{inf.description}</td>
+                        <td className="border border-line-strong px-2 py-2 font-semibold">{inf.valeurMesuree}</td>
+                        <td className="border border-line-strong px-2 py-2">{inf.valeurLimite}</td>
+                        <td className="border border-line-strong px-2 py-2 capitalize">{inf.gravite}</td>
+                        <td className="border border-line-strong px-2 py-2">{inf.lieu}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -594,27 +594,27 @@ function ModalReleve({
               )}
             </div>
 
-            <div className="rounded border border-gray-200 bg-gray-50 p-4 text-xs text-gray-600 leading-relaxed">
-              <p className="font-bold text-gray-800 mb-1">Rappel réglementaire</p>
+            <div className="rounded border border-line bg-surface-soft p-4 text-xs text-secondary leading-relaxed">
+              <p className="font-bold text-foreground mb-1">Rappel réglementaire</p>
               <p>Conformément au <strong>Règlement (CE) n°561/2006</strong> et à la <strong>Directive 2006/22/CE</strong>, les conducteurs sont tenus de respecter les temps de conduite (9h/j, 56h/sem), de repos (11h/j) et les pauses (45 min après 4h30 de conduite continue). Tout dépassement est passible de sanctions.</p>
             </div>
 
-            <div className="border-t border-gray-300 pt-5">
+            <div className="border-t border-line-strong pt-5">
               <p className="mb-4 text-sm">Je soussigné(e), <strong>{conducteur.prenom} {conducteur.nom.toUpperCase()}</strong>, reconnais avoir pris connaissance des infractions ci-dessus et m'engage à respecter la réglementation en vigueur.</p>
               <div className="mt-6 grid grid-cols-2 gap-16 text-sm">
                 <div>
                   <p className="font-semibold mb-1">Le conducteur</p>
-                  <p className="text-xs text-gray-500 mb-16">Date et signature :</p>
-                  <div className="border-t border-gray-400 pt-1 text-xs text-gray-400">Nom, date, signature</div>
+                  <p className="text-xs text-discreet mb-16">Date et signature :</p>
+                  <div className="border-t border-gray-400 pt-1 text-xs text-muted">Nom, date, signature</div>
                 </div>
                 <div>
                   <p className="font-semibold mb-1">Le responsable d'exploitation</p>
-                  <p className="text-xs text-gray-500 mb-16">{config.responsable_exploitation_nom}</p>
-                  <div className="border-t border-gray-400 pt-1 text-xs text-gray-400">Nom, date, cachet société</div>
+                  <p className="text-xs text-discreet mb-16">{config.responsable_exploitation_nom}</p>
+                  <div className="border-t border-gray-400 pt-1 text-xs text-muted">Nom, date, cachet société</div>
                 </div>
               </div>
             </div>
-            <div className="border-t border-gray-200 pt-3 text-center text-[10px] text-gray-400">
+            <div className="border-t border-line pt-3 text-center text-[10px] text-muted">
               Document généré par NEXORA truck · {today} · Ce document a valeur de notification officielle.
               {saved && <span> · ID rapport : {saved.id.slice(0, 8)}</span>}
             </div>
@@ -750,7 +750,7 @@ function ModalAttestation({
             {!saved && (
               <>
                 <button type="button" onClick={() => void handleSave(false)} disabled={saving}
-                  className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/8 px-4 py-2 text-sm font-medium text-white hover:bg-white/14 disabled:opacity-50">
+                  className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-surface/8 px-4 py-2 text-sm font-medium text-white hover:bg-surface/14 disabled:opacity-50">
                   Sauvegarder
                 </button>
                 <button type="button" onClick={() => void handleSave(true)} disabled={saving}
@@ -765,24 +765,24 @@ function ModalAttestation({
               <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 9V4h12v5" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v7H6z" /></svg>
               Imprimer
             </button>
-            <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20">✕</button>
+            <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface/10 text-white hover:bg-surface/20">✕</button>
           </div>
         </div>
 
-        <div className="rounded-2xl bg-white text-gray-900 shadow-2xl" style={{ fontFamily: 'Georgia, serif' }}>
+        <div className="rounded-2xl bg-surface text-heading shadow-2xl" style={{ fontFamily: 'Georgia, serif' }}>
           <div className="border-b-2 border-gray-800 px-8 py-6">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xl font-bold">{config.societe_nom ?? 'NEXORA truck'}</p>
-                <p className="text-sm text-gray-600">{config.societe_adresse}</p>
-                <p className="text-sm text-gray-600">SIRET : {config.societe_siret}</p>
+                <p className="text-sm text-secondary">{config.societe_adresse}</p>
+                <p className="text-sm text-secondary">SIRET : {config.societe_siret}</p>
               </div>
               <div className="text-right">
-                <p className="text-xs uppercase tracking-widest text-gray-500">Document officiel</p>
+                <p className="text-xs uppercase tracking-widest text-discreet">Document officiel</p>
                 <p className="mt-1 text-xl font-bold">ATTESTATION D'ACTIVITÉ</p>
-                <p className="text-sm text-gray-600">Art. R.3312-11 Code des transports</p>
-                <p className="mt-1 text-sm text-gray-600">Réf. : ATT-2026-{conducteur.id.slice(0, 6).toUpperCase()}</p>
-                <p className="text-sm text-gray-600">Période : {periodeLabel(debut)}</p>
+                <p className="text-sm text-secondary">Art. R.3312-11 Code des transports</p>
+                <p className="mt-1 text-sm text-secondary">Réf. : ATT-2026-{conducteur.id.slice(0, 6).toUpperCase()}</p>
+                <p className="text-sm text-secondary">Période : {periodeLabel(debut)}</p>
               </div>
             </div>
           </div>
@@ -792,7 +792,7 @@ function ModalAttestation({
               Je soussigné(e), <strong>{config.responsable_exploitation_nom ?? 'le Responsable d\'Exploitation'}</strong>, en qualité de responsable de la société <strong>{config.societe_nom ?? 'NEXORA truck'}</strong> (SIRET : {config.societe_siret}), certifie que le conducteur :
             </div>
 
-            <div className="rounded border border-gray-300 p-4">
+            <div className="rounded border border-line-strong p-4">
               <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
                 <div><strong>Nom :</strong> {conducteur.nom.toUpperCase()}</div>
                 <div><strong>Prénom :</strong> {conducteur.prenom}</div>
@@ -812,53 +812,53 @@ function ModalAttestation({
                 { label: 'Autres activités', value: fmtMin(autresTravaux) },
                 { label: 'Distance totale', value: `${distanceMois} km` },
               ].map(kpi => (
-                <div key={kpi.label} className="rounded border border-gray-200 p-3 text-center">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">{kpi.label}</p>
-                  <p className="mt-1 text-lg font-bold text-gray-900">{kpi.value}</p>
+                <div key={kpi.label} className="rounded border border-line p-3 text-center">
+                  <p className="text-xs text-discreet uppercase tracking-wide">{kpi.label}</p>
+                  <p className="mt-1 text-lg font-bold text-heading">{kpi.value}</p>
                 </div>
               ))}
             </div>
 
             <table className="w-full border-collapse text-xs">
               <thead>
-                <tr className="bg-gray-100">
+                <tr className="bg-surface-2">
                   {['Semaine','Temps de conduite','Autres activités','Repos'].map(h => (
-                    <th key={h} className="border border-gray-300 px-3 py-2 text-left">{h}</th>
+                    <th key={h} className="border border-line-strong px-3 py-2 text-left">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {semaines.map((s, i) => (
-                  <tr key={i} className={i % 2 ? 'bg-gray-50' : ''}>
-                    <td className="border border-gray-300 px-3 py-2">{s.label}</td>
-                    <td className="border border-gray-300 px-3 py-2">{s.conduite}</td>
-                    <td className="border border-gray-300 px-3 py-2">{s.autres}</td>
-                    <td className="border border-gray-300 px-3 py-2">{s.repos}</td>
+                  <tr key={i} className={i % 2 ? 'bg-surface-soft' : ''}>
+                    <td className="border border-line-strong px-3 py-2">{s.label}</td>
+                    <td className="border border-line-strong px-3 py-2">{s.conduite}</td>
+                    <td className="border border-line-strong px-3 py-2">{s.autres}</td>
+                    <td className="border border-line-strong px-3 py-2">{s.repos}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
-            <div className="rounded border border-gray-200 bg-gray-50 p-4 text-xs text-gray-600">
-              <p className="font-bold text-gray-800 mb-1">Base légale</p>
+            <div className="rounded border border-line bg-surface-soft p-4 text-xs text-secondary">
+              <p className="font-bold text-foreground mb-1">Base légale</p>
               <p>Cette attestation est établie conformément à l'<strong>Art. R.3312-11 du Code des transports</strong> et au <strong>Règlement (CE) n°561/2006</strong>. Elle certifie les activités du conducteur pour la période non couverte ou complétée par les données du tachygraphe numérique.</p>
             </div>
 
-            <div className="border-t border-gray-300 pt-5">
+            <div className="border-t border-line-strong pt-5">
               <div className="mt-6 grid grid-cols-2 gap-16 text-sm">
                 <div>
                   <p className="font-semibold mb-1">Le conducteur — Prise de connaissance</p>
-                  <p className="text-xs text-gray-500 mb-16">Signature :</p>
-                  <div className="border-t border-gray-400 pt-1 text-xs text-gray-400">Nom, date, signature</div>
+                  <p className="text-xs text-discreet mb-16">Signature :</p>
+                  <div className="border-t border-gray-400 pt-1 text-xs text-muted">Nom, date, signature</div>
                 </div>
                 <div>
                   <p className="font-semibold mb-1">L'employeur</p>
-                  <p className="text-xs text-gray-500 mb-16">{config.responsable_exploitation_nom} — {config.societe_nom}</p>
-                  <div className="border-t border-gray-400 pt-1 text-xs text-gray-400">Signature et cachet de la société</div>
+                  <p className="text-xs text-discreet mb-16">{config.responsable_exploitation_nom} — {config.societe_nom}</p>
+                  <div className="border-t border-gray-400 pt-1 text-xs text-muted">Signature et cachet de la société</div>
                 </div>
               </div>
             </div>
-            <div className="border-t border-gray-200 pt-3 text-center text-[10px] text-gray-400">
+            <div className="border-t border-line pt-3 text-center text-[10px] text-muted">
               Attestation générée par NEXORA truck · {today}{saved ? ` · ID : ${saved.id.slice(0, 8)}` : ''}
             </div>
           </div>
@@ -957,7 +957,7 @@ function ModalGenerationBulk({
             <p className="text-sm font-semibold">Génération en masse des documents</p>
             <p className="text-xs nx-subtle mt-0.5">Relevés d'infraction &amp; attestations d'activité</p>
           </div>
-          <button type="button" onClick={onClose} className="h-8 w-8 flex items-center justify-center rounded-xl hover:bg-white/8 nx-subtle">✕</button>
+          <button type="button" onClick={onClose} className="h-8 w-8 flex items-center justify-center rounded-xl hover:bg-surface/8 nx-subtle">✕</button>
         </div>
 
         <div className="space-y-5 px-6 py-5">
@@ -986,7 +986,7 @@ function ModalGenerationBulk({
                 { id: 'attestation_activite' as const, label: 'Attestation d\'activité', color: 'text-emerald-400' },
               ].map(t => (
                 <button key={t.id} type="button" onClick={() => toggleType(t.id)}
-                  className={`flex-1 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all ${types.includes(t.id) ? `border-current ${t.color} bg-white/4` : 'nx-subtle'}`}
+                  className={`flex-1 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all ${types.includes(t.id) ? `border-current ${t.color} bg-surface/4` : 'nx-subtle'}`}
                   style={!types.includes(t.id) ? { borderColor: 'var(--border)' } : {}}>
                   {t.label}
                 </button>
@@ -1009,7 +1009,7 @@ function ModalGenerationBulk({
                 const dejaRI = alreadyExists(c.id, 'releve_infraction')
                 const dejaAtt = alreadyExists(c.id, 'attestation_activite')
                 return (
-                  <label key={c.id} className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 hover:bg-white/4">
+                  <label key={c.id} className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 hover:bg-surface/4">
                     <input type="checkbox" checked={checked} onChange={() => toggleConducteur(c.id)} className="h-4 w-4 rounded accent-blue-500" />
                     <span className="flex-1 text-sm">{c.prenom} {c.nom}</span>
                     <div className="flex gap-1">
@@ -1099,7 +1099,7 @@ function ModalAlerte({ conducteur, infractions, onClose, onSend }: {
       <div className="w-full max-w-xl rounded-2xl border shadow-2xl" style={{ borderColor: 'var(--border)', background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b px-6 py-4" style={{ borderColor: 'var(--border)' }}>
           <p className="text-sm font-semibold">Envoyer une alerte — {conducteur.prenom} {conducteur.nom}</p>
-          <button type="button" onClick={onClose} className="h-8 w-8 flex items-center justify-center rounded-xl hover:bg-white/8 nx-subtle">✕</button>
+          <button type="button" onClick={onClose} className="h-8 w-8 flex items-center justify-center rounded-xl hover:bg-surface/8 nx-subtle">✕</button>
         </div>
         <div className="space-y-5 px-6 py-5">
           <div>
@@ -1203,7 +1203,7 @@ function TabInfractions({ conducteurs, infractions, rapports, alertesEnvoyees, o
               const dot = hasCritique ? '#ef4444' : hasMajeure ? '#f97316' : cInfs.length > 0 ? '#f59e0b' : '#10b981'
               return (
                 <button key={c.id} onClick={() => setSelectedId(c.id === selectedId ? null : c.id)}
-                  className={`w-full rounded-2xl border px-4 py-3.5 text-left transition-all ${selectedId === c.id ? 'border-[color:var(--primary)] bg-[color:var(--primary-soft)]' : 'hover:bg-white/4'}`}
+                  className={`w-full rounded-2xl border px-4 py-3.5 text-left transition-all ${selectedId === c.id ? 'border-[color:var(--primary)] bg-[color:var(--primary-soft)]' : 'hover:bg-surface/4'}`}
                   style={{ borderColor: selectedId === c.id ? undefined : 'var(--border)' }}>
                   <div className="flex items-start gap-2.5">
                     <span className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ background: dot, boxShadow: `0 0 5px ${dot}` }} />
@@ -1270,7 +1270,7 @@ function TabInfractions({ conducteurs, infractions, rapports, alertesEnvoyees, o
               ) : (
                 <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
                   {selInfs.map(inf => (
-                    <div key={inf.id} className="flex flex-col gap-2 px-5 py-4 hover:bg-white/2 sm:flex-row sm:items-start sm:justify-between">
+                    <div key={inf.id} className="flex flex-col gap-2 px-5 py-4 hover:bg-surface/2 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <GraviteBadge g={inf.gravite} />
@@ -1313,7 +1313,7 @@ function TabInfractions({ conducteurs, infractions, rapports, alertesEnvoyees, o
             {globalFiltered.map(inf => {
               const c = conducteurs.find(x => x.id === inf.conducteurId)
               return (
-                <div key={inf.id} className="flex flex-col gap-2 px-5 py-4 hover:bg-white/2 sm:flex-row sm:items-start sm:justify-between">
+                <div key={inf.id} className="flex flex-col gap-2 px-5 py-4 hover:bg-surface/2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <GraviteBadge g={inf.gravite} />
@@ -1367,7 +1367,7 @@ function TabAttestations({ conducteurs, tachyData, rapports, onAttestation, onBu
             const td = tachyData[c.id]
             return (
               <button key={c.id} onClick={() => setSelectedId(c.id === selectedId ? null : c.id)}
-                className={`w-full rounded-2xl border px-4 py-3.5 text-left transition-all ${selectedId === c.id ? 'border-[color:var(--primary)] bg-[color:var(--primary-soft)]' : 'hover:bg-white/4'}`}
+                className={`w-full rounded-2xl border px-4 py-3.5 text-left transition-all ${selectedId === c.id ? 'border-[color:var(--primary)] bg-[color:var(--primary-soft)]' : 'hover:bg-surface/4'}`}
                 style={{ borderColor: selectedId === c.id ? undefined : 'var(--border)' }}>
                 <div className="flex items-center gap-2.5">
                   <span className={`h-2 w-2 shrink-0 rounded-full ${td?.statutCompliance === 'conforme' ? 'bg-emerald-500' : td?.statutCompliance === 'attention' ? 'bg-amber-400' : 'bg-red-500'}`} />
@@ -1442,12 +1442,12 @@ function TabAttestations({ conducteurs, tachyData, rapports, onAttestation, onBu
             {rapports.filter(r => r.type === 'attestation_activite').map(r => {
               const c = conducteurs.find(x => x.id === r.conducteur_id)
               return (
-                <div key={r.id} className="flex items-center gap-4 px-5 py-3 hover:bg-white/2">
+                <div key={r.id} className="flex items-center gap-4 px-5 py-3 hover:bg-surface/2">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">{c?.prenom} {c?.nom}</p>
                     <p className="text-xs nx-subtle">{r.periode_label} · Généré le {fmtDateTime(r.created_at)}</p>
                   </div>
-                  <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${r.statut === 'envoye' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-500/15 text-slate-400'}`}>
+                  <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${r.statut === 'envoye' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-500/15 text-muted'}`}>
                     {r.statut === 'envoye' ? '✓ Envoyé' : 'Généré'}
                   </span>
                 </div>
@@ -1488,7 +1488,7 @@ function TabDonnees({ conducteurs, tachyData }: { conducteurs: ConducteurDB[]; t
                 if (!d) return null
                 return (
                   <tr key={c.id} onClick={() => setSelectedId(c.id === selectedId ? null : c.id)}
-                    className="cursor-pointer border-b transition-colors hover:bg-white/3 last:border-0"
+                    className="cursor-pointer border-b transition-colors hover:bg-surface/3 last:border-0"
                     style={{ borderColor: 'var(--border)', background: selectedId === c.id ? 'rgba(59,130,246,0.06)' : undefined }}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
@@ -1570,7 +1570,7 @@ function TabAlertes({ alertes }: { alertes: AlerteDoc[] }) {
   function Row({ a }: { a: AlerteDoc }) {
     const color = a.joursRestants <= 7 ? '#ef4444' : a.joursRestants <= 30 ? '#f59e0b' : '#10b981'
     return (
-      <div className="flex items-center gap-4 border-b px-5 py-4 last:border-0 hover:bg-white/2" style={{ borderColor: 'var(--border)' }}>
+      <div className="flex items-center gap-4 border-b px-5 py-4 last:border-0 hover:bg-surface/2" style={{ borderColor: 'var(--border)' }}>
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: `${color}20`, color }}>
           <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M16 13H8M16 17H8" /></svg>
         </div>
@@ -1730,7 +1730,7 @@ export default function Tachygraphe() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-indigo-300/70">Exploitation — Réglementation</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">Chronotachygraphe</h2>
             <p className="mt-1.5 text-sm text-slate-300">Lecture · Contrôle des temps · Infractions · Attestations mensuelle</p>
-            <p className="mt-2 text-xs text-slate-500">Dernière remontée : {fmtDateTime(lastSync)}</p>
+            <p className="mt-2 text-xs text-discreet">Dernière remontée : {fmtDateTime(lastSync)}</p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
             {!isConducteurSession && <button type="button" onClick={() => setShowBulk(true)}
@@ -1782,7 +1782,7 @@ export default function Tachygraphe() {
               style={{ marginBottom: -1 }}>
               {t.label}
               {t.badge !== undefined && t.badge > 0 && (
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${tab === t.id ? 'bg-[color:var(--primary-soft)] text-[color:var(--primary)]' : 'bg-white/8 nx-muted'}`}>{t.badge}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${tab === t.id ? 'bg-[color:var(--primary-soft)] text-[color:var(--primary)]' : 'bg-surface/8 nx-muted'}`}>{t.badge}</span>
               )}
             </button>
           ))}

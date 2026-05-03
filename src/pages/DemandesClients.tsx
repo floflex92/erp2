@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { deriveJobScoreFromTransportRequest, type JobScoreResult } from '@/lib/transportDecisionEngine'
@@ -218,9 +218,9 @@ export default function DemandesClients() {
   return (
     <div className="space-y-5 p-5 md:p-6">
       <div className="nx-panel px-6 py-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">Workflow clients</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-discreet">Workflow clients</p>
         <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Demandes clients et validations</h2>
-        <p className="mt-1.5 max-w-3xl text-sm text-slate-600">Traitement des inscriptions entreprises (commercial + comptable) et validation exploitation des demandes transport.</p>
+        <p className="mt-1.5 max-w-3xl text-sm text-secondary">Traitement des inscriptions entreprises (commercial + comptable) et validation exploitation des demandes transport.</p>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
@@ -234,25 +234,25 @@ export default function DemandesClients() {
       <div className="nx-panel overflow-hidden">
         <div className="border-b px-4" style={{ borderColor: 'var(--border)' }}>
           <div className="flex gap-4">
-            <button type="button" onClick={() => setTab('inscriptions')} className={`px-1 py-3 text-sm font-semibold ${tab === 'inscriptions' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-slate-700'}`}>Inscriptions entreprises</button>
-            <button type="button" onClick={() => setTab('demandes')} className={`px-1 py-3 text-sm font-semibold ${tab === 'demandes' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-slate-700'}`}>Demandes transport</button>
+            <button type="button" onClick={() => setTab('inscriptions')} className={`px-1 py-3 text-sm font-semibold ${tab === 'inscriptions' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-foreground'}`}>Inscriptions entreprises</button>
+            <button type="button" onClick={() => setTab('demandes')} className={`px-1 py-3 text-sm font-semibold ${tab === 'demandes' ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-foreground'}`}>Demandes transport</button>
           </div>
         </div>
 
         {tab === 'inscriptions' && (
           <div className="space-y-3 p-5">
-            {onboardings.length === 0 && <p className="text-sm text-slate-500">Aucune inscription client.</p>}
+            {onboardings.length === 0 && <p className="text-sm text-discreet">Aucune inscription client.</p>}
             {onboardings.map(item => (
               <div key={item.id} className="rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="text-sm font-semibold text-slate-950">{item.companyName}</p>
-                    <p className="text-xs text-slate-500">SIRET: {item.siret} - {item.contactEmail}</p>
+                    <p className="text-xs text-discreet">SIRET: {item.siret} - {item.contactEmail}</p>
                   </div>
                   <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${onboardingStatusClass(item.status)}`}>{ONBOARDING_STATUS_LABELS[item.status]}</span>
                 </div>
 
-                <div className="mt-2 text-xs text-slate-500">
+                <div className="mt-2 text-xs text-discreet">
                   <p>Commercial: {item.commercialReview}</p>
                   <p>Comptable: {item.comptableReview}</p>
                   {item.clientId && <p>Client CRM: {item.clientId}</p>}
@@ -287,23 +287,23 @@ export default function DemandesClients() {
 
         {tab === 'demandes' && (
           <div className="space-y-3 p-5">
-            {requests.length === 0 && <p className="text-sm text-slate-500">Aucune demande transport client.</p>}
+            {requests.length === 0 && <p className="text-sm text-discreet">Aucune demande transport client.</p>}
             {requests.map(item => (
               <div key={item.id} className="rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
                 {requestScores[item.id] && (
                   <div className="mb-3 grid gap-3 rounded-2xl border px-3 py-3 md:grid-cols-[auto_auto_1fr]" style={{ borderColor: 'color-mix(in srgb, var(--border) 60%, #0f766e)', background: 'linear-gradient(135deg, color-mix(in srgb, var(--surface-soft) 84%, #ecfeff), color-mix(in srgb, var(--surface) 84%, #f8fafc))' }}>
                     <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Score demande</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-discreet">Score demande</p>
                       <div className={`mt-2 inline-flex min-w-14 items-center justify-center rounded-xl px-3 py-2 text-lg font-semibold ${scoreBadgeClass(requestScores[item.id].color)}`}>
                         {requestScores[item.id].globalScore}
                       </div>
                     </div>
                     <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Statut recommande</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-discreet">Statut recommande</p>
                       <div className={`mt-2 inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold ${recommendationClass(requestScores[item.id].recommendation)}`}>
                         {recommendationLabel(requestScores[item.id].recommendation)}
                       </div>
-                      <p className="mt-2 text-xs text-slate-500">Difficulte {requestScores[item.id].difficultyLabel} · impact {requestScores[item.id].impactLabel}</p>
+                      <p className="mt-2 text-xs text-discreet">Difficulte {requestScores[item.id].difficultyLabel} · impact {requestScores[item.id].impactLabel}</p>
                     </div>
                     <div className="grid gap-2 md:grid-cols-3">
                       <MiniMetric label="Marge estimee" value={`${requestScores[item.id].estimatedMargin} EUR`} />
@@ -316,27 +316,27 @@ export default function DemandesClients() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="text-sm font-semibold text-slate-950">{item.reference}</p>
-                    <p className="text-xs text-slate-500">{item.pickupAddress} {'->'} {item.deliveryAddress}</p>
+                    <p className="text-xs text-discreet">{item.pickupAddress} {'->'} {item.deliveryAddress}</p>
                   </div>
                   <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${requestStatusClass(item.status)}`}>{REQUEST_STATUS_LABELS[item.status]}</span>
                 </div>
 
-                <p className="mt-1 text-xs text-slate-500">Chargement: {formatDate(item.pickupDatetime)} | Livraison: {formatDate(item.deliveryDatetime)}</p>
-                <p className="mt-1 text-xs text-slate-500">Marchandise: {item.goodsDescription}</p>
+                <p className="mt-1 text-xs text-discreet">Chargement: {formatDate(item.pickupDatetime)} | Livraison: {formatDate(item.deliveryDatetime)}</p>
+                <p className="mt-1 text-xs text-discreet">Marchandise: {item.goodsDescription}</p>
                 {requestScores[item.id] && (
                   <div className="mt-2 grid gap-2 md:grid-cols-3">
                     {requestScores[item.id].subScores.map(score => (
                       <div key={score.key} className="rounded-xl border px-3 py-2 text-xs" style={{ borderColor: 'var(--border)', background: 'var(--surface-soft)' }}>
-                        <p className="font-semibold text-slate-700">{score.label}: {score.score}/100</p>
-                        <p className="mt-1 text-slate-500">{score.detail}</p>
+                        <p className="font-semibold text-foreground">{score.label}: {score.score}/100</p>
+                        <p className="mt-1 text-discreet">{score.detail}</p>
                       </div>
                     ))}
                   </div>
                 )}
-                {item.exploitationNote && <p className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">Note exploitation: {item.exploitationNote}</p>}
+                {item.exploitationNote && <p className="mt-2 rounded-xl bg-surface-soft px-3 py-2 text-xs text-secondary">Note exploitation: {item.exploitationNote}</p>}
                 {item.createdOtId && <p className="mt-2 text-xs text-green-700">OT cree: {item.createdOtId}</p>}
                 {requestScores[item.id] && (
-                  <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                  <div className="mt-2 rounded-xl border border-line bg-surface-soft px-3 py-2 text-xs text-secondary">
                     {requestScores[item.id].explanation.join(' ')}
                   </div>
                 )}
@@ -369,17 +369,17 @@ export default function DemandesClients() {
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
     <div className="nx-panel px-4 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-discreet">{label}</p>
       <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
-      <p className="mt-1 text-xs text-slate-500">{detail}</p>
+      <p className="mt-1 text-xs text-discreet">{detail}</p>
     </div>
   )
 }
 
 function MiniMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-white/70 bg-white/85 px-3 py-2">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+    <div className="rounded-xl border border-white/70 bg-surface/85 px-3 py-2">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-discreet">{label}</p>
       <p className="mt-1 text-sm font-semibold text-slate-950">{value}</p>
     </div>
   )

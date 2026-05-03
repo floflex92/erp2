@@ -247,7 +247,7 @@ export default function RelancesTab() {
               <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-300">✅ Faite</span>
             )}
             {r.statut === 'annulee' && (
-              <span className="rounded-full bg-slate-500/15 px-2 py-0.5 text-xs text-slate-400">Annulée</span>
+              <span className="rounded-full bg-slate-500/15 px-2 py-0.5 text-xs text-muted">Annulée</span>
             )}
             <span className="ml-auto text-xs nx-subtle">{formatDateFR(r.date_prevue)}</span>
           </div>
@@ -327,7 +327,7 @@ export default function RelancesTab() {
             { key: 'tous',      label: 'Toutes' },
           ] as const).map(tab => (
             <button key={tab.key} onClick={() => setFilterStatut(tab.key)}
-              className={`px-3 py-2 text-xs font-medium transition-colors ${filterStatut === tab.key ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-200'}`}>
+              className={`px-3 py-2 text-xs font-medium transition-colors ${filterStatut === tab.key ? 'bg-slate-700 text-white' : 'text-muted hover:text-slate-200'}`}>
               {tab.label}
               {tab.key === 'planifiee' && grouped.enRetard.length > 0 && (
                 <span className="ml-1.5 rounded-full bg-rose-500 px-1.5 py-0.5 text-xs text-white">
@@ -351,32 +351,32 @@ export default function RelancesTab() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Prospect *">
               <select value={form.prospect_id} onChange={e => setForm(f => ({ ...f, prospect_id: e.target.value }))}
-                required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none">
+                required className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none">
                 <option value="">— Sélectionner —</option>
                 {prospects.map(p => <option key={p.id} value={p.id}>{p.nom_entreprise}</option>)}
               </select>
             </Field>
             <Field label="Lié à un devis">
               <select value={form.devis_id} onChange={e => setForm(f => ({ ...f, devis_id: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none">
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none">
                 <option value="">— Aucun devis —</option>
                 {devis.map(d => <option key={d.id} value={d.id}>{d.numero} – {d.origine} → {d.destination}</option>)}
               </select>
             </Field>
             <Field label="Type de relance">
               <select value={form.type_relance} onChange={e => setForm(f => ({ ...f, type_relance: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none">
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none">
                 {TYPE_RELANCE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.icon} {o.label}</option>)}
               </select>
             </Field>
             <Field label="Date prévue *">
               <input value={form.date_prevue} onChange={e => setForm(f => ({ ...f, date_prevue: e.target.value }))}
                 type="date" required
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
             </Field>
             <Field label="Priorité">
               <select value={form.priorite} onChange={e => setForm(f => ({ ...f, priorite: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none">
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none">
                 <option value="haute">🔴 Haute</option>
                 <option value="normale">🔵 Normale</option>
                 <option value="basse">⚪ Basse</option>
@@ -385,13 +385,13 @@ export default function RelancesTab() {
             <Field label="Commercial">
               <input value={form.commercial_nom} onChange={e => setForm(f => ({ ...f, commercial_nom: e.target.value }))}
                 placeholder="Martin D."
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
             </Field>
             <div className="sm:col-span-2 lg:col-span-3">
               <Field label="Notes">
                 <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                   placeholder="Objectif de la relance, message à passer..." rows={2}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none resize-none" />
+                  className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none resize-none" />
               </Field>
             </div>
           </div>

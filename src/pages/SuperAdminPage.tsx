@@ -51,7 +51,7 @@ const STATUS_COLORS: Record<string, string> = {
   active: 'bg-green-100 text-green-800',
   suspended: 'bg-red-100 text-red-800',
   trial: 'bg-yellow-100 text-yellow-800',
-  cancelled: 'bg-slate-200 text-slate-600',
+  cancelled: 'bg-slate-200 text-secondary',
 }
 
 const PLAN_LABELS: Record<string, string> = {
@@ -132,7 +132,7 @@ function TenantImpersonationPanel({
         <label className="text-xs text-blue-800">
           Role
           <select
-            className="mt-1 block w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-sm text-slate-800"
+            className="mt-1 block w-full rounded-lg border border-blue-300 bg-surface px-3 py-2 text-sm text-foreground"
             value={selectedRoleId ?? ''}
             onChange={e => setSelectedRoleId(Number(e.target.value))}
           >
@@ -213,21 +213,21 @@ function TenantEditPanel({
   }
 
   return (
-    <div className="mt-3 rounded-lg border border-slate-300 bg-slate-50 p-4">
-      <h4 className="text-sm font-semibold text-slate-800 mb-3">Modifier — {company.name}</h4>
+    <div className="mt-3 rounded-lg border border-line-strong bg-surface-soft p-4">
+      <h4 className="text-sm font-semibold text-foreground mb-3">Modifier — {company.name}</h4>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <label className="text-xs text-slate-600">
+        <label className="text-xs text-secondary">
           Nom
           <input
-            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+            className="mt-1 w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-heading"
             value={name}
             onChange={e => setName(e.target.value)}
           />
         </label>
-        <label className="text-xs text-slate-600">
+        <label className="text-xs text-secondary">
           Statut
           <select
-            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+            className="mt-1 w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-heading"
             value={status}
             onChange={e => setStatus(e.target.value as Company['status'])}
           >
@@ -237,10 +237,10 @@ function TenantEditPanel({
             <option value="cancelled">Annulé</option>
           </select>
         </label>
-        <label className="text-xs text-slate-600">
+        <label className="text-xs text-secondary">
           Plan
           <select
-            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+            className="mt-1 w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-heading"
             value={plan}
             onChange={e => setPlan(e.target.value as Company['subscription_plan'])}
           >
@@ -249,20 +249,20 @@ function TenantEditPanel({
             <option value="enterprise">Enterprise</option>
           </select>
         </label>
-        <label className="text-xs text-slate-600">
+        <label className="text-xs text-secondary">
           Utilisateurs max
           <input
-            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+            className="mt-1 w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-heading"
             type="number"
             min={1}
             value={maxUsers}
             onChange={e => setMaxUsers(Math.max(1, Number(e.target.value || 1)))}
           />
         </label>
-        <label className="text-xs text-slate-600">
+        <label className="text-xs text-secondary">
           Écrans max
           <input
-            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+            className="mt-1 w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-heading"
             type="number"
             min={1}
             value={maxScreens}
@@ -275,7 +275,7 @@ function TenantEditPanel({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+          className="rounded-lg border border-line-strong px-3 py-1.5 text-xs font-medium text-secondary hover:bg-surface-2 transition-colors"
         >
           Annuler
         </button>
@@ -408,8 +408,8 @@ export default function SuperAdminPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <div className="text-4xl">🔒</div>
-        <p className="font-semibold text-slate-700">Acces reserve a la plateforme Nexora.</p>
-        <p className="text-sm text-slate-500">Votre compte n'a pas les droits platform admin.</p>
+        <p className="font-semibold text-foreground">Acces reserve a la plateforme Nexora.</p>
+        <p className="text-sm text-discreet">Votre compte n'a pas les droits platform admin.</p>
       </div>
     )
   }
@@ -417,7 +417,7 @@ export default function SuperAdminPage() {
   // ─── Rendu ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
+    <div className="min-h-screen bg-surface-soft p-6">
       <div className="max-w-6xl mx-auto">
 
         {/* Bandeau d'impersonation active */}
@@ -448,8 +448,8 @@ export default function SuperAdminPage() {
         {/* En-tete */}
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Plateforme Nexora — Backoffice</h1>
-            <p className="text-sm text-slate-500 mt-1">
+            <h1 className="text-2xl font-bold text-heading">Plateforme Nexora — Backoffice</h1>
+            <p className="text-sm text-discreet mt-1">
               Super Admin — {user?.email ?? ''}
             </p>
           </div>
@@ -457,7 +457,7 @@ export default function SuperAdminPage() {
             <button
               type="button"
               onClick={() => navigate('/session-picker')}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+              className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium text-foreground hover:bg-surface-2 transition-colors"
             >
               Session Picker
             </button>
@@ -478,18 +478,18 @@ export default function SuperAdminPage() {
 
         {/* Statistiques rapides */}
         <div className="mb-6 grid gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Tenants</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">{companies.length}</p>
+          <div className="rounded-xl border border-line bg-surface p-4">
+            <p className="text-xs font-medium text-discreet uppercase tracking-wide">Tenants</p>
+            <p className="mt-1 text-2xl font-bold text-heading">{companies.length}</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Utilisateurs total</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">
+          <div className="rounded-xl border border-line bg-surface p-4">
+            <p className="text-xs font-medium text-discreet uppercase tracking-wide">Utilisateurs total</p>
+            <p className="mt-1 text-2xl font-bold text-heading">
               {companies.reduce((sum, c) => sum + c.user_count, 0)}
             </p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Tenants actifs</p>
+          <div className="rounded-xl border border-line bg-surface p-4">
+            <p className="text-xs font-medium text-discreet uppercase tracking-wide">Tenants actifs</p>
             <p className="mt-1 text-2xl font-bold text-emerald-600">
               {companies.filter(c => c.status === 'active').length}
             </p>
@@ -497,32 +497,32 @@ export default function SuperAdminPage() {
         </div>
 
         {/* Creation de tenant */}
-        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="text-base font-semibold text-slate-800">Nouveau tenant</h2>
-          <p className="mt-1 text-xs text-slate-500">Creation d'une company + tenant ERP associe.</p>
+        <div className="mb-6 rounded-xl border border-line bg-surface p-4">
+          <h2 className="text-base font-semibold text-foreground">Nouveau tenant</h2>
+          <p className="mt-1 text-xs text-discreet">Creation d'une company + tenant ERP associe.</p>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <label className="text-xs text-slate-600">
+            <label className="text-xs text-secondary">
               Nom
               <input
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-line-strong px-3 py-2 text-sm"
                 value={newTenantName}
                 onChange={event => setNewTenantName(event.target.value)}
                 placeholder="Transport Alpes"
               />
             </label>
-            <label className="text-xs text-slate-600">
+            <label className="text-xs text-secondary">
               Slug (optionnel)
               <input
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-line-strong px-3 py-2 text-sm"
                 value={newTenantSlug}
                 onChange={event => setNewTenantSlug(event.target.value)}
                 placeholder="transport_alpes"
               />
             </label>
-            <label className="text-xs text-slate-600">
+            <label className="text-xs text-secondary">
               Plan
               <select
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-line-strong px-3 py-2 text-sm"
                 value={newTenantPlan}
                 onChange={event => setNewTenantPlan(event.target.value as Company['subscription_plan'])}
               >
@@ -531,20 +531,20 @@ export default function SuperAdminPage() {
                 <option value="enterprise">Enterprise</option>
               </select>
             </label>
-            <label className="text-xs text-slate-600">
+            <label className="text-xs text-secondary">
               Utilisateurs max
               <input
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-line-strong px-3 py-2 text-sm"
                 type="number"
                 min={1}
                 value={newTenantMaxUsers}
                 onChange={event => setNewTenantMaxUsers(Math.max(1, Number(event.target.value || 1)))}
               />
             </label>
-            <label className="text-xs text-slate-600">
+            <label className="text-xs text-secondary">
               Ecrans max
               <input
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-line-strong px-3 py-2 text-sm"
                 type="number"
                 min={1}
                 value={newTenantMaxScreens}
@@ -566,17 +566,17 @@ export default function SuperAdminPage() {
 
         {/* Liste des tenants */}
         {loading ? (
-          <div className="text-center py-12 text-slate-500 text-sm">Chargement des tenants...</div>
+          <div className="text-center py-12 text-discreet text-sm">Chargement des tenants...</div>
         ) : (
           <>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-slate-700">
+              <h2 className="text-base font-semibold text-foreground">
                 Tenants ({companies.length})
               </h2>
               <button
                 type="button"
                 onClick={() => void fetchCompanies()}
-                className="text-xs px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
+                className="text-xs px-3 py-1.5 rounded-lg border border-line-strong text-secondary hover:bg-surface-soft"
               >
                 Rafraichir
               </button>
@@ -584,23 +584,23 @@ export default function SuperAdminPage() {
 
             <div className="space-y-3">
               {companies.length === 0 && (
-                <div className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-slate-400">
+                <div className="rounded-xl border border-line bg-surface px-4 py-8 text-center text-muted">
                   Aucun tenant.
                 </div>
               )}
               {companies.map(company => (
                 <div
                   key={company.id}
-                  className="rounded-xl border border-slate-200 bg-white transition-shadow hover:shadow-md"
+                  className="rounded-xl border border-line bg-surface transition-shadow hover:shadow-md"
                 >
                   <div className="flex items-center justify-between px-4 py-3">
                     <div className="flex items-center gap-4">
-                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-sm font-bold text-slate-600">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-2 text-sm font-bold text-secondary">
                         {company.id}
                       </span>
                       <div>
-                        <p className="font-semibold text-slate-800">{company.name}</p>
-                        <p className="text-xs text-slate-500">
+                        <p className="font-semibold text-foreground">{company.name}</p>
+                        <p className="text-xs text-discreet">
                           <span className="font-mono">{company.slug}</span>
                           {' — '}
                           <span className={`inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium ${STATUS_COLORS[company.status] ?? ''}`}>
@@ -625,7 +625,7 @@ export default function SuperAdminPage() {
                         className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                           editingTenant === company.id
                             ? 'bg-slate-800 text-white'
-                            : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
+                            : 'border border-line-strong text-foreground hover:bg-surface-soft'
                         }`}
                       >
                         {editingTenant === company.id ? 'Annuler' : 'Modifier'}

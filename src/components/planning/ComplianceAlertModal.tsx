@@ -37,7 +37,7 @@ export default function ComplianceAlertModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-11/12 max-h-96 overflow-y-auto">
+      <div className="bg-surface rounded-lg shadow-xl max-w-md w-11/12 max-h-96 overflow-y-auto">
         {/* Header */}
         <div className="bg-red-50 border-b border-red-200 px-6 py-4">
           <h2 className="text-lg font-bold text-red-900">
@@ -50,7 +50,7 @@ export default function ComplianceAlertModal({
 
         {/* Alertes bloquantes */}
         {blockingAlerts.length > 0 && (
-          <div className="px-6 py-4 border-b border-gray-200">
+          <div className="px-6 py-4 border-b border-line">
             <h3 className="text-sm font-semibold text-red-800 mb-3">
               🚫 Infractions bloquantes
             </h3>
@@ -70,7 +70,7 @@ export default function ComplianceAlertModal({
 
         {/* Avertissements */}
         {warningAlerts.length > 0 && (
-          <div className="px-6 py-4 border-b border-gray-200">
+          <div className="px-6 py-4 border-b border-line">
             <h3 className="text-sm font-semibold text-yellow-800 mb-3">
               ⚡ Avertissements
             </h3>
@@ -90,7 +90,7 @@ export default function ComplianceAlertModal({
 
         {/* Option forçage */}
         {canForce && blockingAlerts.length > 0 && (
-          <div className="px-6 py-4 border-b border-gray-200 bg-blue-50">
+          <div className="px-6 py-4 border-b border-line bg-blue-50">
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
@@ -112,11 +112,11 @@ export default function ComplianceAlertModal({
         )}
 
         {/* Buttons */}
-        <div className="px-6 py-4 flex gap-3 justify-end bg-gray-50">
+        <div className="px-6 py-4 flex gap-3 justify-end bg-surface-soft">
           <button
             onClick={onCancel}
             disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-foreground bg-surface border border-line-strong rounded hover:bg-surface-soft disabled:opacity-50"
           >
             Annuler
           </button>

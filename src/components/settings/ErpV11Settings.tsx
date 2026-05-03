@@ -197,25 +197,25 @@ export function ErpV11Settings() {
 
   if (loading) {
     return (
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-900">ERP v1.1 - modules et providers</h3>
-        <p className="mt-3 text-sm text-slate-500">Chargement...</p>
+      <section className="rounded-2xl border border-line bg-surface p-5 shadow-sm">
+        <h3 className="text-lg font-semibold text-heading">ERP v1.1 - modules et providers</h3>
+        <p className="mt-3 text-sm text-discreet">Chargement...</p>
       </section>
     )
   }
 
   return (
-    <section id="v11" className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section id="v11" className="space-y-5 rounded-2xl border border-line bg-surface p-5 shadow-sm">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">ERP v1.1</p>
-          <h3 className="mt-1 text-lg font-semibold text-slate-900">Modules, providers, mapping API, cache, fallback, logs, IA</h3>
-          <p className="mt-1 text-sm text-slate-500">Architecture additionnelle en extension, offline-first et multi-tenant.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">ERP v1.1</p>
+          <h3 className="mt-1 text-lg font-semibold text-heading">Modules, providers, mapping API, cache, fallback, logs, IA</h3>
+          <p className="mt-1 text-sm text-discreet">Architecture additionnelle en extension, offline-first et multi-tenant.</p>
         </div>
-        <label className="text-sm text-slate-600">
+        <label className="text-sm text-secondary">
           Tenant key
           <input
-            className="ml-2 rounded-lg border border-slate-300 px-2 py-1 text-sm"
+            className="ml-2 rounded-lg border border-line-strong px-2 py-1 text-sm"
             value={tenantKey}
             onChange={event => setTenantKey(event.target.value.trim().toLowerCase() || 'default')}
           />
@@ -229,15 +229,15 @@ export function ErpV11Settings() {
       )}
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 p-4">
-          <p className="text-sm font-semibold text-slate-900">Modules activables</p>
-          <p className="mt-1 text-xs text-slate-500">Tracking, tachy, routing, ETA, chauffeur web, portail client, chat, IA.</p>
+        <div className="rounded-xl border border-line p-4">
+          <p className="text-sm font-semibold text-heading">Modules activables</p>
+          <p className="mt-1 text-xs text-discreet">Tracking, tachy, routing, ETA, chauffeur web, portail client, chat, IA.</p>
           <div className="mt-3 space-y-2">
             {modules.map(moduleRow => (
-              <div key={moduleRow.module_key} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div key={moduleRow.module_key} className="rounded-lg border border-line bg-surface-soft p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-medium text-slate-800">{MODULE_LABELS[moduleRow.module_key]}</p>
-                  <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+                  <p className="text-sm font-medium text-foreground">{MODULE_LABELS[moduleRow.module_key]}</p>
+                  <label className="inline-flex items-center gap-2 text-xs text-secondary">
                     <input
                       type="checkbox"
                       checked={moduleRow.enabled}
@@ -248,10 +248,10 @@ export function ErpV11Settings() {
                   </label>
                 </div>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <label className="text-xs text-slate-600">
+                  <label className="text-xs text-secondary">
                     mode
                     <select
-                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1"
+                      className="mt-1 w-full rounded-md border border-line-strong bg-surface px-2 py-1"
                       value={moduleRow.mode}
                       onChange={event => void saveModule({ ...moduleRow, mode: event.target.value as ModuleRow['mode'] })}
                       disabled={saving}
@@ -259,10 +259,10 @@ export function ErpV11Settings() {
                       {MODE_OPTIONS.map(mode => <option key={mode} value={mode}>{mode}</option>)}
                     </select>
                   </label>
-                  <label className="text-xs text-slate-600">
+                  <label className="text-xs text-secondary">
                     fallback
                     <select
-                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1"
+                      className="mt-1 w-full rounded-md border border-line-strong bg-surface px-2 py-1"
                       value={moduleRow.fallback_strategy}
                       onChange={event => void saveModule({ ...moduleRow, fallback_strategy: event.target.value as ModuleRow['fallback_strategy'] })}
                       disabled={saving}
@@ -277,26 +277,26 @@ export function ErpV11Settings() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 p-4">
-            <p className="text-sm font-semibold text-slate-900">Providers multi-API</p>
-            <p className="mt-1 text-xs text-slate-500">Connecteurs concurrents sans modification du core ERP.</p>
+          <div className="rounded-xl border border-line p-4">
+            <p className="text-sm font-semibold text-heading">Providers multi-API</p>
+            <p className="mt-1 text-xs text-discreet">Connecteurs concurrents sans modification du core ERP.</p>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
               {PROVIDER_TYPES.map(providerType => (
-                <div key={providerType} className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-700">
+                <div key={providerType} className="rounded-md border border-line bg-surface-soft px-2 py-1.5 text-xs text-foreground">
                   {providerType}: {providerCounts[providerType] ?? 0}
                 </div>
               ))}
             </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
               <input
-                className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+                className="rounded-md border border-line-strong px-2 py-1 text-sm"
                 placeholder="provider_key"
                 value={newProviderKey}
                 onChange={event => setNewProviderKey(event.target.value)}
                 disabled={saving}
               />
               <select
-                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
+                className="rounded-md border border-line-strong bg-surface px-2 py-1 text-sm"
                 value={newProviderType}
                 onChange={event => setNewProviderType(event.target.value as ProviderRow['provider_type'])}
                 disabled={saving}
@@ -308,7 +308,7 @@ export function ErpV11Settings() {
               </button>
             </div>
             <input
-              className="mt-2 w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+              className="mt-2 w-full rounded-md border border-line-strong px-2 py-1 text-sm"
               placeholder="https://api.provider.tld"
               value={newProviderBaseUrl}
               onChange={event => setNewProviderBaseUrl(event.target.value)}
@@ -316,28 +316,28 @@ export function ErpV11Settings() {
             />
             <div className="mt-3 space-y-2">
               {providers.map(provider => (
-                <div key={provider.provider_key} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                <div key={provider.provider_key} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-surface-soft px-3 py-2 text-xs">
                   <span>{provider.provider_key} ({provider.provider_type}) - {provider.enabled ? 'ON' : 'OFF'} - prio {provider.priority}</span>
                   <button type="button" className="rounded bg-rose-600 px-2 py-1 text-white disabled:opacity-60" onClick={() => void deleteProvider(provider.provider_key)} disabled={saving}>
                     Supprimer
                   </button>
                 </div>
               ))}
-              {providers.length === 0 && <p className="text-xs text-slate-500">Aucun provider configure.</p>}
+              {providers.length === 0 && <p className="text-xs text-discreet">Aucun provider configure.</p>}
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 p-4">
-            <p className="text-sm font-semibold text-slate-900">Mapping API vers langage universel</p>
-            <p className="mt-1 text-xs text-slate-500">Objets internes standards: VehiclePosition, DriverStatus, DrivingTimeStatus, TrafficStatus, RoutePlan, EtaPrediction.</p>
+          <div className="rounded-xl border border-line p-4">
+            <p className="text-sm font-semibold text-heading">Mapping API vers langage universel</p>
+            <p className="mt-1 text-xs text-discreet">Objets internes standards: VehiclePosition, DriverStatus, DrivingTimeStatus, TrafficStatus, RoutePlan, EtaPrediction.</p>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {(['VehiclePosition', 'DriverStatus', 'DrivingTimeStatus', 'TrafficStatus', 'RoutePlan', 'EtaPrediction'] as const).map(objectName => (
-                <div key={objectName} className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-700">
+                <div key={objectName} className="rounded-md border border-line bg-surface-soft px-2 py-1.5 text-xs text-foreground">
                   {objectName}: {mappingCounts[objectName] ?? 0}
                 </div>
               ))}
             </div>
-            <p className="mt-2 text-xs text-slate-500">Mappings actifs: {mappings.filter(mapping => mapping.is_active).length}</p>
+            <p className="mt-2 text-xs text-discreet">Mappings actifs: {mappings.filter(mapping => mapping.is_active).length}</p>
           </div>
         </div>
       </div>
@@ -419,15 +419,15 @@ function SettingCard({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 p-4">
-      <p className="text-sm font-semibold text-slate-900">{title}</p>
-      <p className="mt-1 text-xs text-slate-500">{description}</p>
+    <div className="rounded-xl border border-line p-4">
+      <p className="text-sm font-semibold text-heading">{title}</p>
+      <p className="mt-1 text-xs text-discreet">{description}</p>
       <div className="mt-3 space-y-2">
         {fields.map(field => (
-          <label key={field.key} className="block text-xs text-slate-600">
+          <label key={field.key} className="block text-xs text-secondary">
             {field.label}
             <input
-              className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+              className="mt-1 w-full rounded-md border border-line-strong px-2 py-1 text-sm"
               value={draft[field.key] ?? ''}
               onChange={event => setDraft(current => ({ ...current, [field.key]: event.target.value }))}
               disabled={saving}

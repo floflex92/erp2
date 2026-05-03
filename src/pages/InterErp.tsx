@@ -241,20 +241,20 @@ export default function InterErp() {
   return (
     <div className="space-y-4">
       <div className="nx-panel p-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Connectivite inter-ERP</p>
-        <h2 className="mt-1 text-xl font-semibold text-slate-800">Discussion et coordination partenaires</h2>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-discreet">Connectivite inter-ERP</p>
+        <h2 className="mt-1 text-xl font-semibold text-foreground">Discussion et coordination partenaires</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Partenaires actifs</p>
-            <p className="mt-1 text-lg font-semibold text-slate-800">{state.channels.length}</p>
+          <div className="rounded-xl border border-line bg-surface px-3 py-2">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-discreet">Partenaires actifs</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">{state.channels.length}</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">References synchro</p>
-            <p className="mt-1 text-lg font-semibold text-slate-800">{syncedTransports}</p>
+          <div className="rounded-xl border border-line bg-surface px-3 py-2">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-discreet">References synchro</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">{syncedTransports}</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Webhook signes</p>
-            <p className="mt-1 text-lg font-semibold text-slate-800">
+          <div className="rounded-xl border border-line bg-surface px-3 py-2">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-discreet">Webhook signes</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">
               {state.channels.filter(channel => channel.signedWebhookEnabled).length}/{state.channels.length}
             </p>
           </div>
@@ -263,23 +263,23 @@ export default function InterErp() {
 
       <div className="grid gap-4 xl:grid-cols-[280px_1fr_300px]">
         <aside className="nx-panel p-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Canaux ERP</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-discreet">Canaux ERP</p>
           <div className="mt-3 space-y-2">
             {state.channels.map(channel => (
               <button
                 key={channel.id}
                 type="button"
                 onClick={() => setActiveChannelId(channel.id)}
-                className={`w-full rounded-xl border px-3 py-2 text-left transition-colors ${activeChannelId === channel.id ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+                className={`w-full rounded-xl border px-3 py-2 text-left transition-colors ${activeChannelId === channel.id ? 'border-blue-300 bg-blue-50' : 'border-line bg-surface hover:bg-surface-soft'}`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-slate-800">{channel.partnerName}</p>
+                  <p className="text-sm font-semibold text-foreground">{channel.partnerName}</p>
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusClass(channel.status)}`}>
                     {statusLabel(channel.status)}
                   </span>
                 </div>
-                <p className="mt-0.5 text-[11px] text-slate-500">{channel.erpCode}</p>
-                <p className="mt-1 text-[11px] text-slate-400">Sync: {fmtDate(channel.lastSyncAt)}</p>
+                <p className="mt-0.5 text-[11px] text-discreet">{channel.erpCode}</p>
+                <p className="mt-1 text-[11px] text-muted">Sync: {fmtDate(channel.lastSyncAt)}</p>
               </button>
             ))}
           </div>
@@ -288,23 +288,23 @@ export default function InterErp() {
         <section className="nx-panel p-3">
           {activeChannel ? (
             <>
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2">
                 <div>
-                  <h3 className="text-base font-semibold text-slate-800">{activeChannel.partnerName}</h3>
-                  <p className="text-xs text-slate-500">Connexion {activeChannel.erpCode}</p>
+                  <h3 className="text-base font-semibold text-foreground">{activeChannel.partnerName}</h3>
+                  <p className="text-xs text-discreet">Connexion {activeChannel.erpCode}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => toggleChannelStatus(activeChannel.id)}
-                    className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                    className="rounded-lg border border-line px-2.5 py-1 text-xs text-foreground hover:bg-surface-soft"
                   >
                     Basculer statut
                   </button>
                   <button
                     type="button"
                     onClick={() => toggleSignedWebhook(activeChannel.id)}
-                    className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                    className="rounded-lg border border-line px-2.5 py-1 text-xs text-foreground hover:bg-surface-soft"
                   >
                     {activeChannel.signedWebhookEnabled ? 'Webhook signe actif' : 'Webhook signe inactif'}
                   </button>
@@ -313,35 +313,35 @@ export default function InterErp() {
 
               <div className="mt-3 max-h-[420px] space-y-2 overflow-y-auto pr-1">
                 {channelMessages.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-500">
+                  <p className="rounded-lg border border-dashed border-line-strong px-3 py-4 text-sm text-discreet">
                     Aucune discussion pour ce partenaire.
                   </p>
                 ) : (
                   channelMessages.map(message => (
-                    <div key={message.id} className={`rounded-xl border px-3 py-2 ${message.direction === 'sortant' ? 'border-blue-200 bg-blue-50/70' : 'border-slate-200 bg-white'}`}>
-                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-                        <span className="font-semibold text-slate-700">{message.author}</span>
+                    <div key={message.id} className={`rounded-xl border px-3 py-2 ${message.direction === 'sortant' ? 'border-blue-200 bg-blue-50/70' : 'border-line bg-surface'}`}>
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-discreet">
+                        <span className="font-semibold text-foreground">{message.author}</span>
                         <span>Ref: {message.transportRef}</span>
                         <span>{fmtDate(message.createdAt)}</span>
                       </div>
-                      <p className="mt-1 text-sm text-slate-700">{message.body}</p>
+                      <p className="mt-1 text-sm text-foreground">{message.body}</p>
                     </div>
                   ))
                 )}
               </div>
 
-              <div className="mt-3 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[200px_1fr_auto]">
+              <div className="mt-3 grid gap-2 rounded-xl border border-line bg-surface-soft p-3 sm:grid-cols-[200px_1fr_auto]">
                 <input
                   value={transportRef}
                   onChange={event => setTransportRef(event.target.value.toUpperCase())}
                   placeholder="Reference transport"
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                  className="rounded-lg border border-line-strong px-3 py-2 text-sm outline-none focus:border-blue-400"
                 />
                 <input
                   value={messageBody}
                   onChange={event => setMessageBody(event.target.value)}
                   placeholder="Message inter-ERP"
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                  className="rounded-lg border border-line-strong px-3 py-2 text-sm outline-none focus:border-blue-400"
                 />
                 <button
                   type="button"
@@ -353,24 +353,24 @@ export default function InterErp() {
               </div>
             </>
           ) : (
-            <p className="text-sm text-slate-500">Aucun canal partenaire disponible.</p>
+            <p className="text-sm text-discreet">Aucun canal partenaire disponible.</p>
           )}
         </section>
 
         <aside className="nx-panel p-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Nouveau partenaire</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-discreet">Nouveau partenaire</p>
           <div className="mt-3 space-y-2">
             <input
               value={partnerName}
               onChange={event => setPartnerName(event.target.value)}
               placeholder="Nom partenaire"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-400"
+              className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm outline-none focus:border-blue-400"
             />
             <input
               value={erpCode}
               onChange={event => setErpCode(event.target.value)}
               placeholder="Code ERP"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-400"
+              className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm outline-none focus:border-blue-400"
             />
             <button
               type="button"
@@ -381,8 +381,8 @@ export default function InterErp() {
             </button>
           </div>
 
-          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Templates rapides</p>
+          <div className="mt-4 rounded-xl border border-line bg-surface-soft p-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-discreet">Templates rapides</p>
             <div className="mt-2 space-y-1.5">
               {[
                 'Confirmation de prise en charge',
@@ -394,7 +394,7 @@ export default function InterErp() {
                   key={template}
                   type="button"
                   onClick={() => setMessageBody(template)}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100"
+                  className="w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-left text-xs text-foreground hover:bg-surface-2"
                 >
                   {template}
                 </button>

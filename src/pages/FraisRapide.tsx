@@ -89,8 +89,8 @@ export default function FraisRapide() {
     <div className="space-y-5 p-4 md:p-6 max-w-xl mx-auto">
       <div className="nx-panel px-4 py-5">
         <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--primary)]">Saisie rapide</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Note de frais</h2>
-        <p className="mt-1 text-sm text-slate-600">Photographiez votre justificatif et saisissez le montant en 3 taps.</p>
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-heading">Note de frais</h2>
+        <p className="mt-1 text-sm text-secondary">Photographiez votre justificatif et saisissez le montant en 3 taps.</p>
       </div>
 
       {success && (
@@ -107,10 +107,10 @@ export default function FraisRapide() {
       <form onSubmit={e => void handleSubmit(e)} className="space-y-5">
         {/* Photo justificatif */}
         <div className="nx-panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 mb-3">📷 Justificatif</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-discreet mb-3">📷 Justificatif</p>
           {preview ? (
             <div className="relative">
-              <img src={preview} alt="Justificatif" className="w-full rounded-xl object-cover max-h-56 border border-slate-200" />
+              <img src={preview} alt="Justificatif" className="w-full rounded-xl object-cover max-h-56 border border-line" />
               <button
                 type="button"
                 onClick={() => { setFile(null); setPreview(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
@@ -123,11 +123,11 @@ export default function FraisRapide() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-full rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 py-8 text-center hover:border-[color:var(--primary)] hover:bg-slate-100 transition-colors"
+              className="w-full rounded-2xl border-2 border-dashed border-line-strong bg-surface-soft py-8 text-center hover:border-[color:var(--primary)] hover:bg-surface-2 transition-colors"
             >
               <span className="block text-3xl mb-2">📷</span>
-              <span className="block text-sm font-semibold text-slate-600">Prendre une photo ou importer</span>
-              <span className="block text-xs text-slate-400 mt-1">Ticket de caisse, facture, recu...</span>
+              <span className="block text-sm font-semibold text-secondary">Prendre une photo ou importer</span>
+              <span className="block text-xs text-muted mt-1">Ticket de caisse, facture, recu...</span>
             </button>
           )}
           <input
@@ -143,7 +143,7 @@ export default function FraisRapide() {
 
         {/* Categorie */}
         <div className="nx-panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 mb-3">Categorie</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-discreet mb-3">Categorie</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {CATEGORIES.map(cat => (
               <button
@@ -153,7 +153,7 @@ export default function FraisRapide() {
                 className={`rounded-xl border py-3 px-2 text-center transition-colors ${
                   category === cat
                     ? 'border-[color:var(--primary)] bg-[color:var(--primary)]/10 font-bold text-[color:var(--primary)]'
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
+                    : 'border-line bg-surface text-foreground hover:border-slate-400'
                 }`}
               >
                 <span className="block text-2xl mb-1">{CATEGORY_ICONS[cat]}</span>
@@ -166,7 +166,7 @@ export default function FraisRapide() {
         {/* Montant et date */}
         <div className="nx-panel p-4 space-y-4">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 mb-2">
+            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-discreet mb-2">
               Montant (€) *
             </label>
             <input
@@ -178,11 +178,11 @@ export default function FraisRapide() {
               placeholder="0,00"
               value={amount}
               onChange={e => setAmount(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-4 text-2xl font-bold text-slate-900 outline-none focus:border-[color:var(--primary)] text-center"
+              className="w-full rounded-xl border border-line-strong bg-surface px-4 py-4 text-2xl font-bold text-heading outline-none focus:border-[color:var(--primary)] text-center"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 mb-2">
+            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-discreet mb-2">
               Date
             </label>
             <input
@@ -190,11 +190,11 @@ export default function FraisRapide() {
               value={expenseDate}
               onChange={e => setExpenseDate(e.target.value)}
               required
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-800 outline-none focus:border-[color:var(--primary)]"
+              className="w-full rounded-xl border border-line-strong bg-surface px-3 py-3 text-sm text-foreground outline-none focus:border-[color:var(--primary)]"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 mb-2">
+            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-discreet mb-2">
               Commentaire (optionnel)
             </label>
             <textarea
@@ -202,7 +202,7 @@ export default function FraisRapide() {
               onChange={e => setDescription(e.target.value)}
               placeholder="Ex: repas client, autoroute A7, hotel Ibis Lyon..."
               rows={2}
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-[color:var(--primary)] resize-none"
+              className="w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted outline-none focus:border-[color:var(--primary)] resize-none"
             />
           </div>
         </div>
@@ -218,7 +218,7 @@ export default function FraisRapide() {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="w-full rounded-2xl border border-slate-300 bg-white py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            className="w-full rounded-2xl border border-line-strong bg-surface py-3 text-sm font-semibold text-foreground hover:bg-surface-soft"
           >
             Annuler
           </button>

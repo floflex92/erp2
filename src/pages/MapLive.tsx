@@ -1425,7 +1425,7 @@ export default function MapLive() {
               type="button"
               onClick={() => void loadData()}
               disabled={refreshing}
-              className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/14 disabled:opacity-60"
+              className="rounded-2xl border border-white/15 bg-surface/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-surface/14 disabled:opacity-60"
             >
               {refreshing ? 'Actualisation...' : 'Actualiser la carte'}
             </button>
@@ -1526,12 +1526,12 @@ export default function MapLive() {
 
           <div className="grid gap-4 border-t px-4 pb-4 pt-0 sm:grid-cols-2 sm:px-5" style={{ borderColor: 'var(--border)' }}>
             <div className="rounded-2xl border px-4 py-4" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-              <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Trafic live</p>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-muted">Trafic live</p>
               <p className="mt-1 text-lg font-semibold">{criticalCount} critiques</p>
               <p className="text-xs nx-subtle">{missionsInDelay} missions a surveiller</p>
             </div>
             <div className="rounded-2xl border px-4 py-4" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-              <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Code couleur</p>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-muted">Code couleur</p>
               <div className="mt-2 flex flex-wrap items-center gap-4 text-xs">
                 <LegendDot color="bg-sky-400" label="A l'heure / En avance" />
                 <LegendDot color="bg-amber-400" label="En retard" />
@@ -1545,7 +1545,7 @@ export default function MapLive() {
               <div className="rounded-[28px] border p-5 shadow-sm" style={{ borderColor: 'var(--border)', background: 'linear-gradient(180deg, #0f172a, #111827)', color: '#f8fafc' }}>
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
                       <span className="font-mono">{selected.reference}</span>
                       <span>{selected.clientName}</span>
                       {selected.distanceKm != null && <span>{selected.distanceKm} km</span>}
@@ -1554,7 +1554,7 @@ export default function MapLive() {
                     <p className="mt-1 text-sm text-slate-300">
                       {selected.conducteurName} sur {selected.vehiculeName}
                     </p>
-                    {selected.commodity && <p className="mt-2 text-xs text-slate-400">{selected.commodity}</p>}
+                    {selected.commodity && <p className="mt-2 text-xs text-muted">{selected.commodity}</p>}
                     {selected.routeSimulated && (
                       <p className="mt-2 text-xs text-amber-300 font-medium">⚠ Tracé estimé — adresses GPS non renseignées sur cet OT</p>
                     )}
@@ -1705,7 +1705,7 @@ export default function MapLive() {
                       <p className="text-xs font-mono nx-subtle">{item.mission.reference}</p>
                       <p className="mt-1 text-sm font-semibold">{item.mission.nextStopLabel}</p>
                       {item.ai?.summary && <p className="mt-1 text-xs text-slate-300">{item.ai.summary}</p>}
-                      {!item.ai?.summary && <p className="mt-1 text-xs text-slate-400">Analyse IA en attente.</p>}
+                      {!item.ai?.summary && <p className="mt-1 text-xs text-muted">Analyse IA en attente.</p>}
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <span className={`rounded-full px-2.5 py-1 text-[10px] font-medium ${
@@ -1724,7 +1724,7 @@ export default function MapLive() {
                     {item.mission.etaDelayMinutes != null ? ` - retard estime ${item.mission.etaDelayMinutes} min` : ''}
                   </p>
                   {item.ai?.recommendation && (
-                    <p className="mt-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200">
+                    <p className="mt-2 rounded-xl border border-white/10 bg-surface/5 px-3 py-2 text-xs text-slate-200">
                       Action IA: {item.ai.recommendation}
                     </p>
                   )}
@@ -1744,18 +1744,18 @@ export default function MapLive() {
 
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <div className="rounded-[22px] border border-white/10 bg-white/6 px-4 py-4 backdrop-blur">
-      <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">{label}</p>
+    <div className="rounded-[22px] border border-white/10 bg-surface/6 px-4 py-4 backdrop-blur">
+      <p className="text-[11px] uppercase tracking-[0.24em] text-muted">{label}</p>
       <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
-      <p className="mt-1 text-xs text-slate-400">{detail}</p>
+      <p className="mt-1 text-xs text-muted">{detail}</p>
     </div>
   )
 }
 
 function LiveInfo({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/4 px-4 py-3">
-      <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{label}</p>
+    <div className="rounded-2xl border border-white/10 bg-surface/4 px-4 py-3">
+      <p className="text-[11px] uppercase tracking-[0.22em] text-discreet">{label}</p>
       <p className="mt-1 text-sm font-medium text-white">{value}</p>
     </div>
   )
@@ -1785,7 +1785,7 @@ function StatusChip({
       ? 'border-amber-400/30 bg-amber-500/12 text-amber-100'
       : tone === 'ok'
         ? 'border-emerald-400/30 bg-emerald-500/12 text-emerald-100'
-        : 'border-white/12 bg-white/5 text-slate-100'
+        : 'border-white/12 bg-surface/5 text-slate-100'
 
   return (
     <div className={`rounded-xl border px-3 py-2 ${palette}`}>

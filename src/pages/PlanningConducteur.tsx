@@ -94,7 +94,7 @@ function statutColor(s: string) {
   if (s === 'termine' || s === 'livre' || s === 'facture') return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
   if (s === 'annule') return 'bg-red-500/15 text-red-400 border-red-500/30'
   if (s === 'confirme' || s === 'planifie' || s === 'valide' || s === 'en_attente_planification' || s === 'en_attente_validation') return 'bg-blue-500/15 text-blue-400 border-blue-500/30'
-  return 'bg-slate-500/15 text-slate-400 border-slate-500/30'
+  return 'bg-slate-500/15 text-muted border-slate-500/30'
 }
 
 // ─── Icônes ───────────────────────────────────────────────────────────────────

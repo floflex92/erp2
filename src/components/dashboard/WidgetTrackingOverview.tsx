@@ -194,7 +194,7 @@ export function WidgetTrackingOverview() {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <Link to="/transports" className="rounded-lg border border-slate-200 px-3 py-2 text-center text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50">
+        <Link to="/transports" className="rounded-lg border border-line px-3 py-2 text-center text-xs font-semibold text-foreground transition-colors hover:bg-surface-soft">
           Ordres transport
         </Link>
         {selectedTransport ? (
@@ -223,7 +223,7 @@ function MetricCard({ label, value, tone }: { label: string; value: number; tone
       : tone === 'green'
         ? 'bg-emerald-600 text-white'
         : tone === 'amber'
-          ? 'bg-amber-500 text-slate-900'
+          ? 'bg-amber-500 text-heading'
           : 'bg-violet-600 text-white'
 
   return (

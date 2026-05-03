@@ -61,7 +61,7 @@ interface FluxPrevisionnel {
 const inp = 'w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200'
 const btn = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors'
 const btnPrimary = `${btn} bg-slate-800 text-white hover:bg-slate-700`
-const btnGhost = `${btn} border border-slate-200 text-slate-700 hover:bg-slate-50`
+const btnGhost = `${btn} border border-line text-foreground hover:bg-surface-soft`
 
 const fmtEur = (n: number) =>
   n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 })
@@ -79,11 +79,11 @@ const TYPE_FLUX_LABELS: Record<string, string> = {
 const TYPE_FLUX_COLORS: Record<string, string> = {
   client: 'bg-blue-100 text-blue-700',
   fournisseur: 'bg-orange-100 text-orange-700',
-  charge_fixe: 'bg-slate-100 text-slate-700',
+  charge_fixe: 'bg-surface-2 text-foreground',
   leasing: 'bg-purple-100 text-purple-700',
   salaires: 'bg-pink-100 text-pink-700',
   impot: 'bg-red-100 text-red-700',
-  autre: 'bg-slate-100 text-slate-600',
+  autre: 'bg-surface-2 text-secondary',
 }
 
 function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
@@ -93,11 +93,11 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
     { key: 'previsions', label: 'Prévisions 90 jours' },
   ]
   return (
-    <div className="flex gap-1 mb-6 border-b border-slate-200">
+    <div className="flex gap-1 mb-6 border-b border-line">
       {tabs.map(t => (
         <button key={t.key} onClick={() => onChange(t.key)}
           className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
-            active === t.key ? 'border-slate-800 text-slate-800' : 'border-transparent text-slate-500 hover:text-slate-700'
+            active === t.key ? 'border-slate-800 text-foreground' : 'border-transparent text-discreet hover:text-foreground'
           }`}
         >{t.label}</button>
       ))}
@@ -112,7 +112,7 @@ function Stat({ label, value, sub, color = 'slate' }: {
     blue:  'bg-blue-50 text-blue-700 border-blue-100',
     red:   'bg-red-50 text-red-700 border-red-100',
     green: 'bg-green-50 text-green-700 border-green-100',
-    slate: 'bg-slate-50 text-slate-800 border-slate-200',
+    slate: 'bg-surface-soft text-foreground border-line',
     amber: 'bg-amber-50 text-amber-700 border-amber-100',
   }[color]
   return (
@@ -269,36 +269,36 @@ function MouvementsTab() {
       </div>
 
       {/* Import CSV */}
-      <div className="border border-dashed border-slate-300 rounded-xl p-4 space-y-3">
-        <p className="text-sm font-medium text-slate-700">Import relevé bancaire (CSV)</p>
-        <p className="text-xs text-slate-400">Format : <code>date;libelle;montant[;solde]</code> — séparateur ; ou , — décimale . ou ,</p>
+      <div className="border border-dashed border-line-strong rounded-xl p-4 space-y-3">
+        <p className="text-sm font-medium text-foreground">Import relevé bancaire (CSV)</p>
+        <p className="text-xs text-muted">Format : <code>date;libelle;montant[;solde]</code> — séparateur ; ou , — décimale . ou ,</p>
         <div className="flex gap-3 items-center">
           <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleImportFile} className="hidden" />
           <button onClick={() => fileRef.current?.click()} disabled={importing} className={btnPrimary}>
             {importing ? 'Import en cours...' : 'Choisir un fichier CSV'}
           </button>
-          {importMsg && <p className="text-sm text-slate-600">{importMsg}</p>}
+          {importMsg && <p className="text-sm text-secondary">{importMsg}</p>}
         </div>
       </div>
 
       {/* Saisie manuelle */}
-      <div className="border border-slate-200 rounded-xl p-4 space-y-3">
-        <p className="text-sm font-medium text-slate-700">Ajouter un mouvement manuellement</p>
+      <div className="border border-line rounded-xl p-4 space-y-3">
+        <p className="text-sm font-medium text-foreground">Ajouter un mouvement manuellement</p>
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="text-xs text-slate-500 font-medium block mb-1">Date</label>
+            <label className="text-xs text-discreet font-medium block mb-1">Date</label>
             <input type="date" value={formManuel.date_operation}
               onChange={e => setFormManuel(p => ({ ...p, date_operation: e.target.value }))}
               className={inp} />
           </div>
           <div className="col-span-1">
-            <label className="text-xs text-slate-500 font-medium block mb-1">Libellé</label>
+            <label className="text-xs text-discreet font-medium block mb-1">Libellé</label>
             <input type="text" placeholder="Ex : Virement CLIENT SA..." value={formManuel.libelle}
               onChange={e => setFormManuel(p => ({ ...p, libelle: e.target.value }))}
               className={inp} />
           </div>
           <div>
-            <label className="text-xs text-slate-500 font-medium block mb-1">Montant (+ crédit / − débit)</label>
+            <label className="text-xs text-discreet font-medium block mb-1">Montant (+ crédit / − débit)</label>
             <input type="text" placeholder="Ex : 1500 ou -850" value={formManuel.montant}
               onChange={e => setFormManuel(p => ({ ...p, montant: e.target.value }))}
               className={inp} />
@@ -318,7 +318,7 @@ function MouvementsTab() {
               className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
                 filterStatut === s
                   ? 'bg-slate-800 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  : 'bg-surface-2 text-secondary hover:bg-slate-200'
               }`}
             >{labels[s]}</button>
           )
@@ -326,34 +326,34 @@ function MouvementsTab() {
       </div>
 
       {loading ? (
-        <div className="text-center py-10 text-slate-400">Chargement...</div>
+        <div className="text-center py-10 text-muted">Chargement...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-10 text-slate-400">Aucun mouvement</div>
+        <div className="text-center py-10 text-muted">Aucun mouvement</div>
       ) : (
-        <div className="overflow-auto rounded-lg border border-slate-200">
+        <div className="overflow-auto rounded-lg border border-line">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-surface-soft">
               <tr>
                 {['Date', 'Libellé', 'Montant', 'Solde après', 'Statut', ''].map(h => (
-                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 border-b border-slate-200">{h}</th>
+                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-secondary border-b border-line">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map(m => (
-                <tr key={m.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                  <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{m.date_operation}</td>
-                  <td className="px-3 py-2 text-slate-700 truncate max-w-[250px]">{m.libelle}</td>
+                <tr key={m.id} className="border-b border-slate-100 last:border-0 hover:bg-surface-soft">
+                  <td className="px-3 py-2 text-xs text-discreet whitespace-nowrap">{m.date_operation}</td>
+                  <td className="px-3 py-2 text-foreground truncate max-w-[250px]">{m.libelle}</td>
                   <td className={`px-3 py-2 text-right font-semibold ${m.montant >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                     {m.montant >= 0 ? '+' : ''}{fmtEur(m.montant)}
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-500 text-xs">
+                  <td className="px-3 py-2 text-right text-discreet text-xs">
                     {m.solde_apres !== null ? fmtEur(m.solde_apres) : '—'}
                   </td>
                   <td className="px-3 py-2">
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                       m.statut === 'rapproche' ? 'bg-green-100 text-green-700' :
-                      m.statut === 'ignore' ? 'bg-slate-100 text-slate-400' :
+                      m.statut === 'ignore' ? 'bg-surface-2 text-muted' :
                       'bg-amber-100 text-amber-700'
                     }`}>
                       {m.statut === 'a_rapprocher' ? 'À rapprocher' : m.statut === 'rapproche' ? 'Rapproché' : 'Ignoré'}
@@ -362,7 +362,7 @@ function MouvementsTab() {
                   <td className="px-3 py-2">
                     {m.statut === 'a_rapprocher' && (
                       <button onClick={() => ignorerMouvement(m.id)}
-                        className="text-xs text-slate-400 hover:text-slate-600">Ignorer</button>
+                        className="text-xs text-muted hover:text-secondary">Ignorer</button>
                     )}
                   </td>
                 </tr>
@@ -549,7 +549,7 @@ function RapprochementTab() {
   }
 
   const scoreColor = (s: number) =>
-    s >= 70 ? 'bg-green-100 text-green-700' : s >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+    s >= 70 ? 'bg-green-100 text-green-700' : s >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-surface-2 text-discreet'
 
   return (
     <div className="space-y-4">
@@ -558,18 +558,18 @@ function RapprochementTab() {
       )}
 
       {loading ? (
-        <div className="text-center py-10 text-slate-400">Chargement...</div>
+        <div className="text-center py-10 text-muted">Chargement...</div>
       ) : (
         <>
           {/* Mode toggle + auto btn */}
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex gap-2">
               <button onClick={() => { setMode('credits'); setSelectedMvt(null); setSelectedMatch(null) }}
-                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${mode === 'credits' ? 'bg-green-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${mode === 'credits' ? 'bg-green-700 text-white' : 'bg-surface-2 text-secondary hover:bg-slate-200'}`}>
                 Crédits → Factures clients ({mouvements.filter(m => m.montant > 0).length})
               </button>
               <button onClick={() => { setMode('debits'); setSelectedMvt(null); setSelectedMatch(null) }}
-                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${mode === 'debits' ? 'bg-red-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${mode === 'debits' ? 'bg-red-700 text-white' : 'bg-surface-2 text-secondary hover:bg-slate-200'}`}>
                 Débits → Factures fournisseurs ({mouvements.filter(m => m.montant < 0).length})
               </button>
             </div>
@@ -580,7 +580,7 @@ function RapprochementTab() {
             )}
           </div>
 
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-discreet">
             Sélectionnez un mouvement puis la facture correspondante. Le scoring combine montant, date d'échéance et mots-clés du libellé.
           </p>
 
@@ -608,14 +608,14 @@ function RapprochementTab() {
 
           <div className="grid md:grid-cols-2 gap-4">
             {/* Mouvements */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
-              <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200">
-                <h3 className="text-sm font-semibold text-slate-700">
+            <div className="border border-line rounded-xl overflow-hidden">
+              <div className="bg-surface-soft px-4 py-2.5 border-b border-line">
+                <h3 className="text-sm font-semibold text-foreground">
                   {mode === 'credits' ? `Entrées bancaires (${mvtFiltered.length})` : `Sorties bancaires (${mvtFiltered.length})`}
                 </h3>
               </div>
               {mvtFiltered.length === 0 ? (
-                <p className="text-center py-8 text-slate-400 text-sm">
+                <p className="text-center py-8 text-muted text-sm">
                   Aucun {mode === 'credits' ? 'crédit' : 'débit'} à rapprocher
                 </p>
               ) : (
@@ -624,18 +624,18 @@ function RapprochementTab() {
                     <button
                       key={m.id}
                       onClick={() => { setSelectedMvt(selectedMvt?.id === m.id ? null : m); setSelectedMatch(null) }}
-                      className={`w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors ${
+                      className={`w-full text-left px-4 py-3 hover:bg-surface-soft transition-colors ${
                         selectedMvt?.id === m.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
                       }`}
                     >
                       <div className="flex justify-between items-center">
-                        <span className="text-xs text-slate-400">{m.date_operation}</span>
+                        <span className="text-xs text-muted">{m.date_operation}</span>
                         <span className={`font-semibold text-sm ${m.montant >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                           {m.montant >= 0 ? '+' : ''}{fmtEur(m.montant)}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-700 truncate mt-0.5">{m.libelle}</p>
-                      {m.reference_banque && <p className="text-xs text-slate-400 mt-0.5">Réf : {m.reference_banque}</p>}
+                      <p className="text-sm text-foreground truncate mt-0.5">{m.libelle}</p>
+                      {m.reference_banque && <p className="text-xs text-muted mt-0.5">Réf : {m.reference_banque}</p>}
                     </button>
                   ))}
                 </div>
@@ -643,19 +643,19 @@ function RapprochementTab() {
             </div>
 
             {/* Factures avec scores */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
-              <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200">
-                <h3 className="text-sm font-semibold text-slate-700">
+            <div className="border border-line rounded-xl overflow-hidden">
+              <div className="bg-surface-soft px-4 py-2.5 border-b border-line">
+                <h3 className="text-sm font-semibold text-foreground">
                   {mode === 'credits'
                     ? `Factures clients (${factures.length})`
                     : `Factures fournisseurs (${factFourn.length})`}
                   {selectedMvt && matchScores.length > 0 && (
-                    <span className="ml-2 text-xs font-normal text-slate-400">— triées par score</span>
+                    <span className="ml-2 text-xs font-normal text-muted">— triées par score</span>
                   )}
                 </h3>
               </div>
               {(mode === 'credits' ? factures.length : factFourn.length) === 0 ? (
-                <p className="text-center py-8 text-slate-400 text-sm">Aucune facture à rapprocher</p>
+                <p className="text-center py-8 text-muted text-sm">Aucune facture à rapprocher</p>
               ) : (
                 <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto">
                   {(selectedMvt ? matchScores : (mode === 'credits'
@@ -668,7 +668,7 @@ function RapprochementTab() {
                       <button
                         key={f.id}
                         onClick={() => setSelectedMatch(isSelected ? null : ms)}
-                        className={`w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors ${
+                        className={`w-full text-left px-4 py-3 hover:bg-surface-soft transition-colors ${
                           isSelected ? 'bg-blue-50 border-l-4 border-blue-500' :
                           ms.score >= 70 ? 'bg-green-50/50 border-l-4 border-green-400' :
                           ms.score >= 40 ? 'bg-amber-50/50 border-l-2 border-amber-300' : ''
@@ -676,19 +676,19 @@ function RapprochementTab() {
                       >
                         <div className="flex justify-between items-center">
                           <div className="flex items-center gap-1.5">
-                            <span className="font-mono text-xs text-slate-500">{f.numero}</span>
+                            <span className="font-mono text-xs text-discreet">{f.numero}</span>
                             {ms.score > 0 && (
                               <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${scoreColor(ms.score)}`}>{ms.score}</span>
                             )}
                           </div>
-                          <span className="font-semibold text-slate-800 text-sm">{fmtEur(f.montant_ttc ?? f.montant_ht)}</span>
+                          <span className="font-semibold text-foreground text-sm">{fmtEur(f.montant_ttc ?? f.montant_ht)}</span>
                         </div>
-                        <p className="text-sm text-slate-600 truncate mt-0.5">
+                        <p className="text-sm text-secondary truncate mt-0.5">
                           {ms.type === 'client' ? clientMap[(f as Facture).client_id] ?? '—' : (f as FactureFournisseur).fournisseur_nom}
                         </p>
-                        {ms.detail && <p className="text-xs text-slate-400 mt-0.5">{ms.detail}</p>}
+                        {ms.detail && <p className="text-xs text-muted mt-0.5">{ms.detail}</p>}
                         {f.date_echeance && (
-                          <p className="text-xs text-slate-400 mt-0.5">Éch. {f.date_echeance}</p>
+                          <p className="text-xs text-muted mt-0.5">Éch. {f.date_echeance}</p>
                         )}
                       </button>
                     )
@@ -818,8 +818,8 @@ function PrevisionsTab() {
 
       {/* Graphe bâtons semaines */}
       {flux.length > 0 && (
-        <div className="border border-slate-200 rounded-xl p-4">
-          <p className="text-xs font-semibold text-slate-600 mb-3">Flux hebdomadaires prévisionnels (13 semaines)</p>
+        <div className="border border-line rounded-xl p-4">
+          <p className="text-xs font-semibold text-secondary mb-3">Flux hebdomadaires prévisionnels (13 semaines)</p>
           <div className="flex items-end gap-1.5" style={{ height: 80 }}>
             {fluxSemaines.map((s, i) => (
               <div key={i} className="flex flex-col items-center gap-1 flex-1 min-w-0" style={{ height: 80 }}>
@@ -829,11 +829,11 @@ function PrevisionsTab() {
                   <div className="flex-1 rounded-t bg-red-300 transition-all"
                     style={{ height: `${netMax > 0 ? (s.sorties / netMax) * 100 : 0}%`, minHeight: s.sorties > 0 ? 3 : 0 }} />
                 </div>
-                <span className="text-[9px] text-slate-400 truncate w-full text-center">{s.label}</span>
+                <span className="text-[9px] text-muted truncate w-full text-center">{s.label}</span>
               </div>
             ))}
           </div>
-          <div className="flex gap-4 mt-2 text-xs text-slate-500">
+          <div className="flex gap-4 mt-2 text-xs text-discreet">
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-blue-300 inline-block"></span>Entrées</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-red-300 inline-block"></span>Sorties</span>
           </div>
@@ -842,32 +842,32 @@ function PrevisionsTab() {
 
       {/* Ajouter un flux */}
       <div className="flex justify-between items-center">
-        <h3 className="text-sm font-semibold text-slate-700">Flux prévisionnels (90 jours)</h3>
+        <h3 className="text-sm font-semibold text-foreground">Flux prévisionnels (90 jours)</h3>
         <button onClick={() => setShowForm(!showForm)} className={btnPrimary}>
           {showForm ? 'Annuler' : '+ Ajouter un flux'}
         </button>
       </div>
 
       {showForm && (
-        <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50">
+        <div className="border border-line rounded-xl p-4 space-y-3 bg-surface-soft">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
-              <label className="text-xs text-slate-500 font-medium block mb-1">Date</label>
+              <label className="text-xs text-discreet font-medium block mb-1">Date</label>
               <input type="date" value={form.date_flux}
                 onChange={e => setForm(p => ({ ...p, date_flux: e.target.value }))} className={inp} />
             </div>
             <div>
-              <label className="text-xs text-slate-500 font-medium block mb-1">Libellé</label>
+              <label className="text-xs text-discreet font-medium block mb-1">Libellé</label>
               <input type="text" placeholder="Ex : Loyer camion..."
                 value={form.libelle} onChange={e => setForm(p => ({ ...p, libelle: e.target.value }))} className={inp} />
             </div>
             <div>
-              <label className="text-xs text-slate-500 font-medium block mb-1">Montant (+ encaissement / − décaissement)</label>
+              <label className="text-xs text-discreet font-medium block mb-1">Montant (+ encaissement / − décaissement)</label>
               <input type="text" placeholder="Ex : 2500 ou -1800"
                 value={form.montant} onChange={e => setForm(p => ({ ...p, montant: e.target.value }))} className={inp} />
             </div>
             <div>
-              <label className="text-xs text-slate-500 font-medium block mb-1">Type</label>
+              <label className="text-xs text-discreet font-medium block mb-1">Type</label>
               <select value={form.type_flux}
                 onChange={e => setForm(p => ({ ...p, type_flux: e.target.value }))} className={inp}>
                 {Object.entries(TYPE_FLUX_LABELS).map(([k, v]) => (
@@ -876,7 +876,7 @@ function PrevisionsTab() {
               </select>
             </div>
             <div>
-              <label className="text-xs text-slate-500 font-medium block mb-1">Probabilité (%)</label>
+              <label className="text-xs text-discreet font-medium block mb-1">Probabilité (%)</label>
               <input type="number" min={0} max={100} value={form.probabilite}
                 onChange={e => setForm(p => ({ ...p, probabilite: e.target.value }))} className={inp} />
             </div>
@@ -888,35 +888,35 @@ function PrevisionsTab() {
       )}
 
       {loading ? (
-        <div className="text-center py-10 text-slate-400">Chargement...</div>
+        <div className="text-center py-10 text-muted">Chargement...</div>
       ) : flux.length === 0 ? (
-        <div className="text-center py-10 text-slate-400">
+        <div className="text-center py-10 text-muted">
           Aucun flux prévisionnel — ajoutez vos charges et encaissements attendus
         </div>
       ) : (
-        <div className="overflow-auto rounded-lg border border-slate-200">
+        <div className="overflow-auto rounded-lg border border-line">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-surface-soft">
               <tr>
                 {['Date', 'Libellé', 'Type', 'Montant', 'Probabilité', 'Probabilisé', ''].map(h => (
-                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 border-b border-slate-200">{h}</th>
+                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-secondary border-b border-line">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {flux.map(f => (
-                <tr key={f.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                  <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{f.date_flux}</td>
-                  <td className="px-3 py-2 text-slate-700">{f.libelle}</td>
+                <tr key={f.id} className="border-b border-slate-100 last:border-0 hover:bg-surface-soft">
+                  <td className="px-3 py-2 text-xs text-discreet whitespace-nowrap">{f.date_flux}</td>
+                  <td className="px-3 py-2 text-foreground">{f.libelle}</td>
                   <td className="px-3 py-2">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_FLUX_COLORS[f.type_flux] ?? 'bg-slate-100 text-slate-600'}`}>
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_FLUX_COLORS[f.type_flux] ?? 'bg-surface-2 text-secondary'}`}>
                       {TYPE_FLUX_LABELS[f.type_flux] ?? f.type_flux}
                     </span>
                   </td>
                   <td className={`px-3 py-2 text-right font-semibold ${f.montant >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                     {f.montant >= 0 ? '+' : ''}{fmtEur(f.montant)}
                   </td>
-                  <td className="px-3 py-2 text-center text-slate-500 text-xs">{f.probabilite} %</td>
+                  <td className="px-3 py-2 text-center text-discreet text-xs">{f.probabilite} %</td>
                   <td className={`px-3 py-2 text-right text-xs font-medium ${(f.montant * f.probabilite / 100) >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                     {fmtEur(f.montant * f.probabilite / 100)}
                   </td>
@@ -926,9 +926,9 @@ function PrevisionsTab() {
                 </tr>
               ))}
               {/* Ligne totaux */}
-              <tr className="bg-slate-50 font-semibold">
-                <td colSpan={3} className="px-3 py-2 text-xs text-slate-600">Total</td>
-                <td className="px-3 py-2 text-right text-slate-800">{fmtEur(flux.reduce((s, f) => s + f.montant, 0))}</td>
+              <tr className="bg-surface-soft font-semibold">
+                <td colSpan={3} className="px-3 py-2 text-xs text-secondary">Total</td>
+                <td className="px-3 py-2 text-right text-foreground">{fmtEur(flux.reduce((s, f) => s + f.montant, 0))}</td>
                 <td></td>
                 <td className={`px-3 py-2 text-right text-sm ${
                   flux.reduce((s, f) => s + f.montant * f.probabilite / 100, 0) >= 0 ? 'text-green-700' : 'text-red-700'
@@ -951,8 +951,8 @@ export default function Tresorerie() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-2">
       <div className="mb-4">
-        <h1 className="text-xl font-bold text-slate-800">Trésorerie</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Mouvements bancaires, rapprochement, prévisions 90 jours</p>
+        <h1 className="text-xl font-bold text-foreground">Trésorerie</h1>
+        <p className="text-sm text-discreet mt-0.5">Mouvements bancaires, rapprochement, prévisions 90 jours</p>
       </div>
       <TabBar active={tab} onChange={setTab} />
       {tab === 'mouvements'    && <MouvementsTab />}

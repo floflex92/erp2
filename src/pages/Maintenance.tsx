@@ -142,7 +142,7 @@ const OT_PRIORITE_COLORS: Record<OTPriorite, string> = {
   urgente:   'bg-red-100 text-red-700 border-red-200',
   haute:     'bg-orange-100 text-orange-700 border-orange-200',
   normale:   'bg-blue-100 text-blue-700 border-blue-200',
-  planifiee: 'bg-slate-100 text-slate-600 border-slate-200',
+  planifiee: 'bg-surface-2 text-secondary border-line',
 }
 const OT_PRIORITE_LABELS: Record<OTPriorite, string> = {
   urgente: 'Urgente', haute: 'Haute', normale: 'Normale', planifiee: 'Planifiée',
@@ -152,7 +152,7 @@ const OT_STATUT_COLORS: Record<OTStatut, string> = {
   en_cours:            'bg-blue-100 text-blue-700',
   en_attente_pieces:   'bg-orange-100 text-orange-700',
   cloture:             'bg-green-100 text-green-700',
-  annule:              'bg-slate-100 text-slate-600',
+  annule:              'bg-surface-2 text-secondary',
 }
 const OT_STATUT_LABELS: Record<OTStatut, string> = {
   planifie: 'Planifié', en_cours: 'En cours', en_attente_pieces: 'Att. pièces', cloture: 'Clôturé', annule: 'Annulé',
@@ -338,7 +338,7 @@ function inferVehiculeMotorisation(v: Vehicule) {
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="space-y-1"><label className="text-xs font-medium text-slate-600">{label}</label>{children}</div>
+  return <div className="space-y-1"><label className="text-xs font-medium text-secondary">{label}</label>{children}</div>
 }
 
 function Badge({ children, color }: { children: React.ReactNode; color: string }) {
@@ -347,7 +347,7 @@ function Badge({ children, color }: { children: React.ReactNode; color: string }
 
 function KPI({ label, value, sub, color = 'slate' }: { label: string; value: string | number; sub?: string; color?: string }) {
   const colors: Record<string, string> = {
-    slate:  'bg-slate-50 border-slate-200 text-slate-700',
+    slate:  'bg-surface-soft border-line text-foreground',
     green:  'bg-green-50 border-green-200 text-green-700',
     red:    'bg-red-50 border-red-200 text-red-700',
     amber:  'bg-amber-50 border-amber-200 text-amber-700',
@@ -377,10 +377,10 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
     { key: 'couts',          label: 'Coûts & Analyses' },
   ]
   return (
-    <div className="flex gap-1 mb-6 border-b border-slate-200">
+    <div className="flex gap-1 mb-6 border-b border-line">
       {tabs.map(t => (
         <button key={t.key} onClick={() => onChange(t.key)}
-          className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${active === t.key ? 'border-slate-800 text-slate-800' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+          className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${active === t.key ? 'border-slate-800 text-foreground' : 'border-transparent text-discreet hover:text-foreground'}`}>
           {t.label}
         </button>
       ))}
@@ -397,7 +397,7 @@ function BarChart({ data, height = 120, color = '#1e293b' }: { data: { label: st
           <div className="flex-1 w-full flex items-end">
             <div className="w-full rounded-t transition-all" style={{ height: `${(d.value / max) * 100}%`, background: color, minHeight: d.value > 0 ? 4 : 0 }} />
           </div>
-          <span className="text-[10px] text-slate-400 truncate w-full text-center">{d.label}</span>
+          <span className="text-[10px] text-muted truncate w-full text-center">{d.label}</span>
         </div>
       ))}
     </div>
@@ -1396,8 +1396,8 @@ export default function Maintenance() {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Atelier Mécanique</h2>
-          <p className="text-slate-500 text-sm">
+          <h2 className="text-2xl font-bold text-foreground">Atelier Mécanique</h2>
+          <p className="text-discreet text-sm">
             {vehicules.length} véhicules · {otsActifs.length} OT actifs · {alerts.length + echeancesUrgentes + countAlertesDepassees + countAlertesPreventives} alerte{alerts.length + echeancesUrgentes + countAlertesDepassees + countAlertesPreventives !== 1 ? 's' : ''}
           </p>
         </div>
@@ -1441,10 +1441,10 @@ export default function Maintenance() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Alertes flotte */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-800 mb-3">Alertes flotte actives</h3>
-              {loading ? <p className="text-xs text-slate-400">Chargement...</p> :
-                alerts.length === 0 && echeancesUrgentes === 0 ? <p className="text-xs text-slate-400">Aucune alerte active.</p> :
+            <div className="bg-surface rounded-xl border border-line p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-3">Alertes flotte actives</h3>
+              {loading ? <p className="text-xs text-muted">Chargement...</p> :
+                alerts.length === 0 && echeancesUrgentes === 0 ? <p className="text-xs text-muted">Aucune alerte active.</p> :
                 <div className="space-y-2">
                   {alerts.slice(0, 6).map((a, i) => (
                     <div key={i} className="flex items-center justify-between bg-red-50 border border-red-100 rounded-lg px-3 py-2">
@@ -1469,41 +1469,41 @@ export default function Maintenance() {
             </div>
 
             {/* État du parc */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-800 mb-3">État du parc véhicules</h3>
-              {vehicules.length === 0 ? <p className="text-xs text-slate-400">Aucun véhicule enregistré.</p> :
+            <div className="bg-surface rounded-xl border border-line p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-3">État du parc véhicules</h3>
+              {vehicules.length === 0 ? <p className="text-xs text-muted">Aucun véhicule enregistré.</p> :
                 <div className="space-y-1.5">
                   {vehicules.slice(0, 8).map(v => {
-                    const color = { disponible: 'bg-green-100 text-green-700', en_service: 'bg-blue-100 text-blue-700', maintenance: 'bg-orange-100 text-orange-700', hs: 'bg-red-100 text-red-700', vendu: 'bg-slate-100 text-slate-500' }[v.statut ?? 'disponible'] ?? 'bg-slate-100 text-slate-600'
+                    const color = { disponible: 'bg-green-100 text-green-700', en_service: 'bg-blue-100 text-blue-700', maintenance: 'bg-orange-100 text-orange-700', hs: 'bg-red-100 text-red-700', vendu: 'bg-surface-2 text-discreet' }[v.statut ?? 'disponible'] ?? 'bg-surface-2 text-secondary'
                     const label = { disponible: 'Disponible', en_service: 'En service', maintenance: 'Maintenance', hs: 'H.S.', vendu: 'Vendu' }[v.statut ?? 'disponible'] ?? v.statut
                     return (
                       <div key={v.id} className="flex items-center justify-between py-1.5 border-b border-slate-50 last:border-0">
                         <div className="flex items-center gap-3">
-                          <span className="font-mono text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">{v.immatriculation}</span>
-                          <span className="text-xs text-slate-500">{v.marque} {v.modele}</span>
+                          <span className="font-mono text-xs font-semibold text-foreground bg-surface-2 px-2 py-0.5 rounded">{v.immatriculation}</span>
+                          <span className="text-xs text-discreet">{v.marque} {v.modele}</span>
                         </div>
                         <Badge color={color}>{label}</Badge>
                       </div>
                     )
                   })}
-                  {vehicules.length > 8 && <p className="text-xs text-slate-400 pt-1">+{vehicules.length - 8} autres véhicules</p>}
+                  {vehicules.length > 8 && <p className="text-xs text-muted pt-1">+{vehicules.length - 8} autres véhicules</p>}
                 </div>
               }
             </div>
           </div>
 
           {/* Prochaines échéances */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-semibold text-slate-800 mb-3">Planification à venir</h3>
-            {prochaines.length === 0 ? <p className="text-xs text-slate-400">Aucune échéance planifiée.</p> :
+          <div className="bg-surface rounded-xl border border-line p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Planification à venir</h3>
+            {prochaines.length === 0 ? <p className="text-xs text-muted">Aucune échéance planifiée.</p> :
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
                 {prochaines.slice(0, 9).map(e => {
-                  const urgence = e.jours < 0 ? 'bg-red-50 border-red-200' : e.jours <= 7 ? 'bg-orange-50 border-orange-200' : e.jours <= 30 ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'
+                  const urgence = e.jours < 0 ? 'bg-red-50 border-red-200' : e.jours <= 7 ? 'bg-orange-50 border-orange-200' : e.jours <= 30 ? 'bg-amber-50 border-amber-200' : 'bg-surface-soft border-line'
                   const textUrgence = e.jours < 0 ? 'text-red-700' : e.jours <= 7 ? 'text-orange-700' : 'text-amber-700'
                   return (
                     <div key={e.id} className={`rounded-lg border px-3 py-2.5 ${urgence}`}>
-                      <p className="text-sm font-medium text-slate-800">{MAINTENANCE_LABELS[e.maintenance_type] ?? e.maintenance_type}</p>
-                      <p className="text-xs text-slate-600">{assetLabel(e)}</p>
+                      <p className="text-sm font-medium text-foreground">{MAINTENANCE_LABELS[e.maintenance_type] ?? e.maintenance_type}</p>
+                      <p className="text-xs text-secondary">{assetLabel(e)}</p>
                       <p className={`text-xs font-semibold mt-1 ${textUrgence}`}>
                         {e.jours < 0 ? `En retard de ${Math.abs(e.jours)} j.` : e.jours === 0 ? "Aujourd'hui" : `Dans ${e.jours} j. — ${fmtDate(e.next_due_date)}`}
                       </p>
@@ -1516,16 +1516,16 @@ export default function Maintenance() {
 
           {/* OT actifs */}
           {otsActifs.length > 0 && (
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-800 mb-3">OT en cours</h3>
+            <div className="bg-surface rounded-xl border border-line p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-3">OT en cours</h3>
               <div className="space-y-2">
                 {otsActifs.slice(0, 5).map(o => (
                   <div key={o.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
                     <div className="flex items-center gap-3">
                       <Badge color={OT_PRIORITE_COLORS[o.priorite]}>{OT_PRIORITE_LABELS[o.priorite]}</Badge>
                       <div>
-                        <p className="text-sm font-medium text-slate-800">{o.description}</p>
-                        <p className="text-xs text-slate-500">{vehiculeLabel(o.vehicule_id) ?? remorqueLabel(o.remorque_id) ?? 'Parc'} {o.mecanicien ? `· ${o.mecanicien}` : ''}</p>
+                        <p className="text-sm font-medium text-foreground">{o.description}</p>
+                        <p className="text-xs text-discreet">{vehiculeLabel(o.vehicule_id) ?? remorqueLabel(o.remorque_id) ?? 'Parc'} {o.mecanicien ? `· ${o.mecanicien}` : ''}</p>
                       </div>
                     </div>
                     <Badge color={OT_STATUT_COLORS[o.statut]}>{OT_STATUT_LABELS[o.statut]}</Badge>
@@ -1544,12 +1544,12 @@ export default function Maintenance() {
           <div className="flex flex-wrap gap-2 items-center">
             {(['tous', 'planifie', 'en_cours', 'en_attente_pieces', 'cloture', 'annule'] as const).map(s => (
               <button key={s} onClick={() => setFilterOTStatut(s as OTStatut | 'tous')}
-                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${filterOTStatut === s ? 'bg-slate-800 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${filterOTStatut === s ? 'bg-slate-800 text-white' : 'border border-line text-secondary hover:bg-surface-soft'}`}>
                 {s === 'tous' ? 'Tous' : OT_STATUT_LABELS[s as OTStatut]}
                 {s !== 'tous' && <span className="ml-1.5 opacity-70">({ots.filter(o => o.statut === s).length})</span>}
               </button>
             ))}
-            <select value={filterOTVehicule} onChange={e => setFilterOTVehicule(e.target.value)} className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-600 outline-none bg-white">
+            <select value={filterOTVehicule} onChange={e => setFilterOTVehicule(e.target.value)} className="px-3 py-1.5 text-xs border border-line rounded-lg text-secondary outline-none bg-surface">
               <option value="">Tous les véhicules</option>
               {vehicules.map(v => <option key={v.id} value={v.id}>{v.immatriculation}</option>)}
               {remorques.map(r => <option key={r.id} value={r.id}>{r.immatriculation}</option>)}
@@ -1557,33 +1557,33 @@ export default function Maintenance() {
           </div>
 
           {filteredOTs.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-10 text-center">
-              <p className="text-slate-400 text-sm">
+            <div className="bg-surface rounded-xl border border-line p-10 text-center">
+              <p className="text-muted text-sm">
                 {isMecanicien
                   ? 'Aucun ordre de travaux. Cliquez sur + Nouvel OT pour commencer.'
                   : 'Aucun ordre de travaux.'}
               </p>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="bg-surface rounded-xl border border-line overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200">
+                <thead className="bg-surface-soft border-b border-line">
                   <tr>
                     {['Priorité', 'Véhicule', 'Type', 'Description', 'Mécanicien', 'Date', 'Coût HT', 'Statut', ''].map(h => (
-                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
+                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-discreet uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredOTs.map((o, i) => (
-                    <tr key={o.id} className={`border-t border-slate-100 ${i % 2 !== 0 ? 'bg-slate-50' : ''}`}>
+                    <tr key={o.id} className={`border-t border-slate-100 ${i % 2 !== 0 ? 'bg-surface-soft' : ''}`}>
                       <td className="px-4 py-3"><Badge color={OT_PRIORITE_COLORS[o.priorite]}>{OT_PRIORITE_LABELS[o.priorite]}</Badge></td>
-                      <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-700">{vehiculeLabel(o.vehicule_id) ?? remorqueLabel(o.remorque_id) ?? '—'}</td>
-                      <td className="px-4 py-3 text-slate-600 text-xs">{MAINTENANCE_LABELS[o.type] ?? o.type}</td>
-                      <td className="px-4 py-3 text-slate-700 max-w-[200px] truncate">{o.description}</td>
-                      <td className="px-4 py-3 text-slate-600 text-xs">{o.mecanicien || '—'}</td>
-                      <td className="px-4 py-3 text-slate-500 text-xs">{fmtDate(o.date_ouverture)}</td>
-                      <td className="px-4 py-3 text-slate-700">{o.cout_ht > 0 ? fmtEur(o.cout_ht) : '—'}</td>
+                      <td className="px-4 py-3 font-mono text-xs font-semibold text-foreground">{vehiculeLabel(o.vehicule_id) ?? remorqueLabel(o.remorque_id) ?? '—'}</td>
+                      <td className="px-4 py-3 text-secondary text-xs">{MAINTENANCE_LABELS[o.type] ?? o.type}</td>
+                      <td className="px-4 py-3 text-foreground max-w-[200px] truncate">{o.description}</td>
+                      <td className="px-4 py-3 text-secondary text-xs">{o.mecanicien || '—'}</td>
+                      <td className="px-4 py-3 text-discreet text-xs">{fmtDate(o.date_ouverture)}</td>
+                      <td className="px-4 py-3 text-foreground">{o.cout_ht > 0 ? fmtEur(o.cout_ht) : '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2 py-1 rounded-lg font-medium ${OT_STATUT_COLORS[o.statut]}`}>
                           {OT_STATUT_LABELS[o.statut]}
@@ -1628,29 +1628,29 @@ export default function Maintenance() {
             { label: 'En retard', filter: (e: typeof prochaines[0]) => e.jours < 0, color: 'border-red-200 bg-red-50', badge: 'bg-red-100 text-red-700', icon: 'Retard' },
             { label: 'Urgents (≤ 7 jours)', filter: (e: typeof prochaines[0]) => e.jours >= 0 && e.jours <= 7, color: 'border-orange-200 bg-orange-50', badge: 'bg-orange-100 text-orange-700', icon: 'Urgent' },
             { label: 'Ce mois (8–30 jours)', filter: (e: typeof prochaines[0]) => e.jours > 7 && e.jours <= 30, color: 'border-amber-200 bg-amber-50', badge: 'bg-amber-100 text-amber-700', icon: 'Planifié' },
-            { label: 'Au-delà de 30 jours', filter: (e: typeof prochaines[0]) => e.jours > 30, color: 'border-slate-200 bg-slate-50', badge: 'bg-slate-100 text-slate-600', icon: 'Futur' },
+            { label: 'Au-delà de 30 jours', filter: (e: typeof prochaines[0]) => e.jours > 30, color: 'border-line bg-surface-soft', badge: 'bg-surface-2 text-secondary', icon: 'Futur' },
           ].map(({ label, filter, color, badge }) => {
             const items = prochaines.filter(filter)
             if (items.length === 0) return null
             return (
               <div key={label} className={`rounded-xl border p-5 ${color}`}>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-slate-800">{label}</h3>
+                  <h3 className="text-sm font-semibold text-foreground">{label}</h3>
                   <Badge color={badge}>{items.length} intervention{items.length > 1 ? 's' : ''}</Badge>
                 </div>
                 <div className="space-y-2">
                   {items.map(e => (
-                    <div key={e.id} className="flex items-center justify-between bg-white/70 rounded-lg px-3 py-2.5 border border-white/50">
+                    <div key={e.id} className="flex items-center justify-between bg-surface/70 rounded-lg px-3 py-2.5 border border-white/50">
                       <div className="flex items-center gap-3">
-                        <span className="font-mono text-xs font-semibold text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded">{assetLabel(e)}</span>
+                        <span className="font-mono text-xs font-semibold text-secondary bg-surface border border-line px-2 py-0.5 rounded">{assetLabel(e)}</span>
                         <div>
-                          <p className="text-sm font-medium text-slate-800">{MAINTENANCE_LABELS[e.maintenance_type] ?? e.maintenance_type}</p>
-                          {(e.prestataire || e.garage) && <p className="text-xs text-slate-500">{[e.prestataire, e.garage].filter(Boolean).join(' · ')}</p>}
+                          <p className="text-sm font-medium text-foreground">{MAINTENANCE_LABELS[e.maintenance_type] ?? e.maintenance_type}</p>
+                          {(e.prestataire || e.garage) && <p className="text-xs text-discreet">{[e.prestataire, e.garage].filter(Boolean).join(' · ')}</p>}
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-semibold text-slate-700">{fmtDate(e.next_due_date)}</p>
-                        <p className="text-xs text-slate-400">{e.jours < 0 ? `${Math.abs(e.jours)} j. de retard` : e.jours === 0 ? "Aujourd'hui" : `J−${e.jours}`}</p>
+                        <p className="text-sm font-semibold text-foreground">{fmtDate(e.next_due_date)}</p>
+                        <p className="text-xs text-muted">{e.jours < 0 ? `${Math.abs(e.jours)} j. de retard` : e.jours === 0 ? "Aujourd'hui" : `J−${e.jours}`}</p>
                       </div>
                     </div>
                   ))}
@@ -1660,22 +1660,22 @@ export default function Maintenance() {
           })}
 
           {prochaines.length === 0 && (
-            <div className="bg-white rounded-xl border border-slate-200 p-10 text-center">
-              <p className="text-slate-400 text-sm">Aucune planification. Définissez des dates d'échéance lors de la saisie des interventions.</p>
+            <div className="bg-surface rounded-xl border border-line p-10 text-center">
+              <p className="text-muted text-sm">Aucune planification. Définissez des dates d'échéance lors de la saisie des interventions.</p>
             </div>
           )}
 
           {/* Récapitulatif annuel par type */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-semibold text-slate-800 mb-4">Répartition des interventions {yearStr}</h3>
+          <div className="bg-surface rounded-xl border border-line p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-4">Répartition des interventions {yearStr}</h3>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {Object.entries(
                 entretiens.filter(e => e.service_date.startsWith(yearStr))
                   .reduce((acc, e) => { acc[e.maintenance_type] = (acc[e.maintenance_type] ?? 0) + 1; return acc }, {} as Record<string, number>)
               ).sort((a, b) => b[1] - a[1]).map(([type, count]) => (
-                <div key={type} className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                  <p className="text-xl font-bold text-slate-800">{count}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{MAINTENANCE_LABELS[type] ?? type}</p>
+                <div key={type} className="bg-surface-soft rounded-lg p-3 border border-line">
+                  <p className="text-xl font-bold text-foreground">{count}</p>
+                  <p className="text-xs text-discreet mt-0.5">{MAINTENANCE_LABELS[type] ?? type}</p>
                 </div>
               ))}
             </div>
@@ -1697,8 +1697,8 @@ export default function Maintenance() {
           </div>
 
           {mecaniciensProgrammes.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-10 text-center">
-              <p className="text-slate-400 text-sm">Aucun programme. Assignez des mécaniciens aux interventions.</p>
+            <div className="bg-surface rounded-xl border border-line p-10 text-center">
+              <p className="text-muted text-sm">Aucun programme. Assignez des mécaniciens aux interventions.</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -1708,15 +1708,15 @@ export default function Maintenance() {
                   return e.priority === 'urgente' || e.priority === 'haute'
                 }).length
                 return (
-                  <div key={name} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                  <div key={name} className="bg-surface rounded-xl border border-line overflow-hidden">
+                    <div className="bg-surface-soft px-5 py-3 border-b border-line flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center font-bold text-slate-700">
+                        <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center font-bold text-foreground">
                           {name.split(' ').map(part => part[0]).join('').substring(0, 2).toUpperCase()}
                         </div>
                         <div>
-                          <h3 className="text-sm font-semibold text-slate-800">{name}</h3>
-                          <p className="text-xs text-slate-500">{totalCount} intervention{totalCount > 1 ? 's' : ''}</p>
+                          <h3 className="text-sm font-semibold text-foreground">{name}</h3>
+                          <p className="text-xs text-discreet">{totalCount} intervention{totalCount > 1 ? 's' : ''}</p>
                         </div>
                       </div>
                       <div className="flex gap-3">
@@ -1731,23 +1731,23 @@ export default function Maintenance() {
                         const isUrgent = daysToGo < 0 || daysToGo <= 7
                         const isOverdue = daysToGo < 0
                         return (
-                          <div key={task.id} className={`px-5 py-3 flex items-center justify-between ${isOverdue ? 'bg-red-50' : isUrgent ? 'bg-orange-50' : 'bg-white'}`}>
+                          <div key={task.id} className={`px-5 py-3 flex items-center justify-between ${isOverdue ? 'bg-red-50' : isUrgent ? 'bg-orange-50' : 'bg-surface'}`}>
                             <div className="flex items-center gap-3">
-                              <span className="font-mono text-xs font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+                              <span className="font-mono text-xs font-semibold text-secondary bg-surface-2 border border-line px-2 py-0.5 rounded">
                                 {assetLabel(task)}
                               </span>
                               <div>
-                                <p className="text-sm font-medium text-slate-800">
+                                <p className="text-sm font-medium text-foreground">
                                   {MAINTENANCE_LABELS[task.maintenance_type] ?? task.maintenance_type}
                                 </p>
-                                {task.notes && <p className="text-xs text-slate-500 truncate">{task.notes}</p>}
+                                {task.notes && <p className="text-xs text-discreet truncate">{task.notes}</p>}
                               </div>
                             </div>
                             <div className="text-right">
-                              <p className={`text-sm font-semibold ${isOverdue ? 'text-red-700' : isUrgent ? 'text-orange-700' : 'text-slate-700'}`}>
+                              <p className={`text-sm font-semibold ${isOverdue ? 'text-red-700' : isUrgent ? 'text-orange-700' : 'text-foreground'}`}>
                                 {fmtDate(task.next_due_date || task.service_date)}
                               </p>
-                              <p className={`text-xs ${isOverdue ? 'text-red-600' : isUrgent ? 'text-orange-600' : 'text-slate-400'}`}>
+                              <p className={`text-xs ${isOverdue ? 'text-red-600' : isUrgent ? 'text-orange-600' : 'text-muted'}`}>
                                 {isOverdue ? `${Math.abs(daysToGo)} j. de retard` : daysToGo === 0 ? "Aujourd'hui" : `J−${daysToGo}`}
                               </p>
                             </div>
@@ -1757,7 +1757,7 @@ export default function Maintenance() {
                     </div>
 
                     {tasks.length > 10 && (
-                      <div className="bg-slate-50 px-5 py-2 text-center text-xs text-slate-500 border-t border-slate-200">
+                      <div className="bg-surface-soft px-5 py-2 text-center text-xs text-discreet border-t border-line">
                         +{tasks.length - 10} intervention{tasks.length - 10 > 1 ? 's' : ''}
                       </div>
                     )}
@@ -1785,14 +1785,14 @@ export default function Maintenance() {
               <h3 className="text-sm font-semibold text-red-800 mb-2">Alertes stock — Commandes à passer</h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                 {stockAlertes.map(p => (
-                  <div key={p.id} className="flex items-center justify-between bg-white rounded-lg border border-red-200 px-3 py-2">
+                  <div key={p.id} className="flex items-center justify-between bg-surface rounded-lg border border-red-200 px-3 py-2">
                     <div>
-                      <p className="text-sm font-medium text-slate-800">{p.designation}</p>
-                      <p className="text-xs text-slate-500">{p.reference} · {p.fournisseur}</p>
+                      <p className="text-sm font-medium text-foreground">{p.designation}</p>
+                      <p className="text-xs text-discreet">{p.reference} · {p.fournisseur}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold text-red-600">{p.quantite} restant</p>
-                      <p className="text-xs text-slate-400">Min. {p.quantite_min}</p>
+                      <p className="text-xs text-muted">Min. {p.quantite_min}</p>
                     </div>
                   </div>
                 ))}
@@ -1802,8 +1802,8 @@ export default function Maintenance() {
 
           {/* Formulaire ajout */}
           {showPieceForm && (
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-800 mb-4">Nouvelle référence</h3>
+            <div className="bg-surface rounded-xl border border-line p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-4">Nouvelle référence</h3>
               <form onSubmit={addPiece} className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <div className="lg:col-span-1"><Field label="Référence *"><input className={inp} value={pieceForm.reference} onChange={e => setPieceForm(f => ({ ...f, reference: e.target.value }))} required /></Field></div>
                 <div className="lg:col-span-2"><Field label="Désignation *"><input className={inp} value={pieceForm.designation} onChange={e => setPieceForm(f => ({ ...f, designation: e.target.value }))} required /></Field></div>
@@ -1819,7 +1819,7 @@ export default function Maintenance() {
                 </Field>
                 <Field label="Emplacement"><input className={inp} value={pieceForm.emplacement} onChange={e => setPieceForm(f => ({ ...f, emplacement: e.target.value }))} /></Field>
                 <div className="lg:col-span-4 flex justify-end gap-2">
-                  <button type="button" onClick={() => setShowPieceForm(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>
+                  <button type="button" onClick={() => setShowPieceForm(false)} className="px-4 py-2 text-sm border border-line rounded-lg hover:bg-surface-soft">Annuler</button>
                   <button type="submit" className="px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700">Enregistrer</button>
                 </div>
               </form>
@@ -1827,12 +1827,12 @@ export default function Maintenance() {
           )}
 
           {/* Table pièces */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="bg-surface rounded-xl border border-line overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-surface-soft border-b border-line">
                 <tr>
                   {['Référence', 'Désignation', 'Compat.', 'Stock', 'Min.', 'PU HT', 'Valeur', 'Empl.', 'Fournisseur', ''].map(h => (
-                    <th key={h} className="text-left px-3 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
+                    <th key={h} className="text-left px-3 py-3 text-xs font-medium text-discreet uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -1841,28 +1841,28 @@ export default function Maintenance() {
                   const critique = p.quantite === 0
                   const alerte = p.quantite > 0 && p.quantite <= p.quantite_min
                   return (
-                    <tr key={p.id} className={`border-t border-slate-100 ${critique ? 'bg-red-50' : alerte ? 'bg-orange-50' : i % 2 !== 0 ? 'bg-slate-50' : ''}`}>
-                      <td className="px-3 py-2.5 font-mono text-xs font-semibold text-slate-600">{p.reference}</td>
-                      <td className="px-3 py-2.5 text-slate-800 font-medium">{p.designation}</td>
-                      <td className="px-3 py-2.5 text-xs text-slate-500">{p.compatibilite || '—'}</td>
+                    <tr key={p.id} className={`border-t border-slate-100 ${critique ? 'bg-red-50' : alerte ? 'bg-orange-50' : i % 2 !== 0 ? 'bg-surface-soft' : ''}`}>
+                      <td className="px-3 py-2.5 font-mono text-xs font-semibold text-secondary">{p.reference}</td>
+                      <td className="px-3 py-2.5 text-foreground font-medium">{p.designation}</td>
+                      <td className="px-3 py-2.5 text-xs text-discreet">{p.compatibilite || '—'}</td>
                       <td className="px-3 py-2.5">
-                        <span className={`font-bold ${critique ? 'text-red-600' : alerte ? 'text-orange-600' : 'text-slate-800'}`}>{p.quantite}</span>
+                        <span className={`font-bold ${critique ? 'text-red-600' : alerte ? 'text-orange-600' : 'text-foreground'}`}>{p.quantite}</span>
                       </td>
-                      <td className="px-3 py-2.5 text-xs text-slate-400">{p.quantite_min}</td>
-                      <td className="px-3 py-2.5 text-slate-600">{p.prix_unitaire > 0 ? fmtEur(p.prix_unitaire) : '—'}</td>
-                      <td className="px-3 py-2.5 font-medium text-slate-700">{fmtEur(p.quantite * p.prix_unitaire)}</td>
-                      <td className="px-3 py-2.5 text-xs text-slate-400 font-mono">{p.emplacement || '—'}</td>
-                      <td className="px-3 py-2.5 text-xs text-slate-500">{p.fournisseur || '—'}</td>
+                      <td className="px-3 py-2.5 text-xs text-muted">{p.quantite_min}</td>
+                      <td className="px-3 py-2.5 text-secondary">{p.prix_unitaire > 0 ? fmtEur(p.prix_unitaire) : '—'}</td>
+                      <td className="px-3 py-2.5 font-medium text-foreground">{fmtEur(p.quantite * p.prix_unitaire)}</td>
+                      <td className="px-3 py-2.5 text-xs text-muted font-mono">{p.emplacement || '—'}</td>
+                      <td className="px-3 py-2.5 text-xs text-discreet">{p.fournisseur || '—'}</td>
                       <td className="px-3 py-2.5 text-right">
                         {pieceAjust?.id === p.id ? (
                           <div className="flex items-center gap-1">
-                            <input type="number" autoFocus className="w-14 px-1 py-0.5 border border-slate-200 rounded text-xs text-center" value={pieceAjust.delta} onChange={e => setPieceAjust({ id: p.id, delta: e.target.value })} />
+                            <input type="number" autoFocus className="w-14 px-1 py-0.5 border border-line rounded text-xs text-center" value={pieceAjust.delta} onChange={e => setPieceAjust({ id: p.id, delta: e.target.value })} />
                             <button onClick={() => ajusterStock(p.id, parseInt(pieceAjust.delta) || 0)} className="text-xs text-emerald-600 font-medium">OK</button>
-                            <button onClick={() => setPieceAjust(null)} className="text-xs text-slate-400">✕</button>
+                            <button onClick={() => setPieceAjust(null)} className="text-xs text-muted">✕</button>
                           </div>
                         ) : (
                           <div className="flex gap-2 justify-end">
-                            <button onClick={() => setPieceAjust({ id: p.id, delta: '1' })} className="text-xs text-slate-400 hover:text-slate-700">+/−</button>
+                            <button onClick={() => setPieceAjust({ id: p.id, delta: '1' })} className="text-xs text-muted hover:text-foreground">+/−</button>
                             <button onClick={() => void deletePiece(p.id)} className="text-xs text-slate-300 hover:text-red-500">✕</button>
                           </div>
                         )}
@@ -1881,8 +1881,8 @@ export default function Maintenance() {
         <div className="space-y-5">
           {/* Formulaire ajout */}
           {showFourForm && (
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-800 mb-4">Nouveau fournisseur</h3>
+            <div className="bg-surface rounded-xl border border-line p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-4">Nouveau fournisseur</h3>
               <form onSubmit={addFournisseur} className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <div className="lg:col-span-2"><Field label="Raison sociale *"><input className={inp} value={fourForm.nom} onChange={e => setFourForm(f => ({ ...f, nom: e.target.value }))} required /></Field></div>
                 <Field label="Type">
@@ -1901,7 +1901,7 @@ export default function Maintenance() {
                 <Field label="Délai livraison"><input className={inp} value={fourForm.delai_livraison} placeholder="Ex: 24h" onChange={e => setFourForm(f => ({ ...f, delai_livraison: e.target.value }))} /></Field>
                 <div className="lg:col-span-2"><Field label="Conditions de paiement"><input className={inp} value={fourForm.conditions} onChange={e => setFourForm(f => ({ ...f, conditions: e.target.value }))} /></Field></div>
                 <div className="lg:col-span-4 flex justify-end gap-2">
-                  <button type="button" onClick={() => setShowFourForm(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>
+                  <button type="button" onClick={() => setShowFourForm(false)} className="px-4 py-2 text-sm border border-line rounded-lg hover:bg-surface-soft">Annuler</button>
                   <button type="submit" className="px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700">Enregistrer</button>
                 </div>
               </form>
@@ -1910,33 +1910,33 @@ export default function Maintenance() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {fournisseurs.map(f => {
-              const typeColor: Record<string, string> = { garage: 'bg-blue-50 text-blue-700', pieces: 'bg-slate-50 text-slate-700', pneus: 'bg-amber-50 text-amber-700', lubrifiant: 'bg-emerald-50 text-emerald-700', concessionnaire: 'bg-purple-50 text-purple-700', autre: 'bg-slate-50 text-slate-600' }
+              const typeColor: Record<string, string> = { garage: 'bg-blue-50 text-blue-700', pieces: 'bg-surface-soft text-foreground', pneus: 'bg-amber-50 text-amber-700', lubrifiant: 'bg-emerald-50 text-emerald-700', concessionnaire: 'bg-purple-50 text-purple-700', autre: 'bg-surface-soft text-secondary' }
               const piecesFourn = pieces.filter(p => p.fournisseur === f.nom)
               return (
-                <div key={f.id} className="bg-white rounded-xl border border-slate-200 p-5">
+                <div key={f.id} className="bg-surface rounded-xl border border-line p-5">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="text-sm font-bold text-slate-800">{f.nom}</h3>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeColor[f.type] ?? 'bg-slate-50 text-slate-600'}`}>{TYPE_FOURNISSEUR_LABELS[f.type]}</span>
+                      <h3 className="text-sm font-bold text-foreground">{f.nom}</h3>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeColor[f.type] ?? 'bg-surface-soft text-secondary'}`}>{TYPE_FOURNISSEUR_LABELS[f.type]}</span>
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-amber-500">{'★'.repeat(f.note)}{'☆'.repeat(5 - f.note)}</p>
                       <button onClick={() => void deleteFournisseur(f.id)} className="text-xs text-slate-300 hover:text-red-500 mt-1">Supprimer</button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
-                    {f.contact && <div><span className="font-medium text-slate-500 block">Contact</span>{f.contact}</div>}
-                    {f.telephone && <div><span className="font-medium text-slate-500 block">Tél.</span><a href={`tel:${f.telephone}`} className="hover:text-slate-800">{f.telephone}</a></div>}
-                    {f.email && <div><span className="font-medium text-slate-500 block">Email</span><a href={`mailto:${f.email}`} className="hover:text-slate-800">{f.email}</a></div>}
-                    {f.delai_livraison && <div><span className="font-medium text-slate-500 block">Délai livraison</span>{f.delai_livraison}</div>}
-                    {f.conditions && <div className="col-span-2"><span className="font-medium text-slate-500 block">Conditions</span>{f.conditions}</div>}
+                  <div className="grid grid-cols-2 gap-2 text-xs text-secondary">
+                    {f.contact && <div><span className="font-medium text-discreet block">Contact</span>{f.contact}</div>}
+                    {f.telephone && <div><span className="font-medium text-discreet block">Tél.</span><a href={`tel:${f.telephone}`} className="hover:text-foreground">{f.telephone}</a></div>}
+                    {f.email && <div><span className="font-medium text-discreet block">Email</span><a href={`mailto:${f.email}`} className="hover:text-foreground">{f.email}</a></div>}
+                    {f.delai_livraison && <div><span className="font-medium text-discreet block">Délai livraison</span>{f.delai_livraison}</div>}
+                    {f.conditions && <div className="col-span-2"><span className="font-medium text-discreet block">Conditions</span>{f.conditions}</div>}
                   </div>
                   {piecesFourn.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-slate-100">
-                      <p className="text-xs font-medium text-slate-500 mb-1">{piecesFourn.length} référence{piecesFourn.length > 1 ? 's' : ''} en stock</p>
+                      <p className="text-xs font-medium text-discreet mb-1">{piecesFourn.length} référence{piecesFourn.length > 1 ? 's' : ''} en stock</p>
                       <div className="flex flex-wrap gap-1">
-                        {piecesFourn.slice(0, 4).map(p => <span key={p.id} className="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{p.reference}</span>)}
-                        {piecesFourn.length > 4 && <span className="text-[11px] text-slate-400">+{piecesFourn.length - 4}</span>}
+                        {piecesFourn.slice(0, 4).map(p => <span key={p.id} className="text-[11px] bg-surface-2 text-secondary px-2 py-0.5 rounded-full">{p.reference}</span>)}
+                        {piecesFourn.length > 4 && <span className="text-[11px] text-muted">+{piecesFourn.length - 4}</span>}
                       </div>
                     </div>
                   )}
@@ -1959,16 +1959,16 @@ export default function Maintenance() {
             <KPI label="Types suivis" value={new Set(indexEntries.map(e => e.maintenance_type)).size} color="slate" />
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-xs text-slate-500">
+          <div className="bg-surface rounded-xl border border-line p-4">
+            <p className="text-xs text-discreet">
               Base constructeur globale (hors parc): Scania, Volvo, DAF, Iveco, Renault, Mercedes, MAN. Sources prioritaires: portails RMI constructeurs + TecRMI/HaynesPro en multi-marques. Synchro auto hebdomadaire: {indexLastSyncAt ? fmtDate(indexLastSyncAt) : 'jamais'}.
             </p>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <div className="bg-surface rounded-xl border border-line p-5">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-slate-800">Lexique mecanique par modele camion</h3>
-              <button type="button" onClick={loadConstructeurIndexPresets} className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">
+              <h3 className="text-sm font-semibold text-foreground">Lexique mecanique par modele camion</h3>
+              <button type="button" onClick={loadConstructeurIndexPresets} className="px-3 py-1.5 text-xs border border-line rounded-lg text-secondary hover:bg-surface-soft">
                 Charger presets RMI constructeurs
               </button>
             </div>
@@ -2090,16 +2090,16 @@ export default function Maintenance() {
                 <Field label="Notes"><input className={inp} value={indexForm.notes} onChange={e => setIndexForm(current => ({ ...current, notes: e.target.value }))} placeholder="Procedure, viscosite, reference..." /></Field>
               </div>
               <div className="lg:col-span-6 flex justify-end gap-2">
-                {indexEditingId && <button type="button" onClick={resetIndexForm} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>}
+                {indexEditingId && <button type="button" onClick={resetIndexForm} className="px-4 py-2 text-sm border border-line rounded-lg hover:bg-surface-soft">Annuler</button>}
                 <button type="submit" className="px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700">{indexEditingId ? 'Mettre a jour' : 'Ajouter index'}</button>
               </div>
             </form>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-semibold text-slate-800 mb-3">Veille mensuelle</h3>
+          <div className="bg-surface rounded-xl border border-line p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Veille mensuelle</h3>
             {indexVeilleMois.length === 0 ? (
-              <p className="text-xs text-slate-400">Tous les index ont ete verifies ce mois-ci.</p>
+              <p className="text-xs text-muted">Tous les index ont ete verifies ce mois-ci.</p>
             ) : (
               <div className="space-y-2">
                 {indexVeilleMois.map(item => (
@@ -2115,8 +2115,8 @@ export default function Maintenance() {
             )}
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-semibold text-slate-800 mb-4">Filtres index atelier</h3>
+          <div className="bg-surface rounded-xl border border-line p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-4">Filtres index atelier</h3>
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
               <Field label="Marque">
                 <select
@@ -2159,7 +2159,7 @@ export default function Maintenance() {
                     setIndexFilterModele('tous')
                     setIndexFilterMotorisation('toutes')
                   }}
-                  className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50"
+                  className="px-4 py-2 text-sm border border-line rounded-lg hover:bg-surface-soft"
                 >
                   Reinitialiser
                 </button>
@@ -2167,68 +2167,68 @@ export default function Maintenance() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-semibold text-slate-800 mb-3">Remontee de chaque constructeur</h3>
+          <div className="bg-surface rounded-xl border border-line p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Remontee de chaque constructeur</h3>
             {constructeurRemontees.length === 0 ? (
-              <p className="text-xs text-slate-400">Aucune remontee constructeur disponible.</p>
+              <p className="text-xs text-muted">Aucune remontee constructeur disponible.</p>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 {constructeurRemontees.map(item => (
-                  <div key={item.constructeur} className="rounded-lg border border-slate-200 px-3 py-2">
+                  <div key={item.constructeur} className="rounded-lg border border-line px-3 py-2">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-slate-800">{item.constructeur}</p>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{item.rules} regles</span>
+                      <p className="text-sm font-semibold text-foreground">{item.constructeur}</p>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-surface-2 text-secondary">{item.rules} regles</span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">{item.modelesCount} modele{item.modelesCount > 1 ? 's' : ''} indexe{item.modelesCount > 1 ? 's' : ''}</p>
-                    <p className="text-xs text-slate-400 mt-1 break-all">Source: {item.source ?? 'interne atelier'}</p>
+                    <p className="text-xs text-discreet mt-1">{item.modelesCount} modele{item.modelesCount > 1 ? 's' : ''} indexe{item.modelesCount > 1 ? 's' : ''}</p>
+                    <p className="text-xs text-muted mt-1 break-all">Source: {item.source ?? 'interne atelier'}</p>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-semibold text-slate-800 mb-3">Agregateurs multi-marques (point d'entree unique)</h3>
+          <div className="bg-surface rounded-xl border border-line p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Agregateurs multi-marques (point d'entree unique)</h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
               {MAINTENANCE_MULTI_MARQUES_SOURCES.map(source => (
-                <div key={source} className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 break-all">
+                <div key={source} className="rounded-lg border border-line px-3 py-2 text-xs text-secondary break-all">
                   {source}
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="p-4 border-b bg-slate-50 border-slate-200">
-              <p className="text-sm font-semibold text-slate-700">Index enregistres ({filteredIndexEntries.length})</p>
+          <div className="bg-surface rounded-xl border border-line overflow-hidden">
+            <div className="p-4 border-b bg-surface-soft border-line">
+              <p className="text-sm font-semibold text-foreground">Index enregistres ({filteredIndexEntries.length})</p>
             </div>
             {filteredIndexEntries.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-sm">Aucun index defini.</div>
+              <div className="p-8 text-center text-muted text-sm">Aucun index defini.</div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200">
+                <thead className="bg-surface-soft border-b border-line">
                   <tr>
                     {['Marque', 'Modele', 'Motorisation', 'Type', 'Periodicite', 'Volumes (L)', 'Pieces', 'Source', 'Veille', ''].map(h => (
-                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
+                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-discreet uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredIndexEntries.map((item, i) => (
-                    <tr key={item.id} className={`border-t border-slate-100 ${i % 2 !== 0 ? 'bg-slate-50' : ''}`}>
-                      <td className="px-4 py-2.5 text-slate-700 font-medium">{item.marque}</td>
-                      <td className="px-4 py-2.5 text-slate-700 font-medium">{item.modele}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-600">{item.motorisation ?? '*'}</td>
-                      <td className="px-4 py-2.5 text-slate-600">{MAINTENANCE_LABELS[item.maintenance_type] ?? item.maintenance_type}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-500">{item.periodicite_km ? `${item.periodicite_km.toLocaleString('fr-FR')} km` : '—'} · {item.periodicite_mois ? `${item.periodicite_mois} mois` : '—'}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-500">M: {item.huile_moteur_l ?? '—'} · B: {item.huile_boite_l ?? '—'} · P: {item.huile_pont_l ?? '—'} · F: {item.liquide_frein_l ?? '—'}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-500 max-w-[280px] truncate" title={item.pieces_reference ?? ''}>{item.pieces_reference ?? '—'}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-500 max-w-[320px] truncate" title={item.source_constructeur ?? ''}>{item.source_constructeur ?? 'Interne'}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-500">{item.derniere_veille_mois ?? 'jamais'}</td>
+                    <tr key={item.id} className={`border-t border-slate-100 ${i % 2 !== 0 ? 'bg-surface-soft' : ''}`}>
+                      <td className="px-4 py-2.5 text-foreground font-medium">{item.marque}</td>
+                      <td className="px-4 py-2.5 text-foreground font-medium">{item.modele}</td>
+                      <td className="px-4 py-2.5 text-xs text-secondary">{item.motorisation ?? '*'}</td>
+                      <td className="px-4 py-2.5 text-secondary">{MAINTENANCE_LABELS[item.maintenance_type] ?? item.maintenance_type}</td>
+                      <td className="px-4 py-2.5 text-xs text-discreet">{item.periodicite_km ? `${item.periodicite_km.toLocaleString('fr-FR')} km` : '—'} · {item.periodicite_mois ? `${item.periodicite_mois} mois` : '—'}</td>
+                      <td className="px-4 py-2.5 text-xs text-discreet">M: {item.huile_moteur_l ?? '—'} · B: {item.huile_boite_l ?? '—'} · P: {item.huile_pont_l ?? '—'} · F: {item.liquide_frein_l ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-xs text-discreet max-w-[280px] truncate" title={item.pieces_reference ?? ''}>{item.pieces_reference ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-xs text-discreet max-w-[320px] truncate" title={item.source_constructeur ?? ''}>{item.source_constructeur ?? 'Interne'}</td>
+                      <td className="px-4 py-2.5 text-xs text-discreet">{item.derniere_veille_mois ?? 'jamais'}</td>
                       <td className="px-4 py-2.5 text-right">
                         <div className="flex justify-end gap-2">
-                          <button type="button" onClick={() => startEditIndex(item)} className="text-xs text-slate-500 hover:text-slate-800">Modifier</button>
-                          <button type="button" onClick={() => deleteIndexEntry(item.id)} className="text-xs text-slate-500 hover:text-red-600">Suppr.</button>
+                          <button type="button" onClick={() => startEditIndex(item)} className="text-xs text-discreet hover:text-foreground">Modifier</button>
+                          <button type="button" onClick={() => deleteIndexEntry(item.id)} className="text-xs text-discreet hover:text-red-600">Suppr.</button>
                         </div>
                       </td>
                     </tr>
@@ -2238,16 +2238,16 @@ export default function Maintenance() {
             )}
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-semibold text-slate-800 mb-3">Historique entretien par modele/type (base flotte)</h3>
+          <div className="bg-surface rounded-xl border border-line p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Historique entretien par modele/type (base flotte)</h3>
             {maintenanceByModeleType.length === 0 ? (
-              <p className="text-xs text-slate-400">Pas assez de donnees pour proposer des tendances par modele.</p>
+              <p className="text-xs text-muted">Pas assez de donnees pour proposer des tendances par modele.</p>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                 {maintenanceByModeleType.map(item => (
-                  <div key={`${item.modele}-${item.maintenance_type}`} className="rounded-lg border border-slate-200 px-3 py-2">
-                    <p className="text-sm font-medium text-slate-800">{item.modele}</p>
-                    <p className="text-xs text-slate-500">{MAINTENANCE_LABELS[item.maintenance_type] ?? item.maintenance_type} · {item.count} intervention{item.count > 1 ? 's' : ''}</p>
+                  <div key={`${item.modele}-${item.maintenance_type}`} className="rounded-lg border border-line px-3 py-2">
+                    <p className="text-sm font-medium text-foreground">{item.modele}</p>
+                    <p className="text-xs text-discreet">{MAINTENANCE_LABELS[item.maintenance_type] ?? item.maintenance_type} · {item.count} intervention{item.count > 1 ? 's' : ''}</p>
                   </div>
                 ))}
               </div>
@@ -2273,7 +2273,7 @@ export default function Maintenance() {
               type="button"
               onClick={() => setAlerteVue('vehicules')}
               className={`px-4 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                alerteVue === 'vehicules' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                alerteVue === 'vehicules' ? 'bg-blue-600 text-white border-blue-600' : 'bg-surface text-secondary border-line hover:bg-surface-soft'
               }`}
             >
               Vue mécanicien (par véhicule)
@@ -2282,7 +2282,7 @@ export default function Maintenance() {
               type="button"
               onClick={() => setAlerteVue('tableau')}
               className={`px-4 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                alerteVue === 'tableau' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                alerteVue === 'tableau' ? 'bg-blue-600 text-white border-blue-600' : 'bg-surface text-secondary border-line hover:bg-surface-soft'
               }`}
             >
               Tableau détaillé
@@ -2292,7 +2292,7 @@ export default function Maintenance() {
           {/* ── VUE MÉCANICIEN : cartes par véhicule ── */}
           {alerteVue === 'vehicules' && (
             alertesParVehicule.length === 0 ? (
-              <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-sm">Aucune règle index applicable aux véhicules. Configurez l'index atelier.</div>
+              <div className="bg-surface rounded-xl border border-line p-8 text-center text-muted text-sm">Aucune règle index applicable aux véhicules. Configurez l'index atelier.</div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                 {alertesParVehicule.map(veh => {
@@ -2300,22 +2300,22 @@ export default function Maintenance() {
                     const score: Record<IndexAlertStatus, number> = { depasse: 0, preventif: 1, a_initialiser: 2, ok: 3 }
                     return score[item.status] < score[worst] ? item.status : worst
                   }, 'ok')
-                  const borderColor = { depasse: 'border-red-300', preventif: 'border-amber-300', a_initialiser: 'border-orange-200', ok: 'border-slate-200' }[worstStatus]
-                  const headerBg = { depasse: 'bg-red-50', preventif: 'bg-amber-50', a_initialiser: 'bg-orange-50', ok: 'bg-slate-50' }[worstStatus]
+                  const borderColor = { depasse: 'border-red-300', preventif: 'border-amber-300', a_initialiser: 'border-orange-200', ok: 'border-line' }[worstStatus]
+                  const headerBg = { depasse: 'bg-red-50', preventif: 'bg-amber-50', a_initialiser: 'bg-orange-50', ok: 'bg-surface-soft' }[worstStatus]
 
                   return (
-                    <div key={veh.immatriculation} className={`bg-white rounded-xl border-2 ${borderColor} overflow-hidden`}>
+                    <div key={veh.immatriculation} className={`bg-surface rounded-xl border-2 ${borderColor} overflow-hidden`}>
                       {/* Header véhicule */}
                       <div className={`${headerBg} px-4 py-3 flex items-center justify-between gap-2`}>
                         <div>
-                          <p className="font-mono text-sm font-bold text-slate-800">{veh.immatriculation}</p>
-                          <p className="text-xs text-slate-500">{veh.modele}{veh.motorisation && veh.motorisation !== '*' ? ` · ${veh.motorisation}` : ''}</p>
+                          <p className="font-mono text-sm font-bold text-foreground">{veh.immatriculation}</p>
+                          <p className="text-xs text-discreet">{veh.modele}{veh.motorisation && veh.motorisation !== '*' ? ` · ${veh.motorisation}` : ''}</p>
                         </div>
                         <div className="text-right">
                           {veh.kmActuel !== null && (
-                            <p className="text-xs font-semibold text-slate-700">{veh.kmActuel.toLocaleString('fr-FR')} km</p>
+                            <p className="text-xs font-semibold text-foreground">{veh.kmActuel.toLocaleString('fr-FR')} km</p>
                           )}
-                          <p className="text-xs text-slate-400">km actuel</p>
+                          <p className="text-xs text-muted">km actuel</p>
                         </div>
                       </div>
 
@@ -2349,7 +2349,7 @@ export default function Maintenance() {
                           return (
                             <div key={item.maintenanceType} className="px-4 py-3">
                               <div className="flex items-center justify-between mb-1.5">
-                                <span className="text-xs font-semibold text-slate-700">{MAINTENANCE_LABELS[item.maintenanceType] ?? item.maintenanceType}</span>
+                                <span className="text-xs font-semibold text-foreground">{MAINTENANCE_LABELS[item.maintenanceType] ?? item.maintenanceType}</span>
                                 <Badge color={statusBadgeClass}>{statusLabel}</Badge>
                               </div>
 
@@ -2360,9 +2360,9 @@ export default function Maintenance() {
                                   {/* Barre km */}
                                   {pctKm !== null && (
                                     <div className="mb-1">
-                                      <div className="flex justify-between text-xs text-slate-400 mb-0.5">
+                                      <div className="flex justify-between text-xs text-muted mb-0.5">
                                         <span>KM</span>
-                                        <span className={item.kmRestants !== null && item.kmRestants < 0 ? 'text-red-600 font-semibold' : 'text-slate-600'}>
+                                        <span className={item.kmRestants !== null && item.kmRestants < 0 ? 'text-red-600 font-semibold' : 'text-secondary'}>
                                           {item.kmRestants !== null
                                             ? item.kmRestants < 0
                                               ? `Dépassé de ${Math.abs(item.kmRestants).toLocaleString('fr-FR')} km`
@@ -2370,7 +2370,7 @@ export default function Maintenance() {
                                             : '—'}
                                         </span>
                                       </div>
-                                      <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                      <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
                                         <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pctKm}%` }} />
                                       </div>
                                     </div>
@@ -2379,9 +2379,9 @@ export default function Maintenance() {
                                   {/* Barre jours */}
                                   {pctJours !== null && (
                                     <div>
-                                      <div className="flex justify-between text-xs text-slate-400 mb-0.5">
+                                      <div className="flex justify-between text-xs text-muted mb-0.5">
                                         <span>Temps</span>
-                                        <span className={item.joursRestants !== null && item.joursRestants < 0 ? 'text-red-600 font-semibold' : 'text-slate-600'}>
+                                        <span className={item.joursRestants !== null && item.joursRestants < 0 ? 'text-red-600 font-semibold' : 'text-secondary'}>
                                           {item.joursRestants !== null
                                             ? item.joursRestants < 0
                                               ? `Dépassé de ${Math.abs(item.joursRestants)} j`
@@ -2389,14 +2389,14 @@ export default function Maintenance() {
                                             : '—'}
                                         </span>
                                       </div>
-                                      <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                      <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
                                         <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pctJours}%` }} />
                                       </div>
                                     </div>
                                   )}
 
                                   {/* Prochaine échéance */}
-                                  <p className="text-xs text-slate-400 mt-1.5">
+                                  <p className="text-xs text-muted mt-1.5">
                                     Prochaine éch. :
                                     {item.prochaineEcheanceDate ? ` ${fmtDate(item.prochaineEcheanceDate)}` : ''}
                                     {item.prochaineEcheanceKm ? ` · ${item.prochaineEcheanceKm.toLocaleString('fr-FR')} km` : ''}
@@ -2417,18 +2417,18 @@ export default function Maintenance() {
 
           {/* ── VUE TABLEAU DÉTAILLÉ ── */}
           {alerteVue === 'tableau' && (
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className="p-4 border-b bg-slate-50 border-slate-200">
-                <p className="text-sm font-semibold text-slate-700">Tableau détaillé ({indexAlertesVehicules.length} entrées)</p>
+            <div className="bg-surface rounded-xl border border-line overflow-hidden">
+              <div className="p-4 border-b bg-surface-soft border-line">
+                <p className="text-sm font-semibold text-foreground">Tableau détaillé ({indexAlertesVehicules.length} entrées)</p>
               </div>
               {indexAlertesVehicules.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-sm">Aucune règle index applicable aux véhicules.</div>
+                <div className="p-8 text-center text-muted text-sm">Aucune règle index applicable aux véhicules.</div>
               ) : (
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-200">
+                  <thead className="bg-surface-soft border-b border-line">
                     <tr>
                       {['Statut', 'Véhicule', 'Modèle / moteur', 'Type', 'Restant km · jours', 'Prochaine échéance', 'Source'].map(h => (
-                        <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
+                        <th key={h} className="text-left px-4 py-3 text-xs font-medium text-discreet uppercase tracking-wide">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -2442,18 +2442,18 @@ export default function Maintenance() {
                       }[item.status]
                       const statusLabel = { depasse: 'Dépassé', preventif: 'Préventif', a_initialiser: 'À initialiser', ok: 'OK' }[item.status]
                       return (
-                        <tr key={`${item.vehiculeId}-${item.maintenanceType}-${i}`} className={`border-t border-slate-100 ${i % 2 !== 0 ? 'bg-slate-50' : ''}`}>
+                        <tr key={`${item.vehiculeId}-${item.maintenanceType}-${i}`} className={`border-t border-slate-100 ${i % 2 !== 0 ? 'bg-surface-soft' : ''}`}>
                           <td className="px-4 py-2.5"><Badge color={statusStyle}>{statusLabel}</Badge></td>
-                          <td className="px-4 py-2.5 font-mono text-xs font-semibold text-slate-700">{item.immatriculation}</td>
-                          <td className="px-4 py-2.5 text-xs text-slate-600">{item.modele} · {item.motorisation}</td>
-                          <td className="px-4 py-2.5 text-slate-600">{MAINTENANCE_LABELS[item.maintenanceType] ?? item.maintenanceType}</td>
-                          <td className="px-4 py-2.5 text-xs text-slate-500">
+                          <td className="px-4 py-2.5 font-mono text-xs font-semibold text-foreground">{item.immatriculation}</td>
+                          <td className="px-4 py-2.5 text-xs text-secondary">{item.modele} · {item.motorisation}</td>
+                          <td className="px-4 py-2.5 text-secondary">{MAINTENANCE_LABELS[item.maintenanceType] ?? item.maintenanceType}</td>
+                          <td className="px-4 py-2.5 text-xs text-discreet">
                             {item.kmRestants === null ? '—' : `${item.kmRestants.toLocaleString('fr-FR')} km`} · {item.joursRestants === null ? '—' : `${item.joursRestants} j`}
                           </td>
-                          <td className="px-4 py-2.5 text-xs text-slate-500">
+                          <td className="px-4 py-2.5 text-xs text-discreet">
                             {item.prochaineEcheanceDate ? fmtDate(item.prochaineEcheanceDate) : '—'} · {item.prochaineEcheanceKm ? `${item.prochaineEcheanceKm.toLocaleString('fr-FR')} km` : '—'}
                           </td>
-                          <td className="px-4 py-2.5 text-xs text-slate-500">{item.source.includes('http') ? 'Constructeur' : 'Interne'}</td>
+                          <td className="px-4 py-2.5 text-xs text-discreet">{item.source.includes('http') ? 'Constructeur' : 'Interne'}</td>
                         </tr>
                       )
                     })}
@@ -2468,10 +2468,10 @@ export default function Maintenance() {
       {/* ══ TAB: REGLAGE ALERTES ═════════════════════════════════════════════ */}
       {tab === 'reglages' && (
         <div className="space-y-5">
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <div className="bg-surface rounded-xl border border-line p-5">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-              <h3 className="text-sm font-semibold text-slate-800">Seuils preventif et depasse</h3>
-              <button type="button" onClick={applyAlertPresetFromIndex} className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">
+              <h3 className="text-sm font-semibold text-foreground">Seuils preventif et depasse</h3>
+              <button type="button" onClick={applyAlertPresetFromIndex} className="px-3 py-1.5 text-xs border border-line rounded-lg text-secondary hover:bg-surface-soft">
                 Pre-regler depuis l'index atelier
               </button>
             </div>
@@ -2522,8 +2522,8 @@ export default function Maintenance() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-semibold text-slate-800 mb-3">Apercu des regles actives</h3>
+          <div className="bg-surface rounded-xl border border-line p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Apercu des regles actives</h3>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <KPI label="Preventif km" value={`${alertSettings.preventifKm.toLocaleString('fr-FR')} km`} color="amber" />
               <KPI label="Preventif jours" value={`${alertSettings.preventifJours} j`} color="amber" />
@@ -2545,26 +2545,26 @@ export default function Maintenance() {
           </div>
 
           {/* Coût mensuel */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-semibold text-slate-800 mb-4">Coût mensuel atelier — {yearStr}</h3>
+          <div className="bg-surface rounded-xl border border-line p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-4">Coût mensuel atelier — {yearStr}</h3>
             <BarChart data={MOIS_FR.map((label, i) => ({ label, value: monthlyCosts[i] }))} height={140} color="#f59e0b" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Par type */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-800 mb-4">Répartition par type d'intervention</h3>
-              {costByType.length === 0 ? <p className="text-xs text-slate-400">Aucune donnée.</p> : (
+            <div className="bg-surface rounded-xl border border-line p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-4">Répartition par type d'intervention</h3>
+              {costByType.length === 0 ? <p className="text-xs text-muted">Aucune donnée.</p> : (
                 <div className="space-y-2.5">
                   {costByType.map(([type, cost]) => {
                     const pct = coutAnnee > 0 ? (cost / coutAnnee) * 100 : 0
                     return (
                       <div key={type}>
                         <div className="flex justify-between text-sm mb-1">
-                          <span className="text-slate-600">{MAINTENANCE_LABELS[type] ?? type}</span>
-                          <span className="font-medium text-slate-800">{fmtEur(cost)} <span className="text-slate-400 font-normal text-xs">({pct.toFixed(0)}%)</span></span>
+                          <span className="text-secondary">{MAINTENANCE_LABELS[type] ?? type}</span>
+                          <span className="font-medium text-foreground">{fmtEur(cost)} <span className="text-muted font-normal text-xs">({pct.toFixed(0)}%)</span></span>
                         </div>
-                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
                           <div className="h-full rounded-full bg-amber-400" style={{ width: `${pct}%` }} />
                         </div>
                       </div>
@@ -2575,21 +2575,21 @@ export default function Maintenance() {
             </div>
 
             {/* Par véhicule */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-800 mb-4">Top véhicules les plus coûteux</h3>
-              {costByVehicule.length === 0 ? <p className="text-xs text-slate-400">Aucune donnée.</p> : (
+            <div className="bg-surface rounded-xl border border-line p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-4">Top véhicules les plus coûteux</h3>
+              {costByVehicule.length === 0 ? <p className="text-xs text-muted">Aucune donnée.</p> : (
                 <div className="space-y-3">
                   {costByVehicule.map(([label, cost], i) => {
                     const max = costByVehicule[0][1]
                     const pct = max > 0 ? (cost / max) * 100 : 0
                     return (
                       <div key={label} className="flex items-center gap-3">
-                        <span className="text-xs font-bold text-slate-400 w-4">#{i + 1}</span>
-                        <span className="font-mono text-xs font-semibold text-slate-700 w-24">{label}</span>
-                        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <span className="text-xs font-bold text-muted w-4">#{i + 1}</span>
+                        <span className="font-mono text-xs font-semibold text-foreground w-24">{label}</span>
+                        <div className="flex-1 h-2 bg-surface-2 rounded-full overflow-hidden">
                           <div className="h-full bg-slate-700 rounded-full" style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="text-sm font-semibold text-slate-800 w-20 text-right">{fmtEur(cost)}</span>
+                        <span className="text-sm font-semibold text-foreground w-20 text-right">{fmtEur(cost)}</span>
                       </div>
                     )
                   })}
@@ -2599,30 +2599,30 @@ export default function Maintenance() {
           </div>
 
           {/* Historique complet */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="p-4 border-b bg-slate-50">
-              <p className="text-sm font-semibold text-slate-700">Historique des interventions ({entretiens.length})</p>
+          <div className="bg-surface rounded-xl border border-line overflow-hidden">
+            <div className="p-4 border-b bg-surface-soft">
+              <p className="text-sm font-semibold text-foreground">Historique des interventions ({entretiens.length})</p>
             </div>
             {entretiens.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-sm">Aucune intervention enregistrée.</div>
+              <div className="p-8 text-center text-muted text-sm">Aucune intervention enregistrée.</div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200">
+                <thead className="bg-surface-soft border-b border-line">
                   <tr>
                     {['Date', 'Véhicule', 'Type', 'Prestataire', 'Coût HT', 'Prochaine éch.'].map(h => (
-                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
+                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-discreet uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {entretiens.slice(0, 20).map((e, i) => (
-                    <tr key={e.id} className={`border-t border-slate-100 ${i % 2 !== 0 ? 'bg-slate-50' : ''}`}>
-                      <td className="px-4 py-2.5 text-slate-600">{fmtDate(e.service_date)}</td>
-                      <td className="px-4 py-2.5 font-mono text-xs font-semibold text-slate-700">{assetLabel(e)}</td>
-                      <td className="px-4 py-2.5 text-slate-600">{MAINTENANCE_LABELS[e.maintenance_type] ?? e.maintenance_type}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-500">{[e.prestataire, e.garage].filter(Boolean).join(' · ') || '—'}</td>
-                      <td className="px-4 py-2.5 font-medium text-slate-800">{fmtEur(Number(e.cout_ht ?? 0))}</td>
-                      <td className={`px-4 py-2.5 text-xs ${e.next_due_date && daysDiff(e.next_due_date) <= 7 ? 'text-red-600 font-semibold' : 'text-slate-500'}`}>
+                    <tr key={e.id} className={`border-t border-slate-100 ${i % 2 !== 0 ? 'bg-surface-soft' : ''}`}>
+                      <td className="px-4 py-2.5 text-secondary">{fmtDate(e.service_date)}</td>
+                      <td className="px-4 py-2.5 font-mono text-xs font-semibold text-foreground">{assetLabel(e)}</td>
+                      <td className="px-4 py-2.5 text-secondary">{MAINTENANCE_LABELS[e.maintenance_type] ?? e.maintenance_type}</td>
+                      <td className="px-4 py-2.5 text-xs text-discreet">{[e.prestataire, e.garage].filter(Boolean).join(' · ') || '—'}</td>
+                      <td className="px-4 py-2.5 font-medium text-foreground">{fmtEur(Number(e.cout_ht ?? 0))}</td>
+                      <td className={`px-4 py-2.5 text-xs ${e.next_due_date && daysDiff(e.next_due_date) <= 7 ? 'text-red-600 font-semibold' : 'text-discreet'}`}>
                         {e.next_due_date ? fmtDate(e.next_due_date) : '—'}
                       </td>
                     </tr>
@@ -2637,10 +2637,10 @@ export default function Maintenance() {
       {/* ══ MODAL: Nouvel OT ═══════════════════════════════════════════════════ */}
       {showOTForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-surface rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b">
               <h3 className="text-base font-semibold">Nouvel ordre de travaux</h3>
-              <button onClick={() => setShowOTForm(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+              <button onClick={() => setShowOTForm(false)} className="text-muted hover:text-secondary">✕</button>
             </div>
             <form onSubmit={createOT} className="p-5">
               <div className="grid grid-cols-2 gap-4">
@@ -2701,7 +2701,7 @@ export default function Maintenance() {
                 </Field>
               </div>
               <div className="flex justify-end gap-3 mt-5 pt-4 border-t">
-                <button type="button" onClick={() => setShowOTForm(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>
+                <button type="button" onClick={() => setShowOTForm(false)} className="px-4 py-2 text-sm border border-line rounded-lg hover:bg-surface-soft">Annuler</button>
                 <button type="submit" className="px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700">Créer l'OT</button>
               </div>
             </form>

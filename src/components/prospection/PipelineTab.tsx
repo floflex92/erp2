@@ -270,7 +270,7 @@ export default function PipelineTab() {
         <div className="flex rounded-xl overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
           {(['kanban', 'liste'] as const).map(mode => (
             <button key={mode} onClick={() => setViewMode(mode)}
-              className={`px-4 py-2 text-sm font-medium transition-colors ${viewMode === mode ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-200'}`}>
+              className={`px-4 py-2 text-sm font-medium transition-colors ${viewMode === mode ? 'bg-slate-700 text-white' : 'text-muted hover:text-slate-200'}`}>
               {mode === 'kanban' ? 'Kanban' : 'Liste'}
             </button>
           ))}
@@ -278,7 +278,7 @@ export default function PipelineTab() {
 
         {/* Filtre statut */}
         <select value={filterStatut} onChange={e => setFilterStatut(e.target.value)}
-          className="rounded-xl border px-3 py-2 text-sm text-slate-800 outline-none"
+          className="rounded-xl border px-3 py-2 text-sm text-foreground outline-none"
           style={{ borderColor: 'var(--border)', background: 'var(--card-bg, white)' }}>
           <option value="actif">Pipeline actif</option>
           <option value="tous">Tous</option>
@@ -305,64 +305,64 @@ export default function PipelineTab() {
             <Field label="Entreprise *">
               <input value={form.nom_entreprise} onChange={e => setForm(f => ({ ...f, nom_entreprise: e.target.value }))}
                 placeholder="Transport SA" required
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
             </Field>
             <Field label="Étape">
               <select value={form.statut} onChange={e => setForm(f => ({ ...f, statut: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none">
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none">
                 {KANBAN_STAGES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </Field>
             <Field label="Potentiel mensuel (€)">
               <input value={form.montant_mensuel_estime} onChange={e => setForm(f => ({ ...f, montant_mensuel_estime: e.target.value }))}
                 placeholder="25000" type="number" min="0"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
             </Field>
             <Field label="Commercial">
               <input value={form.commercial_nom} onChange={e => setForm(f => ({ ...f, commercial_nom: e.target.value }))}
                 placeholder="Martin D."
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
             </Field>
             <Field label="Secteur">
               <input value={form.secteur} onChange={e => setForm(f => ({ ...f, secteur: e.target.value }))}
                 placeholder="Agroalimentaire, Retail..."
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
             </Field>
             <Field label="Type transport">
               <input value={form.type_transport} onChange={e => setForm(f => ({ ...f, type_transport: e.target.value }))}
                 placeholder="Lots complets, Groupage..."
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
             </Field>
             <Field label="Ville">
               <input value={form.ville} onChange={e => setForm(f => ({ ...f, ville: e.target.value }))}
                 placeholder="Lyon"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
             </Field>
             <Field label="Contact principal">
               <input value={form.contact_nom} onChange={e => setForm(f => ({ ...f, contact_nom: e.target.value }))}
                 placeholder="Jean Dupont"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
             </Field>
             <Field label="Téléphone">
               <input value={form.contact_telephone} onChange={e => setForm(f => ({ ...f, contact_telephone: e.target.value }))}
                 placeholder="06 12 34 56 78" type="tel"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
             </Field>
             <Field label="Probabilité closing (%)">
               <input value={form.probabilite_closing} onChange={e => setForm(f => ({ ...f, probabilite_closing: e.target.value }))}
                 placeholder="40" type="number" min="0" max="100"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
             </Field>
             <Field label="Source">
               <select value={form.source_lead} onChange={e => setForm(f => ({ ...f, source_lead: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none">
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none">
                 {SOURCE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </Field>
             <Field label="Notes">
               <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                 placeholder="Flux régulier Lyon-Paris..."
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none" />
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none" />
             </Field>
           </div>
           <div className="flex gap-3">
@@ -455,7 +455,7 @@ export default function PipelineTab() {
                           <select
                             value={p.statut}
                             onChange={e => void handleStatusChange(p.id, e.target.value)}
-                            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 outline-none">
+                            className="w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-xs text-foreground outline-none">
                             {ALL_STATUS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                           </select>
 
@@ -527,7 +527,7 @@ export default function PipelineTab() {
                         <td className="px-4 py-3">
                           <div className="flex gap-2">
                             <select value={p.statut} onChange={e => void handleStatusChange(p.id, e.target.value)}
-                              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 outline-none">
+                              className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-foreground outline-none">
                               {ALL_STATUS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                             </select>
                             <button onClick={() => void handleDelete(p.id)}

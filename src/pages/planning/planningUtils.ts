@@ -222,6 +222,7 @@ export function mapSiteLoadRow(row: SiteLoadRow): LogisticSite {
     id: row.id,
     nom: row.nom,
     adresse: row.adresse,
+    company_id: row.company_id ?? 1,
     entreprise_id: row.entreprise_id ?? null,
     usage_type: (row.usage_type === 'chargement' || row.usage_type === 'livraison' || row.usage_type === 'mixte')
       ? row.usage_type
@@ -233,15 +234,15 @@ export function mapSiteLoadRow(row: SiteLoadRow): LogisticSite {
     longitude: row.longitude ?? null,
     created_at: row.created_at ?? new Date(0).toISOString(),
     updated_at: row.updated_at ?? new Date(0).toISOString(),
-    code_postal: null,
-    contact_nom: null,
-    contact_tel: null,
-    est_depot_relais: false,
-    ville: null,
-    pays: null,
-    type_site: null,
-    capacite_m3: null,
-    notes: null,
+    code_postal: row.code_postal ?? null,
+    contact_nom: row.contact_nom ?? null,
+    contact_tel: row.contact_tel ?? null,
+    est_depot_relais: row.est_depot_relais ?? false,
+    ville: row.ville ?? null,
+    pays: row.pays ?? 'France',
+    type_site: row.type_site ?? 'autre',
+    capacite_m3: row.capacite_m3 ?? null,
+    notes: row.notes ?? null,
   } as unknown as LogisticSite
 }
 

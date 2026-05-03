@@ -285,7 +285,7 @@ export default function SessionPicker() {
         <div className="mb-8 flex items-center justify-between gap-4">
           <NexoraTruckLogo dark size="sm" subtitle="Control center" />
           <div className="flex items-center gap-3">
-            <span className="hidden text-sm text-slate-400 sm:block">{user?.email}</span>
+            <span className="hidden text-sm text-muted sm:block">{user?.email}</span>
             <button
               type="button"
               onClick={async () => { await signOut(); navigate('/login', { replace: true }) }}
@@ -304,9 +304,9 @@ export default function SessionPicker() {
         {/* Portail admin */}
         <section className="mb-8 rounded-3xl border border-slate-700/50 bg-slate-900/70 p-8 shadow-2xl">
           <div className="mb-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">Administration</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-discreet">Administration</p>
             <h1 className="mt-2 text-2xl font-semibold text-white">Portail administrateur</h1>
-            <p className="mt-1 text-sm text-slate-400">Configurez et pilotez la plateforme Nexora.</p>
+            <p className="mt-1 text-sm text-muted">Configurez et pilotez la plateforme Nexora.</p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -318,7 +318,7 @@ export default function SessionPicker() {
                 className={`group flex flex-col rounded-2xl border p-5 text-left transition-colors ${shortcut.accent}`}
               >
                 <div className="mb-3 flex items-center justify-between">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-slate-300 group-hover:text-white">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface/10 text-slate-300 group-hover:text-white">
                     {shortcut.icon}
                   </span>
                   {shortcut.badge && (
@@ -328,8 +328,8 @@ export default function SessionPicker() {
                   )}
                 </div>
                 <p className="text-sm font-semibold text-white">{shortcut.label}</p>
-                <p className="mt-1 text-xs leading-relaxed text-slate-400">{shortcut.desc}</p>
-                <div className="mt-3 flex items-center gap-1 text-xs font-medium text-slate-500 group-hover:text-slate-300">
+                <p className="mt-1 text-xs leading-relaxed text-muted">{shortcut.desc}</p>
+                <div className="mt-3 flex items-center gap-1 text-xs font-medium text-discreet group-hover:text-slate-300">
                   <span>Ouvrir</span>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6" /></svg>
                 </div>
@@ -344,7 +344,7 @@ export default function SessionPicker() {
                 const el = document.getElementById('metier-section')
                 el?.scrollIntoView({ behavior: 'smooth' })
               }}
-              className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-slate-400 transition-colors hover:bg-white/[0.06] hover:text-slate-200"
+              className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface/[0.06] hover:text-slate-200"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M16 21a4 4 0 0 0-8 0" /><circle cx="12" cy="9" r="3" /><path d="M19 19a3 3 0 0 0-3-3" /><path d="M18 8a2.5 2.5 0 1 1 0 5" /></svg>
               Accéder aux espaces métier
@@ -353,16 +353,16 @@ export default function SessionPicker() {
           </div>
         </section>
 
-        <section id="metier-section" className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
+        <section id="metier-section" className="rounded-3xl border border-white/10 bg-surface/5 p-6 shadow-2xl">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">Simulation métier</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-discreet">Simulation métier</p>
               <h2 className="mt-2 text-xl font-semibold text-white">Explorer une vue par rôle</h2>
             </div>
             <button
               type="button"
               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-white/[0.06] hover:text-slate-300"
+              className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium text-discreet transition-colors hover:bg-surface/[0.06] hover:text-slate-300"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="-rotate-90"><path d="m9 18 6-6-6-6" /></svg>
               Retour portail
@@ -384,12 +384,12 @@ export default function SessionPicker() {
                   <p className="mt-3 text-sm text-white/80">{meta.desc}</p>
                   <div className="mt-4 flex flex-wrap gap-1.5">
                     {pages.slice(0, 4).map(page => (
-                      <span key={page} className="rounded-full bg-white/10 px-2 py-1 text-[10px] font-medium text-white/70">
+                      <span key={page} className="rounded-full bg-surface/10 px-2 py-1 text-[10px] font-medium text-white/70">
                         {page}
                       </span>
                     ))}
                     {pages.length > 4 && (
-                      <span className="rounded-full bg-white/10 px-2 py-1 text-[10px] font-medium text-white/60">
+                      <span className="rounded-full bg-surface/10 px-2 py-1 text-[10px] font-medium text-white/60">
                         +{pages.length - 4}
                       </span>
                     )}
@@ -449,9 +449,9 @@ export default function SessionPicker() {
                           {ROLE_LABELS[profile.role]}
                         </span>
                       </div>
-                      <p className="mt-1 text-xs text-slate-400">{profile.email ?? 'Email indisponible'}</p>
+                      <p className="mt-1 text-xs text-muted">{profile.email ?? 'Email indisponible'}</p>
                       <p className="mt-1 text-xs font-mono text-emerald-200/80">{profile.matricule ?? 'Matricule a generer'}</p>
-                      <p className="mt-2 text-xs text-slate-500">
+                      <p className="mt-2 text-xs text-discreet">
                         {isCurrentAccount
                           ? 'Compte actuellement connecte'
                           : `Derniere connexion: ${profile.last_sign_in_at ? new Date(profile.last_sign_in_at).toLocaleString('fr-FR') : 'jamais'}`}

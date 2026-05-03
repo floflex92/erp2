@@ -14,7 +14,7 @@ interface MissionRef { id: string; reference: string }
 const inp = 'w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary-soft)]'
 const btn = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors'
 const btnPrimary = `${btn} bg-slate-800 text-white hover:bg-slate-900`
-const btnSecondary = `${btn} border border-slate-300 text-slate-700 hover:bg-slate-100`
+const btnSecondary = `${btn} border border-line-strong text-foreground hover:bg-surface-2`
 
 const EMPTY_LIGNE = (): LigneSaisie => ({ ordre: 1, compte_code: '', libelle_ligne: '', debit: '', credit: '', axe_camion_id: '', axe_chauffeur_id: '', axe_client_id: '', axe_mission_id: '' })
 
@@ -250,12 +250,12 @@ export default function SaisieEcrituresTab() {
     const colors: Record<string, string> = {
       brouillon: 'bg-amber-100 text-amber-700',
       validee: 'bg-green-100 text-green-700',
-      annulee: 'bg-slate-100 text-slate-500',
+      annulee: 'bg-surface-2 text-discreet',
     }
-    return <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors[statut] || 'bg-slate-100 text-slate-600'}`}>{statut}</span>
+    return <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors[statut] || 'bg-surface-2 text-secondary'}`}>{statut}</span>
   }
 
-  if (loading) return <div className="text-center py-8 text-slate-500">Chargement...</div>
+  if (loading) return <div className="text-center py-8 text-discreet">Chargement...</div>
 
   return (
     <div className="space-y-4">
@@ -265,23 +265,23 @@ export default function SaisieEcrituresTab() {
       {!showForm ? (
         <button onClick={() => setShowForm(true)} className={btnPrimary}>+ Nouvelle écriture</button>
       ) : (
-        <div className="border border-slate-200 rounded-lg p-5 space-y-4 bg-slate-50">
-          <h3 className="font-medium text-slate-800">Nouvelle écriture comptable</h3>
+        <div className="border border-line rounded-lg p-5 space-y-4 bg-surface-soft">
+          <h3 className="font-medium text-foreground">Nouvelle écriture comptable</h3>
 
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">Journal *</label>
+              <label className="text-xs font-medium text-secondary block mb-1">Journal *</label>
               <select value={journalId} onChange={e => setJournalId(e.target.value)} className={inp}>
                 <option value="">Sélectionner...</option>
                 {journaux.map(j => <option key={j.id} value={j.id}>{j.code_journal} - {j.libelle}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">Date *</label>
+              <label className="text-xs font-medium text-secondary block mb-1">Date *</label>
               <input type="date" value={dateEcriture} onChange={e => setDateEcriture(e.target.value)} className={inp} />
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">Libellé *</label>
+              <label className="text-xs font-medium text-secondary block mb-1">Libellé *</label>
               <input type="text" placeholder="Ex: Facture fournisseur X" value={libelle} onChange={e => setLibelle(e.target.value)} className={inp} />
             </div>
           </div>
@@ -289,8 +289,8 @@ export default function SaisieEcrituresTab() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-3">
-                <label className="text-xs font-medium text-slate-600">Lignes comptables</label>
-                <button onClick={() => setShowAxes(!showAxes)} className={`text-xs px-2 py-0.5 rounded ${showAxes ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
+                <label className="text-xs font-medium text-secondary">Lignes comptables</label>
+                <button onClick={() => setShowAxes(!showAxes)} className={`text-xs px-2 py-0.5 rounded ${showAxes ? 'bg-blue-100 text-blue-700' : 'bg-surface-2 text-discreet'}`}>
                   {showAxes ? '▾ Axes analytiques' : '▸ Axes analytiques'}
                 </button>
               </div>
@@ -300,19 +300,19 @@ export default function SaisieEcrituresTab() {
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-slate-200">
-                  <th className="px-2 py-1.5 text-left font-medium text-slate-700 w-8">#</th>
-                  <th className="px-2 py-1.5 text-left font-medium text-slate-700">Compte</th>
-                  <th className="px-2 py-1.5 text-left font-medium text-slate-700">Libellé ligne</th>
-                  <th className="px-2 py-1.5 text-right font-medium text-slate-700 w-32">Débit</th>
-                  <th className="px-2 py-1.5 text-right font-medium text-slate-700 w-32">Crédit</th>
+                  <th className="px-2 py-1.5 text-left font-medium text-foreground w-8">#</th>
+                  <th className="px-2 py-1.5 text-left font-medium text-foreground">Compte</th>
+                  <th className="px-2 py-1.5 text-left font-medium text-foreground">Libellé ligne</th>
+                  <th className="px-2 py-1.5 text-right font-medium text-foreground w-32">Débit</th>
+                  <th className="px-2 py-1.5 text-right font-medium text-foreground w-32">Crédit</th>
                   <th className="px-2 py-1.5 w-10"></th>
                 </tr>
               </thead>
               <tbody>
                 {lignes.map((l, i) => (
                   <>
-                    <tr key={i} className="border-b border-slate-200">
-                      <td className="px-2 py-1 text-slate-500">{i + 1}</td>
+                    <tr key={i} className="border-b border-line">
+                      <td className="px-2 py-1 text-discreet">{i + 1}</td>
                       <td className="px-2 py-1">
                         <select
                           value={l.compte_code}
@@ -396,10 +396,10 @@ export default function SaisieEcrituresTab() {
                 ))}
               </tbody>
               <tfoot>
-                <tr className="bg-slate-100 font-medium">
-                  <td colSpan={3} className="px-2 py-2 text-right text-slate-700">Totaux</td>
-                  <td className="px-2 py-2 text-right text-slate-800">{totalDebit.toFixed(2)}</td>
-                  <td className="px-2 py-2 text-right text-slate-800">{totalCredit.toFixed(2)}</td>
+                <tr className="bg-surface-2 font-medium">
+                  <td colSpan={3} className="px-2 py-2 text-right text-foreground">Totaux</td>
+                  <td className="px-2 py-2 text-right text-foreground">{totalDebit.toFixed(2)}</td>
+                  <td className="px-2 py-2 text-right text-foreground">{totalCredit.toFixed(2)}</td>
                   <td></td>
                 </tr>
                 <tr>
@@ -422,36 +422,36 @@ export default function SaisieEcrituresTab() {
             <button onClick={() => handleSave(true)} disabled={saving || !isBalancee} className={btnPrimary}>
               {saving ? 'Enregistrement...' : 'Enregistrer & valider'}
             </button>
-            <button onClick={resetForm} className={`${btn} text-slate-500 hover:text-slate-700`}>Annuler</button>
+            <button onClick={resetForm} className={`${btn} text-discreet hover:text-foreground`}>Annuler</button>
           </div>
         </div>
       )}
 
       {/* Liste des écritures récentes */}
       <div>
-        <h3 className="font-medium text-slate-800 mb-3">Écritures récentes</h3>
+        <h3 className="font-medium text-foreground mb-3">Écritures récentes</h3>
         {ecritures.length === 0 ? (
-          <div className="text-center py-6 text-slate-500 text-sm">Aucune écriture enregistrée</div>
+          <div className="text-center py-6 text-discreet text-sm">Aucune écriture enregistrée</div>
         ) : (
           <div className="overflow-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="bg-slate-100">
-                  <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Date</th>
-                  <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Journal</th>
-                  <th className="px-3 py-2 text-right font-medium text-slate-800 border border-slate-200">Mv</th>
-                  <th className="px-3 py-2 text-left font-medium text-slate-800 border border-slate-200">Libellé</th>
-                  <th className="px-3 py-2 text-center font-medium text-slate-800 border border-slate-200">Statut</th>
-                  <th className="px-3 py-2 text-center font-medium text-slate-800 border border-slate-200">Action</th>
+                <tr className="bg-surface-2">
+                  <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Date</th>
+                  <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Journal</th>
+                  <th className="px-3 py-2 text-right font-medium text-foreground border border-line">Mv</th>
+                  <th className="px-3 py-2 text-left font-medium text-foreground border border-line">Libellé</th>
+                  <th className="px-3 py-2 text-center font-medium text-foreground border border-line">Statut</th>
+                  <th className="px-3 py-2 text-center font-medium text-foreground border border-line">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {ecritures.map(e => (
-                  <tr key={e.id} className="hover:bg-slate-50 border-b border-slate-200">
-                    <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{e.date_ecriture}</td>
-                    <td className="px-3 py-2 font-mono text-slate-700">{e.journal_code}</td>
-                    <td className="px-3 py-2 text-right text-slate-700">{e.numero_mouvement}</td>
-                    <td className="px-3 py-2 text-slate-700">{e.libelle}</td>
+                  <tr key={e.id} className="hover:bg-surface-soft border-b border-line">
+                    <td className="px-3 py-2 text-foreground whitespace-nowrap">{e.date_ecriture}</td>
+                    <td className="px-3 py-2 font-mono text-foreground">{e.journal_code}</td>
+                    <td className="px-3 py-2 text-right text-foreground">{e.numero_mouvement}</td>
+                    <td className="px-3 py-2 text-foreground">{e.libelle}</td>
                     <td className="px-3 py-2 text-center">{statutBadge(e.statut)}</td>
                     <td className="px-3 py-2 text-center">
                       {e.statut === 'brouillon' && (

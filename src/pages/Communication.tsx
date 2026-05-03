@@ -144,11 +144,11 @@ export default function Communication() {
         <section className="rounded-3xl border p-5" style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(15,23,42,0.7)' }}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Hub communication</p>
+              <p className="text-xs uppercase tracking-[0.22em] text-discreet">Hub communication</p>
               <h2 className="mt-2 text-xl font-semibold text-white">Ce qui doit remonter tout de suite</h2>
             </div>
             <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto">
-              <Link to="/tchat" className="rounded-xl border border-white/10 px-3 py-2 text-center text-sm text-slate-200 transition-colors hover:bg-white/5">Ouvrir Messagerie</Link>
+              <Link to="/tchat" className="rounded-xl border border-white/10 px-3 py-2 text-center text-sm text-slate-200 transition-colors hover:bg-surface/5">Ouvrir Messagerie</Link>
               <Link to="/mail" className="rounded-xl bg-blue-600 px-3 py-2 text-center text-sm font-medium text-white transition-colors hover:bg-blue-500">Ouvrir Mail</Link>
             </div>
           </div>
@@ -160,7 +160,7 @@ export default function Communication() {
         </section>
 
         <section className="rounded-3xl border p-5" style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(15,23,42,0.7)' }}>
-          <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Importance</p>
+          <p className="text-xs uppercase tracking-[0.22em] text-discreet">Importance</p>
           <h2 className="mt-2 text-xl font-semibold text-white">Qui et quoi doit rester visible</h2>
 
           <div className="mt-5 space-y-5">
@@ -171,7 +171,7 @@ export default function Communication() {
                   value={keywordDraft}
                   onChange={event => setKeywordDraft(event.target.value)}
                   placeholder="Ex: urgent, facture, retard, quai"
-                  className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500"
+                  className="flex-1 rounded-2xl border border-white/10 bg-surface/5 px-4 py-3 text-sm text-white outline-none placeholder:text-discreet"
                 />
                 <button
                   type="button"
@@ -185,7 +185,7 @@ export default function Communication() {
                 </button>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
-                {settings.keywords.length === 0 && <p className="text-sm text-slate-500">Aucun mot-clé important pour le moment.</p>}
+                {settings.keywords.length === 0 && <p className="text-sm text-discreet">Aucun mot-clé important pour le moment.</p>}
                 {settings.keywords.map(keyword => (
                   <button key={keyword} type="button" onClick={() => removeImportantKeyword(keyword)} className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-100">
                     <span>{keyword}</span>
@@ -205,7 +205,7 @@ export default function Communication() {
                       key={candidate.id}
                       type="button"
                       onClick={() => toggleImportantPerson(candidate.id, displayName(candidate))}
-                      className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${active ? 'bg-blue-600 text-white' : 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'}`}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${active ? 'bg-blue-600 text-white' : 'border border-white/10 bg-surface/5 text-slate-300 hover:bg-surface/10'}`}
                     >
                       {displayName(candidate)}
                     </button>
@@ -214,8 +214,8 @@ export default function Communication() {
               </div>
 
               {importantPeople.length > 0 && (
-                <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Actuellement suivis</p>
+                <div className="mt-4 rounded-2xl border border-white/10 bg-surface/5 p-3">
+                  <p className="text-xs uppercase tracking-[0.18em] text-discreet">Actuellement suivis</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {importantPeople.map(candidate => (
                       <span key={candidate.id} className="rounded-full bg-blue-600/20 px-3 py-1 text-xs font-semibold text-blue-100">
@@ -243,7 +243,7 @@ function StatCard({ label, value, detail, tone }: { label: string; value: string
         : 'from-violet-500/20 to-violet-500/5 text-violet-100'
   return (
     <div className={`rounded-3xl border bg-gradient-to-br px-5 py-5 ${toneClass}`} style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
-      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">{label}</p>
+      <p className="text-xs uppercase tracking-[0.22em] text-muted">{label}</p>
       <p className="mt-3 text-3xl font-semibold">{value}</p>
       <p className="mt-1 text-sm text-slate-300">{detail}</p>
     </div>
@@ -252,17 +252,17 @@ function StatCard({ label, value, detail, tone }: { label: string; value: string
 
 function PriorityList({ title, items, hrefPrefix }: { title: string; items: Array<{ id: string; title: string; excerpt: string; unread: number | boolean; important: boolean }>; hrefPrefix: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-2xl border border-white/10 bg-surface/5 p-4">
       <p className="text-sm font-medium text-slate-100">{title}</p>
       <div className="mt-3 space-y-2">
-        {items.length === 0 && <p className="text-sm text-slate-500">Aucun element a surveiller.</p>}
+        {items.length === 0 && <p className="text-sm text-discreet">Aucun element a surveiller.</p>}
         {items.map(item => (
-          <Link key={item.id} to={hrefPrefix} className={`block rounded-2xl border px-3 py-3 transition-colors ${item.important ? 'border-amber-400/30 bg-amber-400/10' : 'border-white/10 bg-white/5 hover:bg-white/10'}`}>
+          <Link key={item.id} to={hrefPrefix} className={`block rounded-2xl border px-3 py-3 transition-colors ${item.important ? 'border-amber-400/30 bg-amber-400/10' : 'border-white/10 bg-surface/5 hover:bg-surface/10'}`}>
             <div className="flex items-center justify-between gap-3">
               <p className="truncate text-sm font-semibold text-white">{item.title}</p>
               {item.important && <span className="rounded-full bg-amber-400/20 px-2 py-1 text-[10px] font-semibold text-amber-100">Important</span>}
             </div>
-            <p className="mt-1 truncate text-xs text-slate-400">{item.excerpt}</p>
+            <p className="mt-1 truncate text-xs text-muted">{item.excerpt}</p>
             {Boolean(item.unread) && <p className="mt-2 text-[11px] text-sky-300">{typeof item.unread === 'number' ? `${item.unread} non lu(s)` : 'Non lu'}</p>}
           </Link>
         ))}

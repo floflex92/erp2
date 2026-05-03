@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
 interface ClientPoint {
@@ -214,13 +214,13 @@ export function WidgetCarteClients() {
       <div className="flex items-center gap-1 border-b px-4 py-2" style={{ borderColor: 'var(--border)' }}>
         <button
           onClick={() => setShowSuggestions(false)}
-          className={`px-2.5 py-1 text-xs font-semibold transition-colors ${!showSuggestions ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-slate-700'}`}
+          className={`px-2.5 py-1 text-xs font-semibold transition-colors ${!showSuggestions ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-foreground'}`}
         >
           Carte clients ({points.length})
         </button>
         <button
           onClick={() => setShowSuggestions(true)}
-          className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold transition-colors ${showSuggestions ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-slate-700'}`}
+          className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold transition-colors ${showSuggestions ? 'nx-tab nx-tab-active' : 'nx-tab hover:text-foreground'}`}
         >
           <span className="text-[11px]">✨</span>
           Suggestions IA
@@ -232,8 +232,8 @@ export function WidgetCarteClients() {
           {points.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-10" style={{ height: 280 }}>
               <div className="text-4xl opacity-20 mb-2">ðŸ—º️</div>
-              <p className="text-sm text-slate-500">Aucun client avec coordonnées GPS</p>
-              <p className="text-xs text-slate-600 mt-1">Ajoutez des adresses avec coordonnées</p>
+              <p className="text-sm text-discreet">Aucun client avec coordonnées GPS</p>
+              <p className="text-xs text-secondary mt-1">Ajoutez des adresses avec coordonnées</p>
             </div>
           ) : (
             <>
@@ -252,11 +252,11 @@ export function WidgetCarteClients() {
         <div className="divide-y divide-slate-100">
           {suggestions.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-10">
-              <p className="text-sm text-slate-500">Pas assez de données pour générer des suggestions</p>
+              <p className="text-sm text-discreet">Pas assez de données pour générer des suggestions</p>
             </div>
           ) : (
             suggestions.map((s, i) => (
-              <div key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors">
+              <div key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-surface-soft transition-colors">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-50 text-sm font-bold text-blue-700">
                   {s.score}
                 </div>
@@ -267,18 +267,18 @@ export function WidgetCarteClients() {
                       {s.type_suggere}
                     </span>
                   </div>
-                  <p className="mt-0.5 text-xs text-slate-500">{s.raison}</p>
+                  <p className="mt-0.5 text-xs text-discreet">{s.raison}</p>
                 </div>
                 <div className="shrink-0">
                   <div className="flex h-1.5 w-16 overflow-hidden rounded-full bg-slate-200">
                     <div className="h-full rounded-full bg-blue-600" style={{ width: `${s.score}%` }} />
                   </div>
-                  <p className="mt-1 text-right text-[10px] text-slate-500">Score IA</p>
+                  <p className="mt-1 text-right text-[10px] text-discreet">Score IA</p>
                 </div>
               </div>
             ))
           )}
-          <div className="px-4 py-2 text-[10px] text-slate-600">
+          <div className="px-4 py-2 text-[10px] text-secondary">
             ✨ Suggestions générées par analyse de vos données clients et OT existants
           </div>
         </div>

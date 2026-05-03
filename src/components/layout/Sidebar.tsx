@@ -8,6 +8,7 @@ import { canAccess, useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { countAlertesActives } from '@/lib/alertesTransport'
+import { prefetchRouteByPath } from '@/lib/routePrefetch'
 import NexoraTruckLogo from './NexoraTruckLogo'
 
 type NavItem = {
@@ -69,6 +70,10 @@ const NAV_SECTIONS: NavSection[] = [
       { to: '/map-live',          page: 'map-live',          label: 'Map live',             icon: 'pin' },
       { to: '/demandes-clients',  page: 'demandes-clients',  label: 'Demandes clients',     icon: 'inbox-request' },
       { to: '/tasks',             page: 'tasks',             label: 'Tâches',               icon: 'check' },
+      { to: '/optimisation-tournees', page: 'optimisation-tournees', label: 'Optim. tournées',    icon: 'route-opt' },
+      { to: '/messagerie-colis',      page: 'messagerie-colis',      label: 'Messagerie colis',   icon: 'parcel' },
+      { to: '/formulaires-terrain',   page: 'formulaires-terrain',   label: 'Formulaires terrain', icon: 'form-field' },
+      { to: '/gestion-temperature',   page: 'gestion-temperature',   label: 'Température frigo',  icon: 'thermometer' },
     ],
   },
   {
@@ -158,6 +163,10 @@ function NavGlyph({ type, size = 18 }: { type: string; size?: number }) {
   if (type === 'pin')          return <svg {...common}><path d="M12 21s6-5.8 6-11a6 6 0 1 0-12 0c0 5.2 6 11 6 11Z" /><circle cx="12" cy="10" r="2.2" /></svg>
   if (type === 'inbox-request') return <svg {...common}><path d="M4 6h16v12H4z" /><path d="M4 13h4l2 3h4l2-3h4" /><path d="M12 3v5M9.5 5.5 12 3l2.5 2.5" /></svg>
   if (type === 'check')        return <svg {...common}><path d="M20 6 9 17l-5-5" /></svg>
+  if (type === 'route-opt')     return <svg {...common}><path d="M3 10h18M3 14h18" /><path d="m7 6 5 4 5-4" /><path d="m7 18 5-4 5 4" /></svg>
+  if (type === 'parcel')        return <svg {...common}><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16v-2" /><path d="m3.3 7 8.7 5 8.7-5M12 22V12" /></svg>
+  if (type === 'form-field')    return <svg {...common}><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5M9 12h6M9 16h4" /><path d="m9 9 1.5 1.5L13 8" /></svg>
+  if (type === 'thermometer')   return <svg {...common}><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0Z" /><path d="M12 18a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" fill="currentColor" /></svg>
   if (type === 'receipt-quick') return <svg {...common}><path d="M7 3h10v14l-3-2-2 2-2-2-3 2z" /><path d="M9 8h6M9 11h4" /><path d="M15 18l3 3" /><circle cx="19" cy="21" r="1" /></svg>
   // Flotte
   if (type === 'driver')       return <svg {...common}><circle cx="12" cy="8" r="3" /><path d="M5 20a7 7 0 0 1 14 0" /><path d="M9 11.5 7.5 14M15 11.5l1.5 2.5" /></svg>
@@ -230,6 +239,8 @@ function DockItem({
     <div className="group/nav-item relative">
       <NavLink
         to={item.to}
+        onMouseEnter={() => prefetchRouteByPath(item.to)}
+        onFocus={() => prefetchRouteByPath(item.to)}
         className={({ isActive }) => [
           'nx-sidebar-item flex items-center gap-3 rounded-xl border text-[13px] transition-colors',
           collapsed ? 'h-11 w-11 justify-center px-0' : 'w-full px-3 py-2',
@@ -516,6 +527,8 @@ export default function Sidebar() {
                   <>
                     <NavLink
                       to="/parametres"
+                      onMouseEnter={() => prefetchRouteByPath('/parametres')}
+                      onFocus={() => prefetchRouteByPath('/parametres')}
                       className={({ isActive }) => [
                         'flex items-center gap-2.5 rounded-xl border px-3 py-2 text-[color:var(--sidebar-text)] transition-colors hover:bg-[color:var(--sidebar-item-hover)] hover:text-[color:var(--sidebar-text-strong)]',
                         isActive ? 'nx-sidebar-item-active' : '',

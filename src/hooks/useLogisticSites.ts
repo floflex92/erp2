@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useAuth } from '@/lib/auth'
 import {
   createLogisticSite,
   listLogisticSites,
@@ -9,6 +10,7 @@ import {
 } from '@/lib/transportCourses'
 
 export function useLogisticSites() {
+  const { companyId } = useAuth()
   const [sites, setSites] = useState<LogisticSite[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -16,7 +18,7 @@ export function useLogisticSites() {
   const reload = useCallback(async () => {
     setLoading(true)
     try {
-      const rows = await listLogisticSites()
+      const rows = await listLogisticSites(companyId)
       setSites(rows)
       setError(null)
     } catch (err) {
@@ -24,7 +26,7 @@ export function useLogisticSites() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [companyId])
 
   const addSite = useCallback(async (payload: LogisticSiteInsert) => {
     const created = await createLogisticSite(payload)

@@ -16,7 +16,7 @@ export function TchatPresenceBadge({ presence, compact = false, showCustomStatus
         {config.label}
       </span>
       {showCustomStatus && presence.customStatus && (
-        <p className="text-[11px] text-slate-400">{presence.customStatus}</p>
+        <p className="text-[11px] text-muted">{presence.customStatus}</p>
       )}
       {showCustomStatus && presence.vacationEnabled && (
         <p className="text-[11px] text-sky-300/80">Reponse auto vacances active</p>

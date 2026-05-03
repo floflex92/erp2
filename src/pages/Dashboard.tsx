@@ -231,7 +231,7 @@ const PREVIEW_TONE_CLASS: Record<WidgetPreviewTone, { shell: string; dot: string
     glow: 'shadow-indigo-100',
   },
   slate: {
-    shell: 'from-slate-200 via-slate-100 to-white border-slate-200',
+    shell: 'from-slate-200 via-slate-100 to-white border-line',
     dot: 'bg-slate-500',
     glow: 'shadow-slate-200',
   },
@@ -253,46 +253,46 @@ function WidgetPreviewCard({
       <div className="flex items-center gap-2">
         <span className={`h-2.5 w-2.5 rounded-full ${toneClass.dot}`} />
         <div className="min-w-0">
-          <p className="truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{widget.title}</p>
-          <p className="truncate text-xs text-slate-600">{widget.subtitle}</p>
+          <p className="truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-discreet">{widget.title}</p>
+          <p className="truncate text-xs text-secondary">{widget.subtitle}</p>
         </div>
       </div>
 
-      <div className="mt-3 rounded-[18px] border border-white/70 bg-white/90 p-3">
+      <div className="mt-3 rounded-[18px] border border-white/70 bg-surface/90 p-3">
         <div className="flex items-end gap-2">
-          <div className={`rounded-2xl bg-white shadow-sm transition-all ${WIDGET_SIZE_PREVIEW_CLASS[size]}`}>
+          <div className={`rounded-2xl bg-surface shadow-sm transition-all ${WIDGET_SIZE_PREVIEW_CLASS[size]}`}>
             {size === 'third' && (
               <div className="flex h-16 flex-col gap-2 p-3">
-                <div className="h-3 rounded-full bg-slate-100" />
+                <div className="h-3 rounded-full bg-surface-2" />
                 <div className="grid flex-1 grid-cols-2 gap-2">
-                  <div className="rounded-xl bg-slate-100" />
-                  <div className="rounded-xl bg-slate-50" />
+                  <div className="rounded-xl bg-surface-2" />
+                  <div className="rounded-xl bg-surface-soft" />
                 </div>
               </div>
             )}
             {size === 'half' && (
               <div className="grid h-16 grid-cols-2 gap-2 p-3">
-                <div className="rounded-xl bg-slate-100" />
-                <div className="rounded-xl bg-slate-100" />
-                <div className="rounded-xl bg-slate-50" />
-                <div className="rounded-xl bg-slate-50" />
+                <div className="rounded-xl bg-surface-2" />
+                <div className="rounded-xl bg-surface-2" />
+                <div className="rounded-xl bg-surface-soft" />
+                <div className="rounded-xl bg-surface-soft" />
               </div>
             )}
             {size === 'full' && (
               <div className="flex h-16 gap-2 p-3">
                 <div className="grid flex-1 grid-cols-3 gap-2">
-                  <div className="rounded-xl bg-slate-100" />
-                  <div className="rounded-xl bg-slate-50" />
-                  <div className="rounded-xl bg-slate-100" />
+                  <div className="rounded-xl bg-surface-2" />
+                  <div className="rounded-xl bg-surface-soft" />
+                  <div className="rounded-xl bg-surface-2" />
                 </div>
-                <div className="w-20 rounded-2xl bg-slate-50" />
+                <div className="w-20 rounded-2xl bg-surface-soft" />
               </div>
             )}
           </div>
           <div className="flex flex-1 flex-col gap-2">
-            <div className="h-3 rounded-full bg-slate-100" />
-            <div className="h-3 w-3/4 rounded-full bg-slate-100" />
-            <div className="h-10 rounded-2xl bg-slate-50" />
+            <div className="h-3 rounded-full bg-surface-2" />
+            <div className="h-3 w-3/4 rounded-full bg-surface-2" />
+            <div className="h-10 rounded-2xl bg-surface-soft" />
           </div>
         </div>
       </div>
@@ -514,7 +514,7 @@ export default function Dashboard() {
           <p className="mt-0.5 text-sm" style={{ color: 'var(--text-secondary)' }}>Vue priorisee {ROLE_LABELS[currentRole] ?? currentRole}</p>
         </div>
         <div className="flex items-center gap-2">
-          {isCustomizing && hiddenIds.length > 0 && <span className="text-xs text-slate-500">{hiddenIds.length} widget(s) retire(s) de l accueil</span>}
+          {isCustomizing && hiddenIds.length > 0 && <span className="text-xs text-discreet">{hiddenIds.length} widget(s) retire(s) de l accueil</span>}
           {isCustomizing && (
             <button
               onClick={() => setMenuOpen(v => !v)}
@@ -559,7 +559,7 @@ export default function Dashboard() {
             <div className="nx-card rounded-[26px] p-3 lg:col-span-1" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-sm font-semibold" style={{ color: 'var(--text-heading)' }}>Collection</p>
-                <span className="text-xs text-slate-500">{visibleIds.length}/{orderedIds.length}</span>
+                <span className="text-xs text-discreet">{visibleIds.length}/{orderedIds.length}</span>
               </div>
 
               <div className="max-h-72 space-y-2 overflow-auto pr-1">
@@ -574,8 +574,8 @@ export default function Dashboard() {
                   return (
                     <div key={id} className="rounded-xl border p-2" style={{ borderColor: 'var(--border)' }}>
                       <div className="flex items-center justify-between gap-2">
-                        <p className="truncate text-xs font-semibold text-slate-900">{def.title}</p>
-                        <label className="inline-flex cursor-pointer items-center gap-1 text-xs text-slate-600">
+                        <p className="truncate text-xs font-semibold text-heading">{def.title}</p>
+                        <label className="inline-flex cursor-pointer items-center gap-1 text-xs text-secondary">
                           <input
                             type="checkbox"
                             checked={isVisible}
@@ -643,10 +643,10 @@ export default function Dashboard() {
                     <div className="mb-5">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
-                          <p className="text-sm font-semibold text-slate-900">Mes widgets</p>
-                          <p className="text-xs text-slate-600">Maintenez puis glissez pour reordonner comme sur l ecran d accueil Apple.</p>
+                          <p className="text-sm font-semibold text-heading">Mes widgets</p>
+                          <p className="text-xs text-secondary">Maintenez puis glissez pour reordonner comme sur l ecran d accueil Apple.</p>
                         </div>
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700">{visibleIds.length} visibles</span>
+                        <span className="rounded-full bg-surface-2 px-3 py-1 text-[11px] font-semibold text-foreground">{visibleIds.length} visibles</span>
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                         {visibleIds.map(id => {
@@ -665,18 +665,18 @@ export default function Dashboard() {
                               onDragOver={event => handleGalleryDragOver(id, event)}
                               onDrop={event => handleGalleryDrop(id, event)}
                               onDragEnd={() => handleDragEnd()}
-                              className={`rounded-[24px] border p-3 text-left transition-all ${isSelected ? 'border-blue-300 bg-blue-50 shadow-sm' : 'border-[color:var(--border)] bg-white'} ${draggedWidgetId === id ? 'opacity-50 scale-[0.98]' : ''} ${isDropTarget ? 'ring-2 ring-[color:var(--primary)] ring-offset-2 shadow-[0_0_0_6px_rgba(37,99,235,0.08)]' : ''}`}
+                              className={`rounded-[24px] border p-3 text-left transition-all ${isSelected ? 'border-blue-300 bg-blue-50 shadow-sm' : 'border-[color:var(--border)] bg-surface'} ${draggedWidgetId === id ? 'opacity-50 scale-[0.98]' : ''} ${isDropTarget ? 'ring-2 ring-[color:var(--primary)] ring-offset-2 shadow-[0_0_0_6px_rgba(37,99,235,0.08)]' : ''}`}
                             >
                               <div className="mb-3 flex items-center justify-between gap-2">
-                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">{WIDGET_SIZE_LABEL[size]}</span>
-                                <span className="text-[11px] font-semibold text-slate-500">Glisser</span>
+                                <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-secondary">{WIDGET_SIZE_LABEL[size]}</span>
+                                <span className="text-[11px] font-semibold text-discreet">Glisser</span>
                               </div>
                               <WidgetPreviewCard widget={def} size={size} tone={widgetTone} />
                             </button>
                           )
                         })}
                       </div>
-                      <div className="mt-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-3 text-xs text-slate-600">
+                      <div className="mt-3 rounded-2xl border border-dashed border-line-strong bg-surface-soft/80 px-4 py-3 text-xs text-secondary">
                         Astuce: glissez un widget sur un autre pour l inserer a sa place. Le halo bleu indique la future position.
                       </div>
                     </div>
@@ -685,7 +685,7 @@ export default function Dashboard() {
                   <div className="mb-4 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div>
                       <h3 className="text-lg font-semibold text-[color:var(--text-heading)]">{selectedWidgetDef.title}</h3>
-                      <p className="mt-1 text-sm text-slate-600">{selectedWidgetDef.subtitle}</p>
+                      <p className="mt-1 text-sm text-secondary">{selectedWidgetDef.subtitle}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {(prefs[selectedWidgetDef.id]?.visible !== false) ? (
@@ -713,8 +713,8 @@ export default function Dashboard() {
                   {menuOpen && (
                     <div className="mt-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">Taille du widget</p>
-                        <p className="text-xs text-slate-600">Comme sur Apple: choisissez le format avant de revenir au cockpit.</p>
+                        <p className="text-sm font-semibold text-heading">Taille du widget</p>
+                        <p className="text-xs text-secondary">Comme sur Apple: choisissez le format avant de revenir au cockpit.</p>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {WIDGET_SIZE_ORDER.map(size => {
@@ -724,7 +724,7 @@ export default function Dashboard() {
                               key={size}
                               type="button"
                               onClick={() => setWidgetSize(selectedWidgetDef.id, size)}
-                              className={`rounded-full px-4 py-2 text-xs font-semibold transition-colors ${isActive ? 'bg-[color:var(--primary)] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                              className={`rounded-full px-4 py-2 text-xs font-semibold transition-colors ${isActive ? 'bg-[color:var(--primary)] text-white' : 'bg-surface-2 text-foreground hover:bg-slate-200'}`}
                             >
                               {WIDGET_SIZE_LABEL[size]}
                             </button>
@@ -739,7 +739,7 @@ export default function Dashboard() {
                       type="button"
                       onClick={() => updatePrefs(moveWidget(prefs, selectedWidgetDef.id, 'up'))}
                       disabled={visibleIds.indexOf(selectedWidgetDef.id) <= 0}
-                      className="rounded-2xl border border-[color:var(--border)] px-4 py-3 text-sm font-semibold text-slate-700 disabled:opacity-40"
+                      className="rounded-2xl border border-[color:var(--border)] px-4 py-3 text-sm font-semibold text-foreground disabled:opacity-40"
                     >
                       Monter dans le cockpit
                     </button>
@@ -747,14 +747,14 @@ export default function Dashboard() {
                       type="button"
                       onClick={() => updatePrefs(moveWidget(prefs, selectedWidgetDef.id, 'down'))}
                       disabled={visibleIds.indexOf(selectedWidgetDef.id) < 0 || visibleIds.indexOf(selectedWidgetDef.id) >= visibleIds.length - 1}
-                      className="rounded-2xl border border-[color:var(--border)] px-4 py-3 text-sm font-semibold text-slate-700 disabled:opacity-40"
+                      className="rounded-2xl border border-[color:var(--border)] px-4 py-3 text-sm font-semibold text-foreground disabled:opacity-40"
                     >
                       Descendre dans le cockpit
                     </button>
                     <button
                       type="button"
                       onClick={() => setSelectedWidgetId(roleWidgets[(roleWidgets.findIndex(widget => widget.id === selectedWidgetDef.id) + 1) % roleWidgets.length]?.id ?? selectedWidgetDef.id)}
-                      className="rounded-2xl border border-[color:var(--border)] px-4 py-3 text-sm font-semibold text-slate-700"
+                      className="rounded-2xl border border-[color:var(--border)] px-4 py-3 text-sm font-semibold text-foreground"
                     >
                       Voir un autre widget
                     </button>
@@ -767,9 +767,9 @@ export default function Dashboard() {
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-base font-semibold text-[color:var(--text-heading)]">Ajouter des widgets</h2>
-                  <p className="text-sm text-slate-600">Section placee en bas pour ne pas perturber la lecture du reglage principal.</p>
+                  <p className="text-sm text-secondary">Section placee en bas pour ne pas perturber la lecture du reglage principal.</p>
                 </div>
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{roleWidgets.length} disponibles</span>
+                <span className="rounded-full bg-surface-2 px-3 py-1 text-xs font-semibold text-foreground">{roleWidgets.length} disponibles</span>
               </div>
 
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -781,13 +781,13 @@ export default function Dashboard() {
                       key={widget.id}
                       type="button"
                       onClick={() => setSelectedWidgetId(widget.id)}
-                      className={`flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-left transition-colors ${isSelected ? 'border-blue-300 bg-blue-50' : 'border-[color:var(--border)] bg-[color:var(--surface)] hover:bg-slate-50'}`}
+                      className={`flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-left transition-colors ${isSelected ? 'border-blue-300 bg-blue-50' : 'border-[color:var(--border)] bg-[color:var(--surface)] hover:bg-surface-soft'}`}
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-slate-900">{widget.title}</p>
-                        <p className="truncate text-xs text-slate-600">{widget.subtitle}</p>
+                        <p className="truncate text-sm font-semibold text-heading">{widget.title}</p>
+                        <p className="truncate text-xs text-secondary">{widget.subtitle}</p>
                       </div>
-                      <span className={`ml-3 rounded-full px-2.5 py-1 text-[11px] font-semibold ${isVisible ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                      <span className={`ml-3 rounded-full px-2.5 py-1 text-[11px] font-semibold ${isVisible ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-2 text-secondary'}`}>
                         {isVisible ? 'Ajoute' : 'Masque'}
                       </span>
                     </button>
@@ -810,7 +810,7 @@ export default function Dashboard() {
       {visibleIds.length === 0 ? (
         <div className="nx-panel flex flex-col items-center justify-center py-16 text-center">
           <div className="mb-3 text-4xl opacity-20">#</div>
-          <p className="text-slate-600">Tous les widgets sont masques</p>
+          <p className="text-secondary">Tous les widgets sont masques</p>
           <button onClick={() => setIsCustomizing(true)} className="mt-3 text-sm font-medium text-[color:var(--primary)] hover:underline">
             Personnaliser le dashboard
           </button>
@@ -851,7 +851,7 @@ export default function Dashboard() {
                 isDragging={draggedWidgetId === id}
                 dropPosition={isDropTarget}
               >
-                <Suspense fallback={<div className="h-28 animate-pulse rounded-xl bg-slate-100" aria-hidden="true" />}>
+                <Suspense fallback={<div className="h-28 animate-pulse rounded-xl bg-surface-2" aria-hidden="true" />}>
                   <Component />
                 </Suspense>
               </WidgetShell>

@@ -39,7 +39,7 @@ const TYPE_COLORS: Record<string, string> = {
   unhandled_error: 'bg-red-500/15 text-red-400',
   unhandled_rejection: 'bg-orange-500/15 text-orange-400',
   react_boundary: 'bg-amber-500/15 text-amber-400',
-  api_error: 'bg-slate-500/15 text-slate-400',
+  api_error: 'bg-slate-500/15 text-muted',
   api_500: 'bg-red-500/15 text-red-400',
 }
 
@@ -209,13 +209,13 @@ export function ObservabilitePanel() {
               ) : (
                 <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
                   {errors.map(e => (
-                    <div key={e.id} className="px-5 py-3 hover:bg-white/2">
+                    <div key={e.id} className="px-5 py-3 hover:bg-surface/2">
                       <div
                         className="flex cursor-pointer flex-wrap items-start gap-2"
                         onClick={() => setExpanded(expanded === e.id ? null : e.id)}
                       >
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${SOURCE_COLORS[e.source] ?? 'bg-slate-500/15 text-slate-400'}`}>{e.source}</span>
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${TYPE_COLORS[e.error_type] ?? 'bg-slate-500/15 text-slate-400'}`}>{ERROR_TYPE_LABELS[e.error_type] ?? e.error_type}</span>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${SOURCE_COLORS[e.source] ?? 'bg-slate-500/15 text-muted'}`}>{e.source}</span>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${TYPE_COLORS[e.error_type] ?? 'bg-slate-500/15 text-muted'}`}>{ERROR_TYPE_LABELS[e.error_type] ?? e.error_type}</span>
                         <span className="flex-1 text-sm">{e.message}</span>
                         <span className="shrink-0 text-xs nx-subtle">{fmtDt(e.created_at)}</span>
                       </div>
@@ -260,7 +260,7 @@ export function ObservabilitePanel() {
                   </thead>
                   <tbody>
                     {apiErrors.map(log => (
-                      <tr key={log.id} className="border-b hover:bg-white/2" style={{ borderColor: 'var(--border)' }}>
+                      <tr key={log.id} className="border-b hover:bg-surface/2" style={{ borderColor: 'var(--border)' }}>
                         <td className="px-4 py-2 text-xs nx-subtle whitespace-nowrap">{fmtDt(log.created_at)}</td>
                         <td className="px-4 py-2 text-xs font-medium">{log.module_key}</td>
                         <td className="px-4 py-2 text-xs nx-subtle">{log.provider_key ?? '—'}</td>

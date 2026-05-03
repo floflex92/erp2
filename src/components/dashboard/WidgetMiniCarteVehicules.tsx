@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ST_CONFIRME, ST_PLANIFIE, ST_EN_COURS } from '@/lib/transportCourses'
 
@@ -311,11 +311,11 @@ export function WidgetMiniCarteVehicules() {
       <div className="mb-2 text-4xl opacity-20">MAP</div>
       {activeCount > 0 ? (
         <>
-          <p className="text-sm text-slate-500">{activeCount} mission{activeCount > 1 ? 's' : ''} active{activeCount > 1 ? 's' : ''}</p>
-          <p className="mt-1 text-xs text-slate-500">Aucune position GPS/adresse exploitable pour la carte.</p>
+          <p className="text-sm text-discreet">{activeCount} mission{activeCount > 1 ? 's' : ''} active{activeCount > 1 ? 's' : ''}</p>
+          <p className="mt-1 text-xs text-discreet">Aucune position GPS/adresse exploitable pour la carte.</p>
         </>
       ) : (
-        <p className="text-sm text-slate-500">Aucune mission en cours</p>
+        <p className="text-sm text-discreet">Aucune mission en cours</p>
       )}
     </div>
   )
@@ -326,7 +326,7 @@ export function WidgetMiniCarteVehicules() {
       <button
         type="button"
         onClick={recenterMap}
-        className="absolute right-2 top-2 rounded-lg border border-white/20 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/10"
+        className="absolute right-2 top-2 rounded-lg border border-white/20 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-surface/10"
         style={{ background: 'rgba(15,23,42,0.82)', backdropFilter: 'blur(8px)' }}
       >
         Recentrer

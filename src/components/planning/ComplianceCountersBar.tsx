@@ -61,8 +61,8 @@ export function ComplianceCountersBar({
 
   if (!conducteurId) {
     return (
-      <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
-        <p className="text-sm text-gray-500">Sélectionnez un conducteur pour voir les compteurs</p>
+      <div className="border-b px-4 py-3" style={{ background: 'var(--surface-soft)', borderColor: 'var(--border)' }}>
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>Sélectionnez un conducteur pour voir les compteurs</p>
       </div>
     )
   }
@@ -113,9 +113,9 @@ export function ComplianceCountersBar({
   )
 
   return (
-    <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
+    <div className="border-b px-4 py-3" style={{ background: 'var(--surface-soft)', borderColor: 'var(--border)' }}>
       {loading ? (
-        <p className="text-sm text-gray-600 italic">Chargement des compteurs...</p>
+        <p className="text-sm italic" style={{ color: 'var(--muted)' }}>Chargement des compteurs...</p>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
           {/* Conduite du jour */}

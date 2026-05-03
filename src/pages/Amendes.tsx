@@ -451,7 +451,7 @@ export default function Amendes() {
             <p className="mt-1.5 max-w-3xl text-sm text-slate-300">Import des avis en PDF, lecture automatique des informations, rapprochement camion/conducteur, notification et redirection interne.</p>
           </div>
           {canManage && (
-            <label className="inline-flex cursor-pointer items-center gap-3 rounded-2xl border border-white/15 bg-white/8 px-5 py-3 text-sm font-medium text-white hover:bg-white/12">
+            <label className="inline-flex cursor-pointer items-center gap-3 rounded-2xl border border-white/15 bg-surface/8 px-5 py-3 text-sm font-medium text-white hover:bg-surface/12">
               <input type="file" accept="application/pdf" className="hidden" onChange={handleImport} />
               {scanLoading ? (
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -467,7 +467,7 @@ export default function Amendes() {
       {isConducteurSession && (
         <div className="nx-panel border border-blue-500/20 bg-blue-500/5 px-5 py-4">
           <p className="text-sm font-medium text-[color:var(--primary)]">Acces conducteur</p>
-          <p className="mt-1 text-sm text-slate-600">Seules vos propres amendes et notifications sont visibles dans cette session.</p>
+          <p className="mt-1 text-sm text-secondary">Seules vos propres amendes et notifications sont visibles dans cette session.</p>
         </div>
       )}
 
@@ -488,7 +488,7 @@ export default function Amendes() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-slate-950">Registre des amendes</p>
-                <p className="mt-1 text-xs text-slate-400">{visibleFines.length} dossier(s)</p>
+                <p className="mt-1 text-xs text-muted">{visibleFines.length} dossier(s)</p>
               </div>
               <input
                 value={search}
@@ -501,7 +501,7 @@ export default function Amendes() {
           </div>
           <div className="max-h-[68vh] overflow-y-auto p-3">
             {visibleFines.length === 0 ? (
-              <div className="rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-slate-400" style={{ borderColor: 'var(--border)' }}>
+              <div className="rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-muted" style={{ borderColor: 'var(--border)' }}>
                 Aucune amende importee pour le moment.
               </div>
             ) : (
@@ -511,17 +511,17 @@ export default function Amendes() {
                     key={fine.id}
                     type="button"
                     onClick={() => setSelectedFineId(fine.id)}
-                    className={`w-full rounded-2xl border px-4 py-3 text-left transition ${selectedFine?.id === fine.id ? 'bg-[color:var(--primary-soft)]' : 'hover:bg-slate-50'}`}
+                    className={`w-full rounded-2xl border px-4 py-3 text-left transition ${selectedFine?.id === fine.id ? 'bg-[color:var(--primary-soft)]' : 'hover:bg-surface-soft'}`}
                     style={{ borderColor: selectedFine?.id === fine.id ? 'var(--primary)' : 'var(--border)' }}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-slate-950">{NATURE_LABELS[fine.nature]}</p>
-                        <p className="mt-1 truncate text-xs text-slate-400">{fine.vehicule_plate ?? 'Plaque non detectee'} · {fine.location ?? 'Lieu a confirmer'}</p>
+                        <p className="mt-1 truncate text-xs text-muted">{fine.vehicule_plate ?? 'Plaque non detectee'} · {fine.location ?? 'Lieu a confirmer'}</p>
                       </div>
                       <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${statusStyle(fine.status)}`}>{statusLabel(fine.status)}</span>
                     </div>
-                    <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+                    <div className="mt-3 flex items-center justify-between text-xs text-muted">
                       <span>{formatCurrency(fine.amount)}</span>
                       <span>{formatDateTime(fine.occured_at)}</span>
                     </div>
@@ -540,12 +540,12 @@ export default function Amendes() {
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                       <p className="text-sm font-semibold text-slate-950">{selectedFine.reference ?? selectedFine.pdf_name}</p>
-                      <p className="mt-1 text-xs text-slate-400">{selectedFine.pdf_name}</p>
+                      <p className="mt-1 text-xs text-muted">{selectedFine.pdf_name}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${statusStyle(selectedFine.status)}`}>{statusLabel(selectedFine.status)}</span>
                       <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${confidenceStyle(selectedFine.confidence)}`}>Detection {CONFIDENCE_LABELS[selectedFine.confidence]}</span>
-                      <a href={selectedFine.pdf_url} target="_blank" rel="noreferrer" className="rounded-full border px-2.5 py-1 text-[10px] font-semibold text-slate-700" style={{ borderColor: 'var(--border)' }}>
+                      <a href={selectedFine.pdf_url} target="_blank" rel="noreferrer" className="rounded-full border px-2.5 py-1 text-[10px] font-semibold text-foreground" style={{ borderColor: 'var(--border)' }}>
                         Ouvrir le PDF
                       </a>
                     </div>
@@ -567,21 +567,21 @@ export default function Amendes() {
                 <div className="nx-panel overflow-hidden">
                   <div className="border-b px-5 py-4" style={{ borderColor: 'var(--border)' }}>
                     <p className="text-sm font-semibold text-slate-950">Lecture automatique</p>
-                    <p className="mt-1 text-xs text-slate-400">Extraction heuristique du texte PDF. Si le document est un scan image pur, une verification manuelle reste necessaire.</p>
+                    <p className="mt-1 text-xs text-muted">Extraction heuristique du texte PDF. Si le document est un scan image pur, une verification manuelle reste necessaire.</p>
                   </div>
                   <div className="max-h-[320px] overflow-y-auto px-5 py-4">
-                    <pre className="whitespace-pre-wrap text-xs leading-6 text-slate-700">{selectedFine.extracted_text || 'Aucun texte exploitable detecte dans le PDF.'}</pre>
+                    <pre className="whitespace-pre-wrap text-xs leading-6 text-foreground">{selectedFine.extracted_text || 'Aucun texte exploitable detecte dans le PDF.'}</pre>
                   </div>
                 </div>
 
                 <div className="nx-panel overflow-hidden">
                   <div className="border-b px-5 py-4" style={{ borderColor: 'var(--border)' }}>
                     <p className="text-sm font-semibold text-slate-950">Affectation et redirection</p>
-                    <p className="mt-1 text-xs text-slate-400">Confirme le camion, le conducteur et envoie la notification au collaborateur concerne.</p>
+                    <p className="mt-1 text-xs text-muted">Confirme le camion, le conducteur et envoie la notification au collaborateur concerne.</p>
                   </div>
                   <div className="space-y-4 px-5 py-4">
                     <label className="block">
-                      <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Vehicule</span>
+                      <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-discreet">Vehicule</span>
                       <select
                         value={manualVehiculeId}
                         onChange={event => {
@@ -602,7 +602,7 @@ export default function Amendes() {
                     </label>
 
                     <label className="block">
-                      <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Conducteur</span>
+                      <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-discreet">Conducteur</span>
                       <select
                         value={manualConducteurId}
                         onChange={event => setManualConducteurId(event.target.value)}
@@ -618,7 +618,7 @@ export default function Amendes() {
                     </label>
 
                     <label className="block">
-                      <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Note gestionnaire</span>
+                      <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-discreet">Note gestionnaire</span>
                       <textarea
                         value={managerNote}
                         onChange={event => setManagerNote(event.target.value)}
@@ -635,7 +635,7 @@ export default function Amendes() {
                         <button type="button" onClick={() => void handleRedirect()} className="rounded-2xl bg-[color:var(--primary)] px-4 py-2.5 text-sm font-medium text-white">
                           Notifier / rediriger
                         </button>
-                        <button type="button" onClick={handleArchive} className="rounded-2xl border px-4 py-2.5 text-sm font-medium text-slate-700" style={{ borderColor: 'var(--border)' }}>
+                        <button type="button" onClick={handleArchive} className="rounded-2xl border px-4 py-2.5 text-sm font-medium text-foreground" style={{ borderColor: 'var(--border)' }}>
                           Archiver
                         </button>
                       </div>
@@ -649,7 +649,7 @@ export default function Amendes() {
               </div>
             </>
           ) : (
-            <div className="nx-panel px-6 py-16 text-center text-sm text-slate-400">
+            <div className="nx-panel px-6 py-16 text-center text-sm text-muted">
               Aucun dossier selectionne.
             </div>
           )}
@@ -662,9 +662,9 @@ export default function Amendes() {
 function MetricCard({ label, value, detail, accent }: { label: string; value: string; detail: string; accent?: string }) {
   return (
     <div className="nx-panel px-5 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-discreet">{label}</p>
       <p className="mt-2 text-2xl font-semibold" style={accent ? { color: accent } : {}}>{value}</p>
-      <p className="mt-1 text-xs text-slate-400">{detail}</p>
+      <p className="mt-1 text-xs text-muted">{detail}</p>
     </div>
   )
 }
@@ -672,8 +672,8 @@ function MetricCard({ label, value, detail, accent }: { label: string; value: st
 function InfoTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-medium text-slate-900">{value}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-discreet">{label}</p>
+      <p className="mt-1 text-sm font-medium text-heading">{value}</p>
     </div>
   )
 }

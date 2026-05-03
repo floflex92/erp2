@@ -88,7 +88,7 @@ const STATUT_COLORS: Record<string, string> = {
   en_service: 'bg-blue-100 text-blue-700',
   maintenance: 'bg-orange-100 text-orange-700',
   hs: 'bg-red-100 text-red-700',
-  vendu: 'bg-slate-100 text-slate-500',
+  vendu: 'bg-surface-2 text-discreet',
 }
 
 const STATUT_LABELS: Record<string, string> = {
@@ -190,9 +190,9 @@ const EMPTY_KM: KmForm = {
 }
 
 function expColor(date: string | null) {
-  if (!date) return 'text-slate-400'
+  if (!date) return 'text-muted'
   const delta = (new Date(date).getTime() - Date.now()) / 86400000
-  return delta < 0 ? 'text-red-600 font-semibold' : delta < 60 ? 'text-orange-500 font-semibold' : 'text-slate-600'
+  return delta < 0 ? 'text-red-600 font-semibold' : delta < 60 ? 'text-orange-500 font-semibold' : 'text-secondary'
 }
 
 function formatDate(date: string | null) {
@@ -768,8 +768,8 @@ export default function Vehicules() {
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Vehicules</h2>
-          <p className="text-slate-500 text-sm">{list.length} vehicule{list.length !== 1 ? 's' : ''}</p>
+          <h2 className="text-2xl font-bold text-foreground">Vehicules</h2>
+          <p className="text-discreet text-sm">{list.length} vehicule{list.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex items-center gap-2">
           {(['liste', 'amortissements'] as const).map(t => (
@@ -778,7 +778,7 @@ export default function Vehicules() {
               type="button"
               onClick={() => setPageTab(t)}
               className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
-                pageTab === t ? 'bg-slate-800 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-100'
+                pageTab === t ? 'bg-slate-800 text-white' : 'border border-line text-secondary hover:bg-surface-2'
               }`}
             >
               {t === 'liste' ? 'Liste' : '📊 Amortissements'}
@@ -815,20 +815,20 @@ export default function Vehicules() {
         placeholder="Immatriculation, VIN, carte grise, garage..."
         value={search}
         onChange={e => setSearch(e.target.value)}
-        className="mb-4 px-3 py-2 border border-slate-200 rounded-lg text-sm w-full max-w-md outline-none focus:ring-2 focus:ring-slate-300"
+        className="mb-4 px-3 py-2 border border-line rounded-lg text-sm w-full max-w-md outline-none focus:ring-2 focus:ring-slate-300"
       />
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-slate-400 text-sm">Chargement...</div>
+          <div className="p-8 text-center text-muted text-sm">Chargement...</div>
         ) : filtered.length === 0 ? (
-          <div className="p-8 text-center text-slate-400 text-sm">{search ? 'Aucun resultat' : 'Aucun vehicule enregistre'}</div>
+          <div className="p-8 text-center text-muted text-sm">{search ? 'Aucun resultat' : 'Aucun vehicule enregistre'}</div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="bg-surface-soft border-b border-line">
               <tr>
                 {['Vehicule', 'Administratif', 'Entretien / couts', 'Km / tachy', 'Statut', ''].map(header => (
-                  <th key={header} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">{header}</th>
+                  <th key={header} className="text-left px-4 py-3 text-xs font-medium text-discreet uppercase tracking-wide">{header}</th>
                 ))}
               </tr>
             </thead>
@@ -836,37 +836,37 @@ export default function Vehicules() {
               {filtered.map((vehicle, index) => {
                 const alerts = alertMap.get(vehicle.id) ?? []
                 return (
-                  <tr key={vehicle.id} className={`border-t border-slate-100 ${index % 2 !== 0 ? 'bg-slate-50' : ''}`}>
+                  <tr key={vehicle.id} className={`border-t border-slate-100 ${index % 2 !== 0 ? 'bg-surface-soft' : ''}`}>
                     <td className="px-4 py-3">
-                      <div className="font-medium font-mono text-slate-800">{vehicle.immatriculation}</div>
-                      {vehicle.numero_parc && <div className="text-xs text-slate-500">Parc: {vehicle.numero_parc}</div>}
-                      <div className="text-xs text-slate-400">{vehicle.marque ?? 'Marque non renseignee'} {vehicle.modele ?? ''} {vehicle.annee ? `(${vehicle.annee})` : ''}</div>
-                      <div className="text-xs text-slate-400 mt-1">{TYPE_LABELS[vehicle.type_vehicule] ?? vehicle.type_vehicule}</div>
+                      <div className="font-medium font-mono text-foreground">{vehicle.immatriculation}</div>
+                      {vehicle.numero_parc && <div className="text-xs text-discreet">Parc: {vehicle.numero_parc}</div>}
+                      <div className="text-xs text-muted">{vehicle.marque ?? 'Marque non renseignee'} {vehicle.modele ?? ''} {vehicle.annee ? `(${vehicle.annee})` : ''}</div>
+                      <div className="text-xs text-muted mt-1">{TYPE_LABELS[vehicle.type_vehicule] ?? vehicle.type_vehicule}</div>
                     </td>
                     <td className="px-4 py-3">
                       <div className={`text-xs ${expColor(vehicle.ct_expiration)}`}>CT: {formatDate(vehicle.ct_expiration)}</div>
                       <div className={`text-xs ${expColor(vehicle.assurance_expiration)}`}>Assurance: {formatDate(vehicle.assurance_expiration)}</div>
-                      <div className="text-xs text-slate-400">Carte grise: {vehicle.numero_carte_grise ?? 'Non renseignee'}</div>
+                      <div className="text-xs text-muted">Carte grise: {vehicle.numero_carte_grise ?? 'Non renseignee'}</div>
                       {alerts.length > 0 && <div className="mt-1 text-xs text-amber-600">{alerts.length} alerte{alerts.length > 1 ? 's' : ''}</div>}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-xs text-slate-600">{PROPERTY_LABELS[(vehicle.type_propriete as (typeof PROPERTY_TYPES)[number]) ?? 'autre'] ?? (vehicle.type_propriete ?? 'Non renseigne')}</div>
-                      <div className="text-xs text-slate-400">Achat: {formatCurrency(vehicle.cout_achat_ht)}</div>
-                      <div className="text-xs text-slate-400">Garage: {vehicle.garage_entretien ?? 'Non renseigne'}</div>
-                      <div className="text-xs text-slate-400">{vehicle.contrat_entretien ? 'Contrat entretien actif' : 'Sans contrat entretien'}</div>
+                      <div className="text-xs text-secondary">{PROPERTY_LABELS[(vehicle.type_propriete as (typeof PROPERTY_TYPES)[number]) ?? 'autre'] ?? (vehicle.type_propriete ?? 'Non renseigne')}</div>
+                      <div className="text-xs text-muted">Achat: {formatCurrency(vehicle.cout_achat_ht)}</div>
+                      <div className="text-xs text-muted">Garage: {vehicle.garage_entretien ?? 'Non renseigne'}</div>
+                      <div className="text-xs text-muted">{vehicle.contrat_entretien ? 'Contrat entretien actif' : 'Sans contrat entretien'}</div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-xs text-slate-600">{formatKm(vehicle.km_actuel)}</div>
-                      <div className="text-xs text-slate-400">Tachy: {vehicle.tachy_serie ?? 'Non renseigne'}</div>
+                      <div className="text-xs text-secondary">{formatKm(vehicle.km_actuel)}</div>
+                      <div className="text-xs text-muted">Tachy: {vehicle.tachy_serie ?? 'Non renseigne'}</div>
                       <div className={`text-xs ${expColor(vehicle.tachy_etalonnage_prochain)}`}>Etalonnage: {formatDate(vehicle.tachy_etalonnage_prochain)}</div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUT_COLORS[vehicle.statut] ?? 'bg-slate-100 text-slate-600'}`}>{STATUT_LABELS[vehicle.statut] ?? vehicle.statut}</span>
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUT_COLORS[vehicle.statut] ?? 'bg-surface-2 text-secondary'}`}>{STATUT_LABELS[vehicle.statut] ?? vehicle.statut}</span>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-3">
-                        <button onClick={() => openEdit(vehicle)} className="text-xs text-slate-400 hover:text-slate-700 transition-colors">Modifier</button>
-                        {canManageFleetAssets && <button onClick={() => void del(vehicle.id)} className="text-xs text-slate-400 hover:text-red-500 transition-colors">Suppr.</button>}
+                        <button onClick={() => openEdit(vehicle)} className="text-xs text-muted hover:text-foreground transition-colors">Modifier</button>
+                        {canManageFleetAssets && <button onClick={() => void del(vehicle.id)} className="text-xs text-muted hover:text-red-500 transition-colors">Suppr.</button>}
                       </div>
                     </td>
                   </tr>
@@ -880,10 +880,10 @@ export default function Vehicules() {
 
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-surface rounded-xl shadow-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b">
               <h3 className="text-lg font-semibold">{editingId ? 'Modifier un vehicule' : 'Ajouter un vehicule'}</h3>
-              <button onClick={closeForm} className="text-slate-400 hover:text-slate-600">x</button>
+              <button onClick={closeForm} className="text-muted hover:text-secondary">x</button>
             </div>
 
             <form onSubmit={submit} className="p-6">
@@ -942,7 +942,7 @@ export default function Vehicules() {
 
                   <SectionTitle title="Entretien" subtitle="Prestataire, garage et contrat d'entretien." />
                   <div className="grid grid-cols-2 gap-4">
-                    <label className="col-span-2 flex items-center gap-2 text-sm text-slate-600">
+                    <label className="col-span-2 flex items-center gap-2 text-sm text-secondary">
                       <input type="checkbox" checked={form.contrat_entretien ?? false} onChange={e => set('contrat_entretien', e.target.checked)} />
                       Contrat entretien actif
                     </label>
@@ -962,10 +962,10 @@ export default function Vehicules() {
                 <div className="mt-8 border-t pt-6 space-y-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-slate-800">Dossier flotte</p>
-                      <p className="text-xs text-slate-400">Documents PDF, entretiens, couts et releves kilometriques.</p>
+                      <p className="text-sm font-semibold text-foreground">Dossier flotte</p>
+                      <p className="text-xs text-muted">Documents PDF, entretiens, couts et releves kilometriques.</p>
                     </div>
-                    {dossierLoading && <span className="text-xs text-slate-400">Chargement...</span>}
+                    {dossierLoading && <span className="text-xs text-muted">Chargement...</span>}
                   </div>
 
                   {dossierError && <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">{dossierError}</div>}
@@ -993,8 +993,8 @@ export default function Vehicules() {
                   </div>
 
                   <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <h4 className="text-sm font-semibold text-slate-800">Documents PDF</h4>
+                    <div className="rounded-xl border border-line bg-surface-soft p-4">
+                      <h4 className="text-sm font-semibold text-foreground">Documents PDF</h4>
                       <form onSubmit={saveDocument} className="mt-4 space-y-3">
                         <div className="grid grid-cols-2 gap-3">
                           <Field label="Categorie">
@@ -1015,28 +1015,28 @@ export default function Vehicules() {
 
                       <div className="mt-4 space-y-2">
                         {documents.length === 0 ? (
-                          <p className="text-xs text-slate-400">Aucun document flotte enregistre.</p>
+                          <p className="text-xs text-muted">Aucun document flotte enregistre.</p>
                         ) : documents.map(document => (
-                          <div key={document.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                          <div key={document.id} className="rounded-lg border border-line bg-surface p-3">
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <div className="text-sm font-medium text-slate-800">{document.title}</div>
-                                <div className="text-xs text-slate-400">{DOC_CATEGORY_LABELS[(document.category as (typeof DOC_CATEGORIES)[number]) ?? 'autre'] ?? document.category} · {document.file_name}</div>
+                                <div className="text-sm font-medium text-foreground">{document.title}</div>
+                                <div className="text-xs text-muted">{DOC_CATEGORY_LABELS[(document.category as (typeof DOC_CATEGORIES)[number]) ?? 'autre'] ?? document.category} · {document.file_name}</div>
                                 {document.expires_at && <div className={`text-xs ${expColor(document.expires_at)}`}>Expiration {formatDate(document.expires_at)}</div>}
                               </div>
                               <div className="flex gap-2">
-                                <button type="button" onClick={() => void openDocument(document)} className="text-xs text-slate-400 hover:text-slate-700">Ouvrir</button>
-                                <button type="button" onClick={() => void archiveDocument(document.id)} className="text-xs text-slate-400 hover:text-red-500">Archiver</button>
+                                <button type="button" onClick={() => void openDocument(document)} className="text-xs text-muted hover:text-foreground">Ouvrir</button>
+                                <button type="button" onClick={() => void archiveDocument(document.id)} className="text-xs text-muted hover:text-red-500">Archiver</button>
                               </div>
                             </div>
-                            {document.notes && <p className="mt-2 text-xs text-slate-500 whitespace-pre-line">{document.notes}</p>}
+                            {document.notes && <p className="mt-2 text-xs text-discreet whitespace-pre-line">{document.notes}</p>}
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <h4 className="text-sm font-semibold text-slate-800">Entretien et couts</h4>
+                    <div className="rounded-xl border border-line bg-surface-soft p-4">
+                      <h4 className="text-sm font-semibold text-foreground">Entretien et couts</h4>
                       <form onSubmit={saveMaintenance} className="mt-4 space-y-3">
                         <div className="grid grid-cols-2 gap-3">
                           <Field label="Type entretien">
@@ -1059,7 +1059,7 @@ export default function Vehicules() {
                           <Field label="Prochaine echeance date"><input className={inp} type="date" value={maintenanceForm.next_due_date ?? ''} onChange={e => setMaintenanceForm(current => ({ ...current, next_due_date: e.target.value || null }))} /></Field>
                           <Field label="Prochaine echeance km"><input className={inp} type="number" value={maintenanceForm.next_due_km ?? ''} onChange={e => setMaintenanceForm(current => ({ ...current, next_due_km: e.target.value ? Number.parseInt(e.target.value, 10) : null }))} /></Field>
                         </div>
-                        <label className="flex items-center gap-2 text-xs text-slate-600">
+                        <label className="flex items-center gap-2 text-xs text-secondary">
                           <input type="checkbox" checked={maintenanceForm.covered_by_contract ?? false} onChange={e => setMaintenanceForm(current => ({ ...current, covered_by_contract: e.target.checked }))} />
                           Pris en charge par contrat entretien
                         </label>
@@ -1071,19 +1071,19 @@ export default function Vehicules() {
 
                       <div className="mt-4 space-y-2">
                         {entretiens.length === 0 ? (
-                          <p className="text-xs text-slate-400">Aucun entretien enregistre.</p>
+                          <p className="text-xs text-muted">Aucun entretien enregistre.</p>
                         ) : entretiens.map(entretien => (
-                          <div key={entretien.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                          <div key={entretien.id} className="rounded-lg border border-line bg-surface p-3">
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <div className="text-sm font-medium text-slate-800">{MAINTENANCE_TYPE_LABELS[(entretien.maintenance_type as (typeof MAINTENANCE_TYPES)[number]) ?? 'autre'] ?? entretien.maintenance_type}</div>
-                                <div className="text-xs text-slate-400">{formatDate(entretien.service_date)} · {formatCurrency(entretien.cout_ht)}</div>
-                                {entretien.km_compteur !== null && <div className="text-xs text-slate-400">Compteur: {formatKm(entretien.km_compteur)}</div>}
-                                {entretien.next_due_date && <div className="text-xs text-slate-400">Prochaine echeance: {formatDate(entretien.next_due_date)}</div>}
+                                <div className="text-sm font-medium text-foreground">{MAINTENANCE_TYPE_LABELS[(entretien.maintenance_type as (typeof MAINTENANCE_TYPES)[number]) ?? 'autre'] ?? entretien.maintenance_type}</div>
+                                <div className="text-xs text-muted">{formatDate(entretien.service_date)} · {formatCurrency(entretien.cout_ht)}</div>
+                                {entretien.km_compteur !== null && <div className="text-xs text-muted">Compteur: {formatKm(entretien.km_compteur)}</div>}
+                                {entretien.next_due_date && <div className="text-xs text-muted">Prochaine echeance: {formatDate(entretien.next_due_date)}</div>}
                               </div>
-                              <button type="button" onClick={() => void deleteMaintenance(entretien.id)} className="text-xs text-slate-400 hover:text-red-500">Suppr.</button>
+                              <button type="button" onClick={() => void deleteMaintenance(entretien.id)} className="text-xs text-muted hover:text-red-500">Suppr.</button>
                             </div>
-                            {(entretien.prestataire || entretien.garage || entretien.notes) && <p className="mt-2 text-xs text-slate-500 whitespace-pre-line">{[entretien.prestataire, entretien.garage, entretien.notes].filter(Boolean).join(' · ')}</p>}
+                            {(entretien.prestataire || entretien.garage || entretien.notes) && <p className="mt-2 text-xs text-discreet whitespace-pre-line">{[entretien.prestataire, entretien.garage, entretien.notes].filter(Boolean).join(' · ')}</p>}
                           </div>
                         ))}
                       </div>
@@ -1091,8 +1091,8 @@ export default function Vehicules() {
                   </div>
 
                   <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <h4 className="text-sm font-semibold text-slate-800">Releves kilometriques</h4>
+                    <div className="rounded-xl border border-line bg-surface-soft p-4">
+                      <h4 className="text-sm font-semibold text-foreground">Releves kilometriques</h4>
                       <form onSubmit={saveKmReading} className="mt-4 space-y-3">
                         <div className="grid grid-cols-2 gap-3">
                           <Field label="Date releve"><input className={inp} type="date" value={kmForm.reading_date ?? ''} onChange={e => setKmForm(current => ({ ...current, reading_date: e.target.value }))} required /></Field>
@@ -1107,32 +1107,32 @@ export default function Vehicules() {
 
                       <div className="mt-4 space-y-2">
                         {kmReadings.length === 0 ? (
-                          <p className="text-xs text-slate-400">Aucun releve kilometrique enregistre.</p>
+                          <p className="text-xs text-muted">Aucun releve kilometrique enregistre.</p>
                         ) : kmReadings.map(reading => (
-                          <div key={reading.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                          <div key={reading.id} className="rounded-lg border border-line bg-surface p-3">
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <div className="text-sm font-medium text-slate-800">{formatKm(reading.km_compteur)}</div>
-                                <div className="text-xs text-slate-400">{formatDate(reading.reading_date)}{reading.source ? ` · ${reading.source}` : ''}</div>
+                                <div className="text-sm font-medium text-foreground">{formatKm(reading.km_compteur)}</div>
+                                <div className="text-xs text-muted">{formatDate(reading.reading_date)}{reading.source ? ` · ${reading.source}` : ''}</div>
                               </div>
-                              <button type="button" onClick={() => void deleteKmReading(reading.id)} className="text-xs text-slate-400 hover:text-red-500">Suppr.</button>
+                              <button type="button" onClick={() => void deleteKmReading(reading.id)} className="text-xs text-muted hover:text-red-500">Suppr.</button>
                             </div>
-                            {reading.notes && <p className="mt-2 text-xs text-slate-500 whitespace-pre-line">{reading.notes}</p>}
+                            {reading.notes && <p className="mt-2 text-xs text-discreet whitespace-pre-line">{reading.notes}</p>}
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <h4 className="text-sm font-semibold text-slate-800">Alertes flotte</h4>
+                    <div className="rounded-xl border border-line bg-surface-soft p-4">
+                      <h4 className="text-sm font-semibold text-foreground">Alertes flotte</h4>
                       <div className="mt-4 space-y-2">
                         {assetAlerts.length === 0 ? (
-                          <p className="text-xs text-slate-400">Aucune alerte active.</p>
+                          <p className="text-xs text-muted">Aucune alerte active.</p>
                         ) : assetAlerts.map(alert => (
-                          <div key={alert.id ?? `${alert.alert_type}-${alert.due_on}`} className="rounded-lg border border-slate-200 bg-white p-3">
-                            <div className="text-sm font-medium text-slate-800">{alert.alert_type ?? 'Alerte flotte'}</div>
+                          <div key={alert.id ?? `${alert.alert_type}-${alert.due_on}`} className="rounded-lg border border-line bg-surface p-3">
+                            <div className="text-sm font-medium text-foreground">{alert.alert_type ?? 'Alerte flotte'}</div>
                             <div className={`text-xs ${expColor(alert.due_on)}`}>{formatDate(alert.due_on)}{typeof alert.days_remaining === 'number' ? ` · ${alert.days_remaining} j` : ''}</div>
-                            <div className="text-xs text-slate-400">{alert.asset_label}</div>
+                            <div className="text-xs text-muted">{alert.asset_label}</div>
                           </div>
                         ))}
                       </div>
@@ -1142,7 +1142,7 @@ export default function Vehicules() {
               )}
 
               <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-                <button type="button" onClick={closeForm} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>
+                <button type="button" onClick={closeForm} className="px-4 py-2 text-sm border border-line rounded-lg hover:bg-surface-soft">Annuler</button>
                 <button type="submit" disabled={saving} className="px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50">
                   {saving ? 'Enregistrement...' : editingId ? 'Sauvegarder' : 'Enregistrer'}
                 </button>
@@ -1160,7 +1160,7 @@ const inp = 'w-full rounded-lg border px-3 py-2 text-sm outline-none focus:borde
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <label className="text-xs font-medium text-slate-600">{label}</label>
+      <label className="text-xs font-medium text-secondary">{label}</label>
       {children}
     </div>
   )
@@ -1170,7 +1170,7 @@ function StatCard({ label, value, tone }: { label: string; value: number | strin
   const tones = {
     emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     amber: 'border-amber-200 bg-amber-50 text-amber-700',
-    slate: 'border-slate-200 bg-slate-50 text-slate-700',
+    slate: 'border-line bg-surface-soft text-foreground',
   }
 
   return (
@@ -1184,8 +1184,8 @@ function StatCard({ label, value, tone }: { label: string; value: number | strin
 function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="border-t pt-4 first:border-t-0 first:pt-0">
-      <p className="text-sm font-semibold text-slate-700">{title}</p>
-      <p className="text-xs text-slate-400 mt-1">{subtitle}</p>
+      <p className="text-sm font-semibold text-foreground">{title}</p>
+      <p className="text-xs text-muted mt-1">{subtitle}</p>
     </div>
   )
 }
@@ -1204,16 +1204,16 @@ function ChartPanel({
   const max = Math.max(...items.map(item => item.value), 0)
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <h4 className="text-sm font-semibold text-slate-800">{title}</h4>
-      <p className="mt-1 text-xs text-slate-400">{subtitle}</p>
+    <div className="rounded-xl border border-line bg-surface-soft p-4">
+      <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+      <p className="mt-1 text-xs text-muted">{subtitle}</p>
       {items.length === 0 ? (
-        <p className="mt-4 text-xs text-slate-400">{emptyText}</p>
+        <p className="mt-4 text-xs text-muted">{emptyText}</p>
       ) : (
         <div className="mt-4 space-y-3">
           {items.map(item => (
             <div key={`${item.label}-${item.formatted}`} className="space-y-1">
-              <div className="flex items-center justify-between text-xs text-slate-500">
+              <div className="flex items-center justify-between text-xs text-discreet">
                 <span>{item.label}</span>
                 <span>{item.formatted}</span>
               </div>

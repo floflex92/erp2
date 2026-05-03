@@ -20,10 +20,10 @@ function fmtN(n: number, unit = '') {
 
 function KpiCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-slate-400">{sub}</p>}
+    <div className="rounded-2xl border border-line bg-surface px-5 py-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-discreet">{label}</p>
+      <p className="mt-2 text-2xl font-bold text-heading">{value}</p>
+      {sub && <p className="mt-0.5 text-xs text-muted">{sub}</p>}
     </div>
   )
 }
@@ -89,9 +89,9 @@ export default function BilanCo2() {
     <div className="space-y-6 p-6">
       {/* Header */}
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">RSE / Environnement</p>
-        <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Bilan CO₂ Transport</h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-discreet">RSE / Environnement</p>
+        <h2 className="mt-1 text-2xl font-bold tracking-tight text-heading">Bilan CO₂ Transport</h2>
+        <p className="mt-1 text-sm text-discreet">
           Empreinte carbone par transport et par client — Methode ADEME Base Empreinte® 2023
         </p>
       </div>
@@ -114,7 +114,7 @@ export default function BilanCo2() {
           <select
             value={filterYear}
             onChange={e => setFilterYear(e.target.value)}
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
+            className="rounded-lg border border-line px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-slate-300"
           >
             <option value="">Toutes les periodes</option>
             {years.map(y => <option key={y} value={y}>{y}</option>)}
@@ -124,20 +124,20 @@ export default function BilanCo2() {
             placeholder="Filtrer par client..."
             value={filterClient}
             onChange={e => setFilterClient(e.target.value)}
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300 w-52"
+            className="rounded-lg border border-line px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-slate-300 w-52"
           />
-          <div className="flex rounded-lg border border-slate-200 overflow-hidden text-sm">
+          <div className="flex rounded-lg border border-line overflow-hidden text-sm">
             <button
               type="button"
               onClick={() => setView('clients')}
-              className={`px-3 py-2 font-medium transition-colors ${view === 'clients' ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+              className={`px-3 py-2 font-medium transition-colors ${view === 'clients' ? 'bg-slate-800 text-white' : 'text-secondary hover:bg-surface-soft'}`}
             >
               Par client
             </button>
             <button
               type="button"
               onClick={() => setView('transports')}
-              className={`px-3 py-2 font-medium transition-colors border-l border-slate-200 ${view === 'transports' ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+              className={`px-3 py-2 font-medium transition-colors border-l border-line ${view === 'transports' ? 'bg-slate-800 text-white' : 'text-secondary hover:bg-surface-soft'}`}
             >
               Par transport
             </button>
@@ -148,14 +148,14 @@ export default function BilanCo2() {
             type="button"
             onClick={() => view === 'clients' ? exportCo2ClientCsv(clientSummaries) : exportCo2TransportCsv(results)}
             disabled={results.length === 0}
-            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-foreground hover:bg-surface-soft disabled:opacity-40"
           >
             Exporter CSV
           </button>
           <button
             type="button"
             onClick={load}
-            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-foreground hover:bg-surface-soft"
           >
             ↺ Actualiser
           </button>
@@ -163,7 +163,7 @@ export default function BilanCo2() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20 text-slate-400">Chargement...</div>
+        <div className="flex items-center justify-center py-20 text-muted">Chargement...</div>
       ) : (
         <>
           {/* KPIs */}
@@ -190,51 +190,51 @@ export default function BilanCo2() {
           </div>
 
           {results.length === 0 && (
-            <div className="rounded-xl border border-slate-200 py-16 text-center text-slate-400">
+            <div className="rounded-xl border border-line py-16 text-center text-muted">
               Aucun transport sur la periode selectionnee.
             </div>
           )}
 
           {/* Vue clients */}
           {results.length > 0 && view === 'clients' && (
-            <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
-              <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-800">Bilan CO₂ par client</h3>
-                <p className="text-xs text-slate-400">Classe du plus emetteur au moins emetteur</p>
+            <div className="rounded-2xl border border-line overflow-hidden bg-surface">
+              <div className="px-5 py-4 border-b border-slate-100 bg-surface-soft flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground">Bilan CO₂ par client</h3>
+                <p className="text-xs text-muted">Classe du plus emetteur au moins emetteur</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-200">
+                  <thead className="bg-surface-soft border-b border-line">
                     <tr>
                       {['Client', 'Transports', 'Distance', 'Poids', 'CO₂ total', 'CO₂ / transport', 'g/t.km', 'Repartition'].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
+                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-discreet uppercase tracking-wide">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {clientSummaries.map((s, i) => (
-                      <tr key={s.client_id ?? i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                        <td className="px-4 py-3 font-medium text-slate-900">{s.client_nom}</td>
-                        <td className="px-4 py-3 text-center text-slate-600">{s.nb_transports}</td>
-                        <td className="px-4 py-3 text-right text-slate-600">
+                      <tr key={s.client_id ?? i} className="border-b border-slate-100 last:border-0 hover:bg-surface-soft">
+                        <td className="px-4 py-3 font-medium text-heading">{s.client_nom}</td>
+                        <td className="px-4 py-3 text-center text-secondary">{s.nb_transports}</td>
+                        <td className="px-4 py-3 text-right text-secondary">
                           {s.distance_totale_km.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} km
                         </td>
-                        <td className="px-4 py-3 text-right text-slate-600">
+                        <td className="px-4 py-3 text-right text-secondary">
                           {s.poids_total_t.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} t
                         </td>
-                        <td className="px-4 py-3 text-right font-bold text-slate-900">{formatCo2(s.co2_total_kg)}</td>
-                        <td className="px-4 py-3 text-right text-slate-600">{formatCo2(s.co2_par_transport_kg)}</td>
-                        <td className="px-4 py-3 text-right text-slate-400 text-xs">
+                        <td className="px-4 py-3 text-right font-bold text-heading">{formatCo2(s.co2_total_kg)}</td>
+                        <td className="px-4 py-3 text-right text-secondary">{formatCo2(s.co2_par_transport_kg)}</td>
+                        <td className="px-4 py-3 text-right text-muted text-xs">
                           {s.co2_par_tkm_g?.toFixed(0) ?? '—'}
                         </td>
                         <td className="px-4 py-3 min-w-[120px]">
-                          <div className="h-2.5 rounded-full bg-slate-100">
+                          <div className="h-2.5 rounded-full bg-surface-2">
                             <div
                               className="h-2.5 rounded-full bg-emerald-500"
                               style={{ width: `${Math.max((s.co2_total_kg / maxClientCo2) * 100, 2)}%` }}
                             />
                           </div>
-                          <p className="text-[10px] text-slate-400 mt-1">
+                          <p className="text-[10px] text-muted mt-1">
                             {((s.co2_total_kg / (co2Total || 1)) * 100).toFixed(1)} % du total
                           </p>
                         </td>
@@ -248,44 +248,44 @@ export default function BilanCo2() {
 
           {/* Vue transports */}
           {results.length > 0 && view === 'transports' && (
-            <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
-              <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-800">Detail CO₂ par transport</h3>
-                <p className="text-xs text-slate-400">{results.length} transport{results.length > 1 ? 's' : ''}</p>
+            <div className="rounded-2xl border border-line overflow-hidden bg-surface">
+              <div className="px-5 py-4 border-b border-slate-100 bg-surface-soft flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground">Detail CO₂ par transport</h3>
+                <p className="text-xs text-muted">{results.length} transport{results.length > 1 ? 's' : ''}</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-200">
+                  <thead className="bg-surface-soft border-b border-line">
                     <tr>
                       {['Reference', 'Client', 'Date', 'Type', 'Distance', 'Poids', 'Classe vehicule', 'CO₂', 'CO₂/km', 'Source'].map(h => (
-                        <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
+                        <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-discreet uppercase tracking-wide">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {results.map(r => (
-                      <tr key={r.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                        <td className="px-3 py-3 font-mono text-xs font-semibold text-slate-800">{r.reference}</td>
-                        <td className="px-3 py-3 text-slate-600">{r.client_nom ?? '—'}</td>
-                        <td className="px-3 py-3 text-slate-500 text-xs whitespace-nowrap">
+                      <tr key={r.id} className="border-b border-slate-100 last:border-0 hover:bg-surface-soft">
+                        <td className="px-3 py-3 font-mono text-xs font-semibold text-foreground">{r.reference}</td>
+                        <td className="px-3 py-3 text-secondary">{r.client_nom ?? '—'}</td>
+                        <td className="px-3 py-3 text-discreet text-xs whitespace-nowrap">
                           {r.date_chargement_prevue
                             ? new Date(r.date_chargement_prevue).toLocaleDateString('fr-FR')
                             : '—'}
                         </td>
                         <td className="px-3 py-3">
-                          <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                          <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold text-secondary">
                             {r.type_transport}
                           </span>
                         </td>
-                        <td className="px-3 py-3 text-right text-slate-600">{r.distance_utilisee.toLocaleString('fr-FR')} km</td>
-                        <td className="px-3 py-3 text-right text-slate-600">
+                        <td className="px-3 py-3 text-right text-secondary">{r.distance_utilisee.toLocaleString('fr-FR')} km</td>
+                        <td className="px-3 py-3 text-right text-secondary">
                           {r.poids_t_utilise.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} t
                         </td>
-                        <td className="px-3 py-3 text-xs text-slate-400 max-w-[140px] truncate">
+                        <td className="px-3 py-3 text-xs text-muted max-w-[140px] truncate">
                           {CO2_FACTORS[r.classe]?.label ?? r.classe}
                         </td>
-                        <td className="px-3 py-3 text-right font-bold text-slate-900">{formatCo2(r.co2_kg)}</td>
-                        <td className="px-3 py-3 text-right text-slate-500 text-xs">{r.co2_par_km.toFixed(3)}</td>
+                        <td className="px-3 py-3 text-right font-bold text-heading">{formatCo2(r.co2_kg)}</td>
+                        <td className="px-3 py-3 text-right text-discreet text-xs">{r.co2_par_km.toFixed(3)}</td>
                         <td className="px-3 py-3 text-center">
                           {r.estimation
                             ? <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Estimee</span>
@@ -302,8 +302,8 @@ export default function BilanCo2() {
 
           {/* Comparaison annuelle */}
           {years.length > 1 && !filterYear && (
-            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-5">
-              <h3 className="text-sm font-semibold text-slate-800 mb-4">Evolution annuelle</h3>
+            <div className="rounded-2xl border border-line bg-surface px-5 py-5">
+              <h3 className="text-sm font-semibold text-foreground mb-4">Evolution annuelle</h3>
               <div className="space-y-3">
                 {years.map(y => {
                   const annualResults = ots.filter(ot => (ot.date_chargement_prevue ?? '').startsWith(y)).map(ot => computeOtCo2(ot))
@@ -313,8 +313,8 @@ export default function BilanCo2() {
                   }))
                   return (
                     <div key={y} className="flex items-center gap-4">
-                      <span className="w-12 text-sm font-semibold text-slate-600 shrink-0">{y}</span>
-                      <div className="flex-1 h-6 rounded-lg bg-slate-100">
+                      <span className="w-12 text-sm font-semibold text-secondary shrink-0">{y}</span>
+                      <div className="flex-1 h-6 rounded-lg bg-surface-2">
                         <div
                           className="h-6 rounded-lg bg-emerald-400 flex items-center justify-end pr-3 transition-all"
                           style={{ width: `${Math.max((annualCo2 / (maxAnnual || 1)) * 100, 3)}%` }}
@@ -322,7 +322,7 @@ export default function BilanCo2() {
                           <span className="text-xs font-bold text-white whitespace-nowrap">{formatCo2(annualCo2)}</span>
                         </div>
                       </div>
-                      <span className="w-16 text-xs text-slate-400 text-right shrink-0">{annualResults.length} OT</span>
+                      <span className="w-16 text-xs text-muted text-right shrink-0">{annualResults.length} OT</span>
                     </div>
                   )
                 })}

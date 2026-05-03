@@ -25,7 +25,7 @@ function ProfileBootstrapScreen({
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="w-full max-w-xl rounded-2xl border border-slate-800 bg-slate-900 p-8 shadow-2xl">
         <h2 className="text-xl font-semibold text-white">Initialisation du profil</h2>
-        <p className="mt-2 text-sm text-slate-400">
+        <p className="mt-2 text-sm text-muted">
           La session est ouverte, mais aucun profil applicatif n&apos;existe encore dans Supabase. Tant que cette ligne n&apos;est pas creee dans
           `public.profils`, les ecritures et le mock data restent bloques par les policies RLS.
         </p>
@@ -39,7 +39,7 @@ function ProfileBootstrapScreen({
             type="button"
             onClick={onRetry}
             disabled={busy}
-            className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl bg-surface px-4 py-2 text-sm font-semibold text-heading transition-colors hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {busy ? 'Initialisation...' : 'Reessayer'}
           </button>

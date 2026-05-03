@@ -8,6 +8,28 @@
   --color-brand-text: #1b1b1b;
 }
 
+/* Aliases sémantiques : pointent sur les variables CSS des 3 thèmes (light / dark / night).
+   Règle : texte foncé sur fond clair, texte clair sur fond foncé — géré automatiquement par les tokens. */
+@theme inline {
+  /* ── Surfaces / fonds ── */
+  --color-surface:          var(--surface);           /* bg-surface   — fond de carte/panel */
+  --color-surface-soft:     var(--surface-soft);      /* bg-surface-soft — fond légèrement teinté */
+  --color-surface-2:        var(--surface-2);         /* bg-surface-2 — fond alternatif */
+  --color-surface-elevated: var(--surface-elevated);  /* bg-surface-elevated — fond surélevé */
+  --color-page:             var(--background);        /* bg-page — fond de page */
+
+  /* ── Texte ── */
+  --color-heading:    var(--text-heading);   /* text-heading    — titres & labels forts */
+  --color-foreground: var(--text);           /* text-foreground — corps de texte principal */
+  --color-secondary:  var(--text-secondary); /* text-secondary  — texte secondaire */
+  --color-discreet:   var(--text-discreet);  /* text-discreet   — labels, meta, hints */
+  --color-muted:      var(--muted);          /* text-muted      — placeholders, disabled */
+
+  /* ── Bordures ── */
+  --color-line:       var(--border);         /* border-line       — séparateurs standards */
+  --color-line-strong: var(--border-strong); /* border-line-strong — séparateurs visibles */
+}
+
 :root {
   color-scheme: light;
   --background: #f7f8fa;
@@ -25,6 +47,7 @@
   --text: #1b1b1b;
   --text-secondary: #334155;
   --text-discreet: #64748b;
+  --muted: #6b7280;
   --primary: #1e3a8a;
   --primary-hover: #0ea5e9;
   --primary-active: #1e40af;
@@ -78,6 +101,7 @@
   --text: #e5e7eb;
   --text-secondary: #9ca3af;
   --text-discreet: #8b95a6;
+  --muted: #9ca3af;
   --primary: #0ea5e9;
   --primary-hover: #22c55e;
   --primary-active: #2563eb;
@@ -130,6 +154,7 @@
   --text: #b8c4e0;
   --text-secondary: #94a3b8;
   --text-discreet: #7c869a;
+  --muted: #94a3b8;
   --primary: #0ea5e9;
   --primary-hover: #22c55e;
   --primary-active: #2563eb;

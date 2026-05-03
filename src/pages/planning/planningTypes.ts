@@ -14,6 +14,12 @@ export type OT = {
   chargement_site_id: string | null; livraison_site_id: string | null
   mission_id: string | null; groupage_fige: boolean
   est_affretee: boolean
+  // Automatismes
+  mode_livraison?: string | null          // 'manuel' | 'conducteur' | 'gps' | 'api'
+  retard_valide?: boolean | null
+  retard_valide_at?: string | null
+  retard_commentaire?: string | null
+  affreteur_id?: string | null
   // Données de chargement pour validation remorque
   type_chargement?: string | null
   poids_kg?: number | null
@@ -197,12 +203,22 @@ export type SiteLoadRow = {
   nom: string
   adresse: string
   entreprise_id?: string | null
+  company_id?: number | null
   usage_type?: string | null
   horaires_ouverture?: string | null
   jours_ouverture?: string | null
   notes_livraison?: string | null
   latitude?: number | null
   longitude?: number | null
+  code_postal?: string | null
+  contact_nom?: string | null
+  contact_tel?: string | null
+  est_depot_relais?: boolean | null
+  ville?: string | null
+  pays?: string | null
+  type_site?: string | null
+  capacite_m3?: number | null
+  notes?: string | null
   created_at?: string | null
   updated_at?: string | null
 }

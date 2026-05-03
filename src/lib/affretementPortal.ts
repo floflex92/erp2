@@ -140,6 +140,24 @@ export const AFFRETEMENT_OPERATIONAL_STATUS_LABELS: Record<AffretementOperationa
   livre: 'Livre',
 }
 
+async function resolveCurrentCompanyId(): Promise<number | null> {
+  try {
+    const { data: authData } = await supabase.auth.getUser()
+    const userId = authData.user?.id
+    if (!userId) return null
+
+    const { data: profil } = await supabase
+      .from('profils')
+      .select('company_id')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    return profil?.company_id ?? null
+  } catch {
+    return null
+  }
+}
+
 function nowIso() {
   return new Date().toISOString()
 }
@@ -221,13 +239,20 @@ function canExploitReview(role: Role) {
 
 async function upsertAffreteurClientRow(onboarding: AffreteurOnboardingRecord): Promise<string | null> {
   try {
-    const { data: existingBySiret } = await supabase
+    const currentCompanyId = await resolveCurrentCompanyId()
+    let existingQuery = supabase
       .from('clients')
       .select('id')
       .eq('siret', onboarding.siret)
-      .maybeSingle()
+
+    if (currentCompanyId != null) {
+      existingQuery = existingQuery.eq('company_id', currentCompanyId)
+    }
+
+    const { data: existingBySiret } = await existingQuery.maybeSingle()
 
     const payload: TablesInsert<'clients'> = {
+      ...(currentCompanyId != null ? { company_id: currentCompanyId } : {}),
       nom: onboarding.companyName,
       type_client: 'autre',
       siret: onboarding.siret,
@@ -291,17 +316,24 @@ async function ensureAffreteurOperationSite(onboarding: AffreteurOnboardingRecor
   if (!targetAddress) return true
 
   try {
-    const { data: existing } = await supabase
+    const currentCompanyId = await resolveCurrentCompanyId()
+    let existingQuery = supabase
       .from('sites_logistiques')
       .select('id')
       .eq('entreprise_id', clientId)
       .eq('adresse', targetAddress)
       .limit(1)
-      .maybeSingle()
+
+    if (currentCompanyId != null) {
+      existingQuery = existingQuery.eq('company_id', currentCompanyId)
+    }
+
+    const { data: existing } = await existingQuery.maybeSingle()
 
     if (existing?.id) return true
 
     const payload: TablesInsert<'sites_logistiques'> = {
+      ...(currentCompanyId != null ? { company_id: currentCompanyId } : {}),
       entreprise_id: clientId,
       nom: `${onboarding.operationAddress?.trim() ? 'Base operationnelle' : 'Adresse facturation'} - ${onboarding.companyName}`,
       adresse: targetAddress,

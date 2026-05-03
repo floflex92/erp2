@@ -44,10 +44,10 @@ function BarreRemplissage({ label, valeur, max, pct, libre, compact }: BarreProp
   return (
     <div className={compact ? '' : 'space-y-1'}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-slate-600">
+        <span className="text-xs text-secondary">
           {label}
           {!compact && (
-            <span className="ml-1 font-medium text-slate-900">
+            <span className="ml-1 font-medium text-heading">
               {valeur} / {max}
             </span>
           )}
@@ -61,8 +61,8 @@ function BarreRemplissage({ label, valeur, max, pct, libre, compact }: BarreProp
         />
       </div>
       {!compact && libre && (
-        <p className="text-xs text-slate-500">
-          Reste libre : <strong className="text-slate-700">{libre}</strong>
+        <p className="text-xs text-discreet">
+          Reste libre : <strong className="text-foreground">{libre}</strong>
         </p>
       )}
     </div>
@@ -170,16 +170,16 @@ export default function ChargementBars({
 
   // ── Rendu complet (formulaire OT / détail) ────────────────────────────────
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+    <div className="rounded-2xl border border-line bg-surface-soft p-4 space-y-4">
 
       {/* En-tête */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-discreet">
             Remplissage · {rem.immatriculation ?? trailerLabel}
           </span>
           {trailerLabel && trailerLabel !== rem.immatriculation && (
-            <span className="text-xs text-slate-400">({trailerLabel})</span>
+            <span className="text-xs text-muted">({trailerLabel})</span>
           )}
         </div>
         {/* Badge statut global */}
@@ -208,7 +208,7 @@ export default function ChargementBars({
         </p>
       )}
       {!noCapacity && noLoad && (
-        <p className="text-xs text-slate-400 italic">
+        <p className="text-xs text-muted italic">
           Renseignez le poids, le volume ou la longueur pour afficher le taux de remplissage.
         </p>
       )}
@@ -249,7 +249,7 @@ export default function ChargementBars({
 
       {/* Liste des erreurs */}
       {validation.errors.length > 0 && (
-        <div className="space-y-2 pt-1 border-t border-slate-200">
+        <div className="space-y-2 pt-1 border-t border-line">
           <p className="text-xs font-semibold uppercase tracking-wide text-red-700">
             Blocages
           </p>
@@ -264,7 +264,7 @@ export default function ChargementBars({
 
       {/* Liste des warnings */}
       {validation.warnings.length > 0 && (
-        <div className="space-y-2 pt-1 border-t border-slate-200">
+        <div className="space-y-2 pt-1 border-t border-line">
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
             Mises en garde
           </p>

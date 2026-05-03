@@ -38,8 +38,8 @@ export default function Prospection() {
             onClick={() => setActiveTab(tab.key)}
             className={`flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all ${
               activeTab === tab.key
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-surface text-heading shadow-sm'
+                : 'text-muted hover:text-slate-200'
             }`}
           >
             <span>{tab.icon}</span>

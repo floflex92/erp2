@@ -28,6 +28,7 @@ export default defineConfig({
           if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) return 'vendor-react'
           if (id.includes('node_modules/react-router-dom/')) return 'vendor-router'
           if (id.includes('node_modules/@supabase/')) return 'vendor-supabase'
+          if (id.includes('node_modules/recharts/')) return 'vendor-charts'
           if (id.includes('node_modules/leaflet/')) return 'vendor-leaflet'
           if (id.includes('node_modules/jspdf/')) return 'vendor-pdf'
           if (id.includes('node_modules/@anthropic-ai/')) return 'vendor-ai'

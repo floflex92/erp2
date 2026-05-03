@@ -86,8 +86,8 @@ export default function SiteMapPicker({ onPick }: SiteMapPickerProps) {
 
   return (
     <div className="space-y-2">
-      <div ref={mapContainerRef} className="h-52 w-full rounded-lg border border-slate-200" />
-      <p className="text-xs text-slate-500">{message}</p>
+      <div ref={mapContainerRef} className="h-52 w-full rounded-lg border border-line" />
+      <p className="text-xs text-discreet">{message}</p>
     </div>
   )
 }

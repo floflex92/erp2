@@ -74,14 +74,20 @@ export type LogisticSiteInsert = TablesInsert<'sites_logistiques'>
 export type LogisticSiteUpdate = TablesUpdate<'sites_logistiques'>
 export type TransportStatusHistory = Tables<'ordres_transport_statut_history'>
 
-export async function listLogisticSites() {
-  const query = await supabase
+export async function listLogisticSites(companyId?: number | null) {
+  let query = supabase
     .from('sites_logistiques')
     .select('*')
     .order('nom', { ascending: true })
 
-  if (query.error) throw query.error
-  return query.data ?? []
+  if (companyId != null) {
+    query = query.eq('company_id', companyId)
+  }
+
+  const result = await query
+
+  if (result.error) throw result.error
+  return result.data ?? []
 }
 
 export async function createLogisticSite(payload: LogisticSiteInsert) {
@@ -168,13 +174,26 @@ export async function listOtLignes(otId: string): Promise<OtLigne[]> {
 }
 
 export async function syncOtLignes(otId: string, companyId: number, lignes: Array<Omit<OtLigneInsert, 'ot_id' | 'company_id'>>) {
-  // Delete all existing then re-insert
+  const rows: OtLigneInsert[] = lignes.map(l => ({ ...l, ot_id: otId, company_id: companyId }))
+  const { data: existingRows, error: readErr } = await supabase
+    .from('ot_lignes')
+    .select('*')
+    .eq('ot_id', otId)
+
+  if (readErr) throw readErr
+
+  const previousRows = existingRows ?? []
   const { error: delErr } = await supabase.from('ot_lignes').delete().eq('ot_id', otId)
   if (delErr) throw delErr
-  if (lignes.length === 0) return
-  const rows: OtLigneInsert[] = lignes.map(l => ({ ...l, ot_id: otId, company_id: companyId }))
+  if (rows.length === 0) return
+
   const { error: insErr } = await supabase.from('ot_lignes').insert(rows)
-  if (insErr) throw insErr
+  if (!insErr) return
+
+  if (previousRows.length > 0) {
+    await supabase.from('ot_lignes').insert(previousRows)
+  }
+  throw insErr
 }
 
 // ─── Labels et styles statuts OT (source de vérité UI) ───────────────────────
@@ -205,7 +224,7 @@ export const OT_STATUT_BADGE_CLS: Record<string, string> = {
 
 /** Classes Tailwind badge pour chaque statut OT (light mode). */
 export const OT_STATUT_BADGE_LIGHT_CLS: Record<string, string> = {
-  brouillon: 'bg-slate-200 text-slate-800',
+  brouillon: 'bg-slate-200 text-foreground',
   confirme:  'bg-blue-100 text-blue-800',
   planifie:  'bg-blue-200 text-blue-900',
   en_cours:  'bg-emerald-100 text-emerald-800',

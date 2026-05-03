@@ -538,11 +538,11 @@ export default function Paie() {
           </Field>
 
           {employeeRecord && (
-            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
+            <div className="mt-4 rounded-2xl border border-white/10 bg-surface/5 px-4 py-4">
               <p className="text-sm font-semibold text-white">{employeeRecord.firstName} {employeeRecord.lastName}</p>
               <p className="mt-1 text-xs font-mono text-slate-300">Matricule: {employeeRecord.matricule}</p>
-              <p className="mt-1 text-xs text-slate-400">{employeeRecord.professionalEmail}</p>
-              <p className="mt-1 text-xs text-slate-500">{employeeRecord.conventionCollective}</p>
+              <p className="mt-1 text-xs text-muted">{employeeRecord.professionalEmail}</p>
+              <p className="mt-1 text-xs text-discreet">{employeeRecord.conventionCollective}</p>
             </div>
           )}
 
@@ -738,9 +738,9 @@ export default function Paie() {
               </div>
             )}
 
-            <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
+            <div className="mt-5 rounded-2xl border border-white/10 bg-surface/5 px-4 py-4">
               <p className="text-sm font-semibold text-white">Frais integres automatiquement</p>
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1 text-xs text-muted">
                 {approvedExpenseTickets.length} ticket(s) comptablement valides pour {form.periodLabel} - {autoExpenseAmount.toFixed(2)} EUR.
               </p>
               {approvedExpenseTickets.length > 0 && (
@@ -759,10 +759,10 @@ export default function Paie() {
           <div className="nx-panel overflow-hidden">
             <div className="border-b px-5 py-4" style={{ borderColor: 'var(--border)' }}>
               <p className="text-sm font-semibold text-white">Historique des bulletins</p>
-              <p className="mt-1 text-xs text-slate-400">{employeeRecords.length} fiche(s) salariee(s) parametrees</p>
+              <p className="mt-1 text-xs text-muted">{employeeRecords.length} fiche(s) salariee(s) parametrees</p>
             </div>
             {slips.length === 0 ? (
-              <div className="px-5 py-10 text-sm text-slate-400">Aucun bulletin genere pour ce collaborateur.</div>
+              <div className="px-5 py-10 text-sm text-muted">Aucun bulletin genere pour ce collaborateur.</div>
             ) : (
               <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
                 {slips.map(slip => {
@@ -771,8 +771,8 @@ export default function Paie() {
                   <div key={slip.id} className="flex flex-col gap-2 px-5 py-4 md:flex-row md:items-center md:justify-between">
                     <div>
                       <p className="text-sm font-semibold text-white">{slip.periodLabel}</p>
-                      <p className="mt-1 text-xs text-slate-400">Brut {formatMoney(slip.grossSubject)} EUR - Net {formatMoney(slip.netToPay)} EUR</p>
-                      <p className="mt-1 text-xs text-slate-500">Genere le {formatDateTime(slip.createdAt)}</p>
+                      <p className="mt-1 text-xs text-muted">Brut {formatMoney(slip.grossSubject)} EUR - Net {formatMoney(slip.netToPay)} EUR</p>
+                      <p className="mt-1 text-xs text-discreet">Genere le {formatDateTime(slip.createdAt)}</p>
                       {bonusStatus && (
                         <p className="mt-1 text-xs text-slate-300">
                           Rapprochement primes: {bonusStatus.status === 'linked'
@@ -816,47 +816,47 @@ export default function Paie() {
       {activeTab === 'revision' && (
         <div className="space-y-5">
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Periode</p>
-              <p className="mt-2 text-lg font-semibold text-slate-900">{form.periodLabel}</p>
+            <div className="rounded-2xl border border-line bg-surface px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-discreet">Periode</p>
+              <p className="mt-2 text-lg font-semibold text-heading">{form.periodLabel}</p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Bulletins disponibles</p>
-              <p className="mt-2 text-lg font-semibold text-slate-900">{reviewReadyCount} / {reviewRows.length}</p>
+            <div className="rounded-2xl border border-line bg-surface px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-discreet">Bulletins disponibles</p>
+              <p className="mt-2 text-lg font-semibold text-heading">{reviewReadyCount} / {reviewRows.length}</p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Workflow validation</p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">Exploitation {reviewExploitationValidatedCount} / {reviewRows.length}</p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">Direction {reviewDirectionValidatedCount} / {reviewRows.length}</p>
+            <div className="rounded-2xl border border-line bg-surface px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-discreet">Workflow validation</p>
+              <p className="mt-2 text-sm font-semibold text-heading">Exploitation {reviewExploitationValidatedCount} / {reviewRows.length}</p>
+              <p className="mt-1 text-sm font-semibold text-heading">Direction {reviewDirectionValidatedCount} / {reviewRows.length}</p>
               <p className="mt-1 text-xs font-medium text-emerald-700">Complet {reviewFullyValidatedCount} / {reviewRows.length}</p>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-            <p className="text-sm font-semibold text-slate-900">Calendrier applique</p>
+          <div className="rounded-2xl border border-line bg-surface px-4 py-4">
+            <p className="text-sm font-semibold text-heading">Calendrier applique</p>
             <div className="mt-3 grid gap-3 md:grid-cols-3">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Date butee validation</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">{formatPayrollWorkflowDate(payrollSchedule.validationDeadlineAt)}</p>
+              <div className="rounded-xl border border-line bg-surface-soft px-3 py-3">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-discreet">Date butee validation</p>
+                <p className="mt-1 text-sm font-semibold text-heading">{formatPayrollWorkflowDate(payrollSchedule.validationDeadlineAt)}</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Coffre numerique</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">{formatPayrollWorkflowDate(payrollSchedule.vaultAvailableAt)}</p>
-                <p className="mt-1 text-xs text-slate-500">Publication automatique a minuit si la periode est entierement validee.</p>
+              <div className="rounded-xl border border-line bg-surface-soft px-3 py-3">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-discreet">Coffre numerique</p>
+                <p className="mt-1 text-sm font-semibold text-heading">{formatPayrollWorkflowDate(payrollSchedule.vaultAvailableAt)}</p>
+                <p className="mt-1 text-xs text-discreet">Publication automatique a minuit si la periode est entierement validee.</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Versement collectif</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">{formatPayrollWorkflowDate(payrollSchedule.paymentScheduledAt)}</p>
-                <p className="mt-1 text-xs text-slate-500">Declenchement commun de tous les salaires de la periode.</p>
+              <div className="rounded-xl border border-line bg-surface-soft px-3 py-3">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-discreet">Versement collectif</p>
+                <p className="mt-1 text-sm font-semibold text-heading">{formatPayrollWorkflowDate(payrollSchedule.paymentScheduledAt)}</p>
+                <p className="mt-1 text-xs text-discreet">Declenchement commun de tous les salaires de la periode.</p>
               </div>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="rounded-2xl border border-line bg-surface p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-slate-900">Collaborateur en revision</p>
-                <p className="mt-1 text-xs text-slate-500">Valide exploitation puis direction, et passe au suivant.</p>
+                <p className="text-sm font-semibold text-heading">Collaborateur en revision</p>
+                <p className="mt-1 text-xs text-discreet">Valide exploitation puis direction, et passe au suivant.</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -866,7 +866,7 @@ export default function Paie() {
                     setSelectedEmployeeId(reviewRows[currentReviewIndex - 1].member.id)
                   }}
                   disabled={currentReviewIndex <= 0}
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 disabled:opacity-45"
+                  className="rounded-xl border border-line px-3 py-2 text-xs font-medium text-foreground disabled:opacity-45"
                 >
                   Precedent
                 </button>
@@ -877,7 +877,7 @@ export default function Paie() {
                     setSelectedEmployeeId(reviewRows[currentReviewIndex + 1].member.id)
                   }}
                   disabled={currentReviewIndex < 0 || currentReviewIndex >= reviewRows.length - 1}
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 disabled:opacity-45"
+                  className="rounded-xl border border-line px-3 py-2 text-xs font-medium text-foreground disabled:opacity-45"
                 >
                   Suivant
                 </button>
@@ -893,9 +893,9 @@ export default function Paie() {
             </div>
 
             {employee && (
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                <p className="text-sm font-semibold text-slate-900">{staffDisplayName(employee)}</p>
-                <p className="mt-1 text-xs text-slate-600">{employee.matricule} - {employee.email ?? 'Email non renseigne'}</p>
+              <div className="mt-4 rounded-2xl border border-line bg-surface-soft px-4 py-4">
+                <p className="text-sm font-semibold text-heading">{staffDisplayName(employee)}</p>
+                <p className="mt-1 text-xs text-secondary">{employee.matricule} - {employee.email ?? 'Email non renseigne'}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   {reviewRows.find(row => row.member.id === employee.id)?.hasSlip ? (
                     <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800">Bulletin present</span>
@@ -905,21 +905,21 @@ export default function Paie() {
                   {selectedReviewRow?.isExploitationValidated ? (
                     <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-800">Exploitation validee</span>
                   ) : (
-                    <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">Exploitation en attente</span>
+                    <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-foreground">Exploitation en attente</span>
                   )}
                   {selectedReviewRow?.isDirectionValidated ? (
                     <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">Direction validee</span>
                   ) : (
-                    <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">Direction en attente</span>
+                    <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-foreground">Direction en attente</span>
                   )}
                 </div>
                 {selectedReviewRow?.validationEntry?.exploitation && (
-                  <p className="mt-2 text-xs text-slate-600">
+                  <p className="mt-2 text-xs text-secondary">
                     Exploitation: {selectedReviewRow.validationEntry.exploitation.validatedBy} - {formatDateTime(selectedReviewRow.validationEntry.exploitation.validatedAt)}
                   </p>
                 )}
                 {selectedReviewRow?.validationEntry?.direction && (
-                  <p className="mt-1 text-xs text-slate-600">
+                  <p className="mt-1 text-xs text-secondary">
                     Direction: {selectedReviewRow.validationEntry.direction.validatedBy} - {formatDateTime(selectedReviewRow.validationEntry.direction.validatedAt)}
                   </p>
                 )}
@@ -953,7 +953,7 @@ export default function Paie() {
                     type="button"
                     onClick={() => employee && togglePayrollValidation(employee.id, 'direction', false)}
                     disabled={!employee || !selectedReviewRow?.isDirectionValidated}
-                    className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 disabled:opacity-45"
+                    className="rounded-xl border border-line-strong px-3 py-2 text-xs font-medium text-foreground disabled:opacity-45"
                   >
                     Retirer direction
                   </button>
@@ -961,7 +961,7 @@ export default function Paie() {
                     type="button"
                     onClick={() => employee && togglePayrollValidation(employee.id, 'exploitation', false)}
                     disabled={!employee || !selectedReviewRow?.isExploitationValidated}
-                    className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 disabled:opacity-45"
+                    className="rounded-xl border border-line-strong px-3 py-2 text-xs font-medium text-foreground disabled:opacity-45"
                   >
                     Retirer exploitation
                   </button>
@@ -974,7 +974,7 @@ export default function Paie() {
                       setNotice(`Mode saisie ouvert pour ${staffDisplayName(employee)}. Ajustez les valeurs puis regenerez le bulletin.`)
                       setError(null)
                     }}
-                    className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700"
+                    className="rounded-xl border border-line-strong px-3 py-2 text-xs font-medium text-foreground"
                   >
                     Modifier la fiche
                   </button>
@@ -983,24 +983,24 @@ export default function Paie() {
             )}
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <p className="text-sm font-semibold text-slate-900">Visualisation de la fiche</p>
+          <div className="rounded-2xl border border-line bg-surface p-4">
+            <p className="text-sm font-semibold text-heading">Visualisation de la fiche</p>
             {!selectedReviewRow?.periodSlip ? (
-              <p className="mt-2 text-xs text-slate-500">Aucun bulletin disponible pour ce collaborateur et cette periode.</p>
+              <p className="mt-2 text-xs text-discreet">Aucun bulletin disponible pour ce collaborateur et cette periode.</p>
             ) : (
               <div className="mt-3 space-y-3">
                 <div className="grid gap-2 md:grid-cols-3">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Brut soumis</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900">{formatMoney(selectedReviewRow.periodSlip.grossSubject)} EUR</p>
+                  <div className="rounded-xl border border-line bg-surface-soft px-3 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-discreet">Brut soumis</p>
+                    <p className="mt-1 text-sm font-semibold text-heading">{formatMoney(selectedReviewRow.periodSlip.grossSubject)} EUR</p>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Cotisations salariales</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900">{formatMoney(selectedReviewRow.periodSlip.employeeContributions)} EUR</p>
+                  <div className="rounded-xl border border-line bg-surface-soft px-3 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-discreet">Cotisations salariales</p>
+                    <p className="mt-1 text-sm font-semibold text-heading">{formatMoney(selectedReviewRow.periodSlip.employeeContributions)} EUR</p>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Net a payer</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900">{formatMoney(selectedReviewRow.periodSlip.netToPay)} EUR</p>
+                  <div className="rounded-xl border border-line bg-surface-soft px-3 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-discreet">Net a payer</p>
+                    <p className="mt-1 text-sm font-semibold text-heading">{formatMoney(selectedReviewRow.periodSlip.netToPay)} EUR</p>
                   </div>
                 </div>
 
@@ -1017,9 +1017,9 @@ export default function Paie() {
                   </div>
                 )}
 
-                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <div className="overflow-x-auto rounded-xl border border-line">
                   <table className="min-w-full text-left text-xs">
-                    <thead className="bg-slate-50 text-slate-600">
+                    <thead className="bg-surface-soft text-secondary">
                       <tr>
                         <th className="px-3 py-2 font-semibold">Ligne cotisation</th>
                         <th className="px-3 py-2 font-semibold">Base</th>
@@ -1029,7 +1029,7 @@ export default function Paie() {
                     </thead>
                     <tbody>
                       {selectedReviewRow.periodSlip.contributionLines.map(line => (
-                        <tr key={`${selectedReviewRow.periodSlip?.id}-${line.label}`} className="border-t border-slate-100 text-slate-700">
+                        <tr key={`${selectedReviewRow.periodSlip?.id}-${line.label}`} className="border-t border-slate-100 text-foreground">
                           <td className="px-3 py-2">{line.label}</td>
                           <td className="px-3 py-2">{formatMoney(line.base)} EUR</td>
                           <td className="px-3 py-2">{formatMoney(line.employeeAmount)} EUR</td>
@@ -1043,20 +1043,20 @@ export default function Paie() {
             )}
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <p className="text-sm font-semibold text-slate-900">Revision collaborateur par collaborateur</p>
-            <p className="mt-1 text-xs text-slate-500">Statut de validation sur la periode {form.periodLabel}.</p>
+          <div className="rounded-2xl border border-line bg-surface p-4">
+            <p className="text-sm font-semibold text-heading">Revision collaborateur par collaborateur</p>
+            <p className="mt-1 text-xs text-discreet">Statut de validation sur la periode {form.periodLabel}.</p>
             <div className="mt-4 divide-y divide-slate-100">
               {reviewRows.map(row => (
                 <button
                   key={row.member.id}
                   type="button"
                   onClick={() => setSelectedEmployeeId(row.member.id)}
-                  className={`flex w-full items-center justify-between gap-3 px-2 py-3 text-left ${selectedEmployeeId === row.member.id ? 'bg-slate-100' : ''}`}
+                  className={`flex w-full items-center justify-between gap-3 px-2 py-3 text-left ${selectedEmployeeId === row.member.id ? 'bg-surface-2' : ''}`}
                 >
                   <div>
-                    <p className="text-sm font-medium text-slate-900">{staffDisplayName(row.member)}</p>
-                    <p className="mt-1 text-xs text-slate-500">{row.member.matricule}</p>
+                    <p className="text-sm font-medium text-heading">{staffDisplayName(row.member)}</p>
+                    <p className="mt-1 text-xs text-discreet">{row.member.matricule}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {row.hasSlip ? (
@@ -1067,12 +1067,12 @@ export default function Paie() {
                     {row.isExploitationValidated ? (
                       <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-800">Exploitation OK</span>
                     ) : (
-                      <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">Exploitation KO</span>
+                      <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-foreground">Exploitation KO</span>
                     )}
                     {row.isDirectionValidated ? (
                       <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">Direction OK</span>
                     ) : (
-                      <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">Direction KO</span>
+                      <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-foreground">Direction KO</span>
                     )}
                   </div>
                 </button>
@@ -1102,7 +1102,7 @@ function MetricCard({ label, value, tone }: { label: string; value: string; tone
         ? 'border-cyan-400/20 bg-cyan-500/10 text-cyan-50'
         : tone === 'blue'
           ? 'border-blue-400/20 bg-blue-500/10 text-blue-50'
-          : 'border-white/10 bg-white/5 text-white'
+          : 'border-white/10 bg-surface/5 text-white'
 
   return (
     <div className={`rounded-2xl border px-4 py-4 ${toneClass}`}>

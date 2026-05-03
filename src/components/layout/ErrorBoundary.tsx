@@ -73,8 +73,8 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="flex min-h-[300px] flex-col items-center justify-center gap-4 p-8 text-center">
           <div className="text-4xl opacity-30">⚠</div>
           <div>
-            <p className="text-base font-semibold text-slate-700">Une erreur inattendue s'est produite</p>
-            <p className="mt-1 text-sm text-slate-500">{helperText}</p>
+            <p className="text-base font-semibold text-foreground">Une erreur inattendue s'est produite</p>
+            <p className="mt-1 text-sm text-discreet">{helperText}</p>
           </div>
           <button
             type="button"

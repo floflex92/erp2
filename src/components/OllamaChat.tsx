@@ -32,10 +32,10 @@ export default function OllamaChat() {
   }
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">IA locale</p>
-      <h3 className="mt-1 text-lg font-semibold text-slate-900">Chat Ollama</h3>
-      <p className="mt-1 text-sm text-slate-500">
+    <section className="rounded-2xl border border-line bg-surface p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">IA locale</p>
+      <h3 className="mt-1 text-lg font-semibold text-heading">Chat Ollama</h3>
+      <p className="mt-1 text-sm text-discreet">
         Posez une question au modèle local ({import.meta.env.VITE_OLLAMA_MODEL ?? 'mistral'}).
       </p>
 
@@ -53,7 +53,7 @@ export default function OllamaChat() {
           rows={3}
           placeholder="Votre prompt… (Entrée pour envoyer, Maj+Entrée pour sauter une ligne)"
           disabled={loading}
-          className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100 disabled:opacity-50"
+          className="w-full rounded-xl border border-line-strong bg-surface-soft px-3 py-2 text-sm text-foreground placeholder-slate-400 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100 disabled:opacity-50"
         />
         <button
           type="submit"
@@ -74,7 +74,7 @@ export default function OllamaChat() {
       )}
 
       {answer && (
-        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-slate-800 whitespace-pre-wrap">
+        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-foreground whitespace-pre-wrap">
           {answer}
         </div>
       )}

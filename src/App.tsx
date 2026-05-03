@@ -54,6 +54,10 @@ const OpsCenter = lazy(() => import('@/pages/OpsCenter'))
 const DashboardConducteur = lazy(() => import('@/pages/DashboardConducteur'))
 const PlanningConducteur = lazy(() => import('@/pages/PlanningConducteur'))
 const FraisRapide = lazy(() => import('@/pages/FraisRapide'))
+const OptimisationTournees = lazy(() => import('@/pages/OptimisationTournees'))
+const MessagerieColis = lazy(() => import('@/pages/MessagerieColis'))
+const FormulairesTerrain = lazy(() => import('@/pages/FormulairesTerrain'))
+const GestionTemperature = lazy(() => import('@/pages/GestionTemperature'))
 
 function RequireRole({ page, children }: { page: string; children: React.ReactNode }) {
   const { role, loading, profilLoading, tenantAllowedPages, enabledModules } = useAuth()
@@ -198,6 +202,10 @@ export default function App() {
                   <Route path="dashboard-conducteur" element={<RequireRole page="dashboard-conducteur"><DashboardConducteur /></RequireRole>} />
                   <Route path="planning-conducteur" element={<RequireRole page="planning-conducteur"><PlanningConducteur /></RequireRole>} />
                   <Route path="frais-rapide" element={<RequireRole page="frais-rapide"><FraisRapide /></RequireRole>} />
+                  <Route path="optimisation-tournees" element={<RequireRole page="optimisation-tournees"><OptimisationTournees /></RequireRole>} />
+                  <Route path="messagerie-colis" element={<RequireRole page="messagerie-colis"><MessagerieColis /></RequireRole>} />
+                  <Route path="formulaires-terrain" element={<RequireRole page="formulaires-terrain"><FormulairesTerrain /></RequireRole>} />
+                  <Route path="gestion-temperature" element={<RequireRole page="gestion-temperature"><GestionTemperature /></RequireRole>} />
                 </Route>
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />

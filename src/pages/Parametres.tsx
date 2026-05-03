@@ -59,7 +59,7 @@ const inp = 'w-full rounded-xl border bg-[color:var(--surface)] px-3 py-2.5 text
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-slate-700">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-foreground">{label}</span>
       {children}
     </label>
   )
@@ -801,8 +801,8 @@ function DevelopmentFeatureSection({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em]" style={{ color: tab.accent }}>{tab.eyebrow}</p>
-          <h3 className="mt-2 text-xl font-semibold text-slate-900">{tab.title}</h3>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-700">{tab.description}</p>
+          <h3 className="mt-2 text-xl font-semibold text-heading">{tab.title}</h3>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-foreground">{tab.description}</p>
         </div>
         <div className="rounded-full px-4 py-2 text-sm font-semibold" style={{ background: tab.badgeBg, color: tab.accent }}>
           {tab.items.length} fonctionnalités
@@ -814,13 +814,13 @@ function DevelopmentFeatureSection({
           <div key={category} className="rounded-2xl border p-4" style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--surface) 88%, white)' }}>
             <div className="flex items-center justify-between gap-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: tab.accent }}>{category}</p>
-              <span className="rounded-full px-2.5 py-1 text-xs font-semibold text-slate-800" style={{ background: 'rgba(148,163,184,0.18)' }}>{items.length}</span>
+              <span className="rounded-full px-2.5 py-1 text-xs font-semibold text-foreground" style={{ background: 'rgba(148,163,184,0.18)' }}>{items.length}</span>
             </div>
-            <ul className="mt-3 space-y-2.5 text-sm text-slate-700">
+            <ul className="mt-3 space-y-2.5 text-sm text-foreground">
               {items.map(item => (
-                <li key={`${category}-${item.fonctionnalite}`} className="rounded-xl border border-slate-300/90 bg-white px-3 py-2.5">
-                  <p className="font-medium text-slate-900">{item.fonctionnalite}</p>
-                  {item.description && <p className="mt-1 text-xs leading-5 text-slate-700">{item.description}</p>}
+                <li key={`${category}-${item.fonctionnalite}`} className="rounded-xl border border-line-strong/90 bg-surface px-3 py-2.5">
+                  <p className="font-medium text-heading">{item.fonctionnalite}</p>
+                  {item.description && <p className="mt-1 text-xs leading-5 text-foreground">{item.description}</p>}
                 </li>
               ))}
             </ul>
@@ -874,13 +874,13 @@ function DevelopmentVersionsSection() {
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-900">Versions</p>
-            <h3 className="mt-2 text-xl font-semibold text-slate-900">Historique des releases interne ERP</h3>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-700">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-heading">Versions</p>
+            <h3 className="mt-2 text-xl font-semibold text-heading">Historique des releases interne ERP</h3>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-foreground">
               Cette vue reste strictement métier: elle indique les ajouts, modifications, rectifications et suppressions, sans exposer de détails techniques de conception.
             </p>
           </div>
-          <div className="rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800">
+          <div className="rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold text-foreground">
             {releaseNotes.length} versions
           </div>
         </div>
@@ -892,10 +892,10 @@ function DevelopmentVersionsSection() {
                 <span className="rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ background: note.version === APP_VERSION ? '#DBEAFE' : '#F1F5F9', color: note.version === APP_VERSION ? '#1D4ED8' : '#475569' }}>
                   {note.version === APP_VERSION ? 'Version en ligne' : 'Release'}
                 </span>
-                <span className="text-sm text-slate-700">{note.date}</span>
+                <span className="text-sm text-foreground">{note.date}</span>
               </div>
-              <h4 className="mt-3 text-lg font-semibold text-slate-900">Version {note.version}</h4>
-              <p className="mt-2 text-sm leading-6 text-slate-700">Communication métier synthétique sans détail d implémentation.</p>
+              <h4 className="mt-3 text-lg font-semibold text-heading">Version {note.version}</h4>
+              <p className="mt-2 text-sm leading-6 text-foreground">Communication métier synthétique sans détail d implémentation.</p>
 
               <div className="mt-4 grid gap-3 lg:grid-cols-4">
                 <DevelopmentVersionMetric title="Ajouts" count={note.additions.length} accent="#2563EB" description="Nouvelles capacités métier livrées." />
@@ -953,8 +953,8 @@ function DevelopmentVersionMetric({
   return (
     <div className="rounded-xl border p-3" style={{ borderColor: 'rgba(148,163,184,0.18)', background: 'rgba(255,255,255,0.8)' }}>
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: accent }}>{title}</p>
-      <p className="mt-3 text-2xl font-semibold text-slate-900">{count}</p>
-      <p className="mt-2 text-xs leading-5 text-slate-600">{description}</p>
+      <p className="mt-3 text-2xl font-semibold text-heading">{count}</p>
+      <p className="mt-2 text-xs leading-5 text-secondary">{description}</p>
     </div>
   )
 }
@@ -971,10 +971,10 @@ function DevelopmentBulletCard({
   return (
     <Card>
       <CardLabel>{title}</CardLabel>
-      <p className="mt-2 text-sm leading-6 text-slate-700">{subtitle}</p>
-      <ul className="mt-4 space-y-2.5 text-sm text-slate-700">
+      <p className="mt-2 text-sm leading-6 text-foreground">{subtitle}</p>
+      <ul className="mt-4 space-y-2.5 text-sm text-foreground">
         {items.map(item => (
-          <li key={item} className="rounded-xl border border-slate-300/90 bg-white px-3 py-2.5 leading-6">
+          <li key={item} className="rounded-xl border border-line-strong/90 bg-surface px-3 py-2.5 leading-6">
             {item}
           </li>
         ))}

@@ -473,7 +473,7 @@ export default function Coffre() {
               </div>
             </div>
             <div className="flex-1 p-4">
-              <iframe title={preview.name} src={preview.url} className="h-full w-full rounded-2xl border border-white/10 bg-white" />
+              <iframe title={preview.name} src={preview.url} className="h-full w-full rounded-2xl border border-white/10 bg-surface" />
             </div>
           </div>
         </div>

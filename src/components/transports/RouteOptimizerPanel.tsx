@@ -141,14 +141,14 @@ export default function RouteOptimizerPanel({
         <div className="flex shrink-0 items-center justify-between border-b border-slate-700 px-5 py-4">
           <div>
             <h2 className="text-base font-bold text-white">Optimisation de tournée</h2>
-            <p className="mt-0.5 text-xs text-slate-400">
+            <p className="mt-0.5 text-xs text-muted">
               Calcul de la séquence de livraisons optimale (Nearest-Neighbor + 2-opt)
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
+            className="rounded-lg p-2 text-muted transition-colors hover:bg-slate-800 hover:text-white"
             aria-label="Fermer"
           >
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -163,7 +163,7 @@ export default function RouteOptimizerPanel({
 
             {/* ─── Sélection conducteur + date ─── */}
             <section className="rounded-xl border border-slate-700 bg-slate-800/50 p-4">
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">
                 Sélection
               </h3>
               <div className="grid grid-cols-2 gap-3">
@@ -203,7 +203,7 @@ export default function RouteOptimizerPanel({
 
               {/* OT count badge */}
               {ots.length > 0 && (
-                <p className="mt-2 text-xs text-slate-400">
+                <p className="mt-2 text-xs text-muted">
                   <span className="font-bold text-white">{ots.length}</span> OT trouvé{ots.length > 1 ? 's' : ''} pour ce conducteur / cette date
                 </p>
               )}
@@ -212,7 +212,7 @@ export default function RouteOptimizerPanel({
             {/* ─── Paramètres algorithme ─── */}
             {ots.length > 0 && (
               <section className="rounded-xl border border-slate-700 bg-slate-800/50 p-4">
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">
                   Paramètres de calcul
                 </h3>
                 <div className="grid grid-cols-2 gap-3">
@@ -299,7 +299,7 @@ export default function RouteOptimizerPanel({
               <>
                 {/* Métriques globales */}
                 <section className="rounded-xl border border-slate-700 bg-slate-800/50 p-4">
-                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">
                     Résultats d'optimisation
                   </h3>
                   <div className="grid grid-cols-3 gap-3">
@@ -316,7 +316,7 @@ export default function RouteOptimizerPanel({
                     <MetricCard
                       label="Gain vs ordre initial"
                       value={`−${result.distanceSavedKm} km`}
-                      valueClass={result.distanceSavedKm > 0 ? 'text-emerald-400' : 'text-slate-400'}
+                      valueClass={result.distanceSavedKm > 0 ? 'text-emerald-400' : 'text-muted'}
                       subtext={result.savingsPercent > 0 ? `soit −${result.savingsPercent}%` : 'Déjà optimal'}
                     />
                   </div>
@@ -343,7 +343,7 @@ export default function RouteOptimizerPanel({
 
                 {/* Séquence */}
                 <section className="rounded-xl border border-slate-700 bg-slate-800/50 p-4">
-                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">
                     Séquence optimisée — {result.sequence.length} arrêt{result.sequence.length > 1 ? 's' : ''}
                   </h3>
                   <div className="space-y-2">
@@ -383,7 +383,7 @@ export default function RouteOptimizerPanel({
                                   {stop.label}
                                 </span>
                               </div>
-                              <p className="mt-0.5 truncate text-[11px] text-slate-400">
+                              <p className="mt-0.5 truncate text-[11px] text-muted">
                                 {stop.address}
                               </p>
                             </div>
@@ -401,7 +401,7 @@ export default function RouteOptimizerPanel({
                                 </div>
                               )}
                               {idx > 0 && (
-                                <div className="mt-0.5 text-[10px] text-slate-500">
+                                <div className="mt-0.5 text-[10px] text-discreet">
                                   +{stop.distanceFromPrev} km
                                 </div>
                               )}
@@ -410,7 +410,7 @@ export default function RouteOptimizerPanel({
 
                           {/* Fenêtre horaire site */}
                           {(stop.timeWindowStart || stop.timeWindowEnd) && (
-                            <p className="mt-1 text-[10px] text-slate-500">
+                            <p className="mt-1 text-[10px] text-discreet">
                               Ouverture : {stop.timeWindowStart ?? '—'} → {stop.timeWindowEnd ?? '—'}
                             </p>
                           )}
@@ -460,7 +460,7 @@ export default function RouteOptimizerPanel({
                 </button>
               </div>
             )}
-            <p className="mt-2 text-[10px] text-slate-500">
+            <p className="mt-2 text-[10px] text-discreet">
               Met à jour les dates de chargement / livraison prévues sur chaque OT.
             </p>
           </div>
@@ -484,9 +484,9 @@ interface MetricCardProps {
 function MetricCard({ label, value, subtext, valueClass = 'text-white' }: MetricCardProps) {
   return (
     <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2.5 text-center">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="text-[10px] font-medium uppercase tracking-wide text-discreet">{label}</p>
       <p className={`mt-1 text-lg font-bold ${valueClass}`}>{value}</p>
-      {subtext && <p className="mt-0.5 text-[10px] text-slate-500">{subtext}</p>}
+      {subtext && <p className="mt-0.5 text-[10px] text-discreet">{subtext}</p>}
     </div>
   )
 }

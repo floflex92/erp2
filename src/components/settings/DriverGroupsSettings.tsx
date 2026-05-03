@@ -28,7 +28,7 @@ const COLORS = [
   '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6',
 ]
 
-const inp = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-indigo-500'
+const inp = 'w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-heading outline-none focus:border-indigo-500'
 
 export function DriverGroupsSettings() {
   const [groups, setGroups]             = useState<DriverGroup[]>([])
@@ -206,18 +206,18 @@ export function DriverGroupsSettings() {
 
       {/* Créer un groupe ───────────────────────────────────────────────────── */}
       <div className="rounded-2xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-        <p className="text-sm font-semibold text-slate-800 mb-3">Nouveau groupe</p>
+        <p className="text-sm font-semibold text-foreground mb-3">Nouveau groupe</p>
         <form onSubmit={event => void handleCreateGroup(event)} className="flex flex-wrap gap-2 items-end">
           <div className="flex-1 min-w-[160px]">
-            <label className="block text-xs font-medium text-slate-600 mb-1">Nom du groupe</label>
+            <label className="block text-xs font-medium text-secondary mb-1">Nom du groupe</label>
             <input className={inp} value={newNom} onChange={e => setNewNom(e.target.value)} placeholder="Ex: Zone Nord" required />
           </div>
           <div className="flex-1 min-w-[160px]">
-            <label className="block text-xs font-medium text-slate-600 mb-1">Description (optionnel)</label>
+            <label className="block text-xs font-medium text-secondary mb-1">Description (optionnel)</label>
             <input className={inp} value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Ex: Conducteurs affectés Nord" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Couleur</label>
+            <label className="block text-xs font-medium text-secondary mb-1">Couleur</label>
             <div className="flex gap-1.5">
               {COLORS.map(c => (
                 <button
@@ -243,9 +243,9 @@ export function DriverGroupsSettings() {
 
       {/* Liste des groupes ────────────────────────────────────────────────── */}
       {loading ? (
-        <p className="text-sm text-slate-500">Chargement...</p>
+        <p className="text-sm text-discreet">Chargement...</p>
       ) : groups.length === 0 ? (
-        <p className="text-sm text-slate-500">Aucun groupe créé.</p>
+        <p className="text-sm text-discreet">Aucun groupe créé.</p>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {groups.map(g => (
@@ -261,14 +261,14 @@ export function DriverGroupsSettings() {
               <div className="flex items-center gap-3 p-4">
                 <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: g.couleur }} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 truncate">{g.nom}</p>
-                  {g.description && <p className="text-xs text-slate-500 truncate">{g.description}</p>}
+                  <p className="text-sm font-semibold text-heading truncate">{g.nom}</p>
+                  {g.description && <p className="text-xs text-discreet truncate">{g.description}</p>}
                 </div>
                 <div className="flex gap-1.5">
                   <button
                     type="button"
                     onClick={e => { e.stopPropagation(); setEditGroup({ ...g }) }}
-                    className="rounded-lg px-2 py-1 text-[10px] font-medium border border-slate-200 text-slate-600 hover:bg-slate-50"
+                    className="rounded-lg px-2 py-1 text-[10px] font-medium border border-line text-secondary hover:bg-surface-soft"
                   >
                     Modifier
                   </button>
@@ -289,18 +289,18 @@ export function DriverGroupsSettings() {
       {/* Form édition groupe ───────────────────────────────────────────────── */}
       {editGroup && (
         <div className="rounded-2xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-          <p className="text-sm font-semibold text-slate-800 mb-3">Modifier le groupe</p>
+          <p className="text-sm font-semibold text-foreground mb-3">Modifier le groupe</p>
           <form onSubmit={event => void handleUpdateGroup(event)} className="flex flex-wrap gap-2 items-end">
             <div className="flex-1 min-w-[160px]">
-              <label className="block text-xs font-medium text-slate-600 mb-1">Nom</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Nom</label>
               <input className={inp} value={editGroup.nom} onChange={e => setEditGroup(g => g ? { ...g, nom: e.target.value } : g)} required />
             </div>
             <div className="flex-1 min-w-[160px]">
-              <label className="block text-xs font-medium text-slate-600 mb-1">Description</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Description</label>
               <input className={inp} value={editGroup.description ?? ''} onChange={e => setEditGroup(g => g ? { ...g, description: e.target.value || null } : g)} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Couleur</label>
+              <label className="block text-xs font-medium text-secondary mb-1">Couleur</label>
               <div className="flex gap-1.5">
                 {COLORS.map(c => (
                   <button
@@ -330,22 +330,22 @@ export function DriverGroupsSettings() {
         <div className="rounded-2xl border p-5" style={{ borderColor: selectedGroup.couleur, background: `${selectedGroup.couleur}08` }}>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-3 h-3 rounded-full" style={{ background: selectedGroup.couleur }} />
-            <p className="text-sm font-semibold text-slate-900">Membres — {selectedGroup.nom}</p>
+            <p className="text-sm font-semibold text-heading">Membres — {selectedGroup.nom}</p>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             {/* Membres actuels */}
             <div>
-              <p className="text-xs font-medium text-slate-600 mb-2">Conducteurs dans le groupe ({members.length})</p>
+              <p className="text-xs font-medium text-secondary mb-2">Conducteurs dans le groupe ({members.length})</p>
               {members.length === 0 ? (
-                <p className="text-xs text-slate-400">Aucun membre.</p>
+                <p className="text-xs text-muted">Aucun membre.</p>
               ) : (
                 <ul className="space-y-1.5">
                   {members.map(m => (
-                    <li key={m.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2">
-                      <span className="text-sm text-slate-800">
+                    <li key={m.id} className="flex items-center justify-between rounded-xl border border-line bg-surface px-3 py-2">
+                      <span className="text-sm text-foreground">
                         {m.conducteurs?.prenom} {m.conducteurs?.nom}
-                        <span className="ml-1.5 text-[10px] text-slate-400">{m.conducteurs?.statut}</span>
+                        <span className="ml-1.5 text-[10px] text-muted">{m.conducteurs?.statut}</span>
                       </span>
                       <button
                         type="button"
@@ -362,14 +362,14 @@ export function DriverGroupsSettings() {
 
             {/* Conducteurs disponibles */}
             <div>
-              <p className="text-xs font-medium text-slate-600 mb-2">Ajouter un conducteur</p>
+              <p className="text-xs font-medium text-secondary mb-2">Ajouter un conducteur</p>
               {disponibles.length === 0 ? (
-                <p className="text-xs text-slate-400">Tous les conducteurs sont déjà dans ce groupe.</p>
+                <p className="text-xs text-muted">Tous les conducteurs sont déjà dans ce groupe.</p>
               ) : (
                 <ul className="space-y-1.5 max-h-48 overflow-y-auto">
                   {disponibles.map(c => (
-                    <li key={c.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2">
-                      <span className="text-sm text-slate-700">{c.prenom} {c.nom}</span>
+                    <li key={c.id} className="flex items-center justify-between rounded-xl border border-line bg-surface px-3 py-2">
+                      <span className="text-sm text-foreground">{c.prenom} {c.nom}</span>
                       <button
                         type="button"
                         onClick={() => void handleAddMember(c.id)}
