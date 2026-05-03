@@ -227,10 +227,11 @@ export default function PlanningAffreteur() {
     if (!contract.nextStep) return
     setSaving(contract.id)
     try {
-      await upsertAffretementOperationalUpdate(contract.id, contract.nextStep, {
-        note: null,
-        gpsLat: null,
-        gpsLng: null,
+      await upsertAffretementOperationalUpdate({
+        contractId: contract.id,
+        onboardingId: contract.onboardingId,
+        actorName: [profil?.prenom, profil?.nom].filter(Boolean).join(' ') || 'Affreteur',
+        key: contract.nextStep,
       })
       showNotice(`Étape "${AFFRETEMENT_OPERATIONAL_STATUS_LABELS[contract.nextStep]}" enregistrée.`)
     } catch (err) {
@@ -244,7 +245,7 @@ export default function PlanningAffreteur() {
   async function acceptContract(contract: EnrichedContract) {
     setSaving(contract.id)
     try {
-      await updateAffretementContractByAffreteur(contract.id, { status: 'accepte', affreteurNote: null })
+      await updateAffretementContractByAffreteur({ contractId: contract.id, onboardingId: contract.onboardingId, actorName: [profil?.prenom, profil?.nom].filter(Boolean).join(' ') || 'Affreteur', decision: 'accept' })
       showNotice('Contrat accepté.')
     } catch (err) {
       showNotice(`Erreur : ${err instanceof Error ? err.message : 'inconnue'}`, 'err')
@@ -258,7 +259,7 @@ export default function PlanningAffreteur() {
     if (!confirm('Refuser ce contrat ?')) return
     setSaving(contract.id)
     try {
-      await updateAffretementContractByAffreteur(contract.id, { status: 'refuse', affreteurNote: null })
+      await updateAffretementContractByAffreteur({ contractId: contract.id, onboardingId: contract.onboardingId, actorName: [profil?.prenom, profil?.nom].filter(Boolean).join(' ') || 'Affreteur', decision: 'reject' })
       showNotice('Contrat refusé.')
     } catch (err) {
       showNotice(`Erreur : ${err instanceof Error ? err.message : 'inconnue'}`, 'err')
