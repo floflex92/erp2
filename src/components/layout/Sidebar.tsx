@@ -8,7 +8,10 @@ import { canAccess, useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { countAlertesActives } from '@/lib/alertesTransport'
-import { prefetchRouteByPath } from '@/lib/routePrefetch'
+
+const prefetchRouteByPath = (path: string) => {
+  void import('@/lib/routePrefetch').then(m => m.prefetchRouteByPath(path))
+}
 import NexoraTruckLogo from './NexoraTruckLogo'
 
 type NavItem = {
@@ -60,34 +63,28 @@ const NAV_SECTIONS: NavSection[] = [
     key: 'operations',
     label: 'Opérations',
     items: [
-      { to: '/ops-center',         page: 'ops-center',         label: 'Ops Center',           icon: 'ops-center' },
-      { to: '/dashboard',         page: 'dashboard',         label: 'Tableau de bord',      icon: 'dashboard' },
-      { to: '/dashboard-conducteur', page: 'dashboard-conducteur', label: 'Mon accueil',   icon: 'house' },
-      { to: '/planning',          page: 'planning',          label: 'Planning',             icon: 'calendar' },
-      { to: '/planning-conducteur', page: 'planning-conducteur', label: 'Mon planning',   icon: 'calendar-user' },
-      { to: '/transports',        page: 'transports',        label: 'OT / Fret',            icon: 'route' },
-      { to: '/feuille-route',     page: 'feuille-route',     label: 'Feuille de route',     icon: 'road' },
-      { to: '/map-live',          page: 'map-live',          label: 'Map live',             icon: 'pin' },
-      { to: '/demandes-clients',  page: 'demandes-clients',  label: 'Demandes clients',     icon: 'inbox-request' },
-      { to: '/tasks',             page: 'tasks',             label: 'Tâches',               icon: 'check' },
-      { to: '/optimisation-tournees', page: 'optimisation-tournees', label: 'Optim. tournées',    icon: 'route-opt' },
-      { to: '/messagerie-colis',      page: 'messagerie-colis',      label: 'Messagerie colis',   icon: 'parcel' },
-      { to: '/formulaires-terrain',   page: 'formulaires-terrain',   label: 'Formulaires terrain', icon: 'form-field' },
-      { to: '/gestion-temperature',   page: 'gestion-temperature',   label: 'Température frigo',  icon: 'thermometer' },
+      { to: '/ops-center',              page: 'ops-center',              label: 'Ops Center',         icon: 'ops-center' },
+      { to: '/dashboard',               page: 'dashboard',               label: 'Tableau de bord',    icon: 'dashboard' },
+      { to: '/dashboard-conducteur',    page: 'dashboard-conducteur',    label: 'Mon accueil',        icon: 'house' },
+      { to: '/planning',                page: 'planning',                label: 'Planning',           icon: 'calendar' },
+      { to: '/transports',              page: 'transports',              label: 'OT / Fret',          icon: 'route' },
+      { to: '/terrain',                 page: 'terrain',                 label: 'Terrain',            icon: 'road' },
+      { to: '/map-live',                page: 'map-live',                label: 'Map live',           icon: 'pin' },
+      { to: '/demandes-clients',        page: 'demandes-clients',        label: 'Demandes clients',   icon: 'inbox-request' },
+      { to: '/tasks',                   page: 'tasks',                   label: 'Tâches',             icon: 'check' },
+      { to: '/optimisation-tournees',   page: 'optimisation-tournees',   label: 'Optim. tournées',    icon: 'route-opt' },
     ],
   },
   {
     key: 'fleet',
     label: 'Flotte',
     items: [
-      { to: '/chauffeurs',   page: 'chauffeurs',   label: 'Conducteurs',       icon: 'driver' },
-      { to: '/vehicules',    page: 'vehicules',    label: 'Camions',           icon: 'truck' },
-      { to: '/remorques',    page: 'remorques',    label: 'Remorques',         icon: 'trailer' },
-      { to: '/equipements',  page: 'equipements',  label: 'Equipements',       icon: 'layers' },
-      { to: '/maintenance',  page: 'maintenance',  label: 'Atelier',           icon: 'wrench' },
-      { to: '/tachygraphe',  page: 'tachygraphe',  label: 'Chronotachygraphe', icon: 'tachy' },
-      { to: '/amendes',      page: 'amendes',      label: 'PV & Amendes',      icon: 'amende' },
-      { to: '/entrepots',    page: 'entrepots',    label: 'Entrepôts',         icon: 'warehouse' },
+      { to: '/chauffeurs',  page: 'chauffeurs',  label: 'Conducteurs',  icon: 'driver'   },
+      { to: '/parc',         page: 'vehicules',   label: 'Parc',         icon: 'truck'    },
+      { to: '/equipements',  page: 'equipements', label: 'Equipements',  icon: 'layers'   },
+      { to: '/maintenance',  page: 'maintenance', label: 'Atelier',      icon: 'wrench'   },
+      { to: '/conformite',   page: 'tachygraphe', label: 'Conformité',   icon: 'tachy'    },
+      { to: '/entrepots',    page: 'entrepots',   label: 'Entrepôts',    icon: 'warehouse'},
     ],
   },
   {
@@ -95,12 +92,9 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Finance',
     items: [
       { to: '/facturation',          page: 'facturation',          label: 'Facturation',  icon: 'invoice' },
-      { to: '/reglements',           page: 'reglements',           label: 'Règlements',   icon: 'payment' },
-      { to: '/tresorerie',           page: 'tresorerie',           label: 'Trésorerie',   icon: 'bank' },
-      { to: '/analytique-transport', page: 'analytique-transport', label: 'Analytique',   icon: 'pie-chart' },
-      { to: '/bilan-co2',                page: 'bilan-co2',                label: 'Bilan CO₂',   icon: 'leaf' },
+      { to: '/comptabilite-finance', page: 'reglements',           label: 'Règlements',   icon: 'payment' },
+      { to: '/analyses',             page: 'analytique-transport', label: 'Analyses',     icon: 'pie-chart' },
       { to: '/frais',                page: 'frais',                label: 'Frais',        icon: 'expense' },
-      { to: '/frais-rapide',         page: 'frais-rapide',         label: 'Saisie frais rapide', icon: 'receipt-quick' },
       { to: '/paie',                 page: 'paie',                 label: 'Paie',         icon: 'payroll' },
     ],
   },
@@ -108,30 +102,27 @@ const NAV_SECTIONS: NavSection[] = [
     key: 'crm',
     label: 'CRM',
     items: [
-      { to: '/clients',          page: 'clients',          label: 'Clients',          icon: 'company' },
-      { to: '/prospection',      page: 'prospection',      label: 'Prospection',      icon: 'spark' },
-      { to: '/espace-client',    page: 'espace-client',    label: 'Espace client',    icon: 'client-space' },
-      { to: '/compte-client-db', page: 'compte-client-db', label: 'Compte client DB', icon: 'database' },
-      { to: '/espace-affreteur', page: 'espace-affreteur', label: 'Espace affreteur', icon: 'handshake' },
+      { to: '/clients',          page: 'clients',          label: 'Clients',      icon: 'company'     },
+      { to: '/prospection',      page: 'prospection',      label: 'Prospection',  icon: 'spark'       },
+      { to: '/portails',         page: 'espace-client',    label: 'Portails',     icon: 'client-space'},
+      { to: '/compte-client-db', page: 'compte-client-db', label: 'Compte client DB', icon: 'database'},
     ],
   },
   {
     key: 'rh',
     label: 'RH',
     items: [
-      { to: '/rh', page: 'rh', label: 'Ressources humaines', icon: 'rh' },
-      { to: '/entretiens-salaries', page: 'entretiens-salaries', label: 'Entretiens salaries', icon: 'interview' },
+      { to: '/rh-unifie', page: 'rh', label: 'Ressources humaines', icon: 'rh' },
     ],
   },
   {
     key: 'communications',
     label: 'Communications',
     items: [
-      { to: '/tchat',         page: 'tchat',         label: 'Messagerie',   icon: 'chat' },
-      { to: '/mail',          page: 'mail',          label: 'Mail',         icon: 'mail' },
-      { to: '/inter-erp',     page: 'inter-erp',     label: 'Inter-ERP',    icon: 'inter-erp' },
-      { to: '/communication', page: 'communication', label: 'Communication', icon: 'inbox' },
-      { to: '/coffre',        page: 'coffre',        label: 'Coffre',       icon: 'safe' },
+      { to: '/messagerie',   page: 'tchat',         label: 'Messagerie',   icon: 'chat'    },
+      { to: '/inter-erp',    page: 'inter-erp',     label: 'Inter-ERP',    icon: 'inter-erp'},
+      { to: '/communication', page: 'communication', label: 'Communication', icon: 'inbox'  },
+      { to: '/coffre',        page: 'coffre',        label: 'Coffre',       icon: 'safe'    },
     ],
   },
   {

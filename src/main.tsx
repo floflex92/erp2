@@ -1,10 +1,9 @@
-import { StrictMode, startTransition } from 'react'
-import { createRoot, hydrateRoot } from 'react-dom/client'
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary'
 import { initObservability } from '@/lib/observability'
-import { prefetchRoutesByPath } from '@/lib/routePrefetch'
 
 initObservability()
 
@@ -20,8 +19,6 @@ if (!rootElement) {
   throw new Error('Root element #root introuvable')
 }
 
-const isSsrHydration = rootElement.dataset.ssr === 'true' || rootElement.hasChildNodes()
-
 const app = (
   <StrictMode>
     <ErrorBoundary>
@@ -30,20 +27,7 @@ const app = (
   </StrictMode>
 )
 
-if (isSsrHydration) {
-  hydrateRoot(rootElement, app)
-  window.setTimeout(() => {
-    rootElement.removeAttribute('data-ssr')
-  }, 0)
-} else {
-  createRoot(rootElement).render(app)
-}
-
-// Précharge les routes les plus fréquentes en idle (après le rendu initial)
-if ('requestIdleCallback' in window) {
-  requestIdleCallback(() => {
-    startTransition(() => {
-      prefetchRoutesByPath(['/dashboard', '/planning', '/transports', '/ops-center'])
-    })
-  })
-}
+// createRoot sur le contenu SSR : React reconcilie avec le DOM existant.
+// Le HTML pré-rendu reste visible au FCP, React remplace sans flash perceptible.
+// hydrateRoot évité car il cause un render delay de ~15s avec les composants lazy (cascade).
+createRoot(rootElement).render(app)

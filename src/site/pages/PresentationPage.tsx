@@ -48,7 +48,7 @@ export default function PresentationPage() {
 
           <div style={{ marginBottom: 32 }}>
             <img
-              src="/site/logo/brand/nexora-logo-light.png"
+              src="/site/logo/brand/nexora-logo-light.webp"
               alt="Logo NEXORA Truck"
               width={460}
               height={120}

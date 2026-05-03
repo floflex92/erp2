@@ -1,38 +1,44 @@
+import { lazy } from 'react'
 import { Navigate, Route } from 'react-router-dom'
-import MentionsLegales from '@/pages/MentionsLegales'
-import SiteLayout from '@/site/components/SiteLayout'
-import AboutPage from '@/site/pages/AboutPage'
-import AffretementTransportPage from '@/site/pages/AffretementTransportPage'
-import AllFeaturesPage from '@/site/pages/AllFeaturesPage'
-import ArticlesPage from '@/site/pages/ArticlesPage'
-import ArticlePage from '@/site/pages/articles/ArticlePage'
-import ChronotachygraphePage from '@/site/pages/ChronotachygraphePage'
-import ContactPage from '@/site/pages/ContactPage'
-import ComparatifPage from '@/site/pages/ComparatifPage'
-import DemoPage from '@/site/pages/DemoPage'
-import ERPLoginPage from '@/site/pages/ERPLoginPage'
-import ErpTransportTmsPage from '@/site/pages/ErpTransportTmsPage'
-import ErpTransportRoutierPage from '@/site/pages/ErpTransportRoutierPage'
-import FacturationTransportPage from '@/site/pages/FacturationTransportPage'
-import FeaturesPage from '@/site/pages/FeaturesPage'
-import HomePage from '@/site/pages/HomePage'
-import IaTransportPage from '@/site/pages/IaTransportPage'
-import IntegrationsPage from '@/site/pages/IntegrationsPage'
-import LogicielGestionFlotteCamionPage from '@/site/pages/LogicielGestionFlotteCamionPage'
-import LogicielTransportPage from '@/site/pages/LogicielTransportPage'
-import PlanningIntelligentPage from '@/site/pages/PlanningIntelligentPage'
-import PricingPage from '@/site/pages/PricingPage'
-import PresentationPage from '@/site/pages/PresentationPage'
-import PrivacyPolicyPage from '@/site/pages/PrivacyPolicyPage'
-import ProductPage from '@/site/pages/ProductPage'
-import RoiPage from '@/site/pages/RoiPage'
-import SecteurTransportPage from '@/site/pages/SecteurTransportPage'
-import SeoErpTransportPage from '@/site/pages/SeoErpTransportPage'
-import SolutionPage from '@/site/pages/SolutionPage'
-import TelematiqueTransportPage from '@/site/pages/TelématiqueTransportPage'
-import TermsOfUsePage from '@/site/pages/TermsOfUsePage'
-import TmsTransportPage from '@/site/pages/TmsTransportPage'
-import VersionsPage from '@/site/pages/VersionsPage'
+// SiteLayout et HomePage: lazy pour réduire l'entry bundle (~127KB → ~56KB)
+// Les modulepreload hints injectés dans dist/index.html les pré-téléchargent
+// en parallèle de l'entry, éliminant la cascade sans gonfler le bundle critique.
+const SiteLayout = lazy(() => import('@/site/components/SiteLayout'))
+const HomePage = lazy(() => import('@/site/pages/HomePage'))
+
+const MentionsLegales = lazy(() => import('@/pages/MentionsLegales'))
+
+const AboutPage = lazy(() => import('@/site/pages/AboutPage'))
+const AffretementTransportPage = lazy(() => import('@/site/pages/AffretementTransportPage'))
+const AllFeaturesPage = lazy(() => import('@/site/pages/AllFeaturesPage'))
+const ArticlesPage = lazy(() => import('@/site/pages/ArticlesPage'))
+const ArticlePage = lazy(() => import('@/site/pages/articles/ArticlePage'))
+const ChronotachygraphePage = lazy(() => import('@/site/pages/ChronotachygraphePage'))
+const ContactPage = lazy(() => import('@/site/pages/ContactPage'))
+const ComparatifPage = lazy(() => import('@/site/pages/ComparatifPage'))
+const DemoPage = lazy(() => import('@/site/pages/DemoPage'))
+const ERPLoginPage = lazy(() => import('@/site/pages/ERPLoginPage'))
+const ErpTransportTmsPage = lazy(() => import('@/site/pages/ErpTransportTmsPage'))
+const ErpTransportRoutierPage = lazy(() => import('@/site/pages/ErpTransportRoutierPage'))
+const FacturationTransportPage = lazy(() => import('@/site/pages/FacturationTransportPage'))
+const FeaturesPage = lazy(() => import('@/site/pages/FeaturesPage'))
+const IaTransportPage = lazy(() => import('@/site/pages/IaTransportPage'))
+const IntegrationsPage = lazy(() => import('@/site/pages/IntegrationsPage'))
+const LogicielGestionFlotteCamionPage = lazy(() => import('@/site/pages/LogicielGestionFlotteCamionPage'))
+const LogicielTransportPage = lazy(() => import('@/site/pages/LogicielTransportPage'))
+const PlanningIntelligentPage = lazy(() => import('@/site/pages/PlanningIntelligentPage'))
+const PricingPage = lazy(() => import('@/site/pages/PricingPage'))
+const PresentationPage = lazy(() => import('@/site/pages/PresentationPage'))
+const PrivacyPolicyPage = lazy(() => import('@/site/pages/PrivacyPolicyPage'))
+const ProductPage = lazy(() => import('@/site/pages/ProductPage'))
+const RoiPage = lazy(() => import('@/site/pages/RoiPage'))
+const SecteurTransportPage = lazy(() => import('@/site/pages/SecteurTransportPage'))
+const SeoErpTransportPage = lazy(() => import('@/site/pages/SeoErpTransportPage'))
+const SolutionPage = lazy(() => import('@/site/pages/SolutionPage'))
+const TelematiqueTransportPage = lazy(() => import('@/site/pages/TelématiqueTransportPage'))
+const TermsOfUsePage = lazy(() => import('@/site/pages/TermsOfUsePage'))
+const TmsTransportPage = lazy(() => import('@/site/pages/TmsTransportPage'))
+const VersionsPage = lazy(() => import('@/site/pages/VersionsPage'))
 
 export function getPublicSiteRoutes() {
   return (

@@ -4,7 +4,10 @@ import Sidebar from './Sidebar'
 import ImpersonationBanner from './ImpersonationBanner'
 import { canAccess, useAuth } from '@/lib/auth'
 import { useTheme } from '@/lib/theme'
-import { prefetchRouteByPath } from '@/lib/routePrefetch'
+
+const prefetchRouteByPath = (path: string) => {
+  void import('@/lib/routePrefetch').then(m => m.prefetchRouteByPath(path))
+}
 
 const PLANNING_HEADER_COLLAPSED_KEY = 'nexora_planning_header_collapsed_v1'
 

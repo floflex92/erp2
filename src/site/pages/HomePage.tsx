@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom'
 import useSiteMeta from '@/site/hooks/useSiteMeta'
 import { sitePhotos } from '@/site/lib/sitePhotos'
 import { articleIndex } from '@/site/content/articleIndex'
-import conducteursScreenshot from '../../../docs/capture d ecran/mecano01.png'
-import planningScreenshot from '../../../docs/capture d ecran/planning01.png'
+
+const conducteursScreenshot = '/site/screenshots/mecano01.webp'
+const planningScreenshot = '/site/screenshots/planning01.webp'
 
 
 /* ── Types ──────────────────────────────────────────────────── */
@@ -44,7 +45,7 @@ const FEATURE_SCREENSHOTS: Partial<Record<FeatureTab['key'], FeatureScreenshot>>
     caption: 'Disponibilités parc, maintenance et suivi atelier dans un même écran.',
   },
   conducteurs: {
-    src: '/site/screenshots/conducteurs.png',
+    src: '/site/screenshots/conducteurs.webp',
     alt: 'Vue ERP conducteurs avec documents, conformité et historique',
     badge: 'Capture espace conducteurs',
     caption: 'Documents, échéances et suivi conducteur regroupés sur une seule fiche.',
@@ -745,7 +746,7 @@ export default function HomePage() {
           <div className="relative">
             <div className="relative overflow-hidden rounded-[2rem] shadow-[0_30px_80px_rgba(15,23,42,0.18)]">
               <img
-                src={sitePhotos.truckRoadWide.src(1400)}
+                src={sitePhotos.truckRoadWide.src(768)}
                 srcSet={sitePhotos.truckRoadWide.srcSet([768, 1400])}
                 sizes="(min-width: 1024px) 48vw, 92vw"
                 alt="Camion NEXORA sur la route — pilotage transport en temps réel"

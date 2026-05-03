@@ -56,7 +56,7 @@ export default function SiteLayout() {
         <div className="flex h-20 items-center justify-between">
           <Link to="/" className="inline-flex items-center gap-2" aria-label="NEXORA accueil">
             <img
-              src={isDarkBg ? '/site/logo/brand/nexora-logo-light.png' : '/site/logo/brand/nexora-logo-dark.png'}
+              src={isDarkBg ? '/site/logo/brand/nexora-logo-light.webp' : '/site/logo/brand/nexora-logo-dark.webp'}
               alt="NEXORA"
               className="h-14 w-auto object-contain md:h-16"
               loading="eager"
@@ -131,7 +131,7 @@ export default function SiteLayout() {
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <img
-              src="/site/logo/brand/nexora-logo-dark.png"
+              src="/site/logo/brand/nexora-logo-dark.webp"
               alt="NEXORA"
               className="h-16 w-auto object-contain md:h-20"
               loading="lazy"

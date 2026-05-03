@@ -281,7 +281,7 @@ export default function AllFeaturesPage() {
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b px-2.5 py-1.5" style={{ borderColor: '#E2E8F0' }}>
-                <img src="/site/logo/brand/nexora-logo-dark.png" alt="" className="h-3.5 w-auto object-contain" />
+                <img src="/site/logo/brand/nexora-logo-dark.webp" alt="" className="h-3.5 w-auto object-contain" />
                 <div className="flex items-center gap-1">
                   <span className="relative inline-block h-3 w-3 rounded-full" style={{ background: '#F1F5F9' }}>
                     <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full" style={{ background: '#EF4444' }} />

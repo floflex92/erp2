@@ -16,7 +16,7 @@ export default function HomeProof() {
         </p>
         <div className="mt-6 overflow-hidden rounded-2xl border border-[var(--site-border)] bg-[#0f172a] p-2">
           <img
-            src="/site/screenshots/map-live-vehicles.png"
+            src="/site/screenshots/map-live-vehicles.webp"
             alt="Vue map live et suivi exploitation NEXORA Truck"
             className="aspect-[16/10] w-full rounded-xl object-cover"
             loading="lazy"

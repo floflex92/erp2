@@ -33,11 +33,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="NEXORA Truck" />
-    <!-- Préchargement hero LCP (image principale homepage) -->
+    <!-- Préchargement hero LCP (truck-road = élément LCP mesuré par Lighthouse) -->
     <link rel="preload" as="image"
-      href="/site/photos/main-page-1400.jpg"
-      imagesrcset="/site/photos/main-page-768.jpg 768w, /site/photos/main-page-1400.jpg 1400w"
-      imagesizes="100vw"
+      href="/site/photos/truck-road-768.webp"
+      imagesrcset="/site/photos/truck-road-768.webp 768w, /site/photos/truck-road-1400.webp 1400w"
+      imagesizes="(min-width: 1024px) 48vw, 92vw"
       fetchpriority="high" />
     <!-- DNS prefetch Supabase -->
     <link rel="dns-prefetch" href="https://rnbbxmdughpxovcnhrpz.supabase.co" />

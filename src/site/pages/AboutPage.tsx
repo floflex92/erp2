@@ -267,7 +267,7 @@ export default function AboutPage() {
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b px-3 py-2" style={{ borderColor: '#E2E8F0' }}>
-                <img src="/site/logo/brand/nexora-logo-dark.png" alt="" className="h-4 w-auto object-contain" />
+                <img src="/site/logo/brand/nexora-logo-dark.webp" alt="" className="h-4 w-auto object-contain" />
                 <div className="mx-2 flex-1 rounded-md px-2 py-1 text-[8px]" style={{ background: '#F1F5F9', color: '#64748B' }}>
                   Rechercher…
                 </div>

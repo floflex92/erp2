@@ -45,7 +45,7 @@ export default function HomeHero({ onOpenScreenshot }: HomeHeroProps) {
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(59,130,246,0.24),transparent_42%)]" />
           <div className="relative overflow-hidden rounded-[1.1rem] border border-white/15">
             <img
-              src="/site/screenshots/planning-dark.png"
+              src="/site/screenshots/planning-dark.webp"
               alt="Vue planning de NEXORA Truck"
               className="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-[1.02]"
               loading="eager"

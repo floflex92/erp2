@@ -10,8 +10,8 @@ function localPhoto(baseName: string): PhotoAsset {
   const pick = (requestedWidth: number) => (requestedWidth <= 900 ? compact : large)
 
   return {
-    src: width => `/site/photos/${baseName}-${pick(width)}.jpg`,
-    srcSet: () => `/site/photos/${baseName}-${compact}.jpg ${compact}w, /site/photos/${baseName}-${large}.jpg ${large}w`,
+    src: width => `/site/photos/${baseName}-${pick(width)}.webp`,
+    srcSet: () => `/site/photos/${baseName}-${compact}.webp ${compact}w, /site/photos/${baseName}-${large}.webp ${large}w`,
   }
 }
 

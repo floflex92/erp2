@@ -36,12 +36,12 @@ export default function NexoraTruckLogo({
     ? {
         subtitle: 'rgba(226, 232, 240, 0.78)',
         truck: '#0EA5E9',
-        logo: '/site/logo/brand/nexora-logo-light.png',
+        logo: '/site/logo/brand/nexora-logo-light.webp',
       }
     : {
         subtitle: '#475569',
         truck: '#1F4E8C',
-        logo: '/site/logo/brand/nexora-logo-dark.png',
+        logo: '/site/logo/brand/nexora-logo-dark.webp',
       }
 
   const scale = SIZE_MAP[size]

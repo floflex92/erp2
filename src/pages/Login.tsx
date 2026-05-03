@@ -158,8 +158,8 @@ export default function Login() {
         <div className="absolute left-12 top-10 flex items-center gap-6">
           <Link to="/" aria-label="NEXORA accueil" className="inline-flex items-center">
             <img
-              src="/site/logo/brand/nexora-logo-light.png"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/site/logo/brand/nexora-logo-dark.png' }}
+              src="/site/logo/brand/nexora-logo-light.webp"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/site/logo/brand/nexora-logo-dark.webp' }}
               alt="NEXORA"
               className="h-9 w-auto object-contain"
             />
@@ -257,7 +257,7 @@ export default function Login() {
           {/* Logo */}
           <Link to="/" className="inline-flex items-center" aria-label="NEXORA accueil">
             <img
-              src="/site/logo/brand/nexora-logo-dark.png"
+              src="/site/logo/brand/nexora-logo-dark.webp"
               alt="NEXORA"
               className="h-9 w-auto object-contain"
               loading="eager"
