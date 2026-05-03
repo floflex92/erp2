@@ -5174,9 +5174,9 @@ export default function Planning() {
                         style={{ position:'absolute', top:'6px', height:'52px', left:`calc(${card.leftPct}% + 2px)`, width:`calc(${card.widthPct}% - 4px)` }}
                         onMouseEnter={e => openHoverPreview(card.members[0], e.clientX, e.clientY)}
                         onMouseLeave={clearHoverPreview}
-                        className={`rounded-xl border overflow-hidden shadow-lg transition-all ${card.frozen ? 'border-indigo-300/70 bg-slate-950/96' : 'border-amber-300/70 bg-amber-50/95'} ${getMissionHoverClasses(card.groupId, card.frozen)}`}
+                        className={`nx-ot-bubble rounded-xl border overflow-hidden shadow-lg transition-all ${card.frozen ? 'border-indigo-300/70 bg-slate-950/96' : 'border-amber-300/70 bg-amber-500/35'} ${getMissionHoverClasses(card.groupId, card.frozen)}`}
                       >
-                        <div className={`flex items-center justify-between gap-2 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] ${card.frozen ? 'bg-indigo-500/20 text-indigo-100' : 'bg-amber-100 text-amber-950'}`}>
+                        <div className={`flex items-center justify-between gap-2 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] ${card.frozen ? 'bg-indigo-500/20 text-indigo-100' : 'bg-amber-500/30 text-white'}`}>
                           <span className="truncate">{card.summary.label}</span>
                           <span className="flex-shrink-0">{card.frozen ? 'Verrouillee' : 'Deliable'}</span>
                         </div>
@@ -5223,7 +5223,7 @@ export default function Planning() {
                           onDragEnd={onDragEnd}
                           onMouseEnter={!drag ? e => openHoverPreview(ot, e.clientX, e.clientY) : undefined}
                           onMouseLeave={!drag ? clearHoverPreview : undefined}
-                          className={`${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col px-2 py-1 gap-0 transition-[opacity,filter] overflow-hidden shadow-md group/block
+                          className={`nx-ot-bubble ${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col px-2 py-1 gap-0 transition-[opacity,filter] overflow-hidden shadow-md group/block
                             ${canMove(ot)&&!isRowEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
                             ${isDragging?'opacity-30':isSaving?'opacity-70 animate-pulse':'hover:brightness-110'}
                             ${isLate ? 'ring-1 ring-red-400/60' : ''}
@@ -5291,7 +5291,7 @@ export default function Planning() {
                             onDragStart={!isRowEditMode ? e => onDragStartCustomBlock(block, e) : undefined} onDragEnd={onDragEnd}
                             onMouseEnter={!drag ? e => openHoverPreview(linkedOT, e.clientX, e.clientY) : undefined}
                             onMouseLeave={!drag ? clearHoverPreview : undefined}
-                            className={`${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col px-2 py-1 gap-0 transition-[opacity,filter] overflow-hidden shadow-md group/cblock
+                            className={`nx-ot-bubble ${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col px-2 py-1 gap-0 transition-[opacity,filter] overflow-hidden shadow-md group/cblock
                               ${!isRowEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
                               ${drag?.customBlockId===block.id ? 'opacity-30' : 'hover:brightness-110'}
                               ${isLate ? 'ring-1 ring-red-400/60' : ''}
@@ -5548,9 +5548,9 @@ export default function Planning() {
                           style={{ position:'absolute', top:'4px', height:'52px', left:`${card.leftPct}%`, width:`${card.widthPct}%` }}
                           onMouseEnter={e => openHoverPreview(card.members[0], e.clientX, e.clientY)}
                           onMouseLeave={clearHoverPreview}
-                          className={`rounded-xl border overflow-hidden shadow-lg transition-all ${card.frozen ? 'border-indigo-300/70 bg-slate-950/96' : 'border-amber-300/70 bg-amber-50/95'} ${getMissionHoverClasses(card.groupId, card.frozen)}`}
+                          className={`nx-ot-bubble rounded-xl border overflow-hidden shadow-lg transition-all ${card.frozen ? 'border-indigo-300/70 bg-slate-950/96' : 'border-amber-300/70 bg-amber-500/35'} ${getMissionHoverClasses(card.groupId, card.frozen)}`}
                         >
-                            <div className={`flex items-center justify-between gap-2 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] ${card.frozen ? 'bg-indigo-500/20 text-indigo-100' : 'bg-amber-100 text-amber-950'}`}>
+                            <div className={`flex items-center justify-between gap-2 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] ${card.frozen ? 'bg-indigo-500/20 text-indigo-100' : 'bg-amber-500/30 text-white'}`}>
                               <span className="truncate">{card.summary.label}</span>
                               <span className="flex-shrink-0">{card.frozen ? 'Verrouillee' : 'Deliable'}</span>
                           </div>
@@ -5611,7 +5611,7 @@ export default function Planning() {
                             onDragEnd={onDragEnd}
                             onMouseEnter={!drag ? e => openHoverPreview(ot, e.clientX, e.clientY) : undefined}
                             onMouseLeave={!drag ? clearHoverPreview : undefined}
-                            className={`${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col justify-center px-2 group/block overflow-hidden shadow-md
+                            className={`nx-ot-bubble ${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col justify-center px-2 group/block overflow-hidden shadow-md
                               ${canMove(ot)&&!isRowEditMode?'cursor-grab active:cursor-grabbing':'cursor-pointer'}
                               ${isDragging?'opacity-30':'hover:brightness-110'}
                               ${isLate?'ring-1 ring-red-400/60':''}
@@ -5667,7 +5667,7 @@ export default function Planning() {
                               onDragStart={!isRowEditMode ? e => onDragStartCustomBlock(block, e) : undefined} onDragEnd={onDragEnd}
                               onMouseEnter={!drag ? e => openHoverPreview(linkedOT, e.clientX, e.clientY) : undefined}
                               onMouseLeave={!drag ? clearHoverPreview : undefined}
-                              className={`${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col justify-center px-2 group/cblock overflow-hidden shadow-md
+                              className={`nx-ot-bubble ${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col justify-center px-2 group/cblock overflow-hidden shadow-md
                                 ${!isRowEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
                                 ${drag?.customBlockId===block.id ? 'opacity-30' : 'hover:brightness-110'}
                                 ${isLate ? 'ring-1 ring-red-400/60' : ''}
@@ -5866,20 +5866,20 @@ export default function Planning() {
             : { left: 0, right: 0 }}
         >
           {bottomDockCollapsed ? (
-            <div className="border-t border-slate-800 bg-slate-950/98 px-3 py-1.5 rounded-t-xl shadow-lg">
+            <div className="border-t border-line bg-surface/98 px-3 py-1.5 rounded-t-xl shadow-lg">
               <div className="flex items-center gap-2 overflow-x-auto overflow-y-hidden">
                 {/* Chevron ouvrir */}
                 <button
                   type="button"
                   onClick={() => setBottomDockCollapsed(false)}
-                  className="flex items-center gap-1 flex-shrink-0 rounded-lg border border-slate-700 bg-slate-800/80 px-2 py-1 text-[10px] font-semibold text-muted hover:text-white hover:border-indigo-500/50 transition-colors"
+                  className="flex items-center gap-1 flex-shrink-0 rounded-lg border border-line-strong bg-surface-2 px-2 py-1 text-[10px] font-semibold text-secondary hover:text-foreground hover:border-indigo-500/50 transition-colors"
                   title="Développer le panneau opérations"
                 >
                   <svg className="w-3 h-3 rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M19 9l-7 7-7-7"/></svg>
                   Opérations
                 </button>
 
-                <div className="h-4 w-px bg-slate-700/60 flex-shrink-0" />
+                <div className="h-4 w-px bg-line-strong/60 flex-shrink-0" />
 
                 {/* Onglets avec count — clic ouvre directement sur cet onglet */}
                 {visibleBottomDockTabs.map(item => (
@@ -5894,7 +5894,7 @@ export default function Planning() {
                     className={`flex items-center gap-1 flex-shrink-0 whitespace-nowrap rounded-md px-2 py-1 text-[10px] font-semibold transition-colors border ${
                       item.count > 0
                         ? 'border-amber-600/40 bg-amber-600/10 text-amber-300 hover:bg-amber-600/20'
-                        : 'border-slate-700/60 text-slate-400 hover:text-slate-200 hover:border-slate-600'
+                        : 'border-line-strong text-secondary hover:text-foreground hover:border-line-strong'
                     }`}
                     title={`Ouvrir ${item.label}`}
                   >
@@ -5910,7 +5910,7 @@ export default function Planning() {
             </div>
           ) : (
             <>
-              <div className="relative h-3 flex-shrink-0 border-t border-slate-800 bg-slate-950/95">
+              <div className="relative h-3 flex-shrink-0 border-t border-line bg-surface/95">
                 <div
                   role="separator"
                   aria-orientation="horizontal"
@@ -5922,9 +5922,9 @@ export default function Planning() {
                 </div>
               </div>
 
-                <div className="border-t border-slate-800 bg-slate-950/95 flex-shrink-0 overflow-hidden" style={{ height: `${bottomDockHeight}px` }}>
+                <div className="border-t border-line bg-surface/95 flex-shrink-0 overflow-hidden" style={{ height: `${bottomDockHeight}px` }}>
               <div className="flex h-full min-h-0 flex-col">
-              <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-slate-800/80 overflow-x-auto overflow-y-hidden flex-shrink-0">
+              <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-line overflow-x-auto overflow-y-hidden flex-shrink-0">
             {visibleBottomDockTabs.map(item => (
               <button
                 key={item.key}
@@ -5935,13 +5935,13 @@ export default function Planning() {
                 }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border whitespace-nowrap ${
                   bottomDockTab === item.key
-                    ? 'bg-blue-200 border-blue-500 text-blue-950 font-bold'
-                    : 'border-slate-700 text-slate-300 hover:text-white'
+                    ? 'bg-blue-600 border-blue-600 text-white font-bold'
+                    : 'border-line-strong text-secondary hover:text-foreground hover:border-indigo-400'
                 }`}
               >
                 {item.label}
                 {item.count > 0 && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${bottomDockTab === item.key ? 'bg-blue-200 text-blue-900' : 'bg-slate-700/80 text-slate-300'}`}>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${bottomDockTab === item.key ? 'bg-white/20 text-white' : 'bg-surface-2 text-secondary'}`}>
                     {item.count}
                   </span>
                 )}
@@ -5982,7 +5982,7 @@ export default function Planning() {
                   setShowOnlyAlert(false)
                   setShowOnlyConflicts(false)
                 }}
-                className="px-2.5 py-1 rounded-full text-[10px] font-semibold border border-slate-700 text-slate-300 hover:text-white transition-colors whitespace-nowrap"
+                className="px-2.5 py-1 rounded-full text-[10px] font-semibold border border-line-strong text-secondary hover:text-foreground transition-colors whitespace-nowrap"
               >
                 Reset filtres
               </button>
@@ -5993,7 +5993,7 @@ export default function Planning() {
                   setSimulationMode(next)
                   saveBooleanSetting(SIMULATION_MODE_KEY, next)
                 }}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${simulationMode ? 'bg-amber-600 border-amber-500 text-white' : 'border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'}`}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${simulationMode ? 'bg-amber-600 border-amber-500 text-white' : 'border-line-strong text-secondary hover:text-foreground'}`}
               >
                 Mode simulation {simulationMode ? 'ON' : 'OFF'}
               </button>
@@ -6004,7 +6004,7 @@ export default function Planning() {
                   setAutoHabillage(next)
                   saveBooleanSetting(AUTO_HABILLAGE_KEY, next)
                 }}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${autoHabillage ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'}`}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${autoHabillage ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-line-strong text-secondary hover:text-foreground'}`}
               >
                 Habillage auto {autoHabillage ? 'active' : 'off'}
               </button>
@@ -6015,28 +6015,28 @@ export default function Planning() {
                   setAutoPauseReglementaire(next)
                   saveBooleanSetting(AUTO_PAUSE_KEY, next)
                 }}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${autoPauseReglementaire ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'}`}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${autoPauseReglementaire ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-line-strong text-secondary hover:text-foreground'}`}
               >
                 Pause 45 min {autoPauseReglementaire ? 'activee' : 'off'}
               </button>
               <button
                 type="button"
                 onClick={() => setPlanningHeaderCollapsed(current => !current)}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${planningHeaderCollapsed ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'}`}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${planningHeaderCollapsed ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-line-strong text-secondary hover:text-foreground'}`}
               >
                 {planningHeaderCollapsed ? 'Afficher bandeau haut' : 'Retracter bandeau haut'}
               </button>
               <button
                 type="button"
                 onClick={() => setBottomDockCollapsed(true)}
-                className="px-2.5 py-1 rounded-full text-[10px] font-semibold border border-slate-700 text-slate-300 hover:text-white transition-colors whitespace-nowrap"
+                className="px-2.5 py-1 rounded-full text-[10px] font-semibold border border-line-strong text-secondary hover:text-foreground transition-colors whitespace-nowrap"
               >
                 Replier panneau
               </button>
               <button
                 type="button"
                 onClick={() => setShowExploitantControls(value => !value)}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${showExploitantControls ? 'bg-emerald-600 border-emerald-500 text-white' : 'border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'}`}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors whitespace-nowrap ${showExploitantControls ? 'bg-emerald-600 border-emerald-500 text-white' : 'border-line-strong text-secondary hover:text-foreground'}`}
               >
                 Parametres exploitant
               </button>

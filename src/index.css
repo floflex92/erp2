@@ -1817,3 +1817,215 @@ textarea:focus {
 [data-theme='dark'] .text-neutral-950 {
   color: #f1f5f9 !important;
 }
+
+/* ERP universal contrast guard (web app only: .nx-main). */
+
+/* Light mode: dark-neutral backgrounds must not keep dark-theme colors. */
+[data-theme='light'] .nx-main [class*='bg-slate-7'],
+[data-theme='light'] .nx-main [class*='bg-slate-8'],
+[data-theme='light'] .nx-main [class*='bg-slate-9'],
+[data-theme='light'] .nx-main [class*='bg-gray-7'],
+[data-theme='light'] .nx-main [class*='bg-gray-8'],
+[data-theme='light'] .nx-main [class*='bg-gray-9'],
+[data-theme='light'] .nx-main [class*='bg-zinc-7'],
+[data-theme='light'] .nx-main [class*='bg-zinc-8'],
+[data-theme='light'] .nx-main [class*='bg-zinc-9'] {
+  background-color: var(--surface) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+[data-theme='light'] .nx-main [class*='bg-white/'] {
+  background-color: var(--surface-soft) !important;
+}
+
+/* Light mode: keep inner notification pills visible on colored buttons. */
+[data-theme='light'] .nx-main button[class*='bg-blue-'] [class*='bg-white/'],
+[data-theme='light'] .nx-main button[class*='bg-indigo-'] [class*='bg-white/'],
+[data-theme='light'] .nx-main button[class*='bg-violet-'] [class*='bg-white/'],
+[data-theme='light'] .nx-main button[class*='bg-purple-'] [class*='bg-white/'],
+[data-theme='light'] .nx-main button[class*='bg-cyan-'] [class*='bg-white/'],
+[data-theme='light'] .nx-main button[class*='bg-sky-'] [class*='bg-white/'],
+[data-theme='light'] .nx-main button[class*='bg-teal-'] [class*='bg-white/'],
+[data-theme='light'] .nx-main button[class*='bg-emerald-'] [class*='bg-white/'],
+[data-theme='light'] .nx-main button[class*='bg-green-'] [class*='bg-white/'],
+[data-theme='light'] .nx-main button[class*='bg-red-'] [class*='bg-white/'],
+[data-theme='light'] .nx-main button[class*='bg-rose-'] [class*='bg-white/'],
+[data-theme='light'] .nx-main button[class*='bg-pink-'] [class*='bg-white/'],
+[data-theme='light'] .nx-main button[class*='bg-orange-'] [class*='bg-white/'],
+[data-theme='light'] .nx-main button[class*='bg-amber-'] [class*='bg-white/'],
+[data-theme='light'] .nx-main button[class*='bg-yellow-'] [class*='bg-white/'] {
+  background-color: rgba(255, 255, 255, 0.32) !important;
+  color: #ffffff !important;
+}
+
+/* Light mode: keep colored button backgrounds, force readable white labels. */
+[data-theme='light'] .nx-main button[class*='bg-blue-'],
+[data-theme='light'] .nx-main button[class*='bg-indigo-'],
+[data-theme='light'] .nx-main button[class*='bg-violet-'],
+[data-theme='light'] .nx-main button[class*='bg-purple-'],
+[data-theme='light'] .nx-main button[class*='bg-cyan-'],
+[data-theme='light'] .nx-main button[class*='bg-sky-'],
+[data-theme='light'] .nx-main button[class*='bg-teal-'],
+[data-theme='light'] .nx-main button[class*='bg-emerald-'],
+[data-theme='light'] .nx-main button[class*='bg-green-'],
+[data-theme='light'] .nx-main button[class*='bg-red-'],
+[data-theme='light'] .nx-main button[class*='bg-rose-'],
+[data-theme='light'] .nx-main button[class*='bg-pink-'],
+[data-theme='light'] .nx-main button[class*='bg-orange-'],
+[data-theme='light'] .nx-main button[class*='bg-amber-'],
+[data-theme='light'] .nx-main button[class*='bg-yellow-'] {
+  color: #ffffff !important;
+}
+
+[data-theme='light'] .nx-main button[class*='bg-blue-'] *,
+[data-theme='light'] .nx-main button[class*='bg-indigo-'] *,
+[data-theme='light'] .nx-main button[class*='bg-violet-'] *,
+[data-theme='light'] .nx-main button[class*='bg-purple-'] *,
+[data-theme='light'] .nx-main button[class*='bg-cyan-'] *,
+[data-theme='light'] .nx-main button[class*='bg-sky-'] *,
+[data-theme='light'] .nx-main button[class*='bg-teal-'] *,
+[data-theme='light'] .nx-main button[class*='bg-emerald-'] *,
+[data-theme='light'] .nx-main button[class*='bg-green-'] *,
+[data-theme='light'] .nx-main button[class*='bg-red-'] *,
+[data-theme='light'] .nx-main button[class*='bg-rose-'] *,
+[data-theme='light'] .nx-main button[class*='bg-pink-'] *,
+[data-theme='light'] .nx-main button[class*='bg-orange-'] *,
+[data-theme='light'] .nx-main button[class*='bg-amber-'] *,
+[data-theme='light'] .nx-main button[class*='bg-yellow-'] * {
+  color: #ffffff !important;
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+/* Dark/night mode: pure white utility backgrounds become dark surfaces. */
+[data-theme='dark'] .nx-main .bg-white,
+[data-theme='night'] .nx-main .bg-white {
+  background-color: var(--surface) !important;
+  color: var(--text) !important;
+}
+
+/* Dark/night mode: dark text utilities are remapped to readable text. */
+[data-theme='dark'] .nx-main .text-slate-800,
+[data-theme='dark'] .nx-main .text-slate-700,
+[data-theme='dark'] .nx-main .text-slate-600,
+[data-theme='dark'] .nx-main .text-gray-800,
+[data-theme='dark'] .nx-main .text-gray-700,
+[data-theme='dark'] .nx-main .text-gray-600,
+[data-theme='dark'] .nx-main .text-zinc-800,
+[data-theme='dark'] .nx-main .text-zinc-700,
+[data-theme='dark'] .nx-main .text-zinc-600,
+[data-theme='night'] .nx-main .text-slate-800,
+[data-theme='night'] .nx-main .text-slate-700,
+[data-theme='night'] .nx-main .text-slate-600,
+[data-theme='night'] .nx-main .text-gray-800,
+[data-theme='night'] .nx-main .text-gray-700,
+[data-theme='night'] .nx-main .text-gray-600,
+[data-theme='night'] .nx-main .text-zinc-800,
+[data-theme='night'] .nx-main .text-zinc-700,
+[data-theme='night'] .nx-main .text-zinc-600 {
+  color: var(--text-secondary) !important;
+}
+
+/* Colored notifications/badges using dark text tones in dark/night themes. */
+[data-theme='dark'] .nx-main .text-red-700,
+[data-theme='dark'] .nx-main .text-red-800,
+[data-theme='dark'] .nx-main .text-red-900,
+[data-theme='night'] .nx-main .text-red-700,
+[data-theme='night'] .nx-main .text-red-800,
+[data-theme='night'] .nx-main .text-red-900 {
+  color: #fca5a5 !important;
+}
+
+[data-theme='dark'] .nx-main .text-rose-700,
+[data-theme='dark'] .nx-main .text-rose-800,
+[data-theme='night'] .nx-main .text-rose-700,
+[data-theme='night'] .nx-main .text-rose-800 {
+  color: #fda4af !important;
+}
+
+[data-theme='dark'] .nx-main .text-amber-700,
+[data-theme='dark'] .nx-main .text-amber-800,
+[data-theme='dark'] .nx-main .text-orange-700,
+[data-theme='dark'] .nx-main .text-orange-800,
+[data-theme='dark'] .nx-main .text-yellow-700,
+[data-theme='dark'] .nx-main .text-yellow-800,
+[data-theme='night'] .nx-main .text-amber-700,
+[data-theme='night'] .nx-main .text-amber-800,
+[data-theme='night'] .nx-main .text-orange-700,
+[data-theme='night'] .nx-main .text-orange-800,
+[data-theme='night'] .nx-main .text-yellow-700,
+[data-theme='night'] .nx-main .text-yellow-800 {
+  color: #fcd34d !important;
+}
+
+[data-theme='dark'] .nx-main .text-green-700,
+[data-theme='dark'] .nx-main .text-green-800,
+[data-theme='dark'] .nx-main .text-emerald-700,
+[data-theme='dark'] .nx-main .text-emerald-800,
+[data-theme='dark'] .nx-main .text-teal-700,
+[data-theme='dark'] .nx-main .text-teal-800,
+[data-theme='night'] .nx-main .text-green-700,
+[data-theme='night'] .nx-main .text-green-800,
+[data-theme='night'] .nx-main .text-emerald-700,
+[data-theme='night'] .nx-main .text-emerald-800,
+[data-theme='night'] .nx-main .text-teal-700,
+[data-theme='night'] .nx-main .text-teal-800 {
+  color: #6ee7b7 !important;
+}
+
+[data-theme='dark'] .nx-main .text-blue-700,
+[data-theme='dark'] .nx-main .text-blue-800,
+[data-theme='dark'] .nx-main .text-indigo-700,
+[data-theme='dark'] .nx-main .text-indigo-800,
+[data-theme='dark'] .nx-main .text-violet-700,
+[data-theme='dark'] .nx-main .text-violet-800,
+[data-theme='night'] .nx-main .text-blue-700,
+[data-theme='night'] .nx-main .text-blue-800,
+[data-theme='night'] .nx-main .text-indigo-700,
+[data-theme='night'] .nx-main .text-indigo-800,
+[data-theme='night'] .nx-main .text-violet-700,
+[data-theme='night'] .nx-main .text-violet-800 {
+  color: #93c5fd !important;
+}
+
+/* Keep combined colored bg + colored text pairs coherent (alerts/chips). */
+[data-theme='dark'] .nx-main [class*='bg-red-'][class*='text-red-'],
+[data-theme='dark'] .nx-main [class*='bg-rose-'][class*='text-rose-'],
+[data-theme='dark'] .nx-main [class*='bg-amber-'][class*='text-amber-'],
+[data-theme='dark'] .nx-main [class*='bg-orange-'][class*='text-orange-'],
+[data-theme='dark'] .nx-main [class*='bg-green-'][class*='text-green-'],
+[data-theme='dark'] .nx-main [class*='bg-emerald-'][class*='text-emerald-'],
+[data-theme='dark'] .nx-main [class*='bg-blue-'][class*='text-blue-'],
+[data-theme='dark'] .nx-main [class*='bg-indigo-'][class*='text-indigo-'],
+[data-theme='night'] .nx-main [class*='bg-red-'][class*='text-red-'],
+[data-theme='night'] .nx-main [class*='bg-rose-'][class*='text-rose-'],
+[data-theme='night'] .nx-main [class*='bg-amber-'][class*='text-amber-'],
+[data-theme='night'] .nx-main [class*='bg-orange-'][class*='text-orange-'],
+[data-theme='night'] .nx-main [class*='bg-green-'][class*='text-green-'],
+[data-theme='night'] .nx-main [class*='bg-emerald-'][class*='text-emerald-'],
+[data-theme='night'] .nx-main [class*='bg-blue-'][class*='text-blue-'],
+[data-theme='night'] .nx-main [class*='bg-indigo-'][class*='text-indigo-'] {
+  color: unset !important;
+}
+
+/* OT bubbles in planning: enforce white text on all inner labels and meta. */
+.nx-main .nx-ot-bubble,
+.nx-main .nx-ot-bubble :where(span, p, div, small, strong, b) {
+  color: #ffffff !important;
+}
+
+/* Light mode: override generic text-white remap inside OT bubbles. */
+[data-theme='light'] .nx-main .nx-ot-bubble .text-white,
+[data-theme='light'] .nx-main .nx-ot-bubble .text-white\/90,
+[data-theme='light'] .nx-main .nx-ot-bubble .text-white\/80,
+[data-theme='light'] .nx-main .nx-ot-bubble .text-white\/70,
+[data-theme='light'] .nx-main .nx-ot-bubble .text-white\/60,
+[data-theme='light'] .nx-main .nx-ot-bubble .text-white\/50,
+[data-theme='light'] .nx-main .nx-ot-bubble .text-white\/45,
+[data-theme='light'] .nx-main .nx-ot-bubble .text-slate-950,
+[data-theme='light'] .nx-main .nx-ot-bubble .text-foreground,
+[data-theme='light'] .nx-main .nx-ot-bubble .text-discreet,
+[data-theme='light'] .nx-main .nx-ot-bubble .text-secondary {
+  color: #ffffff !important;
+}

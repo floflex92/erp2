@@ -141,7 +141,7 @@ export function PlanningCommandBar({
   }
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-700/80 bg-slate-900 flex-shrink-0 flex-wrap">
+    <div className="flex items-center gap-2 px-3 py-2 border-b border-line bg-surface flex-shrink-0 flex-wrap">
 
       {/* ── ZONE GAUCHE : navigation + vue ────────────────────────────────── */}
       <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -149,14 +149,14 @@ export function PlanningCommandBar({
         <button
           type="button"
           onClick={goBack}
-          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors text-base font-light"
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-discreet hover:text-foreground hover:bg-surface-2 transition-colors text-base font-light"
           title="Période précédente"
         >
           ‹
         </button>
 
         <div className="min-w-[148px] text-center">
-          <span className="text-xs font-semibold text-white tabular-nums select-none">
+          <span className="text-xs font-semibold text-foreground tabular-nums select-none">
             {getPeriodLabel()}
           </span>
         </div>
@@ -164,7 +164,7 @@ export function PlanningCommandBar({
         <button
           type="button"
           onClick={goForward}
-          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors text-base font-light"
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-discreet hover:text-foreground hover:bg-surface-2 transition-colors text-base font-light"
           title="Période suivante"
         >
           ›
@@ -173,16 +173,16 @@ export function PlanningCommandBar({
         <button
           type="button"
           onClick={goToday}
-          className="px-2.5 h-7 text-[11px] font-medium text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors flex-shrink-0"
+          className="px-2.5 h-7 text-[11px] font-medium text-discreet hover:text-foreground hover:bg-surface-2 rounded-lg transition-colors flex-shrink-0"
         >
           Aujourd'hui
         </button>
 
         {/* Séparateur */}
-        <span className="h-4 w-px bg-slate-700/80 mx-0.5" aria-hidden="true" />
+        <span className="h-4 w-px bg-line/80 mx-0.5" aria-hidden="true" />
 
         {/* Bascule vue 7j / Jour / Mois */}
-        <div className="flex rounded-lg border border-slate-700 overflow-hidden flex-shrink-0">
+        <div className="flex rounded-lg border border-line overflow-hidden flex-shrink-0">
           {(['semaine', 'jour', 'mois'] as ViewMode[]).map(v => (
             <button
               key={v}
@@ -194,7 +194,7 @@ export function PlanningCommandBar({
               className={`px-2.5 py-1 text-[11px] font-semibold transition-colors ${
                 viewMode === v
                   ? 'bg-indigo-600 text-white'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  : 'text-discreet hover:text-foreground hover:bg-surface-2'
               }`}
             >
               {v === 'semaine' ? '7j' : v === 'jour' ? 'Jour' : 'Mois'}
@@ -205,14 +205,14 @@ export function PlanningCommandBar({
 
       {/* ── ZONE CENTRE : scope ────────────────────────────────────────────── */}
       <div className="flex items-center gap-1.5 flex-1 justify-center min-w-0">
-        <div className="flex rounded-lg border border-slate-700 overflow-hidden flex-shrink-0">
+        <div className="flex rounded-lg border border-line overflow-hidden flex-shrink-0">
           <button
             type="button"
             onClick={() => onScopeChange('principal')}
             className={`px-3 py-1 text-[11px] font-semibold transition-colors ${
               planningScope === 'principal'
                 ? 'bg-indigo-600 text-white'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                : 'text-discreet hover:text-foreground hover:bg-surface-2'
             }`}
           >
             Principal
@@ -223,7 +223,7 @@ export function PlanningCommandBar({
             className={`px-3 py-1 text-[11px] font-semibold transition-colors ${
               planningScope === 'affretement'
                 ? 'bg-blue-600 text-white'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                : 'text-discreet hover:text-foreground hover:bg-surface-2'
             }`}
           >
             Affrètement
@@ -267,11 +267,11 @@ export function PlanningCommandBar({
           </button>
 
           {showCreateMenu && (
-            <div className={`absolute right-0 top-9 z-[82] w-52 rounded-xl border border-slate-700 bg-slate-900 shadow-2xl py-1 ${isDragging ? 'pointer-events-none' : ''}`}>
+            <div className={`absolute right-0 top-9 z-[82] w-52 rounded-xl border border-line bg-surface shadow-2xl py-1 ${isDragging ? 'pointer-events-none' : ''}`}>
               <button
                 type="button"
                 onClick={() => { onCreateCourse(); setShowCreateMenu(false) }}
-                className="w-full text-left flex items-center gap-2.5 px-3 py-2 text-[12px] text-slate-200 hover:bg-slate-800 transition-colors"
+                className="w-full text-left flex items-center gap-2.5 px-3 py-2 text-[12px] text-foreground hover:bg-surface-2 transition-colors"
               >
                 <span className="w-5 h-5 rounded bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-300 font-bold text-sm">+</span>
                 Nouvelle course
@@ -279,16 +279,16 @@ export function PlanningCommandBar({
               <button
                 type="button"
                 onClick={() => { onCreateHlp(); setShowCreateMenu(false) }}
-                className="w-full text-left flex items-center gap-2.5 px-3 py-2 text-[12px] text-slate-200 hover:bg-slate-800 transition-colors"
+                className="w-full text-left flex items-center gap-2.5 px-3 py-2 text-[12px] text-secondary hover:bg-surface-2 transition-colors"
               >
-                <span className="w-5 h-5 rounded bg-slate-700 border border-slate-600 flex items-center justify-center text-slate-300 font-bold text-sm">+</span>
+                <span className="w-5 h-5 rounded bg-surface-2 border border-line flex items-center justify-center text-secondary font-bold text-sm">+</span>
                 Bloc HLP
               </button>
               <div className="h-px bg-slate-800 my-1" />
               <button
                 type="button"
                 onClick={() => { onNavigateOT(); setShowCreateMenu(false) }}
-                className="w-full text-left flex items-center gap-2.5 px-3 py-2 text-[12px] text-slate-400 hover:bg-slate-800 transition-colors"
+                className="w-full text-left flex items-center gap-2.5 px-3 py-2 text-[12px] text-discreet hover:bg-surface-2 transition-colors"
               >
                 <span className="w-5 h-5 rounded bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-300 text-xs">↗</span>
                 OT / Fret complet
@@ -305,8 +305,8 @@ export function PlanningCommandBar({
             title="Paramètres experts : CE561, affrètement, PDF…"
             className={`flex items-center gap-1 px-2.5 h-7 rounded-lg text-[11px] font-medium border transition-colors ${
               showExpertMenu
-                ? 'bg-slate-700 border-slate-600 text-slate-200'
-                : 'border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600 hover:bg-slate-800'
+                ? 'bg-surface-2 border-line-strong text-foreground'
+                : 'border-line text-discreet hover:text-foreground hover:border-line-strong hover:bg-surface-2'
             }`}
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -317,20 +317,20 @@ export function PlanningCommandBar({
           </button>
 
           {showExpertMenu && (
-            <div className={`absolute right-0 top-9 z-[82] w-72 rounded-xl border border-slate-700 bg-slate-900 shadow-2xl py-2 ${isDragging ? 'pointer-events-none' : ''}`}>
+            <div className={`absolute right-0 top-9 z-[82] w-72 rounded-xl border border-line bg-surface shadow-2xl py-2 ${isDragging ? 'pointer-events-none' : ''}`}>
 
               {/* Section CONFORMITÉ */}
-              <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Conformité</p>
+              <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-discreet">Conformité</p>
 
               <div className="px-3 py-1.5 flex items-center justify-between gap-2">
-                <span className="text-[12px] text-slate-300">CE561 mode</span>
+                <span className="text-[12px] text-secondary">CE561 mode</span>
                 <button
                   type="button"
                   onClick={() => onBlockOnComplianceChange(!blockOnCompliance)}
                   className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
                     blockOnCompliance
                       ? 'bg-red-600 border-red-500 text-white'
-                      : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'
+                      : 'bg-surface-2 border-line text-secondary hover:bg-surface-soft'
                   }`}
                 >
                   {blockOnCompliance ? 'Bloquant' : 'Audit seul'}
@@ -338,7 +338,7 @@ export function PlanningCommandBar({
               </div>
 
               <div className="px-3 py-1.5 flex items-center justify-between gap-2">
-                <span className="text-[12px] text-slate-300">Affectations impossibles</span>
+                <span className="text-[12px] text-secondary">Affectations impossibles</span>
                 <button
                   type="button"
                   onClick={() => onBlockImpossibleChange(!blockImpossibleAssignments)}
@@ -353,13 +353,13 @@ export function PlanningCommandBar({
               </div>
 
               <div className="px-3 py-1.5 flex items-center justify-between gap-2">
-                <span className="text-[12px] text-slate-300">Scanner la semaine</span>
+                <span className="text-[12px] text-secondary">Scanner la semaine</span>
                 <div className="flex items-center gap-1">
                   {hasScanResults && (
                     <button
                       type="button"
                       onClick={onClearScan}
-                      className="h-7 w-7 flex items-center justify-center rounded-lg text-[11px] border border-slate-700 text-slate-400 hover:text-slate-300 transition-colors"
+                      className="h-7 w-7 flex items-center justify-center rounded-lg text-[11px] border border-line text-discreet hover:text-secondary transition-colors"
                       title="Effacer les résultats"
                     >
                       ✕
@@ -372,7 +372,7 @@ export function PlanningCommandBar({
                     className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
                       scanningWeek
                         ? 'border-slate-700 text-slate-400 cursor-wait'
-                        : 'bg-amber-500/15 border-amber-500/30 text-amber-300 hover:bg-amber-500/25'
+                        : 'bg-amber-500/15 border-amber-500/30 text-amber-600 hover:bg-amber-500/25'
                     }`}
                   >
                     {scanningWeek ? 'Scan…' : 'Lancer'}
@@ -385,7 +385,7 @@ export function PlanningCommandBar({
                 <button
                   type="button"
                   onClick={() => setShowRulesPanel(v => !v)}
-                  className="w-full flex items-center justify-between text-[12px] text-slate-300 hover:text-white transition-colors"
+                  className="w-full flex items-center justify-between text-[12px] text-secondary hover:text-foreground transition-colors"
                 >
                   <span>Règles CE561</span>
                   <svg className={`w-3 h-3 transition-transform ${showRulesPanel ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m6 9 6 6 6-6"/></svg>
@@ -393,16 +393,16 @@ export function PlanningCommandBar({
                 {showRulesPanel && (
                   <div className="mt-2 max-h-48 overflow-y-auto space-y-1.5 pr-0.5" style={{ scrollbarWidth: 'thin', scrollbarColor: '#334155 transparent' }}>
                     {complianceRuleCodes.map(code => (
-                      <label key={code} className="flex items-start gap-2 rounded-lg border border-slate-700/70 bg-slate-800/70 px-2 py-1.5 cursor-pointer hover:bg-slate-800">
+                      <label key={code} className="flex items-start gap-2 rounded-lg border border-line bg-surface-2 px-2 py-1.5 cursor-pointer hover:bg-surface-soft">
                         <input
                           type="checkbox"
                           checked={isRuleBlocking(code)}
                           onChange={e => onRuleBlockingChange(code, e.target.checked)}
                           className="mt-0.5 accent-indigo-500"
                         />
-                        <span className="text-[11px] text-slate-200">
+                        <span className="text-[11px] text-foreground">
                           <span className="font-semibold">{complianceRuleLabels[code] ?? code}</span>
-                          <span className="text-slate-400"> ({code})</span>
+                          <span className="text-discreet"> ({code})</span>
                         </span>
                       </label>
                     ))}
@@ -410,20 +410,20 @@ export function PlanningCommandBar({
                 )}
               </div>
 
-              <div className="h-px bg-slate-800 my-1.5 mx-3" />
+              <div className="h-px bg-line my-1.5 mx-3" />
 
               {/* Section AFFICHAGE */}
-              <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Affichage</p>
+              <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-discreet">Affichage</p>
 
               <div className="px-3 py-1.5 flex items-center justify-between gap-2">
-                <span className="text-[12px] text-slate-300">Réorganiser les lignes</span>
+                <span className="text-[12px] text-secondary">Réorganiser les lignes</span>
                 <button
                   type="button"
                   onClick={() => onRowEditModeChange(!isRowEditMode)}
                   className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
                     isRowEditMode
                       ? 'bg-amber-600 border-amber-500 text-white'
-                      : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'
+                      : 'bg-surface-2 border-line text-secondary hover:bg-surface-soft'
                   }`}
                 >
                   {isRowEditMode ? 'Actif' : 'Inactif'}
@@ -431,31 +431,31 @@ export function PlanningCommandBar({
               </div>
 
               <div className="px-3 py-1.5 flex items-center justify-between gap-2">
-                <span className="text-[12px] text-slate-300">Mode simulation</span>
+                <span className="text-[12px] text-secondary">Mode simulation</span>
                 <button
                   type="button"
                   onClick={() => onSimulationModeChange(!simulationMode)}
                   className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
                     simulationMode
                       ? 'bg-amber-600 border-amber-500 text-white'
-                      : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'
+                      : 'bg-surface-2 border-line text-secondary hover:bg-surface-soft'
                   }`}
                 >
                   {simulationMode ? 'ON' : 'OFF'}
                 </button>
               </div>
 
-              <div className="h-px bg-slate-800 my-1.5 mx-3" />
+              <div className="h-px bg-line my-1.5 mx-3" />
 
               {/* Section EXPORT */}
-              <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Export</p>
+              <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-discreet">Export</p>
 
               <button
                 type="button"
                 onClick={() => { onExportPDF(); setShowExpertMenu(false) }}
-                className="w-full text-left flex items-center gap-2.5 px-3 py-2 text-[12px] text-slate-300 hover:bg-slate-800 transition-colors"
+                className="w-full text-left flex items-center gap-2.5 px-3 py-2 text-[12px] text-secondary hover:bg-surface-2 transition-colors"
               >
-                <svg className="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg className="w-4 h-4 text-discreet" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
                   <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
                 </svg>

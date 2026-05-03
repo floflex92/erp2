@@ -53,7 +53,7 @@ function KpiChip({
     warning: active ? 'bg-amber-500/25 border-amber-400/60 text-amber-200' : 'bg-amber-500/10 border-amber-500/25 text-amber-400 hover:bg-amber-500/20',
     success: 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400',
     info:    'bg-blue-500/10 border-blue-500/25 text-blue-400',
-    neutral: 'bg-slate-800/60 border-slate-700/50 text-slate-400',
+    neutral: 'bg-surface-2 border-line text-discreet',
   }
 
   const tag = onClick ? 'button' : 'div'
@@ -95,7 +95,7 @@ export function PlanningDecisionBar({
   onToggleCollapse,
 }: PlanningDecisionBarProps) {
   return (
-    <div className="border-b border-slate-800/60 bg-slate-950/70 flex-shrink-0">
+    <div className="border-b border-line bg-surface/70 flex-shrink-0">
       {/* Header row (toujours visible) */}
       <div className="flex items-center gap-2 px-4 py-1.5 flex-wrap overflow-x-hidden">
 
@@ -139,7 +139,7 @@ export function PlanningDecisionBar({
 
         {/* Séparateur (si au moins un chip d'alerte visible) */}
         {(retardCount > 0 || conflitsCount > 0 || sansVehiculeCount > 0) && (
-          <span className="h-4 w-px bg-slate-700/60 flex-shrink-0" aria-hidden="true" />
+          <span className="h-4 w-px bg-line-strong/60 flex-shrink-0" aria-hidden="true" />
         )}
 
         {/* ── Chips info : état normal ──────────────────────────────────── */}
@@ -157,8 +157,8 @@ export function PlanningDecisionBar({
         <div className="ml-auto flex items-center gap-3 flex-shrink-0">
           {caPlanning > 0 && (
             <div className="flex items-center gap-1.5 flex-shrink-0">
-              <span className="text-[10px] text-slate-400 whitespace-nowrap">CA planifié</span>
-              <span className="text-sm font-bold text-slate-300 tabular-nums">
+              <span className="text-[10px] text-discreet whitespace-nowrap">CA planifié</span>
+              <span className="text-sm font-bold text-foreground tabular-nums">
                 {caPlanning >= 1000
                   ? `${(caPlanning / 1000).toFixed(0)}k €`
                   : `${caPlanning.toFixed(0)} €`
@@ -171,7 +171,7 @@ export function PlanningDecisionBar({
           <button
             type="button"
             onClick={onToggleCollapse}
-            className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-200 transition-colors flex-shrink-0"
+            className="flex items-center gap-1 text-[10px] text-discreet hover:text-foreground transition-colors flex-shrink-0"
             title={collapsed ? 'Agrandir le bandeau KPI' : 'Réduire le bandeau KPI'}
           >
             <svg
