@@ -50,6 +50,9 @@ const Conformite = lazy(() => import('@/pages/Conformite'))
 const Portails = lazy(() => import('@/pages/Portails'))
 const RhUnifie = lazy(() => import('@/pages/RhUnifie'))
 const MessagerieUnifie = lazy(() => import('@/pages/MessagerieUnifie'))
+const PlanningAffreteur = lazy(() => import('@/pages/PlanningAffreteur'))
+const TerrainUnifie = lazy(() => import('@/pages/TerrainUnifie'))
+const OpsCenterUnifie = lazy(() => import('@/pages/OpsCenterUnifie'))
 
 function RequireRole({ page, children }: { page: string; children: React.ReactNode }) {
   const { role, loading, profilLoading, tenantAllowedPages, enabledModules } = useAuth()
@@ -178,7 +181,7 @@ export default function App() {
                   <Route path="amendes" element={<Navigate to="/conformite" replace />} />
                   <Route path="map-live" element={<RequireRole page="map-live"><MapLive /></RequireRole>} />
                   <Route path="feuille-route" element={<RequireRole page="feuille-route"><FeuilleRoute /></RequireRole>} />
-                  <Route path="terrain" element={<RequireRole page="terrain"><Terrain /></RequireRole>} />
+                  <Route path="terrain" element={<RequireRole page="terrain"><TerrainUnifie /></RequireRole>} />
                   <Route path="planning" element={<RequireRole page="planning"><PlanningUnifie /></RequireRole>} />
                   <Route path="espace-client" element={<Navigate to="/portails" replace />} />
                   <Route path="espace-affreteur" element={<Navigate to="/portails" replace />} />
@@ -203,10 +206,11 @@ export default function App() {
                   <Route path="tenant-admin" element={<RequireRole page="tenant-admin"><TenantAdmin /></RequireRole>} />
                   <Route path="war-room" element={<Navigate to="/ops-center" replace />} />
                   <Route path="obs-center" element={<Navigate to="/ops-center" replace />} />
-                  <Route path="ops-center" element={<RequireRole page="ops-center"><OpsCenter /></RequireRole>} />
+                  <Route path="ops-center" element={<RequireRole page="ops-center"><OpsCenterUnifie /></RequireRole>} />
                   <Route path="alertes" element={<Navigate to="/ops-center" replace />} />
                   <Route path="dashboard-conducteur" element={<RequireRole page="dashboard-conducteur"><DashboardConducteur /></RequireRole>} />
                   <Route path="planning-conducteur" element={<Navigate to="/planning" replace />} />
+                  <Route path="planning-affreteur" element={<RequireRole page="planning-affreteur"><PlanningAffreteur /></RequireRole>} />
                   <Route path="frais-rapide" element={<Navigate to="/frais" replace />} />
                   <Route path="optimisation-tournees" element={<RequireRole page="optimisation-tournees"><OptimisationTournees /></RequireRole>} />
                   <Route path="messagerie-colis" element={<RequireRole page="messagerie-colis"><MessagerieColis /></RequireRole>} />
