@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 
 // ── Types ─────────────────────────────────────────────────────────────────────

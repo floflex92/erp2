@@ -43,7 +43,7 @@ export async function logOtHistory(params: LogOtHistoryParams): Promise<void> {
     details = {},
   } = params
 
-  const { error } = await supabase.from('ot_historique').insert({
+  const { error } = await (supabase as any).from('ot_historique').insert({
     ot_id: otId,
     company_id: companyId,
     action,
@@ -78,7 +78,7 @@ export async function logOtHistoryBatch(
     details: params.details ?? {},
   }))
 
-  const { error } = await supabase.from('ot_historique').insert(rows)
+  const { error } = await (supabase as any).from('ot_historique').insert(rows)
   if (error) {
     console.warn('[otHistory] Impossible d\'enregistrer le batch:', error.message)
   }

@@ -65,16 +65,17 @@ export function OtHistoriquePanel({ otId, visible = true }: Props) {
     setLoading(true)
     setError(null)
 
-    supabase
+    ;(supabase as any)
       .from('ot_historique')
       .select('id, action, ancien_statut, nouveau_statut, auteur_nom, details, created_at')
       .eq('ot_id', otId)
       .order('created_at', { ascending: false })
       .limit(100)
-      .then(({ data, error: err }) => {
+      .then((res: any) => {
+        const { data, error: err } = res
         if (cancelled) return
         if (err) { setError(err.message); setLoading(false); return }
-        setRows((data ?? []) as HistoriqueRow[])
+        setRows(((data ?? []) as unknown[]) as HistoriqueRow[])
         setLoading(false)
       })
 
