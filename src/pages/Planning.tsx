@@ -151,6 +151,9 @@ export default function Planning() {
   }
   // Guard contre les race conditions : on ne rechargera pas pendant une �criture active.
   const isMutatingRef = useRef(false)
+  const loadInFlightRef = useRef(false)
+  const pendingRealtimeRefreshRef = useRef(false)
+  const deferredRefreshRef = useRef(false)
   // Activation nouveaux composants UI (refonte Phase 1)
   const useNewCommandBar = true
   const useNewDecisionBar = true
@@ -990,15 +993,21 @@ export default function Planning() {
   const loadAll = useCallback(async () => {
     // Guard : ne pas recharger si une mutation est en cours (�vite race condition).
     if (isMutatingRef.current) return
+    if (loadInFlightRef.current) {
+      pendingRealtimeRefreshRef.current = true
+      return
+    }
+    loadInFlightRef.current = true
     setIsLoadingOTs(true)
-    // -- S�lect OT canonique (schema stable depuis les migrations du 2026-03-30) --
-    const OT_SELECT = 'id, reference, statut, statut_transport, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, donneur_ordre_id, chargement_site_id, livraison_site_id, mission_id, groupage_fige, est_affretee, type_chargement, poids_kg, tonnage, volume_m3, longueur_m, hors_gabarit, temperature_dirigee, charge_indivisible, clients!ordres_transport_client_id_fkey(nom)'
-    const SITE_SELECT = 'id, nom, adresse, company_id, entreprise_id, usage_type, horaires_ouverture, jours_ouverture, notes_livraison, latitude, longitude, code_postal, contact_nom, contact_tel, est_depot_relais, ville, pays, type_site, capacite_m3, notes, created_at, updated_at'
+    try {
+      // -- S�lect OT canonique (schema stable depuis les migrations du 2026-03-30) --
+      const OT_SELECT = 'id, reference, statut, statut_transport, statut_operationnel, conducteur_id, vehicule_id, remorque_id, date_chargement_prevue, date_livraison_prevue, type_transport, nature_marchandise, prix_ht, distance_km, donneur_ordre_id, chargement_site_id, livraison_site_id, mission_id, groupage_fige, est_affretee, type_chargement, poids_kg, tonnage, volume_m3, longueur_m, hors_gabarit, temperature_dirigee, charge_indivisible, clients!ordres_transport_client_id_fkey(nom)'
+      const SITE_SELECT = 'id, nom, adresse, company_id, entreprise_id, usage_type, horaires_ouverture, jours_ouverture, notes_livraison, latitude, longitude, code_postal, contact_nom, contact_tel, est_depot_relais, ville, pays, type_site, capacite_m3, notes, created_at, updated_at'
 
-    // Fen�tre glissante adapt�e selon le mode :
-    //   � 'mois'    : 1er du mois ? dernier jour du mois (� 2j buffer)
-    //   � 'semaine' : J-7 / J+15 centr� sur weekStart (optimis� pour la perf)
-    //   � 'jour'    : identique semaine (la fen�tre journ�e est incluse)
+    // Fenetre glissante adaptee selon le mode :
+    // - 'mois'    : 1er du mois -> dernier jour du mois (+/- 2j buffer)
+    // - 'semaine' : J-3 / J+10 centre sur weekStart (volume plus faible)
+    // - 'jour'    : identique semaine (la fenetre journee est incluse)
     // Les brouillons sans date (pool) sont toujours inclus via .is.null.
     let winFrom: Date, winTo: Date
     if (viewMode === 'mois') {
@@ -1006,13 +1015,19 @@ export default function Planning() {
       const lastDay = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0)
       winTo = addDays(lastDay, 2)
     } else {
-      winFrom = addDays(weekStart, -7)
-      winTo = addDays(weekStart, 15)
+      winFrom = addDays(weekStart, -3)
+      winTo = addDays(weekStart, 10)
     }
     const winFromISO = toISO(winFrom)
     const winToISO   = toISO(winTo)
-    // Filtre : (chargement dans fen�tre ET livraison dans fen�tre) OU pas de date (pool)
-    const otDateFilter = `and(date_chargement_prevue.gte.${winFromISO},date_chargement_prevue.lte.${winToISO}),date_chargement_prevue.is.null`
+    // Filtre OT : chargement dans fenetre, ou livraison dans fenetre, ou mission couvrant la fenetre,
+    // ou course sans date (pool).
+    const otDateFilter = [
+      `and(date_chargement_prevue.gte.${winFromISO},date_chargement_prevue.lte.${winToISO})`,
+      `and(date_livraison_prevue.gte.${winFromISO},date_livraison_prevue.lte.${winToISO})`,
+      `and(date_chargement_prevue.lte.${winFromISO},date_livraison_prevue.gte.${winToISO})`,
+      'date_chargement_prevue.is.null',
+    ].join(',')
 
     // -- Donn�es r�f�rentielles : cache TTL 60s pour �viter les re-fetch inutiles -
     const now = Date.now()
@@ -1054,110 +1069,139 @@ export default function Planning() {
         return looseSupabase.from('remorques').select('id, immatriculation, type_remorque, trailer_type_code, categorie_remorque, charge_utile_kg, volume_max_m3, longueur_m, statut').order('immatriculation')
       }
 
-      const [otResult, siteR, cR, vR, rR, clientR, aR] = await Promise.all([
+      // Phase critique : OT + ressources planning indispensables pour afficher la grille rapidement.
+      const [otResult, cR, vR, rR] = await Promise.all([
         otPromise,
-        looseSupabase.from('sites_logistiques').select(SITE_SELECT).eq('company_id', companyId ?? 1).order('nom'),
         loadConducteurs(),
         loadVehicules(),
         loadRemorques(),
-        supabase.from('clients').select('id, nom, actif').eq('actif', true).order('nom'),
-        supabase.from('affectations').select('id, conducteur_id, vehicule_id, remorque_id, actif').eq('actif', true),
       ])
       otR = otResult
 
-      // Mise � jour des donn�es r�f�rentielles
-      let newConducteurs: Conducteur[] = cR.error
+      let criticalConducteurs: Conducteur[] = cR.error
         ? []
         : (cR.data ?? [])
             .filter((c: { statut?: string | null }) => isDriverActiveStatus(c.statut))
             .map((c: { id: string; nom: string; prenom: string; statut: string }) => c)
-      let newVehicules: Vehicule[] = vR.error
+      let criticalVehicules: Vehicule[] = vR.error
         ? []
         : (vR.data ?? [])
             .filter((v: { statut?: string | null }) => isAssetAvailableStatus(v.statut))
             .map((v: { id: string; immatriculation: string; marque: string | null; modele: string | null; statut: string }) => v)
-      let newRemorques: Remorque[] = rR.error
+      let criticalRemorques: Remorque[] = rR.error
         ? []
         : (rR.data ?? [])
             .filter((r: { statut?: string | null }) => isAssetAvailableStatus(r.statut))
             .map((r: { id: string; immatriculation: string; type_remorque: string; statut: string }) => r)
-      const newClients = clientR.error ? [] : (clientR.data ?? [])
-      const newSites = siteR.error ? [] : sortLogisticSites(((siteR.data ?? []) as SiteLoadRow[]).map(mapSiteLoadRow))
-      const newAffectations = aR.error ? [] : (aR.data ?? [])
+      // Dedup rapide phase critique.
+      criticalConducteurs = Array.from(new Map(criticalConducteurs.map(item => [item.id, item])).values())
+      criticalVehicules = Array.from(new Map(criticalVehicules.map(item => [item.id, item])).values())
+      criticalRemorques = Array.from(new Map(criticalRemorques.map(item => [item.id, item])).values())
 
-      // Enrichissement V2: fusionner les drivers persons/profils pour garantir la visibilite tenant.
-      const persons = await listPersonsForDirectory()
-      const personDrivers = persons
-        .filter(p => ['driver', 'conducteur', 'chauffeur'].includes((p.person_type ?? '').toLowerCase()))
-        .filter(p => isDriverActiveStatus(p.status))
-
-      const conducteurIds = new Set(newConducteurs.map(c => c.id))
-      const conducteurKeys = new Set(newConducteurs.map(c => `${c.nom}|${c.prenom}`.toLowerCase()))
-
-      for (const p of personDrivers) {
-        const candidate = {
-          id: p.legacy_conducteur_id ?? p.id,
-          nom: p.last_name ?? '-',
-          prenom: p.first_name ?? '',
-          statut: p.status ?? 'active',
-        }
-        const key = `${candidate.nom}|${candidate.prenom}`.toLowerCase()
-        if (conducteurIds.has(candidate.id) || conducteurKeys.has(key)) continue
-        newConducteurs.push(candidate)
-        conducteurIds.add(candidate.id)
-        conducteurKeys.add(key)
-      }
-
-      if (newVehicules.length === 0 || newRemorques.length === 0) {
-        const assets = await listAssets()
-
-        if (newVehicules.length === 0) {
-          newVehicules = assets
-            .filter(a => a.type === 'vehicle')
-            .filter(a => isAssetAvailableStatus(a.status))
-            .map(a => ({
-              id: a.legacy_vehicule_id ?? a.id,
-              immatriculation: a.registration ?? '-',
-              marque: null,
-              modele: null,
-              statut: a.status ?? 'active',
-            }))
-        }
-
-        if (newRemorques.length === 0) {
-          newRemorques = assets
-            .filter(a => a.type === 'trailer')
-            .filter(a => isAssetAvailableStatus(a.status))
-            .map(a => ({
-              id: a.legacy_remorque_id ?? a.id,
-              immatriculation: a.registration ?? '-',
-              type_remorque: 'standard',
-              statut: a.status ?? 'active',
-            }))
-        }
-      }
-
-      // En V2, plusieurs lignes legacy peuvent pointer le meme pivot; on dedupe par id final.
-      const uniqueConducteurs = Array.from(new Map(newConducteurs.map(item => [item.id, item])).values())
-      const uniqueVehicules = Array.from(new Map(newVehicules.map(item => [item.id, item])).values())
-      const uniqueRemorques = Array.from(new Map(newRemorques.map(item => [item.id, item])).values())
-
-      setConducteurs(uniqueConducteurs as Conducteur[])
-      setVehicules(uniqueVehicules as Vehicule[])
-      setRemorques(uniqueRemorques as Remorque[])
-      setClients(newClients as ClientRef[])
-      setLogisticSites(newSites)
-      setAffectations(newAffectations as Affectation[])
+      setConducteurs(criticalConducteurs as Conducteur[])
+      setVehicules(criticalVehicules as Vehicule[])
+      setRemorques(criticalRemorques as Remorque[])
 
       refDataCacheRef.current = {
         ts: now,
-        conducteurs: uniqueConducteurs as Conducteur[],
-        vehicules: uniqueVehicules as Vehicule[],
-        remorques: uniqueRemorques as Remorque[],
-        clients: newClients as ClientRef[],
-        sites: newSites,
-        affectations: newAffectations as Affectation[],
+        conducteurs: criticalConducteurs as Conducteur[],
+        vehicules: criticalVehicules as Vehicule[],
+        remorques: criticalRemorques as Remorque[],
+        clients: refDataCacheRef.current?.clients ?? [],
+        sites: refDataCacheRef.current?.sites ?? [],
+        affectations: refDataCacheRef.current?.affectations ?? [],
       }
+
+      // Phase secondaire : hydratation des données non critiques et enrichissements V2.
+      void (async () => {
+        const [siteR, clientR, aR] = await Promise.all([
+          looseSupabase.from('sites_logistiques').select(SITE_SELECT).eq('company_id', companyId ?? 1).order('nom'),
+          supabase.from('clients').select('id, nom, actif').eq('actif', true).order('nom'),
+          supabase.from('affectations').select('id, conducteur_id, vehicule_id, remorque_id, actif').eq('actif', true),
+        ])
+
+        let enrichedConducteurs = [...criticalConducteurs]
+        let enrichedVehicules = [...criticalVehicules]
+        let enrichedRemorques = [...criticalRemorques]
+
+        // Enrichissement V2: fusionner les drivers persons/profils pour garantir la visibilite tenant.
+        const persons = await listPersonsForDirectory()
+        const personDrivers = persons
+          .filter(p => ['driver', 'conducteur', 'chauffeur'].includes((p.person_type ?? '').toLowerCase()))
+          .filter(p => isDriverActiveStatus(p.status))
+
+        const conducteurIds = new Set(enrichedConducteurs.map(c => c.id))
+        const conducteurKeys = new Set(enrichedConducteurs.map(c => `${c.nom}|${c.prenom}`.toLowerCase()))
+
+        for (const p of personDrivers) {
+          const candidate = {
+            id: p.legacy_conducteur_id ?? p.id,
+            nom: p.last_name ?? '-',
+            prenom: p.first_name ?? '',
+            statut: p.status ?? 'active',
+          }
+          const key = `${candidate.nom}|${candidate.prenom}`.toLowerCase()
+          if (conducteurIds.has(candidate.id) || conducteurKeys.has(key)) continue
+          enrichedConducteurs.push(candidate)
+          conducteurIds.add(candidate.id)
+          conducteurKeys.add(key)
+        }
+
+        if (enrichedVehicules.length === 0 || enrichedRemorques.length === 0) {
+          const assets = await listAssets()
+
+          if (enrichedVehicules.length === 0) {
+            enrichedVehicules = assets
+              .filter(a => a.type === 'vehicle')
+              .filter(a => isAssetAvailableStatus(a.status))
+              .map(a => ({
+                id: a.legacy_vehicule_id ?? a.id,
+                immatriculation: a.registration ?? '-',
+                marque: null,
+                modele: null,
+                statut: a.status ?? 'active',
+              }))
+          }
+
+          if (enrichedRemorques.length === 0) {
+            enrichedRemorques = assets
+              .filter(a => a.type === 'trailer')
+              .filter(a => isAssetAvailableStatus(a.status))
+              .map(a => ({
+                id: a.legacy_remorque_id ?? a.id,
+                immatriculation: a.registration ?? '-',
+                type_remorque: 'standard',
+                statut: a.status ?? 'active',
+              }))
+          }
+        }
+
+        enrichedConducteurs = Array.from(new Map(enrichedConducteurs.map(item => [item.id, item])).values())
+        enrichedVehicules = Array.from(new Map(enrichedVehicules.map(item => [item.id, item])).values())
+        enrichedRemorques = Array.from(new Map(enrichedRemorques.map(item => [item.id, item])).values())
+
+        const newClients = clientR.error ? [] : (clientR.data ?? [])
+        const newSites = siteR.error ? [] : sortLogisticSites(((siteR.data ?? []) as SiteLoadRow[]).map(mapSiteLoadRow))
+        const newAffectations = aR.error ? [] : (aR.data ?? [])
+
+        setConducteurs(enrichedConducteurs as Conducteur[])
+        setVehicules(enrichedVehicules as Vehicule[])
+        setRemorques(enrichedRemorques as Remorque[])
+        setClients(newClients as ClientRef[])
+        setLogisticSites(newSites)
+        setAffectations(newAffectations as Affectation[])
+
+        refDataCacheRef.current = {
+          ts: Date.now(),
+          conducteurs: enrichedConducteurs as Conducteur[],
+          vehicules: enrichedVehicules as Vehicule[],
+          remorques: enrichedRemorques as Remorque[],
+          clients: newClients as ClientRef[],
+          sites: newSites,
+          affectations: newAffectations as Affectation[],
+        }
+
+      })()
     }
 
     // -- OT : fallback minimal si la colonne est_affretee est manquante -------
@@ -1178,7 +1222,7 @@ export default function Planning() {
         .from('ordres_transport')
         .select(OT_SELECT)
         .order('date_chargement_prevue', { ascending: false, nullsFirst: false })
-        .limit(300)
+        .limit(120)
       if (!wideFallback.error && (wideFallback.data?.length ?? 0) > 0) {
         finalOtR = wideFallback as typeof finalOtR
       }
@@ -1269,17 +1313,38 @@ export default function Planning() {
     }
     startTransition(processOTs)
 
-    // -- Absences RH conducteurs � 1 seule requ�te batch au lieu de N ---------
-    const activeConducteurs = refDataCacheRef.current?.conducteurs ?? []
-    if (activeConducteurs.length > 0) {
-      const absMap = await fetchAllAbsencesValideesPeriode(
-        activeConducteurs.map(c => c.id),
-        winFromISO,
-        winToISO,
-      )
-      setConducteurAbsences(absMap)
-    } else {
-      setConducteurAbsences(new Map())
+      // Absences en non-bloquant pour ne pas retarder l'affichage du planning.
+      void (async () => {
+        const activeConducteurs = refDataCacheRef.current?.conducteurs ?? []
+        if (activeConducteurs.length > 0) {
+          const absMap = await fetchAllAbsencesValideesPeriode(
+            activeConducteurs.map(c => c.id),
+            winFromISO,
+            winToISO,
+          )
+          setConducteurAbsences(absMap)
+        } else {
+          setConducteurAbsences(new Map())
+        }
+      })()
+    } catch {
+      setIsLoadingOTs(false)
+      if (lastLoadErrorRef.current !== 'Erreur de chargement planning: incident temporaire.') {
+        pushPlanningNotice('Erreur de chargement planning: incident temporaire.', 'error')
+        lastLoadErrorRef.current = 'Erreur de chargement planning: incident temporaire.'
+      }
+    } finally {
+      loadInFlightRef.current = false
+      if (pendingRealtimeRefreshRef.current && !isMutatingRef.current) {
+        pendingRealtimeRefreshRef.current = false
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+          deferredRefreshRef.current = true
+        } else if (typeof window !== 'undefined' && !window.document.hasFocus()) {
+          deferredRefreshRef.current = true
+        } else {
+          void loadAll()
+        }
+      }
     }
     }, [companyId, planningScope, weekStart, viewMode, monthStart])
 
@@ -1394,13 +1459,46 @@ export default function Planning() {
   const realtimeReloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
+    const flushDeferredRefresh = () => {
+      if (!deferredRefreshRef.current) return
+      if (loadInFlightRef.current || isMutatingRef.current) return
+      deferredRefreshRef.current = false
+      void loadAll()
+    }
+
+    const onVisibilityChange = () => {
+      if (typeof document === 'undefined') return
+      if (document.visibilityState === 'visible') flushDeferredRefresh()
+    }
+
+    const onFocus = () => flushDeferredRefresh()
+
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    window.addEventListener('focus', onFocus)
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [loadAll])
+
+  useEffect(() => {
     const debouncedLoad = () => {
       if (realtimeReloadTimer.current) clearTimeout(realtimeReloadTimer.current)
       // Ne pas recharger si une mutation est en cours : isMutatingRef est rel�ch�
       // apr�s la mutation ? le prochain �v�nement realtime d�clenchera le rechargement.
       realtimeReloadTimer.current = setTimeout(() => {
-        if (!isMutatingRef.current) void loadAll()
-      }, 2000)
+        if (isMutatingRef.current) return
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+          deferredRefreshRef.current = true
+          return
+        }
+        if (typeof window !== 'undefined' && !window.document.hasFocus()) {
+          deferredRefreshRef.current = true
+          return
+        }
+        void loadAll()
+      }, 2500)
     }
 
     const db = looseSupabase
@@ -3107,23 +3205,69 @@ export default function Planning() {
   ]
 
   // Apply saved row order
-  const orderedRows: Row[] = (() => {
+  const orderedRows: Row[] = useMemo(() => {
     const order = rowOrder[tab] ?? []
     if (!order.length) return allRows
+    const rank = new Map<string, number>()
+    order.forEach((id, index) => rank.set(id, index))
     return [...allRows].sort((a, b) => {
-      const ia = order.indexOf(a.id), ib = order.indexOf(b.id)
+      const ia = rank.get(a.id) ?? -1
+      const ib = rank.get(b.id) ?? -1
       if (ia === -1 && ib === -1) return 0
       if (ia === -1) return 1; if (ib === -1) return -1
       return ia - ib
     })
-  })()
+  }, [allRows, rowOrder, tab])
+
+  const rowById = useMemo(() => {
+    const map = new Map<string, Row>()
+    for (const row of orderedRows) map.set(row.id, row)
+    return map
+  }, [orderedRows])
 
   const customOTIds = useMemo(
     () => new Set(customBlocks.map(b => b.otId).filter((id): id is string => !!id)),
     [customBlocks],
   )
 
-  const rowConflictPairsById: Record<string, RowConflict[]> = (() => {
+  const rowOTsByResourceId = useMemo(() => {
+    const map = new Map<string, OT[]>()
+
+    for (const ot of ganttOTs) {
+      if (customOTIds.has(ot.id)) continue
+
+      let rowId: string | null = null
+      if (showAffretementAssets) {
+        const context = affretementContextByOtId[ot.id]
+        if (context) {
+          if (tab === 'conducteurs') rowId = context.contract.assignedDriverId ? `aff-driver:${context.contract.assignedDriverId}` : null
+          else if (tab === 'camions') rowId = context.contract.assignedVehicleId ? `aff-vehicle:${context.contract.assignedVehicleId}` : null
+          else {
+            const firstEquipmentId = context.contract.assignedEquipmentIds[0]
+            rowId = firstEquipmentId ? `aff-equipment:${firstEquipmentId}` : null
+          }
+          if (rowId && !affretementRowIds.has(rowId)) rowId = null
+        }
+      }
+
+      if (!rowId) {
+        if (tab === 'conducteurs') rowId = ot.conducteur_id
+        else if (tab === 'camions') rowId = ot.vehicule_id
+        else rowId = ot.remorque_id
+      }
+      if (!rowId) continue
+
+      if (centerFilter && ot.chargement_site_id !== centerFilter && ot.livraison_site_id !== centerFilter) continue
+
+      const rowItems = map.get(rowId)
+      if (rowItems) rowItems.push(ot)
+      else map.set(rowId, [ot])
+    }
+
+    return map
+  }, [affretementContextByOtId, affretementRowIds, centerFilter, customOTIds, ganttOTs, showAffretementAssets, tab])
+
+  const rowConflictPairsById: Record<string, RowConflict[]> = useMemo(() => {
     const viewStart = viewMode === 'semaine'
       ? new Date(`${toISO(weekStart)}T00:00:00`).getTime()
       : new Date(`${selectedDay}T00:00:00`).getTime()
@@ -3140,7 +3284,7 @@ export default function Planning() {
       next[row.id] = buildRowConflicts(rowOTs(row.id), viewStart, viewEnd)
     }
     return next
-  })()
+  }, [orderedRows, selectedDay, viewMode, weekStart, pool, ganttOTs, customBlocks, tab, planningScope, affretementRowIds, customOTIds])
 
   const rowConflictCountById: Record<string, number> = useMemo(() => {
     const next: Record<string, number> = {}
@@ -3149,7 +3293,7 @@ export default function Planning() {
   }, [orderedRows, rowConflictPairsById])
 
   // Appliquer les filtres lignes (retards, conflits, recherche ressource)
-  const visibleRows = (() => {
+  const visibleRows = useMemo(() => {
     const q = resourceSearch.trim().toLowerCase()
     return orderedRows.filter(row => {
       if (showOnlyAlert) {
@@ -3161,9 +3305,9 @@ export default function Planning() {
       const haystack = `${row.primary} ${row.secondary}`.toLowerCase()
       return haystack.includes(q)
     })
-  })()
+  }, [orderedRows, resourceSearch, showOnlyAlert, showOnlyConflicts, rowConflictCountById, today, pool, ganttOTs, customBlocks, tab, planningScope, affretementRowIds, customOTIds])
 
-  const resourceLoadRows = (() => {
+  const resourceLoadRows = useMemo(() => {
     const rangeStart = viewMode === 'semaine'
       ? new Date(`${toISO(weekStart)}T00:00:00`).getTime()
       : new Date(`${selectedDay}T00:00:00`).getTime()
@@ -3195,7 +3339,7 @@ export default function Planning() {
         if (right.missionCount !== left.missionCount) return right.missionCount - left.missionCount
         return right.plannedMinutes - left.plannedMinutes
       })
-  })()
+  }, [centerFilter, rowConflictCountById, selectedDay, viewMode, visibleRows, weekStart, pool, ganttOTs, customBlocks, tab, planningScope, affretementRowIds, customOTIds])
 
   // Map id ? ville pour les sites logistiques
   const sitesMap = useMemo(() => {
@@ -3683,12 +3827,7 @@ export default function Planning() {
   }
 
   function rowOTs(resourceId: string): OT[] {
-    return ganttOTs.filter(ot => {
-      const matchResource = resolveRowId(ot) === resourceId && !customOTIds.has(ot.id)
-      if (!matchResource) return false
-      if (!centerFilter) return true
-      return ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter
-    })
+    return rowOTsByResourceId.get(resourceId) ?? []
   }
 
   function otInterval(ot: OT): { start: number; end: number } {
@@ -5999,7 +6138,10 @@ export default function Planning() {
                               <span className="text-[10px] text-discreet truncate">{summary.missionType === 'groupage' ? summary.referencesLabel : summary.timeRange}</span>
                             </div>
                           </td>
-                          <td className="px-3 py-2 text-muted">{resolveRowId(ot) ? (orderedRows.find(row => row.id === resolveRowId(ot))?.primary ?? '-') : '-'}</td>
+                          <td className="px-3 py-2 text-muted">{(() => {
+                            const otRowId = resolveRowId(ot)
+                            return otRowId ? (rowById.get(otRowId)?.primary ?? '-') : '-'
+                          })()}</td>
                           <td className="px-3 py-2 text-muted">{isoToDate(ot.date_chargement_prevue)} {isoToTime(ot.date_chargement_prevue)} - {isoToDate(ot.date_livraison_prevue)} {isoToTime(ot.date_livraison_prevue)}</td>
                           <td className="px-3 py-2">
                             <button

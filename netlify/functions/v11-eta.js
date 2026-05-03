@@ -1,4 +1,5 @@
 import {
+  assertTenantContext,
   authorize,
   buildDriverStatus,
   buildDrivingTimeStatus,
@@ -27,10 +28,11 @@ function normalizePoint(addressLike) {
   return { latitude, longitude }
 }
 
-async function resolveMissionContext(dbClient, otId) {
+async function resolveMissionContext(dbClient, companyId, otId) {
   const { data: order, error: orderError } = await dbClient
     .from('ordres_transport')
     .select('id, vehicule_id, conducteur_id, date_livraison_prevue, statut_operationnel')
+    .eq('company_id', companyId)
     .eq('id', otId)
     .maybeSingle()
 
@@ -121,13 +123,15 @@ export async function handler(event) {
   const auth = await authorize(event, { allowedRoles: ALLOWED_ROLES })
   if (auth.error) return auth.error
 
+  const tenantGuard = assertTenantContext(auth.companyId)
+  if (!tenantGuard.ok) return tenantGuard.error
+
+  const { companyId } = auth
   const body = parseJsonBody(event)
   if (body === null) return json(400, { error: 'Invalid JSON payload.' })
 
   const query = event.queryStringParameters ?? {}
   const tenantKey = readTenantKey(event, body)
-  // NOTE SECURITE: tables systeme (moduleState, cache, eta_predictions) → systemClient.
-  // Tables metier (ordres_transport, etapes_mission via resolveMissionContext) → dbClient (RLS actif).
   const moduleConfig = await moduleState(auth.systemClient, tenantKey, 'eta')
   if (!moduleConfig.enabled) return json(423, { error: 'ETA module disabled for tenant.' })
 
@@ -145,7 +149,7 @@ export async function handler(event) {
     })
   }
 
-  const mission = await resolveMissionContext(auth.dbClient, otId)
+  const mission = await resolveMissionContext(auth.dbClient, companyId, otId)
   if (!mission?.order) return json(404, { error: 'Mission not found.' })
   if (!mission.origin || !mission.destination) {
     return json(422, { error: 'Mission has no valid geographic points for ETA.' })

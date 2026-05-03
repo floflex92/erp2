@@ -96,7 +96,39 @@ export default async (req, context) => {
       throw profilError
     }
 
-    // 3. Enregistrer dans demo_access_requests
+    // 3. Synchroniser tenant_users + tenant_user_roles (best-effort, non-bloquant)
+    try {
+      const demoCompanyId = Number.parseInt(process.env.DEMO_COMPANY_ID ?? '1', 10)
+      const { data: roleRow } = await supabase
+        .from('roles')
+        .select('id')
+        .eq('company_id', demoCompanyId)
+        .eq('name', 'demo')
+        .maybeSingle()
+      let demoRoleId = roleRow?.id ?? null
+      if (!demoRoleId) {
+        const { data: newRole } = await supabase
+          .from('roles')
+          .upsert({ company_id: demoCompanyId, name: 'demo', label: 'Démo', is_system: true }, { onConflict: 'company_id,name' })
+          .select('id')
+          .single()
+        demoRoleId = newRole?.id ?? null
+      }
+      const { data: tenantUser } = await supabase
+        .from('tenant_users')
+        .upsert({ tenant_id: demoCompanyId, user_id: authData.user.id, default_role_id: demoRoleId, is_active: true }, { onConflict: 'tenant_id,user_id' })
+        .select('id')
+        .single()
+      if (tenantUser?.id && demoRoleId) {
+        await supabase
+          .from('tenant_user_roles')
+          .upsert({ tenant_user_id: tenantUser.id, role_id: demoRoleId, granted_by: null }, { onConflict: 'tenant_user_id,role_id' })
+      }
+    } catch (membershipErr) {
+      console.error('[demo-access-signup] tenant membership sync error (non-bloquant):', membershipErr)
+    }
+
+    // 5. Enregistrer dans demo_access_requests
     await supabase.from('demo_access_requests').insert([
       {
         user_id: authData.user.id,

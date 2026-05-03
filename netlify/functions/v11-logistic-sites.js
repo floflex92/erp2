@@ -1,5 +1,7 @@
 import {
+  assertTenantContext,
   authorize,
+  companyFilter,
   json,
   parseJsonBody,
 } from './_lib/v11-core.js'
@@ -53,7 +55,7 @@ function sanitizeSite(body) {
 
 // ── Handlers ─────────────────────────────────────────────────────────────────
 
-async function listSites(dbClient, params) {
+async function listSites(dbClient, companyId, params) {
   let query = dbClient
     .from('sites_logistiques')
     .select(`
@@ -65,6 +67,7 @@ async function listSites(dbClient, params) {
       created_at, updated_at,
       clients:entreprise_id ( id, nom )
     `)
+    .eq('company_id', companyId)
     .order('nom', { ascending: true })
 
   if (params.entreprise_id) {
@@ -82,7 +85,7 @@ async function listSites(dbClient, params) {
   return json(200, { object: 'LogisticSiteList', data: data ?? [] })
 }
 
-async function getSite(dbClient, siteId) {
+async function getSite(dbClient, companyId, siteId) {
   if (!siteId) return json(400, { error: 'site_id requis.' })
   const { data, error } = await dbClient
     .from('sites_logistiques')
@@ -95,19 +98,20 @@ async function getSite(dbClient, siteId) {
       created_at, updated_at,
       clients:entreprise_id ( id, nom )
     `)
+    .eq('company_id', companyId)
     .eq('id', siteId)
     .single()
   if (error) return json(error.code === 'PGRST116' ? 404 : 500, { error: error.message })
   return json(200, { object: 'LogisticSite', data })
 }
 
-async function createSite(dbClient, body, auth) {
+async function createSite(dbClient, companyId, body, auth) {
   const sanitized = sanitizeSite(body)
   if (!sanitized) return json(400, { error: 'nom et adresse sont requis. Coordonnees invalides si fournies.' })
 
   const { data, error } = await dbClient
     .from('sites_logistiques')
-    .insert(sanitized)
+    .insert({ ...sanitized, company_id: companyId })
     .select('id, nom, adresse, code_postal, ville, type_site, usage_type, est_depot_relais, entreprise_id, created_at')
     .single()
   if (error) {
@@ -117,7 +121,7 @@ async function createSite(dbClient, body, auth) {
   return json(201, { object: 'LogisticSite', data })
 }
 
-async function updateSite(dbClient, siteId, body) {
+async function updateSite(dbClient, companyId, siteId, body) {
   if (!siteId) return json(400, { error: 'site_id requis.' })
   const sanitized = sanitizeSite(body)
   if (!sanitized) return json(400, { error: 'nom et adresse sont requis.' })
@@ -125,6 +129,7 @@ async function updateSite(dbClient, siteId, body) {
   const { data, error } = await dbClient
     .from('sites_logistiques')
     .update({ ...sanitized, updated_at: new Date().toISOString() })
+    .eq('company_id', companyId)
     .eq('id', siteId)
     .select('id, nom, adresse, code_postal, ville, type_site, usage_type, est_depot_relais, entreprise_id, updated_at')
     .single()
@@ -133,11 +138,12 @@ async function updateSite(dbClient, siteId, body) {
   return json(200, { object: 'LogisticSite', data })
 }
 
-async function deleteSite(dbClient, siteId) {
+async function deleteSite(dbClient, companyId, siteId) {
   if (!siteId) return json(400, { error: 'site_id requis.' })
   const { error } = await dbClient
     .from('sites_logistiques')
     .delete()
+    .eq('company_id', companyId)
     .eq('id', siteId)
   if (error) return json(500, { error: error.message })
   return json(200, { deleted: true, site_id: siteId })
@@ -148,31 +154,34 @@ async function deleteSite(dbClient, siteId) {
 export async function handler(event) {
   const { httpMethod: method, queryStringParameters: qs = {} } = event
 
-  const auth = await authorize(event, ALLOWED_ROLES)
-  if (auth.error) return json(auth.status ?? 401, { error: auth.error })
+  const auth = await authorize(event, { allowedRoles: ALLOWED_ROLES })
+  if (auth.error) return auth.error
 
-  const { dbClient } = auth
+  const tenantGuard = assertTenantContext(auth.companyId)
+  if (!tenantGuard.ok) return tenantGuard.error
+
+  const { dbClient, companyId } = auth
 
   if (method === 'GET') {
-    if (qs.site_id) return getSite(dbClient, qs.site_id)
-    return listSites(dbClient, qs)
+    if (qs.site_id) return getSite(dbClient, companyId, qs.site_id)
+    return listSites(dbClient, companyId, qs)
   }
 
-  if (!WRITE_ROLES.includes(auth.role)) return json(403, { error: 'Permission insuffisante.' })
+  if (!WRITE_ROLES.includes(auth.profile.role)) return json(403, { error: 'Permission insuffisante.' })
 
   if (method === 'POST') {
-    const body = await parseJsonBody(event)
-    return createSite(dbClient, body, auth)
+    const body = parseJsonBody(event)
+    return createSite(dbClient, companyId, body, auth)
   }
 
   if (method === 'PUT') {
-    const body = await parseJsonBody(event)
-    return updateSite(dbClient, qs.site_id, body)
+    const body = parseJsonBody(event)
+    return updateSite(dbClient, companyId, qs.site_id, body)
   }
 
   if (method === 'DELETE') {
-    if (!DELETE_ROLES.includes(auth.role)) return json(403, { error: 'Seuls admin et dirigeant peuvent supprimer un site.' })
-    return deleteSite(dbClient, qs.site_id)
+    if (!DELETE_ROLES.includes(auth.profile.role)) return json(403, { error: 'Seuls admin et dirigeant peuvent supprimer un site.' })
+    return deleteSite(dbClient, companyId, qs.site_id)
   }
 
   return json(405, { error: 'Methode non supportee.' })

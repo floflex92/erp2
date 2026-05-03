@@ -35,6 +35,7 @@ import {
   companyFilter,
   json,
   parseJsonBody,
+  readRequestedCompanyId,
 } from './_lib/v11-core.js'
 
 // ─── Constantes ────────────────────────────────────────────────────────────
@@ -111,6 +112,18 @@ function roleLabelFromName(roleName) {
     .join(' ')
 }
 
+function generateCorrelationId() {
+  return `ten_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+function createUserFailure({ status = 500, stage, message, correlationId }) {
+  return json(status, {
+    error: message,
+    stage,
+    correlation_id: correlationId,
+  })
+}
+
 // ─── Guard : tenant admin ou platform admin ─────────────────────────────────
 
 async function requireTenantAdmin(event) {
@@ -155,59 +168,74 @@ export const handler = async (event) => {
   const body = method !== 'GET' ? parseJsonBody(event) : {}
   if (body === null) return json(400, { error: 'Corps de requete trop volumineux ou invalide.' })
 
+  const requestedCompanyId = readRequestedCompanyId(event, body)
+  let effectiveCompanyId = companyId
+
+  // Super admin hors impersonation: exige un tenant cible explicite.
+  if (isPlatformAdmin) {
+    if (!requestedCompanyId) {
+      return json(400, {
+        error: 'company_id est obligatoire pour les operations plateforme. Ajoutez X-Company-Id, ?company_id= ou body.company_id.',
+      })
+    }
+    effectiveCompanyId = requestedCompanyId
+  } else if (requestedCompanyId && requestedCompanyId !== companyId) {
+    return json(403, { error: 'Acces refuse: company_id mismatch.' })
+  }
+
   // ── GET settings ──────────────────────────────────────────────────────────
   if (method === 'GET' && action === 'settings') {
-    return handleGetSettings(systemClient, companyId)
+    return handleGetSettings(systemClient, effectiveCompanyId)
   }
 
   // ── PATCH identity ────────────────────────────────────────────────────────
   if (method === 'PATCH' && action === 'identity') {
-    return handlePatchIdentity(systemClient, companyId, body, isPlatformAdmin)
+    return handlePatchIdentity(systemClient, effectiveCompanyId, body, isPlatformAdmin)
   }
 
   // ── PATCH email-domain ────────────────────────────────────────────────────
   if (method === 'PATCH' && action === 'email-domain') {
-    return handlePatchEmailDomain(systemClient, companyId, body)
+    return handlePatchEmailDomain(systemClient, effectiveCompanyId, body)
   }
 
   // ── PATCH modules ─────────────────────────────────────────────────────────
   if (method === 'PATCH' && action === 'modules') {
-    return handlePatchModules(systemClient, companyId, body)
+    return handlePatchModules(systemClient, effectiveCompanyId, body)
   }
 
   // ── GET users ─────────────────────────────────────────────────────────────
   if (method === 'GET' && action === 'users') {
-    return handleGetUsers(systemClient, companyId)
+    return handleGetUsers(systemClient, effectiveCompanyId)
   }
 
   // ── POST users (create) ───────────────────────────────────────────────────
   if (method === 'POST' && action === 'users') {
-    return handleCreateUser(systemClient, companyId, body, profile.id)
+    return handleCreateUser(systemClient, effectiveCompanyId, body, profile.id)
   }
 
   // ── PATCH users (update) ──────────────────────────────────────────────────
   if (method === 'PATCH' && action === 'users' && userId) {
-    return handleUpdateUser(systemClient, companyId, userId, body)
+    return handleUpdateUser(systemClient, effectiveCompanyId, userId, body)
   }
 
   // ── PATCH user-status ─────────────────────────────────────────────────────
   if (method === 'PATCH' && action === 'user-status' && userId) {
-    return handleUserStatus(systemClient, companyId, userId, body)
+    return handleUserStatus(systemClient, effectiveCompanyId, userId, body)
   }
 
   // ── PATCH user-roles ──────────────────────────────────────────────────────
   if (method === 'PATCH' && action === 'user-roles' && userId) {
-    return handleUserRole(systemClient, companyId, userId, body)
+    return handleUserRole(systemClient, effectiveCompanyId, userId, body)
   }
 
   // ── PATCH user-pages ──────────────────────────────────────────────────────
   if (method === 'PATCH' && action === 'user-pages' && userId) {
-    return handleUserPages(systemClient, companyId, userId, body)
+    return handleUserPages(systemClient, effectiveCompanyId, userId, body)
   }
 
   // ── PATCH user-security ───────────────────────────────────────────────────
   if (method === 'PATCH' && action === 'user-security' && userId) {
-    return handleUserSecurity(systemClient, companyId, userId, body)
+    return handleUserSecurity(systemClient, effectiveCompanyId, userId, body)
   }
 
   return json(404, { error: `Action non reconnue: ${action}` })
@@ -390,6 +418,7 @@ async function handleGetUsers(client, companyId) {
 // ── POST users (create) ───────────────────────────────────────────────────────
 
 async function handleCreateUser(client, companyId, body, createdByProfileId) {
+  const correlationId = generateCorrelationId()
   const errors = []
 
   // Validation email
@@ -439,9 +468,18 @@ async function handleCreateUser(client, companyId, body, createdByProfileId) {
 
   if (authError) {
     if (authError.message?.includes('already registered')) {
-      return json(409, { error: 'Un utilisateur avec cet email existe deja.' })
+      return createUserFailure({
+        status: 409,
+        stage: 'AUTH_CREATE',
+        message: 'Un utilisateur avec cet email existe deja.',
+        correlationId,
+      })
     }
-    return json(500, { error: authError.message })
+    return createUserFailure({
+      stage: 'AUTH_CREATE',
+      message: authError.message,
+      correlationId,
+    })
   }
 
   // Cree le profil dans profils
@@ -462,10 +500,14 @@ async function handleCreateUser(client, companyId, body, createdByProfileId) {
   if (profilError) {
     // Rollback : supprime l'auth user si le profil n'a pas pu etre cree
     await client.auth.admin.deleteUser(authUser.user.id)
-    return json(500, { error: profilError.message })
+    return createUserFailure({
+      stage: 'PROFILE_INSERT',
+      message: profilError.message,
+      correlationId,
+    })
   }
 
-  const { error: membershipError } = await ensureTenantMembership({
+  const { error: membershipError, stage: membershipStage } = await ensureTenantMembership({
     client,
     companyId,
     userId: authUser.user.id,
@@ -475,12 +517,17 @@ async function handleCreateUser(client, companyId, body, createdByProfileId) {
   if (membershipError) {
     await client.from('profils').delete().eq('id', profil.id)
     await client.auth.admin.deleteUser(authUser.user.id)
-    return json(500, { error: membershipError })
+    return createUserFailure({
+      stage: membershipStage ?? 'TENANT_MEMBERSHIP',
+      message: membershipError,
+      correlationId,
+    })
   }
 
   return json(201, {
     user: profil,
     temp_password: body.password ? undefined : password,
+    correlation_id: correlationId,
   })
 }
 
@@ -717,7 +764,7 @@ async function ensureTenantMembership({ client, companyId, userId, role }) {
     .eq('name', role)
     .maybeSingle()
 
-  if (roleError) return { error: roleError.message }
+  if (roleError) return { stage: 'ROLE_LOOKUP', error: roleError.message }
   let defaultRoleId = roleRow?.id ?? null
 
   if (!defaultRoleId) {
@@ -734,7 +781,7 @@ async function ensureTenantMembership({ client, companyId, userId, role }) {
       .select('id')
       .single()
 
-    if (createRoleError) return { error: createRoleError.message }
+    if (createRoleError) return { stage: 'ROLE_CREATE', error: createRoleError.message }
     defaultRoleId = createdRole?.id ?? null
   }
 
@@ -752,10 +799,10 @@ async function ensureTenantMembership({ client, companyId, userId, role }) {
     .single()
 
   if (tenantUserError || !tenantUser) {
-    return { error: tenantUserError?.message ?? 'Impossible de creer tenant_users.' }
+    return { stage: 'TENANT_MEMBERSHIP', error: tenantUserError?.message ?? 'Impossible de creer tenant_users.' }
   }
 
-  if (!defaultRoleId) return { error: null }
+  if (!defaultRoleId) return { stage: null, error: null }
 
   const { error: roleLinkError } = await client
     .from('tenant_user_roles')
@@ -767,6 +814,6 @@ async function ensureTenantMembership({ client, companyId, userId, role }) {
       onConflict: 'tenant_user_id,role_id',
     })
 
-  if (roleLinkError) return { error: roleLinkError.message }
-  return { error: null }
+  if (roleLinkError) return { stage: 'TENANT_ROLE_LINK', error: roleLinkError.message }
+  return { stage: null, error: null }
 }

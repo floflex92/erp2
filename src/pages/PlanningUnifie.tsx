@@ -32,7 +32,14 @@ export default function PlanningUnifie() {
 
   return (
     <div className="flex flex-col h-full">
-      <Suspense fallback={null}>
+      <Suspense fallback={(
+        <div className="px-4 py-6 animate-pulse space-y-3">
+          <div className="h-8 w-56 rounded-lg bg-slate-200/70" />
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-10 w-full rounded-lg bg-slate-200/50" />
+          ))}
+        </div>
+      )}>
       {tabs.length > 1 && (
         <div
           className="flex gap-1 border-b px-4 pt-3 shrink-0"

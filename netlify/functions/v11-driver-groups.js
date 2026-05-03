@@ -1,4 +1,5 @@
 import {
+  assertTenantContext,
   authorize,
   json,
   parseJsonBody,
@@ -24,34 +25,36 @@ function sanitizeGroup(body) {
 
 // ── Groupes ──────────────────────────────────────────────────────────────────
 
-async function listGroups(dbClient) {
+async function listGroups(dbClient, companyId) {
   const { data, error } = await dbClient
     .from('driver_groups')
     .select('id, nom, description, couleur, created_at, updated_at')
+    .eq('company_id', companyId)
     .order('nom', { ascending: true })
   if (error) return json(500, { error: error.message })
   return json(200, { object: 'DriverGroupList', data: data ?? [] })
 }
 
-async function createGroup(dbClient, body, auth) {
+async function createGroup(dbClient, companyId, body, auth) {
   const sanitized = sanitizeGroup(body)
   if (!sanitized) return json(400, { error: 'nom requis.' })
   const { data, error } = await dbClient
     .from('driver_groups')
-    .insert({ ...sanitized, created_by: auth.user.id })
+    .insert({ ...sanitized, company_id: companyId, created_by: auth.user.id })
     .select('id, nom, description, couleur, created_at')
     .single()
   if (error) return json(500, { error: error.message })
   return json(201, { object: 'DriverGroup', data })
 }
 
-async function updateGroup(dbClient, groupId, body) {
+async function updateGroup(dbClient, companyId, groupId, body) {
   if (!groupId) return json(400, { error: 'group_id requis.' })
   const sanitized = sanitizeGroup(body)
   if (!sanitized) return json(400, { error: 'nom requis.' })
   const { data, error } = await dbClient
     .from('driver_groups')
     .update({ ...sanitized, updated_at: new Date().toISOString() })
+    .eq('company_id', companyId)
     .eq('id', groupId)
     .select('id, nom, description, couleur, updated_at')
     .single()
@@ -60,11 +63,12 @@ async function updateGroup(dbClient, groupId, body) {
   return json(200, { object: 'DriverGroup', data })
 }
 
-async function deleteGroup(dbClient, groupId) {
+async function deleteGroup(dbClient, companyId, groupId) {
   if (!groupId) return json(400, { error: 'group_id requis.' })
   const { error } = await dbClient
     .from('driver_groups')
     .delete()
+    .eq('company_id', companyId)
     .eq('id', groupId)
   if (error) return json(500, { error: error.message })
   return json(200, { deleted: true, group_id: groupId })
@@ -119,15 +123,18 @@ async function removeMember(dbClient, groupId, conducteurId) {
 
 export async function handler(event) {
   const method = event.httpMethod
-  const auth   = await authorize(event, ALLOWED_ROLES)
-  if (!auth.ok) return json(auth.status ?? 401, { error: auth.error })
+  const auth   = await authorize(event, { allowedRoles: ALLOWED_ROLES })
+  if (auth.error) return auth.error
+
+  const tenantGuard = assertTenantContext(auth.companyId)
+  if (!tenantGuard.ok) return tenantGuard.error
+
+  const { companyId } = auth
 
   await readTenantKey(event, auth)
 
   const body     = parseJsonBody(event)
   const path     = event.path ?? ''
-  // /v11-driver-groups              → groups CRUD
-  // /v11-driver-groups/members      → members CRUD
   const isMember = path.includes('/members')
   const groupId  =
     typeof event.queryStringParameters?.group_id === 'string'
@@ -151,18 +158,18 @@ export async function handler(event) {
     return json(405, { error: 'Method not allowed.' })
   }
 
-  if (method === 'GET')    return listGroups(auth.dbClient)
+  if (method === 'GET')    return listGroups(auth.dbClient, companyId)
   if (method === 'POST')   {
     if (!WRITE_ROLES.includes(auth.profile.role)) return json(403, { error: 'Forbidden.' })
-    return createGroup(auth.dbClient, body, auth)
+    return createGroup(auth.dbClient, companyId, body, auth)
   }
   if (method === 'PUT')    {
     if (!WRITE_ROLES.includes(auth.profile.role)) return json(403, { error: 'Forbidden.' })
-    return updateGroup(auth.dbClient, groupId, body)
+    return updateGroup(auth.dbClient, companyId, groupId, body)
   }
   if (method === 'DELETE') {
     if (!DELETE_ROLES.includes(auth.profile.role)) return json(403, { error: 'Forbidden.' })
-    return deleteGroup(auth.dbClient, groupId)
+    return deleteGroup(auth.dbClient, companyId, groupId)
   }
 
   return json(405, { error: 'Method not allowed.' })

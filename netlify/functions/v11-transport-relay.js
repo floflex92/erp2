@@ -1,4 +1,5 @@
 import {
+  assertTenantContext,
   authorize,
   json,
   parseJsonBody,
@@ -30,10 +31,11 @@ const RELAIS_SELECT = `
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
-async function listRelais(dbClient, params) {
+async function listRelais(dbClient, companyId, params) {
   let query = dbClient
     .from('transport_relais')
     .select(RELAIS_SELECT)
+    .eq('company_id', companyId)
     .order('created_at', { ascending: false })
 
   if (params.ot_id) {
@@ -58,11 +60,12 @@ async function listRelais(dbClient, params) {
   return json(200, { object: 'TransportRelaisList', data: data ?? [] })
 }
 
-async function getRelais(dbClient, relaisId) {
+async function getRelais(dbClient, companyId, relaisId) {
   if (!relaisId) return json(400, { error: 'relais_id requis.' })
   const { data, error } = await dbClient
     .from('transport_relais')
     .select(RELAIS_SELECT)
+    .eq('company_id', companyId)
     .eq('id', relaisId)
     .single()
   if (error) return json(error.code === 'PGRST116' ? 404 : 500, { error: error.message })
@@ -70,7 +73,7 @@ async function getRelais(dbClient, relaisId) {
 }
 
 // POST /deposit — creer un relais (depot ou relais conducteur)
-async function createDeposit(dbClient, body, auth) {
+async function createDeposit(dbClient, companyId, body, auth) {
   if (!body || typeof body !== 'object') return json(400, { error: 'Corps requis.' })
 
   const ot_id = typeof body.ot_id === 'string' ? body.ot_id.trim() : ''
@@ -81,6 +84,7 @@ async function createDeposit(dbClient, body, auth) {
   if (!lieu_nom) return json(400, { error: 'lieu_nom requis.' })
 
   const payload = {
+    company_id: companyId,
     ot_id,
     type_relais,
     lieu_nom,
@@ -110,7 +114,7 @@ async function createDeposit(dbClient, body, auth) {
 }
 
 // PUT /assign — affecter un conducteur + vehicule pour la reprise
-async function assignReprise(dbClient, relaisId, body) {
+async function assignReprise(dbClient, companyId, relaisId, body) {
   if (!relaisId) return json(400, { error: 'relais_id requis.' })
   if (!body || typeof body !== 'object') return json(400, { error: 'Corps requis.' })
 
@@ -133,6 +137,7 @@ async function assignReprise(dbClient, relaisId, body) {
   const { data, error } = await dbClient
     .from('transport_relais')
     .update(update)
+    .eq('company_id', companyId)
     .eq('id', relaisId)
     .select(RELAIS_SELECT)
     .single()
@@ -142,7 +147,7 @@ async function assignReprise(dbClient, relaisId, body) {
 }
 
 // PATCH /status — changer le statut
-async function updateStatut(dbClient, relaisId, body) {
+async function updateStatut(dbClient, companyId, relaisId, body) {
   if (!relaisId) return json(400, { error: 'relais_id requis.' })
   const statut = body?.statut
   if (!VALID_STATUTS.has(statut)) return json(400, { error: `statut invalide. Values: ${[...VALID_STATUTS].join(', ')}` })
@@ -155,6 +160,7 @@ async function updateStatut(dbClient, relaisId, body) {
   const { data, error } = await dbClient
     .from('transport_relais')
     .update(update)
+    .eq('company_id', companyId)
     .eq('id', relaisId)
     .select(RELAIS_SELECT)
     .single()
@@ -168,46 +174,48 @@ async function updateStatut(dbClient, relaisId, body) {
 export async function handler(event) {
   const { httpMethod: method, queryStringParameters: qs = {}, path } = event
 
-  const auth = await authorize(event, ALLOWED_ROLES)
-  if (auth.error) return json(auth.status ?? 401, { error: auth.error })
+  const auth = await authorize(event, { allowedRoles: ALLOWED_ROLES })
+  if (auth.error) return auth.error
 
-  const { dbClient } = auth
+  const tenantGuard = assertTenantContext(auth.companyId)
+  if (!tenantGuard.ok) return tenantGuard.error
+
+  const { dbClient, companyId } = auth
 
   // Routage par sous-chemin
   const subPath = path?.split('/v11-transport-relay').pop() ?? ''
 
   if (method === 'GET') {
-    if (qs.relais_id) return getRelais(dbClient, qs.relais_id)
-    return listRelais(dbClient, qs)
+    if (qs.relais_id) return getRelais(dbClient, companyId, qs.relais_id)
+    return listRelais(dbClient, companyId, qs)
   }
 
-  if (!WRITE_ROLES.includes(auth.role)) return json(403, { error: 'Permission insuffisante.' })
+  if (!WRITE_ROLES.includes(auth.profile.role)) return json(403, { error: 'Permission insuffisante.' })
 
   if (method === 'POST') {
-    // POST /deposit ou POST standard
-    const body = await parseJsonBody(event)
-    return createDeposit(dbClient, body, auth)
+    const body = parseJsonBody(event)
+    return createDeposit(dbClient, companyId, body, auth)
   }
 
   if (method === 'PUT') {
-    // PUT ?relais_id=... /assign
-    const body = await parseJsonBody(event)
+    const body = parseJsonBody(event)
     if (subPath.includes('/assign') || qs.action === 'assign') {
-      return assignReprise(dbClient, qs.relais_id, body)
+      return assignReprise(dbClient, companyId, qs.relais_id, body)
     }
-    return assignReprise(dbClient, qs.relais_id, body)
+    return assignReprise(dbClient, companyId, qs.relais_id, body)
   }
 
   if (method === 'PATCH') {
-    const body = await parseJsonBody(event)
-    return updateStatut(dbClient, qs.relais_id, body)
+    const body = parseJsonBody(event)
+    return updateStatut(dbClient, companyId, qs.relais_id, body)
   }
 
   if (method === 'DELETE') {
-    if (!['admin', 'dirigeant'].includes(auth.role)) return json(403, { error: 'Seuls admin et dirigeant peuvent supprimer un relais.' })
+    if (!['admin', 'dirigeant'].includes(auth.profile.role)) return json(403, { error: 'Seuls admin et dirigeant peuvent supprimer un relais.' })
     const { error } = await dbClient
       .from('transport_relais')
       .delete()
+      .eq('company_id', companyId)
       .eq('id', qs.relais_id)
     if (error) return json(500, { error: error.message })
     return json(200, { deleted: true, relais_id: qs.relais_id })

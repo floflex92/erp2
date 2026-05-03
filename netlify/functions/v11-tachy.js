@@ -1,4 +1,5 @@
 import {
+  assertTenantContext,
   authorize,
   buildDriverStatus,
   buildDrivingTimeStatus,
@@ -17,10 +18,11 @@ import {
 
 const ALLOWED_ROLES = ['admin', 'dirigeant', 'exploitant', 'conducteur']
 
-async function aggregateFromTachyEntries(dbClient, conducteurId) {
+async function aggregateFromTachyEntries(dbClient, companyId, conducteurId) {
   const { data, error } = await dbClient
     .from('tachygraphe_entrees')
     .select('type_activite, duree_minutes, date_debut')
+    .eq('company_id', companyId)
     .eq('conducteur_id', conducteurId)
     .order('date_debut', { ascending: false })
     .limit(400)
@@ -66,7 +68,7 @@ async function aggregateFromTachyEntries(dbClient, conducteurId) {
 
 // NOTE SECURITE: systemClient pour erp_v11_driver_activity (table systeme).
 // dbClient pour aggregateFromTachyEntries (tachygraphe_entrees - donnees metier, RLS actif).
-async function resolveActivity(systemClient, dbClient, tenantKey, conducteurId) {
+async function resolveActivity(systemClient, dbClient, companyId, tenantKey, conducteurId) {
   const { data, error } = await systemClient
     .from('erp_v11_driver_activity')
     .select('*')
@@ -77,7 +79,7 @@ async function resolveActivity(systemClient, dbClient, tenantKey, conducteurId) 
     .maybeSingle()
 
   if (!error && data) return data
-  return aggregateFromTachyEntries(dbClient, conducteurId)
+  return aggregateFromTachyEntries(dbClient, companyId, conducteurId)
 }
 
 // NOTE SECURITE: utilise systemClient car loadProviders/logApiEvent/loadMappingRules/erp_v11_driver_activity sont tables systeme.
@@ -138,6 +140,10 @@ export async function handler(event) {
   const auth = await authorize(event, { allowedRoles: ALLOWED_ROLES })
   if (auth.error) return auth.error
 
+  const tenantGuard = assertTenantContext(auth.companyId)
+  if (!tenantGuard.ok) return tenantGuard.error
+
+  const { companyId } = auth
   const body = parseJsonBody(event)
   if (body === null) return json(400, { error: 'Invalid JSON payload.' })
 
@@ -146,8 +152,6 @@ export async function handler(event) {
   if (!conducteurId) return json(400, { error: 'conducteur_id is required.' })
 
   const action = (event.queryStringParameters?.action ?? body.action ?? 'status').toLowerCase()
-  // NOTE SECURITE: moduleState/cache/enrichissement → systemClient (tables systeme).
-  // tachygraphe_entrees (donnees metier) → dbClient via resolveActivity/aggregateFromTachyEntries (RLS actif).
   const moduleConfig = await moduleState(auth.systemClient, tenantKey, 'tachy')
   if (!moduleConfig.enabled) return json(423, { error: 'Tachy module disabled for tenant.' })
 
@@ -161,7 +165,7 @@ export async function handler(event) {
     })
   }
 
-  const fallbackActivity = await resolveActivity(auth.systemClient, auth.dbClient, tenantKey, conducteurId)
+  const fallbackActivity = await resolveActivity(auth.systemClient, auth.dbClient, companyId, tenantKey, conducteurId)
   if (!fallbackActivity) return json(404, { error: 'No activity found for conducteur.' })
 
   const enriched = await maybeEnrichWithProvider(auth.systemClient, tenantKey, moduleConfig, conducteurId, fallbackActivity)

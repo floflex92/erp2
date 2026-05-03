@@ -361,6 +361,109 @@ async function resolveTenantContext(dbClient, companyId) {
   return { error: null, tenantKey }
 }
 
+function generateCorrelationId() {
+  return `usr_${Date.now().toString(36)}_${randomBytes(4).toString('hex')}`
+}
+
+function createUserFailure({ status = 500, stage, message, correlationId, cleanupWarnings = [] }) {
+  const payload = {
+    error: message,
+    stage,
+    correlation_id: correlationId,
+  }
+  if (cleanupWarnings.length > 0) payload.cleanup_warnings = cleanupWarnings
+  return json(status, payload)
+}
+
+async function rollbackCreatedUser({ dbClient, authClient, userId, profileId }) {
+  const cleanupWarnings = []
+
+  try {
+    if (profileId) {
+      const { error: profileDeleteError } = await dbClient.from('profils').delete().eq('id', profileId)
+      if (profileDeleteError) cleanupWarnings.push(`profils(delete:id): ${profileDeleteError.message}`)
+    } else if (userId) {
+      const { error: profileDeleteError } = await dbClient.from('profils').delete().eq('user_id', userId)
+      if (profileDeleteError) cleanupWarnings.push(`profils(delete:user_id): ${profileDeleteError.message}`)
+    }
+  } catch (error) {
+    cleanupWarnings.push(`profils(delete:exception): ${error instanceof Error ? error.message : 'unknown error'}`)
+  }
+
+  if (authClient && userId) {
+    try {
+      const { error: authDeleteError } = await authClient.auth.admin.deleteUser(userId)
+      if (authDeleteError) cleanupWarnings.push(`auth.users(delete): ${authDeleteError.message}`)
+    } catch (error) {
+      cleanupWarnings.push(`auth.users(delete:exception): ${error instanceof Error ? error.message : 'unknown error'}`)
+    }
+  }
+
+  return cleanupWarnings
+}
+
+async function ensureTenantMembership({ client, companyId, userId, role, grantedBy }) {
+  const { data: roleRow, error: roleError } = await client
+    .from('roles')
+    .select('id')
+    .eq('company_id', companyId)
+    .eq('name', role)
+    .maybeSingle()
+
+  if (roleError) return { stage: 'ROLE_LOOKUP', error: roleError.message }
+  let defaultRoleId = roleRow?.id ?? null
+
+  if (!defaultRoleId) {
+    const { data: createdRole, error: createRoleError } = await client
+      .from('roles')
+      .upsert({
+        company_id: companyId,
+        name: role,
+        label: roleLabelFromName(role),
+        is_system: true,
+      }, {
+        onConflict: 'company_id,name',
+      })
+      .select('id')
+      .single()
+
+    if (createRoleError) return { stage: 'ROLE_CREATE', error: createRoleError.message }
+    defaultRoleId = createdRole?.id ?? null
+  }
+
+  const { data: tenantUser, error: tenantUserError } = await client
+    .from('tenant_users')
+    .upsert({
+      tenant_id: companyId,
+      user_id: userId,
+      default_role_id: defaultRoleId,
+      is_active: true,
+    }, {
+      onConflict: 'tenant_id,user_id',
+    })
+    .select('id')
+    .single()
+
+  if (tenantUserError || !tenantUser) {
+    return { stage: 'TENANT_MEMBERSHIP', error: tenantUserError?.message ?? 'Impossible de lier le compte au tenant.' }
+  }
+
+  if (!defaultRoleId) return { stage: null, error: null }
+
+  const { error: tenantRoleError } = await client
+    .from('tenant_user_roles')
+    .upsert({
+      tenant_user_id: tenantUser.id,
+      role_id: defaultRoleId,
+      granted_by: grantedBy ?? null,
+    }, {
+      onConflict: 'tenant_user_id,role_id',
+    })
+
+  if (tenantRoleError) return { stage: 'TENANT_ROLE_LINK', error: tenantRoleError.message }
+  return { stage: null, error: null }
+}
+
 function buildDisplayName(prenom, nom, fallback = 'Utilisateur') {
   const full = `${String(prenom ?? '').trim()} ${String(nom ?? '').trim()}`.trim()
   return full || fallback
@@ -865,6 +968,7 @@ async function listAdminUsers({ admin, sessionClient }, options = {}) {
 
 async function createAdminUser(clients, rawBody) {
   const body = typeof rawBody === 'string' && rawBody.length > 0 ? JSON.parse(rawBody) : {}
+  const correlationId = generateCorrelationId()
   const requestedExternalEmail = normalizeEmail(body.external_email)
   const email = normalizeEmail(body.email) ?? requestedExternalEmail ?? ''
   const generatedPassword = buildStrongTemporaryPassword()
@@ -895,6 +999,46 @@ async function createAdminUser(clients, rawBody) {
   if (!effectivePassword || effectivePassword.length < 8) return json(400, { error: 'Password must be at least 8 characters.' })
   if (!role) return json(400, { error: 'Invalid role.' })
 
+  const dbClient = clients.admin ?? clients.sessionClient
+  const authAdminClient = clients.admin ?? null
+  const currentCompanyId = Number(clients.currentProfile?.company_id ?? 1)
+  const requestedCompanyId = Number(body.company_id ?? body.target_company_id)
+  const hasRequestedCompany = Number.isFinite(requestedCompanyId) && requestedCompanyId > 0
+  const isPlatformAdmin = await isPlatformAdminUser(dbClient, clients.currentUser?.id)
+
+  let companyId = currentCompanyId
+  if (isPlatformAdmin && !hasRequestedCompany) {
+    return createUserFailure({
+      status: 400,
+      stage: 'TENANT_CONTEXT',
+      message: 'company_id est obligatoire pour les creations effectuees par un platform admin.',
+      correlationId,
+    })
+  }
+
+  if (hasRequestedCompany) {
+    if (!isPlatformAdmin && requestedCompanyId !== currentCompanyId) {
+      return createUserFailure({
+        status: 403,
+        stage: 'TENANT_AUTHZ',
+        message: 'Acces refuse: vous ne pouvez pas creer un compte hors de votre tenant.',
+        correlationId,
+      })
+    }
+    companyId = requestedCompanyId
+  }
+
+  const tenantContext = await resolveTenantContext(dbClient, companyId)
+  if (tenantContext.error) {
+    return createUserFailure({
+      status: 400,
+      stage: 'TENANT_CONTEXT',
+      message: tenantContext.error,
+      correlationId,
+    })
+  }
+  const tenantKey = tenantContext.tenantKey
+
   let createdUser = null
 
   if (clients.admin) {
@@ -914,7 +1058,12 @@ async function createAdminUser(clients, rawBody) {
     })
 
     if (error || !data.user) {
-      return json(400, { error: error?.message ?? 'Unable to create user.' })
+      return createUserFailure({
+        status: 400,
+        stage: 'AUTH_CREATE',
+        message: error?.message ?? 'Unable to create user.',
+        correlationId,
+      })
     }
 
     createdUser = data.user
@@ -934,31 +1083,16 @@ async function createAdminUser(clients, rawBody) {
     })
 
     if (error || !data.user) {
-      return json(400, { error: error?.message ?? 'Unable to create user.' })
+      return createUserFailure({
+        status: 400,
+        stage: 'AUTH_CREATE',
+        message: error?.message ?? 'Unable to create user.',
+        correlationId,
+      })
     }
 
     createdUser = data.user
   }
-
-  const dbClient = clients.admin ?? clients.sessionClient
-  const currentCompanyId = Number(clients.currentProfile?.company_id ?? 1)
-  const requestedCompanyId = Number(body.company_id ?? body.target_company_id)
-  const hasRequestedCompany = Number.isFinite(requestedCompanyId) && requestedCompanyId > 0
-  const isPlatformAdmin = await isPlatformAdminUser(dbClient, clients.currentUser?.id)
-
-  let companyId = currentCompanyId
-  if (hasRequestedCompany) {
-    if (!isPlatformAdmin && requestedCompanyId !== currentCompanyId) {
-      return json(403, { error: 'Acces refuse: vous ne pouvez pas creer un compte hors de votre tenant.' })
-    }
-    companyId = requestedCompanyId
-  }
-
-  const tenantContext = await resolveTenantContext(dbClient, companyId)
-  if (tenantContext.error) {
-    return json(400, { error: tenantContext.error })
-  }
-  const tenantKey = tenantContext.tenantKey
 
   const { data: profileRow, error: profileError } = await dbClient.from('profils').upsert({
     user_id: createdUser.id,
@@ -984,74 +1118,41 @@ async function createAdminUser(clients, rawBody) {
   }).select('id,user_id,matricule').single()
 
   if (profileError) {
-    return json(500, { error: profileError.message })
-  }
-
-  // Synchronise le nouveau modele multi-tenant (tenant_users + tenant_user_roles).
-  const { data: roleRow, error: roleError } = await dbClient
-    .from('roles')
-    .select('id')
-    .eq('company_id', companyId)
-    .eq('name', role)
-    .maybeSingle()
-
-  if (roleError) {
-    return json(500, { error: roleError.message })
-  }
-
-  let defaultRoleId = roleRow?.id ?? null
-  if (!defaultRoleId) {
-    const { data: createdRole, error: createRoleError } = await dbClient
-      .from('roles')
-      .upsert({
-        company_id: companyId,
-        name: role,
-        label: roleLabelFromName(role),
-        is_system: true,
-      }, {
-        onConflict: 'company_id,name',
-      })
-      .select('id')
-      .single()
-
-    if (createRoleError) {
-      return json(500, { error: createRoleError.message })
-    }
-
-    defaultRoleId = createdRole?.id ?? null
-  }
-
-  const { data: tenantUser, error: tenantUserError } = await dbClient
-    .from('tenant_users')
-    .upsert({
-      tenant_id: companyId,
-      user_id: createdUser.id,
-      default_role_id: defaultRoleId,
-      is_active: true,
-    }, {
-      onConflict: 'tenant_id,user_id',
+    const cleanupWarnings = await rollbackCreatedUser({
+      dbClient,
+      authClient: authAdminClient,
+      userId: createdUser?.id ?? null,
+      profileId: null,
     })
-    .select('id')
-    .single()
-
-  if (tenantUserError || !tenantUser) {
-    return json(500, { error: tenantUserError?.message ?? 'Impossible de lier le compte au tenant.' })
+    return createUserFailure({
+      stage: 'PROFILE_UPSERT',
+      message: profileError.message,
+      correlationId,
+      cleanupWarnings,
+    })
   }
 
-  if (defaultRoleId) {
-    const { error: tenantRoleError } = await dbClient
-      .from('tenant_user_roles')
-      .upsert({
-        tenant_user_id: tenantUser.id,
-        role_id: defaultRoleId,
-        granted_by: clients.currentUser?.id ?? null,
-      }, {
-        onConflict: 'tenant_user_id,role_id',
-      })
+  const { error: membershipError, stage: membershipStage } = await ensureTenantMembership({
+    client: dbClient,
+    companyId,
+    userId: createdUser.id,
+    role,
+    grantedBy: clients.currentUser?.id ?? null,
+  })
 
-    if (tenantRoleError) {
-      return json(500, { error: tenantRoleError.message })
-    }
+  if (membershipError) {
+    const cleanupWarnings = await rollbackCreatedUser({
+      dbClient,
+      authClient: authAdminClient,
+      userId: createdUser.id,
+      profileId: profileRow?.id ?? null,
+    })
+    return createUserFailure({
+      stage: membershipStage ?? 'TENANT_MEMBERSHIP',
+      message: membershipError,
+      correlationId,
+      cleanupWarnings,
+    })
   }
 
   const ensuredMatricule = profileRow?.matricule || generateUserMatricule(profileRow?.id)
@@ -1061,10 +1162,22 @@ async function createAdminUser(clients, rawBody) {
       .update({ matricule: ensuredMatricule })
       .eq('id', profileRow.id)
     if (matriculeError) {
-      return json(500, { error: matriculeError.message })
+      const cleanupWarnings = await rollbackCreatedUser({
+        dbClient,
+        authClient: authAdminClient,
+        userId: createdUser.id,
+        profileId: profileRow?.id ?? null,
+      })
+      return createUserFailure({
+        stage: 'PROFILE_MATRICULE_UPDATE',
+        message: matriculeError.message,
+        correlationId,
+        cleanupWarnings,
+      })
     }
   }
 
+  const postCreateWarnings = []
   if (requestId) {
     const { error: requestUpdateError } = await dbClient
       .from('project_access_requests')
@@ -1082,7 +1195,7 @@ async function createAdminUser(clients, rawBody) {
       .eq('id', requestId)
 
     if (requestUpdateError) {
-      return json(500, { error: requestUpdateError.message })
+      postCreateWarnings.push(`project_access_requests(update): ${requestUpdateError.message}`)
     }
   }
 
@@ -1131,7 +1244,8 @@ async function createAdminUser(clients, rawBody) {
       tenant_key: tenantKey,
       requires_email_confirmation: !clients.admin,
     },
-    warnings: legacySyncWarnings,
+    warnings: [...legacySyncWarnings, ...postCreateWarnings],
+    correlation_id: correlationId,
   })
 }
 

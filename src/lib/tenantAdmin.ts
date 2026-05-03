@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabase'
+import { getActiveImpersonation } from './multiTenantAuth'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -249,6 +250,9 @@ export type TenantUser = {
 // ─── Helper interne : company_id du user courant ─────────────────────────────
 
 async function fetchMyCompanyId(): Promise<number | null> {
+  const impersonation = await getActiveImpersonation()
+  if (impersonation?.tenantId) return impersonation.tenantId
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
   const { data } = await supabase
@@ -427,13 +431,19 @@ export async function createTenantUser(payload: {
 }): Promise<{ data: { user: TenantUser; temp_password?: string } | null; error: string | null }> {
   // La création d'un utilisateur Auth nécessite la service-role key
   // → reste via la Netlify function (service role uniquement)
+  const companyId = await fetchMyCompanyId()
+  if (!companyId) return { data: null, error: 'Tenant introuvable.' }
+
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return { data: null, error: 'Non authentifié.' }
   try {
     const res = await fetch('/.netlify/functions/v11-tenant-admin?action=users', {
       method: 'POST',
       headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        ...payload,
+        company_id: companyId,
+      }),
     })
     const body = await res.json().catch(() => ({})) as { user?: TenantUser; temp_password?: string; error?: string }
     if (!res.ok) return { data: null, error: body.error ?? `Erreur HTTP ${res.status}` }

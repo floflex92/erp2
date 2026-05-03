@@ -145,8 +145,8 @@ export default function RequireAuth() {
   if (canUseSessionPicker && !sessionRole && !isPlatformAdmin && location.pathname !== '/session-picker') return <Navigate to="/session-picker" replace />
 
   // Platform admin sans session d'impersonation → backoffice plateforme
-  if (isPlatformAdmin && !impersonation && !sessionRole && location.pathname !== '/super-admin' && location.pathname !== '/session-picker') {
-    return <Navigate to="/super-admin" replace />
+  if (isPlatformAdmin && !impersonation && !sessionRole && location.pathname !== '/platform' && location.pathname !== '/super-admin' && location.pathname !== '/session-picker') {
+    return <Navigate to="/platform" replace />
   }
 
   return <Outlet />

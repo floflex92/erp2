@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import {
+  assertTenantContext,
   authorize,
   createPublicClient,
   createServiceClient,
@@ -27,13 +28,15 @@ async function readPortalByToken(dbClient, tenantKey, token) {
 
 // NOTE SECURITE: ordres_transport (metier) → dbClient (RLS actif).
 // erp_v11_eta_predictions / erp_v11_vehicle_positions (systeme) → systemClient.
-async function fetchTrackingPayload(dbClient, systemClient, tenantKey, clientId, otId) {
-  const { data: order, error: orderError } = await dbClient
+// companyId optionnel : renseigné pour le flux admin authentifié, absent pour le flux public (token).
+async function fetchTrackingPayload(dbClient, systemClient, tenantKey, clientId, otId, companyId = null) {
+  let orderQuery = dbClient
     .from('ordres_transport')
     .select('id, reference, client_id, vehicule_id, conducteur_id, statut, statut_operationnel, date_livraison_prevue')
     .eq('id', otId)
     .eq('client_id', clientId)
-    .maybeSingle()
+  if (companyId !== null) orderQuery = orderQuery.eq('company_id', companyId)
+  const { data: order, error: orderError } = await orderQuery.maybeSingle()
 
   if (orderError || !order) return { error: 'Mission not found for client.' }
 
@@ -128,14 +131,17 @@ export async function handler(event) {
 
     const auth = await authorize(event, { allowedRoles: ADMIN_ROLES })
     if (auth.error) return auth.error
-    // NOTE SECURITE: moduleState → systemClient. fetchTrackingPayload : ordres_transport via dbClient (RLS), infra via systemClient.
+
+    const tenantGuard = assertTenantContext(auth.companyId)
+    if (!tenantGuard.ok) return tenantGuard.error
+
     const moduleConfig = await moduleState(auth.systemClient, tenantKey, 'client_portal')
     if (!moduleConfig.enabled) return json(423, { error: 'Client portal module disabled for tenant.' })
 
     const clientId = query.client_id ?? body.client_id
     const otId = query.ot_id ?? body.ot_id
     if (!clientId || !otId) return json(400, { error: 'client_id and ot_id are required when token is not provided.' })
-    const payload = await fetchTrackingPayload(auth.dbClient, auth.systemClient, tenantKey, clientId, otId)
+    const payload = await fetchTrackingPayload(auth.dbClient, auth.systemClient, tenantKey, clientId, otId, auth.companyId)
     if (payload.error) return json(404, { error: payload.error })
     return json(200, {
       tenant_key: tenantKey,
@@ -146,7 +152,10 @@ export async function handler(event) {
 
   const auth = await authorize(event, { allowedRoles: ADMIN_ROLES })
   if (auth.error) return auth.error
-  // NOTE SECURITE: erp_v11_client_portal_access (tokens admin) est une table systeme → systemClient.
+
+  const tenantGuard = assertTenantContext(auth.companyId)
+  if (!tenantGuard.ok) return tenantGuard.error
+
   const moduleConfig = await moduleState(auth.systemClient, tenantKey, 'client_portal')
   if (!moduleConfig.enabled) return json(423, { error: 'Client portal module disabled for tenant.' })
 

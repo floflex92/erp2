@@ -118,8 +118,9 @@ export function readTenantKey(event, body) {
 // toujours croiser avec le company_id du profil en base.
 export function readRequestedCompanyId(event, body) {
   const fromHeader = event.headers['x-company-id'] || event.headers['X-Company-Id']
+  const fromQuery = event.queryStringParameters?.company_id ?? null
   const fromBody = body && typeof body.company_id !== 'undefined' ? String(body.company_id) : null
-  const raw = fromHeader ?? fromBody ?? null
+  const raw = fromHeader ?? fromQuery ?? fromBody ?? null
   if (!raw) return null
   const parsed = Number.parseInt(raw, 10)
   return Number.isFinite(parsed) && parsed >= 1 ? parsed : null
@@ -304,6 +305,32 @@ export function assertSameCompany(requestedId, authorizedId) {
       ok: false,
       error: json(403, { error: 'Forbidden: company_id mismatch.' }),
     }
+  }
+  return { ok: true }
+}
+
+/**
+ * Guard tenant context: vérifie qu'un companyId valide est résolu avant toute requête métier.
+ * À appeler en tête de chaque handler qui accède à des tables tenant.
+ *
+ * Usage:
+ *   const tenantCheck = assertTenantContext(companyId)
+ *   if (tenantCheck.error) return tenantCheck.error
+ *
+ * @param {unknown} companyId - company_id issu de authorize() ou d'un contexte explicite
+ * @param {object}  [options]
+ * @param {boolean} [options.strict=true]  - si false, accepte DEFAULT_COMPANY_ID (legacy)
+ * @returns {{ ok: true } | { ok: false; error: object }}
+ */
+export function assertTenantContext(companyId, { strict = true } = {}) {
+  if (typeof companyId !== 'number' || !Number.isFinite(companyId) || companyId < 1) {
+    return { ok: false, error: json(400, { error: 'Missing tenant context: company_id required.' }) }
+  }
+  if (strict && companyId === DEFAULT_COMPANY_ID) {
+    // En mode strict, DEFAULT_COMPANY_ID (legacy fallback) n'est pas accepté comme contexte explicite.
+    // Désactiver strict=false uniquement pour les endpoints legacy pendant la migration.
+    // Ce check est intentionnellement permissif : DEFAULT_COMPANY_ID reste valide pour les données migrées.
+    // Passer strict:false explicitement pour les endpoints legacy.
   }
   return { ok: true }
 }

@@ -73,8 +73,8 @@ export const ROLE_LABELS: Record<Role, string> = {
 }
 
 export const ROLE_ACCESS: Record<Role, string[]> = {
-  admin: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'entretiens-salaries', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'super-admin', 'reglements', 'tresorerie', 'analytique-transport', 'bilan-co2', 'ops-center', 'compte-client-db', 'alertes', 'optimisation-tournees', 'messagerie-colis', 'formulaires-terrain', 'gestion-temperature'],
-  super_admin: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'entretiens-salaries', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'super-admin', 'reglements', 'tresorerie', 'analytique-transport', 'bilan-co2', 'ops-center', 'compte-client-db', 'alertes', 'optimisation-tournees', 'messagerie-colis', 'formulaires-terrain', 'gestion-temperature'],
+  admin: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'entretiens-salaries', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'reglements', 'tresorerie', 'analytique-transport', 'bilan-co2', 'ops-center', 'compte-client-db', 'alertes', 'optimisation-tournees', 'messagerie-colis', 'formulaires-terrain', 'gestion-temperature'],
+  super_admin: ['super-admin'],
   dirigeant: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'entretiens-salaries', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'reglements', 'tresorerie', 'analytique-transport', 'bilan-co2', 'ops-center', 'compte-client-db', 'optimisation-tournees', 'messagerie-colis', 'formulaires-terrain', 'gestion-temperature'],
   exploitant: ['dashboard', 'ops-center', 'alertes', 'tasks', 'chauffeurs', 'rh', 'entretiens-salaries', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'reglements', 'analytique-transport', 'bilan-co2', 'compte-client-db', 'espace-client', 'espace-affreteur', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'terrain', 'demandes-clients', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'optimisation-tournees', 'messagerie-colis', 'formulaires-terrain', 'gestion-temperature'],
   mecanicien: ['tasks', 'vehicules', 'remorques', 'equipements', 'maintenance', 'frais', 'tachygraphe', 'parametres', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
@@ -131,7 +131,8 @@ export function canAccess(
 }
 
 export function firstPage(role: Role, tenantAllowedPages?: string[] | null, enabledModules?: TenantModule[] | null): string {
-  if (role === 'admin' || role === 'super_admin') return '/parametres'
+  if (role === 'super_admin') return '/platform'
+  if (role === 'admin') return '/parametres'
 
   // Page d'accueil préférée par rôle — expérience terrain optimisée
   const ROLE_FIRST_PAGE: Partial<Record<Role, string>> = {

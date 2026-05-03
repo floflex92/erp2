@@ -110,7 +110,40 @@ export default async (req, _context) => {
         console.error('[demo-magic-link] profil upsert error:', profilError.message)
       }
 
-      // ── 4c. Enregistrer la demande (best-effort, unique par email) ──────────
+      // ── 4c. Synchroniser tenant_users + tenant_user_roles (best-effort) ──────
+      try {
+        const demoCompanyId = Number.parseInt(process.env.DEMO_COMPANY_ID ?? '1', 10)
+        const demoRole = 'dirigeant'
+        const { data: roleRow } = await supabase
+          .from('roles')
+          .select('id')
+          .eq('company_id', demoCompanyId)
+          .eq('name', demoRole)
+          .maybeSingle()
+        let demoRoleId = roleRow?.id ?? null
+        if (!demoRoleId) {
+          const { data: newRole } = await supabase
+            .from('roles')
+            .upsert({ company_id: demoCompanyId, name: demoRole, label: 'Dirigeant', is_system: true }, { onConflict: 'company_id,name' })
+            .select('id')
+            .single()
+          demoRoleId = newRole?.id ?? null
+        }
+        const { data: tenantUser } = await supabase
+          .from('tenant_users')
+          .upsert({ tenant_id: demoCompanyId, user_id: userId, default_role_id: demoRoleId, is_active: true }, { onConflict: 'tenant_id,user_id' })
+          .select('id')
+          .single()
+        if (tenantUser?.id && demoRoleId) {
+          await supabase
+            .from('tenant_user_roles')
+            .upsert({ tenant_user_id: tenantUser.id, role_id: demoRoleId, granted_by: null }, { onConflict: 'tenant_user_id,role_id' })
+        }
+      } catch (membershipErr) {
+        console.error('[demo-magic-link] tenant membership sync error (non-bloquant):', membershipErr)
+      }
+
+      // ── 4d. Enregistrer la demande (best-effort, unique par email) ──────────
       await supabase
         .from('demo_access_requests')
         .insert({

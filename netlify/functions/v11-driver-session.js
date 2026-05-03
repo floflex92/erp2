@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import {
+  assertTenantContext,
   authorize,
   json,
   moduleState,
@@ -9,7 +10,7 @@ import {
 
 const ALLOWED_ROLES = ['admin', 'dirigeant', 'exploitant', 'conducteur']
 
-async function resolveConducteurId(dbClient, body, auth) {
+async function resolveConducteurId(dbClient, companyId, body, auth) {
   if (typeof body.conducteur_id === 'string' && body.conducteur_id.trim()) {
     return body.conducteur_id
   }
@@ -18,6 +19,7 @@ async function resolveConducteurId(dbClient, body, auth) {
     const { data } = await dbClient
       .from('conducteurs')
       .select('id')
+      .eq('company_id', companyId)
       .eq('email', auth.user.email)
       .maybeSingle()
     if (data?.id) return data.id
@@ -26,8 +28,8 @@ async function resolveConducteurId(dbClient, body, auth) {
   return null
 }
 
-async function openSession(dbClient, tenantKey, auth, body) {
-  const conducteurId = await resolveConducteurId(dbClient, body, auth)
+async function openSession(dbClient, companyId, tenantKey, auth, body) {
+  const conducteurId = await resolveConducteurId(dbClient, companyId, body, auth)
   if (!conducteurId) return json(400, { error: 'conducteur_id is required to open a driver session.' })
 
   const token = crypto.randomBytes(24).toString('hex')
@@ -105,9 +107,9 @@ async function closeSession(dbClient, tenantKey, body, auth) {
   return json(200, { tenant_key: tenantKey, session: data })
 }
 
-async function listMissions(dbClient, tenantKey, auth, query, body) {
+async function listMissions(dbClient, companyId, tenantKey, auth, query, body) {
   const requestedConducteurId = query.conducteur_id ?? body.conducteur_id ?? null
-  const ownConducteurId = await resolveConducteurId(dbClient, body, auth)
+  const ownConducteurId = await resolveConducteurId(dbClient, companyId, body, auth)
   const conducteurId = auth.profile.role === 'conducteur'
     ? ownConducteurId
     : (requestedConducteurId ?? ownConducteurId)
@@ -116,6 +118,7 @@ async function listMissions(dbClient, tenantKey, auth, query, body) {
   const { data, error } = await dbClient
     .from('ordres_transport')
     .select('id, reference, statut, statut_transport, statut_operationnel, date_chargement_prevue, date_livraison_prevue, vehicule_id, client_id')
+    .eq('company_id', companyId)
     .eq('conducteur_id', conducteurId)
     .not('statut_transport', 'in', '("termine","annule")')
     .order('updated_at', { ascending: false })
@@ -135,20 +138,22 @@ export async function handler(event) {
   const auth = await authorize(event, { allowedRoles: ALLOWED_ROLES })
   if (auth.error) return auth.error
 
+  const tenantGuard = assertTenantContext(auth.companyId)
+  if (!tenantGuard.ok) return tenantGuard.error
+
+  const { companyId } = auth
   const body = parseJsonBody(event)
   if (body === null) return json(400, { error: 'Invalid JSON payload.' })
 
   const query = event.queryStringParameters ?? {}
   const tenantKey = readTenantKey(event, body)
-  // NOTE SECURITE: moduleState lit erp_v11_modules (table systeme) → systemClient.
-  // Toutes les requetes metier (conducteur_sessions, ordres_transport) utilisent dbClient (RLS actif).
   const moduleConfig = await moduleState(auth.systemClient, tenantKey, 'driver_session')
   if (!moduleConfig.enabled) return json(423, { error: 'Driver session module disabled for tenant.' })
 
   const action = (query.action ?? body.action ?? (event.httpMethod === 'GET' ? 'missions' : 'open')).toLowerCase()
 
   if (event.httpMethod === 'GET') {
-    if (action === 'missions') return listMissions(auth.dbClient, tenantKey, auth, query, body)
+    if (action === 'missions') return listMissions(auth.dbClient, companyId, tenantKey, auth, query, body)
     if (action === 'sessions') {
       let sessionsQuery = auth.dbClient
         .from('erp_v11_driver_sessions')
@@ -167,7 +172,7 @@ export async function handler(event) {
   }
 
   if (event.httpMethod === 'POST') {
-    if (action === 'open') return openSession(auth.dbClient, tenantKey, auth, body)
+    if (action === 'open') return openSession(auth.dbClient, companyId, tenantKey, auth, body)
     if (action === 'heartbeat') return heartbeat(auth.dbClient, tenantKey, body, auth)
     if (action === 'close') return closeSession(auth.dbClient, tenantKey, body, auth)
     return json(400, { error: 'Unsupported POST action.' })

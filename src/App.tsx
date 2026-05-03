@@ -146,7 +146,8 @@ export default function App() {
               <Route element={<RequireAuth />}>
                 <Route path="demo-access" element={<DemoAccess />} />
                 <Route path="session-picker" element={<SessionPickerPage />} />
-                <Route path="super-admin" element={<RequireRole page="super-admin"><SuperAdmin /></RequireRole>} />
+                <Route path="platform" element={<RequireRole page="super-admin"><SuperAdmin /></RequireRole>} />
+                <Route path="super-admin" element={<Navigate to="/platform" replace />} />
                 <Route element={<AppLayout />}>
                   <Route path="dashboard" element={<RequireRole page="dashboard"><Dashboard /></RequireRole>} />
                   <Route path="tasks" element={<RequireRole page="tasks"><Tasks /></RequireRole>} />

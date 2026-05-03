@@ -132,7 +132,7 @@ const NAV_SECTIONS: NavSection[] = [
       { to: '/parametres',     page: 'parametres',     label: 'Réglages',         icon: 'settings' },
       { to: '/utilisateurs',   page: 'utilisateurs',   label: 'Comptes',          icon: 'users' },
       { to: '/tenant-admin',   page: 'tenant-admin',   label: 'Réglages tenant',  icon: 'shield' },
-      { to: '/super-admin',    page: 'super-admin',    label: 'Plateforme',       icon: 'spark' },
+      { to: '/platform',       page: 'super-admin',    label: 'Plateforme',       icon: 'spark' },
       { to: '/mentions-legales', page: 'mentions-legales', label: 'Mentions légales', icon: 'doc' },
     ],
   },
