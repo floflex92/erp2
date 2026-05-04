@@ -49,7 +49,7 @@ import {
   snapToQuarter, toDateTimeISO, toDateTimeFromDate, isoToTime, isoToDate,
   DAY_NAMES, fmtWeek, toTimeValue,
   getWeekBlockMetrics, blockPos, DAY_START_MIN, DAY_TOTAL_MIN, getDayBlockMetrics, blockPosDay,
-  STATUT_CLS, BADGE_CLS, STATUT_LABEL, CUSTOM_COLORS, INLINE_EVENT_COLORS, INLINE_EVENT_LABELS, COLOR_PALETTE, TYPE_TRANSPORT_COLORS,
+  STATUT_CLS, BADGE_CLS, STATUT_LABEL, CUSTOM_COLORS, INLINE_EVENT_COLORS, INLINE_EVENT_LABELS, COLOR_PALETTE, TYPE_TRANSPORT_COLORS, getOtBorderColor,
   SITE_USAGE_LABELS, normalizeAddressValue, siteSupportsKind, sortLogisticSites, makeEmptySiteDraft, mapSiteLoadRow,
   ROWS_KEY, BLOCKS_KEY,
   SIMULATION_MODE_KEY, AUTO_HABILLAGE_KEY, AUTO_PAUSE_KEY,
@@ -306,6 +306,53 @@ export default function Planning() {
   } | null>(null)
   const [weekScanResults, setWeekScanResults] = useState<Record<string, { alerts: CEAlert[]; hasBlocking: boolean }>>( {})
   const [scanningWeek, setScanningWeek] = useState(false)
+  const [expandedCERows, setExpandedCERows] = useState<Set<string>>(new Set())
+  const [loadingCERows, setLoadingCERows] = useState<Set<string>>(new Set())
+  const [ceBarsData, setCeBarsData] = useState<Record<string, {
+    conduite_jour_minutes: number
+    conduite_semaine_minutes: number
+    conduite_14j_minutes: number
+    repos_jour_minutes: number
+    repos_semaine_minimum: number
+    jours_consecutifs_travailles: number
+  }>>({})
+
+  const CE_FALLBACK = {
+    conduite_jour_minutes: 0, conduite_semaine_minutes: 0,
+    conduite_14j_minutes: 0, repos_jour_minutes: 0,
+    repos_semaine_minimum: 0, jours_consecutifs_travailles: 0,
+  }
+
+  function loadCERow(rowId: string, refDate: Date) {
+    if (!planningComplianceService) {
+      setCeBarsData(c => ({ ...c, [rowId]: CE_FALLBACK }))
+      return
+    }
+    setLoadingCERows(p => { const n = new Set(p); n.add(rowId); return n })
+    void planningComplianceService.getCompteursCE(rowId, refDate)
+      .then(d => setCeBarsData(c => ({ ...c, [rowId]: d })))
+      .catch(() => setCeBarsData(c => ({ ...c, [rowId]: CE_FALLBACK })))
+      .finally(() => setLoadingCERows(p => { const n = new Set(p); n.delete(rowId); return n }))
+  }
+
+  // Recharge les lignes déjà ouvertes quand la semaine change
+  useEffect(() => {
+    if (expandedCERows.size === 0) return
+    const refDate = addDays(weekStart, 6)
+    setCeBarsData({})
+    expandedCERows.forEach(rowId => loadCERow(rowId, refDate))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekStart])
+
+  function toggleCERow(rowId: string) {
+    setExpandedCERows(prev => {
+      const next = new Set(prev)
+      if (next.has(rowId)) { next.delete(rowId); return next }
+      next.add(rowId)
+      if (!ceBarsData[rowId]) loadCERow(rowId, addDays(weekStart, 6))
+      return next
+    })
+  }
 
   // Filtres & recherche
   const [poolSearch,    setPoolSearch]    = useState('')
@@ -3040,19 +3087,18 @@ export default function Planning() {
   // ── Block color resolver ───────────────────────────────────────────────────────
 
   function getBlockColors(ot: OT, rowId: string): { cls:string; style:React.CSSProperties } {
+    const borderColor = getOtBorderColor(ot)
+    const bgHex = TYPE_TRANSPORT_COLORS[ot.type_transport?.toLowerCase()] ?? '#374151'
     if (colorMode === 'conducteur' && tab === 'conducteurs' && conductorColors[rowId]) {
       const hex = conductorColors[rowId]
-      return { cls:'', style:{ background:hex, borderColor:hex } }
-    }
-    if (colorMode === 'type') {
-      const hex = TYPE_TRANSPORT_COLORS[ot.type_transport?.toLowerCase()] ?? '#6b7280'
-      return { cls:'', style:{ background:hex, borderColor:hex } }
+      return { cls:'', style:{ background:hex, borderColor, borderWidth:'3px' } }
     }
     if (colorMode === 'client') {
-      const hex = clientColorMap[ot.client_nom] ?? '#6b7280'
-      return { cls:'', style:{ background:hex, borderColor:hex } }
+      const hex = clientColorMap[ot.client_nom] ?? '#374151'
+      return { cls:'', style:{ background:hex, borderColor, borderWidth:'3px' } }
     }
-    return { cls: STATUT_CLS[ot.statut] ?? 'bg-slate-600 border-slate-500', style:{} }
+    // Fond = type transport, contour épais = statut timing
+    return { cls:'', style:{ background:bgHex, borderColor, borderWidth:'3px' } }
   }
 
   // ── Computed values ───────────────────────────────────────────────────────────
@@ -4149,6 +4195,9 @@ export default function Planning() {
   // ── Row label renderer ────────────────────────────────────────────────────────
 
   const ROW_H = 64
+  function getRowH(rowId: string) {
+    return tab === 'conducteurs' && expandedCERows.has(rowId) ? 152 : ROW_H
+  }
 
   function renderRowLabel(row: Row) {
     const accentColor = tab === 'conducteurs' && !row.isCustom && !row.isAffretementAsset ? conductorColors[row.id] : undefined
@@ -4329,11 +4378,27 @@ export default function Planning() {
               C{conflictCount}
             </button>
           )}
+
+          {/* Bouton accordion heures CE561 — conducteurs uniquement */}
+          {tab === 'conducteurs' && !row.isCustom && !row.isAffretementAsset && !isRowEditMode && (
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); toggleCERow(row.id) }}
+              title={expandedCERows.has(row.id) ? 'Masquer les heures CE561' : 'Voir les heures conduite CE561'}
+              className={`w-5 h-5 flex items-center justify-center rounded flex-shrink-0 transition-colors ml-auto ${
+                expandedCERows.has(row.id)
+                  ? 'text-indigo-300 bg-indigo-500/20'
+                  : 'text-slate-500 hover:text-slate-300 opacity-0 group-hover:opacity-100'
+              }`}
+            >
+              <svg className={`w-3 h-3 transition-transform ${expandedCERows.has(row.id) ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+          )}
         </div>
 
         {row.secondary && <p className="text-[10px] text-secondary truncate mt-0.5 pl-0.5">{row.secondary}</p>}
 
-        {/* Badge km � vide + taux de charge (camions uniquement) */}
+        {/* Badge km à vide + taux de charge (camions uniquement) */}
         {tab === 'camions' && !row.isCustom && !row.isAffretementAsset && (() => {
           const kmVide = kmVideSynthese.get(row.id)
           if (!kmVide) return null
@@ -5127,10 +5192,11 @@ export default function Planning() {
                 <div key={row.id}
                   onDragOver={!isRowEditMode ? e => { e.preventDefault(); e.stopPropagation() } : undefined}
                   onDrop={!isRowEditMode ? e => onRowDrop(e, row.id, !!row.isCustom) : undefined}
-                  className={`flex border-b border-slate-800/50 transition-colors group ${isDropTarget?'bg-indigo-950/30':'hover:bg-surface/[0.01]'}`}>
+                  className={`flex flex-col border-b border-slate-800/50 transition-colors group ${isDropTarget?'bg-indigo-950/30':'hover:bg-surface/[0.01]'}`}>
+                  <div className="flex" style={{ height: ROW_H }}>
                   {renderRowLabel(row)}
                   {/* Timeline */}
-                  <div className="flex-1 relative" style={{ height:ROW_H }}
+                  <div className="flex-1 relative" style={{ height: ROW_H }}
                     onDragOver={!isRowEditMode ? e => onRowDragOver(e, row.id) : undefined}
                     onDragLeave={!isRowEditMode ? onRowDragLeave : undefined}
                     onDrop={!isRowEditMode ? e => onRowDrop(e, row.id, !!row.isCustom) : undefined}>
@@ -5226,7 +5292,6 @@ export default function Planning() {
                           className={`nx-ot-bubble ${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col px-2 py-1 gap-0 transition-[opacity,filter] overflow-hidden shadow-md group/block
                             ${canMove(ot)&&!isRowEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
                             ${isDragging?'opacity-30':isSaving?'opacity-70 animate-pulse':'hover:brightness-110'}
-                            ${isLate ? 'ring-1 ring-red-400/60' : ''}
                             ${drag && !isDragging ? 'pointer-events-none' : ''}
                             ${getMissionHoverClasses(ot.mission_id, ot.groupage_fige)}`}
                             onClick={() => !isRowEditMode && openSelected(ot)}
@@ -5393,6 +5458,98 @@ export default function Planning() {
                       )
                     })}
                   </div>
+                  </div>{/* end flex label+timeline */}
+                  {/* Panel CE561 pleine largeur */}
+                  {expandedCERows.has(row.id) && tab === 'conducteurs' && !row.isCustom && !row.isAffretementAsset && (() => {
+                    const d = ceBarsData[row.id]
+                    const isLoading = loadingCERows.has(row.id)
+                    const fmt = (m: number) => `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`
+                    const weekEndISO   = toISO(addDays(weekStart, 6))
+                    const weekStartISO = toISO(weekStart)
+                    const previsionMin = rowOTs(row.id).reduce((acc, o) => {
+                      if (!o.date_chargement_prevue || !o.date_livraison_prevue) return acc
+                      if (o.date_livraison_prevue.slice(0,10) < weekStartISO || o.date_chargement_prevue.slice(0,10) > weekEndISO) return acc
+                      return acc + Math.max(0, Math.round((new Date(o.date_livraison_prevue).getTime() - new Date(o.date_chargement_prevue).getTime()) / 60000))
+                    }, 0)
+                    type Level = 'ok' | 'warn' | 'crit'
+                    const lvl = (val: number, max: number): Level => val / max >= 0.95 ? 'crit' : val / max >= 0.80 ? 'warn' : 'ok'
+                    const lvlRepos = (val: number, min: number): Level => val < min * 0.5 ? 'crit' : val < min ? 'warn' : 'ok'
+                    // bar progress + colors
+                    const barBg:  Record<Level, string> = { ok:'bg-emerald-500', warn:'bg-yellow-400', crit:'bg-red-500' }
+                    const cardBg: Record<Level, string> = { ok:'bg-emerald-950/60 border-emerald-800/60', warn:'bg-yellow-950/60 border-yellow-700/60', crit:'bg-red-950/60 border-red-800/60' }
+                    const titleCl: Record<Level, string> = { ok:'text-emerald-400', warn:'text-yellow-400', crit:'text-red-400' }
+                    const valueCl: Record<Level, string> = { ok:'text-emerald-100', warn:'text-yellow-100', crit:'text-red-100' }
+                    const subCl:   Record<Level, string> = { ok:'text-emerald-500', warn:'text-yellow-500/80', crit:'text-red-500' }
+                    if (isLoading) return (
+                      <div className="px-4 py-3 grid grid-cols-6 gap-3 animate-pulse border-t border-slate-700/60 bg-slate-950/80">
+                        {Array.from({length:6}).map((_,i) => <div key={i} className="h-16 rounded-lg bg-slate-800/60" />)}
+                      </div>
+                    )
+                    const dd = d ?? { conduite_jour_minutes:0, conduite_semaine_minutes:0, conduite_14j_minutes:0, repos_jour_minutes:0, repos_semaine_minimum:0, jours_consecutifs_travailles:0 }
+                    const semTotal = dd.conduite_semaine_minutes + previsionMin
+                    const semMarge = Math.max(0, 3360 - semTotal)
+                    type Counter = { label: string; realVal: number; prevVal?: number; maxVal: number; realFmt: string; maxFmt: string; sub: string; level: Level; isRepos?: boolean }
+                    const counters: Counter[] = [
+                      { label:"Aujourd'hui", realVal:dd.conduite_jour_minutes,        maxVal:540,  realFmt:fmt(dd.conduite_jour_minutes),        maxFmt:'9h',  sub:'conduite max',  level:lvl(dd.conduite_jour_minutes,540) },
+                      { label:'Semaine',      realVal:dd.conduite_semaine_minutes,     prevVal:previsionMin>0?previsionMin:undefined, maxVal:3360, realFmt:fmt(dd.conduite_semaine_minutes), maxFmt:'56h', sub: semMarge<480?`↓ ${fmt(semMarge)} restant`:'conduite max', level:lvl(semTotal,3360) },
+                      { label:'14 jours',     realVal:dd.conduite_14j_minutes,         maxVal:5400, realFmt:fmt(dd.conduite_14j_minutes),         maxFmt:'90h', sub:'conduite max',  level:lvl(dd.conduite_14j_minutes,5400) },
+                      { label:'Repos jour',   realVal:dd.repos_jour_minutes,           maxVal:540,  realFmt:fmt(dd.repos_jour_minutes),           maxFmt:'9h',  sub:'repos min',     level:lvlRepos(dd.repos_jour_minutes,540),    isRepos:true },
+                      { label:'Repos sem.',   realVal:dd.repos_semaine_minimum,        maxVal:1440, realFmt:fmt(dd.repos_semaine_minimum),        maxFmt:'24h', sub:'repos min',     level:lvlRepos(dd.repos_semaine_minimum,1440), isRepos:true },
+                      { label:'Consécutifs',  realVal:dd.jours_consecutifs_travailles, maxVal:6,    realFmt:`${dd.jours_consecutifs_travailles}j`, maxFmt:'6j',  sub:'jours max',     level:lvl(dd.jours_consecutifs_travailles,6) },
+                    ]
+                    return (
+                      <div className="px-4 py-3 grid grid-cols-6 gap-3 border-t border-slate-700/60 bg-slate-950/80">
+                        {counters.map(c => {
+                          const realPct = Math.min(100, c.realVal / c.maxVal * 100)
+                          const prevPct = c.prevVal ? Math.min(100 - realPct, c.prevVal / c.maxVal * 100) : 0
+                          return (
+                          <div key={c.label} className={`rounded-lg border px-3 py-2.5 flex flex-col gap-1.5 ${cardBg[c.level]}`}>
+                            {/* Titre */}
+                            <p className={`text-[10px] font-bold uppercase tracking-widest ${titleCl[c.level]}`}>{c.label}</p>
+                            {/* Valeurs réel / prévisionnel */}
+                            {c.prevVal ? (
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-baseline gap-1">
+                                  <span className={`text-[13px] font-extrabold tabular-nums leading-none ${valueCl[c.level]}`}>{c.realFmt}</span>
+                                  <span className={`text-[9px] uppercase tracking-wide ${subCl[c.level]}`}>réel</span>
+                                </div>
+                                <div className="flex items-baseline gap-1">
+                                  <span className="text-[13px] font-extrabold tabular-nums leading-none text-blue-300">+{fmt(c.prevVal)}</span>
+                                  <span className="text-[9px] uppercase tracking-wide text-blue-400/70">prévu</span>
+                                </div>
+                                <div className="flex items-baseline gap-1">
+                                  <span className={`text-[10px] font-normal ${subCl[c.level]}`}>/ {c.maxFmt}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-baseline gap-1.5">
+                                <span className={`text-[15px] font-extrabold tabular-nums leading-none ${valueCl[c.level]}`}>{c.realFmt}</span>
+                                <span className={`text-[10px] font-normal ${subCl[c.level]}`}>/ {c.maxFmt}</span>
+                              </div>
+                            )}
+                            {/* Barre segmentée réel (plein) + prévisionnel (rayé) */}
+                            <div className="h-2 rounded-full bg-slate-700/60 overflow-hidden flex">
+                              <div className={`h-full transition-all ${barBg[c.level]}`} style={{ width:`${realPct}%` }} />
+                              {prevPct > 0 && (
+                                <div className="h-full bg-blue-400/50"
+                                  style={{ width:`${prevPct}%`, backgroundImage:'repeating-linear-gradient(45deg,transparent,transparent 2px,rgba(96,165,250,0.4) 2px,rgba(96,165,250,0.4) 4px)' }} />
+                              )}
+                            </div>
+                            {/* Légende barre si prévisionnel */}
+                            {c.prevVal ? (
+                              <div className="flex items-center gap-2">
+                                <span className={`flex items-center gap-1 text-[8px] ${subCl[c.level]}`}><span className={`w-2 h-1.5 rounded-sm inline-block ${barBg[c.level]}`}/>Réel</span>
+                                <span className="flex items-center gap-1 text-[8px] text-blue-400/70"><span className="w-2 h-1.5 rounded-sm inline-block bg-blue-400/50"/>Prévu</span>
+                              </div>
+                            ) : (
+                              <p className={`text-[9px] leading-none ${subCl[c.level]}`}>{c.sub}</p>
+                            )}
+                          </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
                 </div>
               )
             })}
@@ -5484,7 +5641,7 @@ export default function Planning() {
                     onDrop={!isRowEditMode ? e => onRowDrop(e, row.id, !!row.isCustom) : undefined}
                     className={`flex border-b border-slate-800/50 transition-colors group ${isDropTarget?'bg-indigo-950/30':'hover:bg-surface/[0.01]'}`}>
                     {renderRowLabel(row)}
-                    <div className="flex-1 relative overflow-hidden" style={{ height:ROW_H }}
+                    <div className="flex-1 relative overflow-hidden" style={{ height: getRowH(row.id) }}
                       onDragOver={!isRowEditMode ? e => onRowDragOver(e, row.id) : undefined}
                       onDragLeave={!isRowEditMode ? onRowDragLeave : undefined}
                       onDrop={!isRowEditMode ? e => onRowDrop(e, row.id, !!row.isCustom) : undefined}
@@ -5614,7 +5771,6 @@ export default function Planning() {
                             className={`nx-ot-bubble ${cCls} border rounded-lg text-white text-[11px] font-medium flex flex-col justify-center px-2 group/block overflow-hidden shadow-md
                               ${canMove(ot)&&!isRowEditMode?'cursor-grab active:cursor-grabbing':'cursor-pointer'}
                               ${isDragging?'opacity-30':'hover:brightness-110'}
-                              ${isLate?'ring-1 ring-red-400/60':''}
                               ${drag && !isDragging ? 'pointer-events-none' : ''}
                               ${getMissionHoverClasses(ot.mission_id, ot.groupage_fige)}`}
                             onClick={() => !isRowEditMode && openSelected(ot)}

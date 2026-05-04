@@ -80,9 +80,11 @@ export function PlanningCommandBar({
   const [showCreateMenu, setShowCreateMenu] = useState(false)
   const [showExpertMenu, setShowExpertMenu] = useState(false)
   const [showRulesPanel, setShowRulesPanel] = useState(false)
+  const [showLegend,    setShowLegend]    = useState(false)
 
   const createMenuRef = useRef<HTMLDivElement>(null)
   const expertMenuRef = useRef<HTMLDivElement>(null)
+  const legendRef     = useRef<HTMLDivElement>(null)
 
   // Fermer les menus au clic extérieur
   useEffect(() => {
@@ -94,10 +96,32 @@ export function PlanningCommandBar({
         setShowExpertMenu(false)
         setShowRulesPanel(false)
       }
+      if (legendRef.current && !legendRef.current.contains(e.target as Node)) {
+        setShowLegend(false)
+      }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
+
+  const LEGEND_TYPES: { label: string; color: string }[] = [
+    { label: 'Complet',       color: '#1e3a8a' },
+    { label: 'Groupage',      color: '#c2410c' },
+    { label: 'Express',       color: '#be185d' },
+    { label: 'Partiel',       color: '#6d28d9' },
+    { label: 'Messagerie',    color: '#0284c7' },
+    { label: 'Frigorifique',  color: '#0f766e' },
+    { label: 'Vrac',          color: '#3f6212' },
+    { label: 'Conventionnel', color: '#374151' },
+  ]
+
+  const LEGEND_STATUS: { label: string; color: string }[] = [
+    { label: "À l'heure / planifié", color: '#4ade80' },
+    { label: "Terminé / facturé",    color: '#22c55e' },
+    { label: "En retard",            color: '#f97316' },
+    { label: "Annulé",               color: '#ef4444' },
+    { label: "En attente",           color: '#94a3b8' },
+  ]
 
   // ─── Navigation helpers ─────────────────────────────────────────────────────
   function goBack() {
@@ -253,6 +277,64 @@ export function PlanningCommandBar({
             Verrouiller
           </button>
         )}
+
+        {/* 🎨 Légende ▼ */}
+        <div className="relative" ref={legendRef}>
+          <button
+            type="button"
+            onClick={() => { setShowLegend(v => !v); setShowCreateMenu(false); setShowExpertMenu(false) }}
+            title="Légende des couleurs"
+            className={`flex items-center gap-1 px-2.5 h-7 rounded-lg text-[11px] font-medium border transition-colors ${
+              showLegend
+                ? 'bg-surface-2 border-line-strong text-foreground'
+                : 'border-line text-discreet hover:text-foreground hover:border-line-strong hover:bg-surface-2'
+            }`}
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 2a10 10 0 0 1 0 20" fill="currentColor" opacity=".15"/>
+              <circle cx="8"  cy="9"  r="1.5" fill="currentColor"/>
+              <circle cx="16" cy="9"  r="1.5" fill="currentColor"/>
+              <circle cx="12" cy="15" r="1.5" fill="currentColor"/>
+            </svg>
+            Légende
+            <svg className="w-2.5 h-2.5 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+
+          {showLegend && (
+            <div className={`absolute right-0 top-9 z-[82] w-60 rounded-xl border border-line bg-surface shadow-2xl py-2 ${
+              isDragging ? 'pointer-events-none' : ''
+            }`}>
+              {/* Types de transport — fond */}
+              <p className="px-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-discreet">Type de transport — fond</p>
+              <div className="px-3 space-y-1 pb-2">
+                {LEGEND_TYPES.map(({ label, color }) => (
+                  <div key={label} className="flex items-center gap-2">
+                    <span
+                      className="w-4 h-4 rounded flex-shrink-0"
+                      style={{ background: color }}
+                    />
+                    <span className="text-[12px] text-secondary">{label}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="h-px bg-line mx-3 my-1" />
+              {/* Statut / timing — bordure */}
+              <p className="px-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-discreet">Statut / timing — bordure</p>
+              <div className="px-3 space-y-1 pb-1">
+                {LEGEND_STATUS.map(({ label, color }) => (
+                  <div key={label} className="flex items-center gap-2">
+                    <span
+                      className="w-4 h-4 rounded flex-shrink-0 bg-surface-2"
+                      style={{ border: `3px solid ${color}` }}
+                    />
+                    <span className="text-[12px] text-secondary">{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* + Créer ▼ */}
         <div className="relative" ref={createMenuRef}>

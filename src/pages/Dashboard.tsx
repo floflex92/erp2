@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState, type DragEvent } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { ROLE_LABELS, useAuth, type Role } from '@/lib/auth'
 import {
   getDefaultPrefs,
@@ -304,6 +304,7 @@ export default function Dashboard() {
   const { role } = useAuth()
   const currentRole = (role as Role) ?? 'exploitant'
   const widgetTone = WIDGET_TONE_BY_ROLE[currentRole] ?? 'blue'
+  const dragSourceRef = useRef<string | null>(null)
 
   const [prefs, setPrefs] = useState<WidgetPrefsMap>(() => loadPrefs(currentRole))
   const [isCustomizing, setIsCustomizing] = useState(false)
@@ -434,66 +435,96 @@ export default function Dashboard() {
     updatePrefs(next)
   }
 
-  function handleDragStart(widgetId: string, event: DragEvent<HTMLDivElement>) {
+  function getDragSourceId(event: DragEvent<HTMLElement>): string | null {
+    const fromTransfer = event.dataTransfer.getData('application/x-nexora-widget-id') || event.dataTransfer.getData('text/plain')
+    return dragSourceRef.current ?? draggedWidgetId ?? fromTransfer ?? null
+  }
+
+  function handleDragStart(widgetId: string, event: DragEvent<HTMLElement>) {
     if (!isCustomizing) return
+    dragSourceRef.current = widgetId
     setDraggedWidgetId(widgetId)
     setDropTarget(null)
+    setGalleryDropTarget(null)
     event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('application/x-nexora-widget-id', widgetId)
     event.dataTransfer.setData('text/plain', widgetId)
   }
 
-  function computeDropPosition(event: DragEvent<HTMLDivElement>): 'before' | 'after' {
+  function computeDropPosition(
+    event: DragEvent<HTMLElement>,
+    previous: 'before' | 'after' | null = null,
+  ): 'before' | 'after' {
     const rect = event.currentTarget.getBoundingClientRect()
-    return event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+    const centerY = rect.top + rect.height / 2
+    const deadZone = Math.max(8, rect.height * 0.12)
+
+    if (Math.abs(event.clientY - centerY) <= deadZone && previous) {
+      return previous
+    }
+
+    return event.clientY < centerY ? 'before' : 'after'
   }
 
-  function handleDragOver(targetId: string, event: DragEvent<HTMLDivElement>) {
-    if (!isCustomizing || !draggedWidgetId || draggedWidgetId === targetId) return
+  function handleDragOver(targetId: string, event: DragEvent<HTMLElement>) {
+    if (!isCustomizing) return
+    const sourceId = getDragSourceId(event)
+    if (!sourceId || sourceId === targetId) return
     event.preventDefault()
     event.dataTransfer.dropEffect = 'move'
-    const position = computeDropPosition(event)
+    const previous = dropTarget?.id === targetId ? dropTarget.position : null
+    const position = computeDropPosition(event, previous)
     setDropTarget(prev => (prev?.id === targetId && prev.position === position ? prev : { id: targetId, position }))
   }
 
-  function handleGalleryDragOver(targetId: string, event: DragEvent<HTMLButtonElement>) {
-    if (!isCustomizing || !draggedWidgetId || draggedWidgetId === targetId) return
+  function handleGalleryDragOver(targetId: string, event: DragEvent<HTMLElement>) {
+    if (!isCustomizing) return
+    const sourceId = getDragSourceId(event)
+    if (!sourceId || sourceId === targetId) return
     event.preventDefault()
     event.dataTransfer.dropEffect = 'move'
     setGalleryDropTarget(prev => (prev === targetId ? prev : targetId))
   }
 
-  function handleGalleryDrop(targetId: string, event: DragEvent<HTMLButtonElement>) {
+  function handleGalleryDrop(targetId: string, event: DragEvent<HTMLElement>) {
     if (!isCustomizing) return
     event.preventDefault()
-    const sourceId = draggedWidgetId ?? event.dataTransfer.getData('text/plain')
+    const sourceId = getDragSourceId(event)
     if (!sourceId || sourceId === targetId) {
       setGalleryDropTarget(null)
+      dragSourceRef.current = null
       setDraggedWidgetId(null)
       return
     }
 
     updatePrefs(moveWidgetToTarget(prefs, sourceId, targetId, 'before'))
     setGalleryDropTarget(null)
+    dragSourceRef.current = null
     setDraggedWidgetId(null)
   }
 
-  function handleDrop(targetId: string, event: DragEvent<HTMLDivElement>) {
+  function handleDrop(targetId: string, event: DragEvent<HTMLElement>) {
     if (!isCustomizing) return
     event.preventDefault()
-    const sourceId = draggedWidgetId ?? event.dataTransfer.getData('text/plain')
+    const sourceId = getDragSourceId(event)
     if (!sourceId || sourceId === targetId) {
       setDropTarget(null)
+      dragSourceRef.current = null
       setDraggedWidgetId(null)
       return
     }
 
-    const position = computeDropPosition(event)
+    const position = dropTarget?.id === targetId
+      ? dropTarget.position
+      : computeDropPosition(event, null)
     updatePrefs(moveWidgetToTarget(prefs, sourceId, targetId, position))
     setDropTarget(null)
+    dragSourceRef.current = null
     setDraggedWidgetId(null)
   }
 
   function handleDragEnd() {
+    dragSourceRef.current = null
     setDraggedWidgetId(null)
     setDropTarget(null)
     setGalleryDropTarget(null)
@@ -528,8 +559,10 @@ export default function Dashboard() {
               setIsCustomizing(v => {
                 if (v) {
                   setMenuOpen(false)
+                  dragSourceRef.current = null
                   setDraggedWidgetId(null)
                   setDropTarget(null)
+                  setGalleryDropTarget(null)
                 }
                 return !v
               })
@@ -661,7 +694,7 @@ export default function Dashboard() {
                               type="button"
                               draggable
                               onClick={() => setSelectedWidgetId(id)}
-                              onDragStart={event => handleDragStart(id, event as unknown as DragEvent<HTMLDivElement>)}
+                              onDragStart={event => handleDragStart(id, event)}
                               onDragOver={event => handleGalleryDragOver(id, event)}
                               onDrop={event => handleGalleryDrop(id, event)}
                               onDragEnd={() => handleDragEnd()}

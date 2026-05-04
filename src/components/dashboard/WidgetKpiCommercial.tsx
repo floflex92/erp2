@@ -54,30 +54,35 @@ export function WidgetKpiCommercial() {
 
   useEffect(() => {
     async function load() {
-      const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+      try {
+        const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
 
-      const [clientsRes, margeRes, otRes, facturesRes, prospectsRes, prospectsGagnesRes] = await Promise.all([
-        supabase.from('clients').select('id', { count: 'exact', head: true }),
-        supabase.from('vue_marge_ot').select('chiffre_affaires').gte('created_at', startOfMonth),
-        supabase.from('ordres_transport').select('id', { count: 'exact', head: true }).in('statut_transport', ST_EN_COURS),
-        supabase.from('factures').select('id', { count: 'exact', head: true }).eq('statut', 'en_retard'),
-        (supabase.from('prospects' as any).select('id', { count: 'exact', head: true }).in('statut', ['lead', 'qualification', 'devis_envoye', 'negociation', 'closing']) as any),
-        (supabase.from('prospects' as any).select('id', { count: 'exact', head: true }).eq('statut', 'gagne') as any),
-      ])
+        const [clientsRes, margeRes, otRes, facturesRes, prospectsRes, prospectsGagnesRes] = await Promise.all([
+          supabase.from('clients').select('id', { count: 'exact', head: true }),
+          supabase.from('vue_marge_ot').select('chiffre_affaires').gte('created_at', startOfMonth),
+          supabase.from('ordres_transport').select('id', { count: 'exact', head: true }).in('statut_transport', ST_EN_COURS),
+          supabase.from('factures').select('id', { count: 'exact', head: true }).eq('statut', 'en_retard'),
+          (supabase.from('prospects' as any).select('id', { count: 'exact', head: true }).in('statut', ['lead', 'qualification', 'devis_envoye', 'negociation', 'closing']) as any),
+          (supabase.from('prospects' as any).select('id', { count: 'exact', head: true }).eq('statut', 'gagne') as any),
+        ])
 
-      const ca = (margeRes.data ?? []).reduce((s, r) => s + (r.chiffre_affaires ?? 0), 0)
-      const totalProspects = (prospectsRes.count ?? 0) + (prospectsGagnesRes.count ?? 0)
-      const tauxConv = totalProspects > 0 ? Math.round(((prospectsGagnesRes.count ?? 0) / totalProspects) * 100) : 0
+        const ca = (margeRes.data ?? []).reduce((s, r) => s + (r.chiffre_affaires ?? 0), 0)
+        const totalProspects = (prospectsRes.count ?? 0) + (prospectsGagnesRes.count ?? 0)
+        const tauxConv = totalProspects > 0 ? Math.round(((prospectsGagnesRes.count ?? 0) / totalProspects) * 100) : 0
 
-      setData({
-        nb_clients: clientsRes.count ?? 0,
-        ca_mois: ca,
-        nb_ot_en_cours: otRes.count ?? 0,
-        nb_factures_retard: facturesRes.count ?? 0,
-        nb_prospects_actifs: prospectsRes.count ?? 0,
-        taux_conversion: tauxConv,
-      })
-      setLoading(false)
+        setData({
+          nb_clients: clientsRes.count ?? 0,
+          ca_mois: ca,
+          nb_ot_en_cours: otRes.count ?? 0,
+          nb_factures_retard: facturesRes.count ?? 0,
+          nb_prospects_actifs: prospectsRes.count ?? 0,
+          taux_conversion: tauxConv,
+        })
+      } catch {
+        setData(null)
+      } finally {
+        setLoading(false)
+      }
     }
     void load()
   }, [])

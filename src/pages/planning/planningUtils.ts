@@ -172,8 +172,29 @@ export const COLOR_PALETTE = [
   '#f97316','#84cc16','#06b6d4','#fb7185',
 ]
 export const TYPE_TRANSPORT_COLORS: Record<string, string> = {
-  complet:'#3b82f6', groupage:'#f59e0b', express:'#ef4444',
-  partiel:'#8b5cf6', frigorifique:'#06b6d4', vrac:'#84cc16', conventionnel:'#6b7280',
+  complet:       '#1e3a8a', // bleu marine — charge complète
+  groupage:      '#c2410c', // orange brûlé — groupage multi-clients
+  express:       '#be185d', // rose/fuchsia — urgence (≠ rouge bordure annulé)
+  partiel:       '#6d28d9', // violet — chargement partiel
+  messagerie:    '#0284c7', // bleu ciel — messagerie/colis (≠ marine complet)
+  frigorifique:  '#0f766e', // teal — température dirigée (≠ bleu ciel)
+  vrac:          '#3f6212', // vert olive foncé — vrac (≠ vert bordure ok)
+  conventionnel: '#374151', // anthracite — conventionnel
+}
+
+/** Couleur de contour OT selon timing/statut : vert = ok, orange = retard, rouge = annulé */
+export function getOtBorderColor(ot: {
+  statut?: string | null
+  statut_transport?: string | null
+  date_livraison_prevue?: string | null
+}): string {
+  if (ot.statut === 'annule' || ot.statut_transport === 'annule') return '#ef4444'
+  if (['facture', 'livre'].includes(ot.statut ?? '') || ot.statut_transport === 'termine') return '#22c55e'
+  const lp = ot.date_livraison_prevue
+  if (lp && new Date(lp).getTime() < Date.now()) return '#f97316'
+  const st = ot.statut_transport ?? ''
+  if (['planifie', 'en_cours_approche_chargement', 'en_chargement', 'en_transit', 'en_livraison'].includes(st)) return '#4ade80'
+  return '#94a3b8'
 }
 
 // ─── Site utilities ────────────────────────────────────────────────────────────

@@ -127,29 +127,33 @@ export default function DashboardConducteur() {
 
   // ── Chargement données ───────────────────────────────────────────────────────
   useEffect(() => {
-    if (!profil) return
+    if (!profil) {
+      setLoading(false)
+      return
+    }
 
     async function load() {
-      setLoading(true)
+      try {
+        setLoading(true)
 
-      // 1. Trouver le conducteur lié au profil connecté
-      const emailNorm = (profil?.email ?? '').toLowerCase().trim()
-      const { data: condData } = await supabase
-        .from('conducteurs')
-        .select('id, nom, prenom, email, permis_expiration, fco_expiration, carte_tachy_expiration')
-        .eq('statut', 'actif')
+        // 1. Trouver le conducteur lié au profil connecté
+        const emailNorm = (profil?.email ?? '').toLowerCase().trim()
+        const { data: condData } = await supabase
+          .from('conducteurs')
+          .select('id, nom, prenom, email, permis_expiration, fco_expiration, carte_tachy_expiration')
+          .eq('statut', 'actif')
 
-      const conducteur = (condData ?? []).find((c: { email: string | null }) =>
-        c.email && c.email.toLowerCase().trim() === emailNorm,
-      ) as {
-        id: string; nom: string; prenom: string; email: string | null
-        permis_expiration: string | null; fco_expiration: string | null; carte_tachy_expiration: string | null
-      } | undefined
+        const conducteur = (condData ?? []).find((c: { email: string | null }) =>
+          c.email && c.email.toLowerCase().trim() === emailNorm,
+        ) as {
+          id: string; nom: string; prenom: string; email: string | null
+          permis_expiration: string | null; fco_expiration: string | null; carte_tachy_expiration: string | null
+        } | undefined
 
-      const condId = conducteur?.id ?? null
+        const condId = conducteur?.id ?? null
 
-      // 2. Alerts docs expirations
-      if (conducteur) {
+        // 2. Alerts docs expirations
+        if (conducteur) {
         const today = new Date()
         const docs: AlerteDoc[] = []
         for (const [type, exp] of [
@@ -162,10 +166,10 @@ export default function DashboardConducteur() {
           if (diff <= 60) docs.push({ type, expiration: exp, joursRestants: diff })
         }
         setAlertesDocs(docs)
-      }
+        }
 
-      // 3. Missions : en cours + aujourd'hui + prochaines (7 jours)
-      if (condId) {
+        // 3. Missions : en cours + aujourd'hui + prochaines (7 jours)
+        if (condId) {
         const now = new Date()
         const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0)
         const semaineFin = new Date(now); semaineFin.setDate(semaineFin.getDate() + 7); semaineFin.setHours(23, 59, 59, 999)
@@ -268,10 +272,10 @@ export default function DashboardConducteur() {
             .slice(0, 5)
             .map(o => ({ id: o.id, reference: o.reference, date: o.date_chargement_prevue, statut: o.statut, statut_transport: o.statut_transport })),
         )
-      }
+        }
 
-      // 4. Messages non lus
-      if (condId) {
+        // 4. Tachygraphe (conduite)
+        if (condId) {
         const now2 = new Date()
         const dayStart = new Date(now2); dayStart.setHours(0, 0, 0, 0)
         const weekStart = new Date(now2); weekStart.setDate(weekStart.getDate() - weekStart.getDay()); weekStart.setHours(0, 0, 0, 0)
@@ -290,35 +294,37 @@ export default function DashboardConducteur() {
           weeklyMinutes += dur
         })
         setTachyData({ dailyMinutes, weeklyMinutes, remainingMinutes: Math.max(0, 540 - dailyMinutes) })
-      }
-
-      // 5. Messages non lus
-      if (profil?.id) {
-        const { data: convData } = await looseSupabase
-          .from('tchat_participants')
-          .select('conversation_id')
-          .eq('profil_id', profil.id)
-
-        const convIds = ((convData ?? []) as Array<{ conversation_id: string }>).map(r => r.conversation_id)
-        if (convIds.length > 0) {
-          const { count } = await looseSupabase
-            .from('tchat_messages')
-            .select('id', { count: 'exact', head: true })
-            .in('conversation_id', convIds)
-            .neq('profil_id', profil.id)
-            .eq('read', false) as unknown as MessageCount & { count: number | null }
-          setMsgCount(count ?? 0)
         }
-      }
 
-      // 5. Frais en attente
-      if (profil?.id && role) {
-        const tickets = listExpenseTicketsForViewer(profil.id, role)
-        setFraisCount(tickets.filter(t => t.status === 'submitted' || t.status === 'rh_approved').length)
-      }
+        // 5. Messages non lus
+        if (profil?.id) {
+          const { data: convData } = await looseSupabase
+            .from('tchat_participants')
+            .select('conversation_id')
+            .eq('profil_id', profil.id)
 
-      // 6. Dernier bulletin + estimation mois en cours
-      if (profil?.id) {
+          const convIds = ((convData ?? []) as Array<{ conversation_id: string }>).map(r => r.conversation_id)
+          if (convIds.length > 0) {
+            const { count } = await looseSupabase
+              .from('tchat_messages')
+              .select('id', { count: 'exact', head: true })
+              .in('conversation_id', convIds)
+              .neq('sender_id', profil.id)
+              .is('read_at', null) as unknown as MessageCount & { count: number | null }
+            setMsgCount(count ?? 0)
+          } else {
+            setMsgCount(0)
+          }
+        }
+
+        // 6. Frais en attente
+        if (profil?.id && role) {
+          const tickets = listExpenseTicketsForViewer(profil.id, role)
+          setFraisCount(tickets.filter(t => t.status === 'submitted' || t.status === 'rh_approved').length)
+        }
+
+        // 7. Dernier bulletin + estimation mois en cours
+        if (profil?.id) {
         const slips = listPayrollSlips(profil.id)
         if (slips.length > 0) {
           setDernierBulletin({ periodLabel: slips[0].periodLabel, netToPay: slips[0].netToPay })
@@ -345,9 +351,19 @@ export default function DashboardConducteur() {
             setSalaireEstimation({ netEstime: preview.netToPay, tauxHoraire: record.hourlyRate ?? 0 })
           }
         }
+        }
+      } catch {
+        setMissionsAujourd([])
+        setMissionsSemaine([])
+        setAlertesDocs([])
+        setMsgCount(0)
+        setFraisCount(0)
+        setTachyData(null)
+        setDernierBulletin(null)
+        setSalaireEstimation(null)
+      } finally {
+        setLoading(false)
       }
-
-      setLoading(false)
     }
 
     void load()

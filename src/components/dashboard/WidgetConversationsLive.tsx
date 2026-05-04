@@ -44,94 +44,96 @@ export function WidgetConversationsLive() {
 
   useEffect(() => {
     async function load() {
-      if (!profil) {
-        setRows([])
-        setLoading(false)
-        return
-      }
+      try {
+        if (!profil) {
+          setRows([])
+          return
+        }
 
-      if (isDemoSession) {
-        const demoRows = getDemoConversationRecords(profil.id)
-          .map(conversation => {
-            const participants = DEMO_PROFILES.filter(candidate => conversation.participant_ids.includes(candidate.id) && candidate.id !== profil.id)
-            const main = participants[0]
-            const title = main ? [main.prenom, main.nom].filter(Boolean).join(' ') || 'Interlocuteur' : 'Interlocuteur'
-            const last = getDemoConversationLastMessage(conversation.id) ?? 'Nouvelle discussion'
-            return {
-              id: conversation.id,
-              title,
-              excerpt: last,
-              unread: countUnreadDemoMessages(conversation.id, profil.id),
-            }
-          })
-          .sort((a, b) => b.unread - a.unread)
-          .slice(0, 5)
+        if (isDemoSession) {
+          const demoRows = getDemoConversationRecords(profil.id)
+            .map(conversation => {
+              const participants = DEMO_PROFILES.filter(candidate => conversation.participant_ids.includes(candidate.id) && candidate.id !== profil.id)
+              const main = participants[0]
+              const title = main ? [main.prenom, main.nom].filter(Boolean).join(' ') || 'Interlocuteur' : 'Interlocuteur'
+              const last = getDemoConversationLastMessage(conversation.id) ?? 'Nouvelle discussion'
+              return {
+                id: conversation.id,
+                title,
+                excerpt: last,
+                unread: countUnreadDemoMessages(conversation.id, profil.id),
+              }
+            })
+            .sort((a, b) => b.unread - a.unread)
+            .slice(0, 5)
 
-        setRows(demoRows)
-        setLoading(false)
-        return
-      }
+          setRows(demoRows)
+          return
+        }
 
-      const { data: conversationData } = await looseSupabase
-        .from('tchat_participants')
-        .select('conversation_id')
-        .eq('profil_id', profil.id)
-
-      const conversationIds = ((conversationData ?? []) as ConversationIdRow[]).map(item => item.conversation_id)
-      if (conversationIds.length === 0) {
-        setRows([])
-        setLoading(false)
-        return
-      }
-
-      const [{ data: participantsData }, { data: unreadData }, { data: messagesData }] = await Promise.all([
-        looseSupabase
+        const { data: conversationData } = await looseSupabase
           .from('tchat_participants')
-          .select('conversation_id, profils(id, nom, prenom)')
-          .in('conversation_id', conversationIds)
-          .neq('profil_id', profil.id),
-        looseSupabase
-          .from('tchat_messages')
           .select('conversation_id')
-          .in('conversation_id', conversationIds)
-          .neq('sender_id', profil.id)
-          .is('read_at', null),
-        looseSupabase
-          .from('tchat_messages')
-          .select('conversation_id, content, created_at')
-          .in('conversation_id', conversationIds)
-          .order('created_at', { ascending: false }),
-      ])
+          .eq('profil_id', profil.id)
 
-      const unreadMap: Record<string, number> = {}
-      for (const item of ((unreadData ?? []) as ConversationIdRow[])) {
-        unreadMap[item.conversation_id] = (unreadMap[item.conversation_id] ?? 0) + 1
+        const conversationIds = ((conversationData ?? []) as ConversationIdRow[]).map(item => item.conversation_id)
+        if (conversationIds.length === 0) {
+          setRows([])
+          return
+        }
+
+        const [{ data: participantsData }, { data: unreadData }, { data: messagesData }] = await Promise.all([
+          looseSupabase
+            .from('tchat_participants')
+            .select('conversation_id, profils(id, nom, prenom)')
+            .in('conversation_id', conversationIds)
+            .neq('profil_id', profil.id),
+          looseSupabase
+            .from('tchat_messages')
+            .select('conversation_id')
+            .in('conversation_id', conversationIds)
+            .neq('sender_id', profil.id)
+            .is('read_at', null),
+          looseSupabase
+            .from('tchat_messages')
+            .select('conversation_id, content, created_at')
+            .in('conversation_id', conversationIds)
+            .order('created_at', { ascending: false }),
+        ])
+
+        const unreadMap: Record<string, number> = {}
+        for (const item of ((unreadData ?? []) as ConversationIdRow[])) {
+          unreadMap[item.conversation_id] = (unreadMap[item.conversation_id] ?? 0) + 1
+        }
+
+        const participantsMap: Record<string, ParticipantRow['profils'][]> = {}
+        for (const item of ((participantsData ?? []) as ParticipantRow[])) {
+          participantsMap[item.conversation_id] = [...(participantsMap[item.conversation_id] ?? []), item.profils]
+        }
+
+        const seen = new Set<string>()
+        const nextRows: LiveConversation[] = []
+        for (const msg of ((messagesData ?? []) as MessageRow[])) {
+          if (seen.has(msg.conversation_id)) continue
+          seen.add(msg.conversation_id)
+          const participants = participantsMap[msg.conversation_id] ?? []
+          const first = participants[0]
+          const title = first ? displayProfileName(first) : 'Interlocuteur'
+          nextRows.push({
+            id: msg.conversation_id,
+            title,
+            excerpt: parseTchatPayload(msg.content).text || 'Message',
+            unread: unreadMap[msg.conversation_id] ?? 0,
+          })
+        }
+
+        nextRows.sort((a, b) => b.unread - a.unread)
+        setRows(nextRows.slice(0, 5))
+      } catch {
+        setRows([])
+      } finally {
+        setLoading(false)
       }
-
-      const participantsMap: Record<string, ParticipantRow['profils'][]> = {}
-      for (const item of ((participantsData ?? []) as ParticipantRow[])) {
-        participantsMap[item.conversation_id] = [...(participantsMap[item.conversation_id] ?? []), item.profils]
-      }
-
-      const seen = new Set<string>()
-      const nextRows: LiveConversation[] = []
-      for (const msg of ((messagesData ?? []) as MessageRow[])) {
-        if (seen.has(msg.conversation_id)) continue
-        seen.add(msg.conversation_id)
-        const participants = participantsMap[msg.conversation_id] ?? []
-        const first = participants[0]
-        const title = first ? displayProfileName(first) : 'Interlocuteur'
-        nextRows.push({
-          id: msg.conversation_id,
-          title,
-          excerpt: parseTchatPayload(msg.content).text || 'Message',
-          unread: unreadMap[msg.conversation_id] ?? 0,
-        })
-      }
-
-      nextRows.sort((a, b) => b.unread - a.unread)
-      setRows(nextRows.slice(0, 5))
-      setLoading(false)
     }
 
     void load()

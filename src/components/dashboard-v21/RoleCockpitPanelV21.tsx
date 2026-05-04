@@ -41,7 +41,19 @@ type DataBundleKey = keyof DataBundle
 interface DataTask {
   key: DataBundleKey
   table: string
+  select?: string
+  dateKey?: string
+  limit?: number
 }
+
+// Date de référence calculée au démarrage du module (dernier trimestre)
+const QUARTER_AGO_ISO = (() => {
+  const d = new Date()
+  d.setMonth(d.getMonth() - 3)
+  d.setDate(1)
+  d.setHours(0, 0, 0, 0)
+  return d.toISOString()
+})()
 
 const emptyData: DataBundle = {
   orders: [],
@@ -64,32 +76,44 @@ const emptyData: DataBundle = {
 }
 
 const criticalTasks: DataTask[] = [
-  { key: 'orders', table: 'ordres_transport' },
-  { key: 'margins', table: 'vue_marge_ot' },
-  { key: 'invoices', table: 'factures' },
-  { key: 'drivers', table: 'conducteurs' },
-  { key: 'vehicles', table: 'vehicules' },
+  {
+    key: 'orders',
+    table: 'ordres_transport',
+    select: 'id,reference,statut,statut_transport,statut_operationnel,date_chargement_prevue,date_livraison_prevue,distance_km,nature_marchandise,type_transport,client_id,vehicule_id,conducteur_id,prix_ht,facturation_id,agence,agence_nom,service,service_nom,created_at',
+    dateKey: 'created_at',
+    limit: 300,
+  },
+  {
+    key: 'margins',
+    table: 'vue_marge_ot',
+    dateKey: 'created_at',
+    limit: 300,
+  },
+  {
+    key: 'invoices',
+    table: 'factures',
+    select: 'id,numero,statut,montant_ht,montant_ttc,date_emission,date_echeance,client_id',
+    dateKey: 'date_emission',
+    limit: 300,
+  },
+  { key: 'drivers', table: 'conducteurs', select: 'id,statut,nom,prenom', limit: 200 },
+  { key: 'vehicles', table: 'vehicules', select: 'id,statut', limit: 200 },
 ]
 
-const hydrationBatches: DataTask[][] = [
-  [
-    { key: 'financeKpis', table: 'vue_finance_kpis_v21' },
-    { key: 'financeClientPerf', table: 'vue_finance_client_perf_v21' },
-    { key: 'financeChargeBreakdown', table: 'vue_finance_charge_breakdown_v21' },
-    { key: 'financeLatePayments', table: 'vue_finance_late_payments_v21' },
-  ],
-  [
-    { key: 'supplierInvoices', table: 'compta_factures_fournisseurs' },
-    { key: 'missionCosts', table: 'couts_mission' },
-    { key: 'bankMoves', table: 'mouvements_bancaires' },
-    { key: 'cashForecast', table: 'flux_previsionnel' },
-  ],
-  [
-    { key: 'interviews', table: 'entretiens' },
-    { key: 'driverAlerts', table: 'vue_conducteur_alertes' },
-    { key: 'fleetAlerts', table: 'vue_alertes_flotte' },
-    { key: 'clients', table: 'clients' },
-  ],
+// Tous les batches de fond s'exécutent en parallèle (voir load())
+const backgroundTasks: DataTask[] = [
+  { key: 'financeKpis', table: 'vue_finance_kpis_v21', dateKey: 'month_key', limit: 200 },
+  { key: 'financeClientPerf', table: 'vue_finance_client_perf_v21', dateKey: 'month_key', limit: 200 },
+  { key: 'financeChargeBreakdown', table: 'vue_finance_charge_breakdown_v21', dateKey: 'month_key', limit: 200 },
+  { key: 'financeLatePayments', table: 'vue_finance_late_payments_v21', limit: 200 },
+  { key: 'supplierInvoices', table: 'compta_factures_fournisseurs', dateKey: 'date_facture', limit: 300 },
+  { key: 'missionCosts', table: 'couts_mission', dateKey: 'date_cout', limit: 300 },
+  { key: 'bankMoves', table: 'mouvements_bancaires', dateKey: 'date_operation', limit: 300 },
+  { key: 'cashForecast', table: 'flux_previsionnel', limit: 200 },
+  { key: 'interviews', table: 'entretiens', limit: 200 },
+  { key: 'driverAlerts', table: 'vue_conducteur_alertes', select: 'id,label,days_remaining', limit: 100 },
+  { key: 'fleetAlerts', table: 'vue_alertes_flotte', limit: 100 },
+  { key: 'clients', table: 'clients', select: 'id,nom,type_client', limit: 500 },
 ]
 
 const ROLE_TO_COCKPIT: Partial<Record<Role, CockpitRole>> = {
@@ -179,9 +203,19 @@ function groupByMonth(rows: LooseRow[], valueKey: string, dateKeys: string[]) {
     }))
 }
 
-async function fetchLoose(table: string) {
+async function fetchLoose(
+  table: string,
+  columns = '*',
+  dateFilter?: string,
+  limit = 400,
+) {
   try {
-    const { data } = await looseSupabase.from(table).select('*').limit(1500)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query = (looseSupabase.from(table) as any).select(columns).limit(limit)
+    if (dateFilter) {
+      query = query.gte(dateFilter, QUARTER_AGO_ISO)
+    }
+    const { data } = await query
     return (data as LooseRow[] | null) ?? []
   } catch {
     return []
@@ -190,7 +224,10 @@ async function fetchLoose(table: string) {
 
 async function fetchTaskBatch(tasks: DataTask[]): Promise<Partial<DataBundle>> {
   const entries = await Promise.all(
-    tasks.map(async task => [task.key, await fetchLoose(task.table)] as const),
+    tasks.map(async task => [
+      task.key,
+      await fetchLoose(task.table, task.select ?? '*', task.dateKey, task.limit),
+    ] as const),
   )
   return Object.fromEntries(entries) as Partial<DataBundle>
 }
@@ -237,33 +274,21 @@ export function RoleCockpitPanelV21() {
       setHydrationProgress(0)
       setError(null)
       try {
+        // Phase critique : 5 tables avec colonnes et filtres ciblés (~200ms)
         const criticalData = await fetchTaskBatch(criticalTasks)
         if (cancelled) return
 
         setData(previous => ({ ...previous, ...criticalData }))
         setLoading(false)
 
-        const totalBackgroundTasks = hydrationBatches.reduce((sum, batch) => sum + batch.length, 0)
-        if (totalBackgroundTasks === 0) {
-          setHydrationProgress(100)
-          return
-        }
-
+        // Fond : tous les tasks en parallèle (max(batch1, batch2, batch3) au lieu de sum)
         setHydrating(true)
-        let completedTasks = 0
+        const backgroundData = await fetchTaskBatch(backgroundTasks)
+        if (cancelled) return
 
-        for (const batch of hydrationBatches) {
-          const batchData = await fetchTaskBatch(batch)
-          if (cancelled) return
-
-          completedTasks += batch.length
-          setData(previous => ({ ...previous, ...batchData }))
-          setHydrationProgress(Math.round((completedTasks / totalBackgroundTasks) * 100))
-        }
-
-        if (!cancelled) {
-          setHydrating(false)
-        }
+        setData(previous => ({ ...previous, ...backgroundData }))
+        setHydrationProgress(100)
+        setHydrating(false)
       } catch {
         if (!cancelled) {
           setError('Le cockpit V2.1 n a pas pu charger toutes les donnees. Le mode historique reste disponible.')

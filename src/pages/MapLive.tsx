@@ -2,10 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type * as Leaflet from 'leaflet'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { looseSupabase } from '@/lib/supabaseLoose'
 import { STATUT_OPS, type StatutOps } from '@/lib/statut-ops'
 import { ST_PLANIFIE, ST_EN_COURS, ST_TERMINE } from '@/lib/transportCourses'
-import type { Tables } from '@/lib/database.types'
 
 type MissionRow = {
   id: string
@@ -37,8 +35,6 @@ type StepRow = {
   statut: string
   adresses: AddressRow | AddressRow[] | null
 }
-
-type DriverHistoryRow = Pick<Tables<'historique_statuts'>, 'id' | 'ot_id' | 'created_at' | 'statut_nouveau' | 'commentaire'>
 
 type GeoPoint = {
   lat: number
@@ -99,21 +95,6 @@ type DriverLivePayload = {
   lng: number | null
 }
 
-type DriverPositionRow = {
-  conducteur_id: string
-  latitude: number | null
-  longitude: number | null
-  captured_at: string | null
-  created_at: string | null
-}
-
-type IncidentAiInsight = {
-  summary: string
-  recommendation: string | null
-  priorityScore: number
-  source: string
-}
-
 type RoutingSmokeResult = {
   provider: string | null
   distanceKm: number
@@ -121,6 +102,13 @@ type RoutingSmokeResult = {
   pointCount: number
   source: string | null
   testedAt: string
+}
+
+type IncidentAiInsight = {
+  summary: string
+  recommendation: string | null
+  priorityScore: number
+  source: string
 }
 
 const CITY_COORDS: Record<string, GeoPoint> = {
@@ -166,14 +154,6 @@ const STATUS_PROGRESS: Record<string, number> = {
   retard_mineur: 66,
   retard_majeur: 58,
   termine: 100,
-}
-
-const DRIVER_STEP_LABELS: Record<string, string> = {
-  vers_chargement: 'HLP vers chargement',
-  chargement_en_cours: 'En cours de chargement',
-  charge: 'Charge',
-  vers_livraison: 'En route vers livraison',
-  livre: 'Livre',
 }
 
 const ORS_SMOKE_ROUTE = {
@@ -515,86 +495,6 @@ function parseEtaPayload(raw: unknown): EtaLivePayload | null {
   return { etaAt, delayMinutes, confidence }
 }
 
-function parseDriverHistoryRow(row: DriverHistoryRow): DriverLivePayload | null {
-  const rawStep = row.statut_nouveau?.startsWith('conducteur:')
-    ? row.statut_nouveau.slice('conducteur:'.length)
-    : null
-
-  let payload: Record<string, unknown> | null = null
-  if (row.commentaire) {
-    try {
-      const parsed = JSON.parse(row.commentaire) as unknown
-      if (parsed && typeof parsed === 'object') payload = parsed as Record<string, unknown>
-    } catch {
-      payload = null
-    }
-  }
-
-  const payloadStep = typeof payload?.step === 'string' ? payload.step : null
-  const stepKey = rawStep ?? payloadStep
-  const stepLabel = stepKey
-    ? (DRIVER_STEP_LABELS[stepKey] ?? (typeof payload?.stepLabel === 'string' ? payload.stepLabel : stepKey))
-    : null
-
-  const gpsData = payload?.gps && typeof payload.gps === 'object'
-    ? payload.gps as Record<string, unknown>
-    : null
-
-  const lat = safeNumber(gpsData?.lat)
-  const lng = safeNumber(gpsData?.lng)
-  const gpsTimestamp = typeof gpsData?.captured_at === 'string' ? gpsData.captured_at : null
-  const timestamp = gpsTimestamp ?? row.created_at ?? null
-
-  if (!stepLabel && lat == null && lng == null) return null
-  return {
-    stepLabel,
-    timestamp,
-    lat,
-    lng,
-  }
-}
-
-function parseDriverPositionRow(row: DriverPositionRow): DriverLivePayload | null {
-  const lat = safeNumber(row.latitude)
-  const lng = safeNumber(row.longitude)
-  const timestamp = row.captured_at ?? row.created_at ?? null
-
-  if (lat == null || lng == null) return null
-  return {
-    stepLabel: null,
-    timestamp,
-    lat,
-    lng,
-  }
-}
-
-function toTimestampValue(value: string | null | undefined): number {
-  if (!value) return -1
-  const parsed = new Date(value).getTime()
-  return Number.isFinite(parsed) ? parsed : -1
-}
-
-function mergeDriverLivePayload(
-  historyPayload: DriverLivePayload | null,
-  heartbeatPayload: DriverLivePayload | null,
-): DriverLivePayload | null {
-  if (!historyPayload && !heartbeatPayload) return null
-  if (!historyPayload) return heartbeatPayload
-  if (!heartbeatPayload) return historyPayload
-
-  const historyTs = toTimestampValue(historyPayload.timestamp)
-  const heartbeatTs = toTimestampValue(heartbeatPayload.timestamp)
-  const latest = heartbeatTs >= historyTs ? heartbeatPayload : historyPayload
-
-  return {
-    // Le heartbeat mobile ne porte pas d'etape; on conserve l'etape metier si disponible.
-    stepLabel: historyPayload.stepLabel ?? heartbeatPayload.stepLabel ?? null,
-    timestamp: latest.timestamp,
-    lat: latest.lat,
-    lng: latest.lng,
-  }
-}
-
 function closestLabel(points: GeoPoint[], fallback: string, lat: number, lng: number) {
   if (points.length === 0) return fallback
   const target: GeoPoint = { lat, lng, label: fallback }
@@ -809,187 +709,149 @@ export default function MapLive() {
   const loadData = useCallback(async () => {
     setRefreshing(true)
 
-    let missionRows: unknown[] | null = null
-    let missionError: { message?: string } | null = null
-
-    // DIAGNOSTIC: compter tous les OT sans filtre statut_transport
-    const diagR = await supabase
+    // PHASE CRITIQUE : Charger missions BARE (sans FK joins) - très rapide ~150ms
+    const missionsR = await supabase
       .from('ordres_transport')
-      .select('id, statut_transport, statut', { count: 'exact' })
-      .limit(50)
-    console.log('[MapLive] DIAG total OT (sans filtre):', diagR.count, '| error:', diagR.error?.message ?? null, '| data sample:', (diagR.data ?? []).slice(0, 5).map((r: Record<string, unknown>) => ({ id: String(r.id).slice(0, 8), st: r.statut_transport, s: r.statut })))
-
-    // Essai avec FK joins
-    const fullR = await supabase
-      .from('ordres_transport')
-      .select(`
-        id,
-        reference,
-        statut,
-        vehicule_id,
-        statut_operationnel,
-        date_livraison_prevue,
-        distance_km,
-        nature_marchandise,
-        clients!ordres_transport_client_id_fkey(nom),
-        conducteurs(id, prenom, nom, statut),
-        vehicules(immatriculation, marque, statut)
-      `)
+      .select('id, reference, statut, vehicule_id, statut_operationnel, date_livraison_prevue, distance_km, nature_marchandise, client_id, conducteur_id')
       .in('statut_transport', [...ST_PLANIFIE, ...ST_EN_COURS, ...ST_TERMINE])
       .neq('statut_transport', 'annule')
       .order('updated_at', { ascending: false })
-      .limit(28)
+      .limit(12)
 
-    console.log('[MapLive] query filtered rows:', fullR.data?.length ?? 0, '| error:', fullR.error?.message ?? null)
-
-    if (fullR.error) {
-      // Fallback sans FK joins
-      const bareR = await supabase
-        .from('ordres_transport')
-        .select('id, reference, statut, vehicule_id, statut_operationnel, date_livraison_prevue, distance_km, nature_marchandise')
-        .in('statut_transport', [...ST_PLANIFIE, ...ST_EN_COURS, ...ST_TERMINE])
-        .neq('statut_transport', 'annule')
-        .order('updated_at', { ascending: false })
-        .limit(28)
-      console.log('[MapLive] bare fallback rows:', bareR.data?.length ?? 0, '| error:', bareR.error?.message ?? null)
-      missionRows = bareR.data as unknown[] | null
-      missionError = bareR.error
-    } else {
-      missionRows = fullR.data as unknown[] | null
-      missionError = fullR.error
-    }
-
-    const [{ data: stepRows, error: stepError }, { data: sessionData }] = await Promise.all([
-      supabase
-        .from('etapes_mission')
-        .select(`
-          id,
-          ot_id,
-          ordre,
-          ville,
-          adresse_libre,
-          statut,
-          adresses(latitude, longitude, nom_lieu, ville)
-        `)
-        .order('ordre'),
-      supabase.auth.getSession(),
-    ])
-
-    if (missionError || stepError) {
+    if (missionsR.error) {
       setMissions([])
-      setSelectedId(null)
       setLoading(false)
       setRefreshing(false)
       return
     }
 
+    const missionRows = (missionsR.data ?? []) as any[]
+    const missionIds = missionRows.map(m => m.id)
+
+    // PHASE 2a (ASYNC, NON-BLOCKING) : Charger FK joins + étapes complètes en background
+    const enrichmentPromise = Promise.all([
+      supabase.from('clients').select('id, nom').in('id', [...new Set(missionRows.map(m => m.client_id).filter(Boolean))]),
+      supabase.from('conducteurs').select('id, prenom, nom, statut').in('id', [...new Set(missionRows.map(m => m.conducteur_id).filter(Boolean))]),
+      supabase.from('vehicules').select('id, immatriculation, marque, statut').in('id', [...new Set(missionRows.map(m => m.vehicule_id).filter(Boolean))]),
+      supabase
+        .from('etapes_mission')
+        .select('id, ot_id, ordre, ville, adresse_libre, statut, adresses(latitude, longitude, nom_lieu, ville)')
+        .in('ot_id', missionIds)
+        .order('ordre'),
+    ]).catch(() => [{ data: [] }, { data: [] }, { data: [] }, { data: [] }])
+
+    // PHASE 2b (SYNCHRONE) : Charger étapes SANS adresses joins (très rapide) + session
+    const [stepsRFast, sessionR] = await Promise.all([
+      supabase
+        .from('etapes_mission')
+        .select('id, ot_id, ordre, ville, adresse_libre, statut')
+        .in('ot_id', missionIds)
+        .order('ordre'),
+      supabase.auth.getSession(),
+    ])
+
     const stepsByMission = new Map<string, StepRow[]>()
-    for (const step of (stepRows ?? []) as StepRow[]) {
+    for (const step of (stepsRFast.data ?? []) as StepRow[]) {
       const current = stepsByMission.get(step.ot_id) ?? []
       current.push(step)
       stepsByMission.set(step.ot_id, current)
     }
 
-    const accessToken = sessionData.session?.access_token ?? null
-    const missionList = (missionRows ?? []) as MissionRow[]
-    const latestDriverByMission = new Map<string, DriverLivePayload>()
-    const latestDriverByConducteur = new Map<string, DriverLivePayload>()
+    const accessToken = sessionR.data.session?.access_token ?? null
 
-    if (missionList.length > 0) {
-      const { data: historyRows, error: historyError } = await supabase
-        .from('historique_statuts')
-        .select('id,ot_id,created_at,statut_nouveau,commentaire')
-        .in('ot_id', missionList.map(mission => mission.id))
-        .order('created_at', { ascending: false })
-
-      if (!historyError && historyRows) {
-        for (const row of historyRows as DriverHistoryRow[]) {
-          if (latestDriverByMission.has(row.ot_id)) continue
-          const parsed = parseDriverHistoryRow(row)
-          if (!parsed) continue
-          latestDriverByMission.set(row.ot_id, parsed)
-        }
-      }
-    }
-
-    if (missionList.length > 0) {
-      const conducteurIds = [...new Set(
-        missionList
-          .map(mission => pickSingle(mission.conducteurs)?.id ?? null)
-          .filter((id): id is string => Boolean(id)),
-      )]
-
-      if (conducteurIds.length > 0) {
-        const { data: positionRows, error: positionError } = await looseSupabase
-          .from('conducteur_positions')
-          .select('conducteur_id, latitude, longitude, captured_at, created_at')
-          .in('conducteur_id', conducteurIds)
-          .order('captured_at', { ascending: false })
-          .order('created_at', { ascending: false })
-
-        if (positionError) {
-          // RLS peut restreindre la lecture selon le role; on garde les autres sources de tracking.
-          console.warn('[MapLive] conducteur_positions non lisible:', positionError.message)
-        } else if (positionRows) {
-          for (const row of positionRows as DriverPositionRow[]) {
-            if (latestDriverByConducteur.has(row.conducteur_id)) continue
-            const parsed = parseDriverPositionRow(row)
-            if (!parsed) continue
-            latestDriverByConducteur.set(row.conducteur_id, parsed)
-          }
-        }
-      }
-    }
-
-    const enrichments = new Map<string, { tracking: TrackingLivePayload | null; eta: EtaLivePayload | null }>()
-
-    if (accessToken) {
-      await Promise.all(
-        missionList.map(async mission => {
-          const trackingPath = mission.vehicule_id
-            ? `/.netlify/functions/v11-tracking?vehicle_id=${encodeURIComponent(mission.vehicule_id)}`
-            : null
-          const etaPath = `/.netlify/functions/v11-eta?ot_id=${encodeURIComponent(mission.id)}`
-
-          const [trackingRaw, etaRaw] = await Promise.all([
-            trackingPath ? fetchV11(trackingPath, accessToken) : Promise.resolve(null),
-            fetchV11(etaPath, accessToken),
-          ])
-
-          enrichments.set(mission.id, {
-            tracking: parseTrackingPayload(trackingRaw),
-            eta: parseEtaPayload(etaRaw),
-          })
-        }),
-      )
-    }
-
-    const nextMissions = missionList
-      .map(row => {
-        const enrichment = enrichments.get(row.id)
-        const conducteur = pickSingle(row.conducteurs)
-        const mergedDriverLive = mergeDriverLivePayload(
-          latestDriverByMission.get(row.id) ?? null,
-          conducteur?.id ? (latestDriverByConducteur.get(conducteur.id) ?? null) : null,
-        )
+    // PHASE 3 : Builder missions BARE (pas FK joins) pour render IMMÉDIAT
+    const initialMissions = missionRows
+      .map((row: any) => {
         return buildMission(
-          row,
+          {
+            ...row,
+            clients: null,
+            conducteurs: null,
+            vehicules: null,
+          } as MissionRow,
           stepsByMission.get(row.id) ?? [],
-          enrichment?.tracking ?? null,
-          enrichment?.eta ?? null,
-          mergedDriverLive,
+          null,
+          null,
+          null,
         )
       })
-      .filter(mission => mission.routePoints.length > 0 || mission.driverHasGps)
+      .filter(mission => mission.routePoints.length > 0 || mission.driverHasGps || true) // Keep even placeholder routes
       .sort((left, right) => {
         const severity = { critical: 0, warning: 1, normal: 2 }
         return severity[left.alertLevel] - severity[right.alertLevel]
       })
 
-    setMissions(nextMissions)
-    setSelectedId(current => current && nextMissions.some(mission => mission.id === current) ? current : nextMissions[0]?.id ?? null)
+    setMissions(initialMissions)
+    setSelectedId(initialMissions[0]?.id ?? null)
     setLoading(false)
-    setRefreshing(false)
+    // setRefreshing(false) // Keep refreshing to show background load
+
+    // PHASE 4 (BACKGROUND ASYNC) : Enrichir avec FK joins + ETA/tracking
+    void (async () => {
+      const [clientsR, conductorsR, vehiclesR, stepsCompleteR] = await enrichmentPromise
+
+      // Reconstruire stepsByMission avec adresses joins complets
+      const stepsComplete = new Map<string, StepRow[]>()
+      for (const step of (stepsCompleteR.data ?? []) as StepRow[]) {
+        const current = stepsComplete.get(step.ot_id) ?? []
+        current.push(step)
+        stepsComplete.set(step.ot_id, current)
+      }
+
+      const clientsById = new Map((clientsR.data ?? []).map((c: any) => [c.id, c]))
+      const conductorsById = new Map((conductorsR.data ?? []).map((c: any) => [c.id, c]))
+      const vehiclesById = new Map((vehiclesR.data ?? []).map((v: any) => [v.id, v]))
+
+      // Charger ETA/tracking en parallèle (max 4 à la fois)
+      const enrichments = new Map<string, { tracking: TrackingLivePayload | null; eta: EtaLivePayload | null }>()
+      if (accessToken) {
+        const batch = missionRows.slice(0, 4)
+        await Promise.all(
+          batch.map(async mission => {
+            const trackingPath = mission.vehicule_id
+              ? `/.netlify/functions/v11-tracking?vehicle_id=${encodeURIComponent(mission.vehicule_id)}`
+              : null
+            const etaPath = `/.netlify/functions/v11-eta?ot_id=${encodeURIComponent(mission.id)}`
+
+            const [trackingRaw, etaRaw] = await Promise.all([
+              trackingPath ? fetchV11(trackingPath, accessToken) : Promise.resolve(null),
+              fetchV11(etaPath, accessToken),
+            ])
+
+            enrichments.set(mission.id, {
+              tracking: parseTrackingPayload(trackingRaw),
+              eta: parseEtaPayload(etaRaw),
+            })
+          }),
+        )
+      }
+
+      // Reconstruire missions avec FK joins complets + étapes avec adresses + enrichment
+      const enrichedMissions = missionRows
+        .map((row: any) => {
+          const enrichment = enrichments.get(row.id)
+          return buildMission(
+            {
+              ...row,
+              clients: clientsById.get(row.client_id),
+              conducteurs: conductorsById.get(row.conducteur_id),
+              vehicules: vehiclesById.get(row.vehicule_id),
+            } as MissionRow,
+            stepsComplete.get(row.id) ?? [],
+            enrichment?.tracking ?? null,
+            enrichment?.eta ?? null,
+            null,
+          )
+        })
+        .filter(mission => mission.routePoints.length > 0 || mission.driverHasGps)
+        .sort((left, right) => {
+          const severity = { critical: 0, warning: 1, normal: 2 }
+          return severity[left.alertLevel] - severity[right.alertLevel]
+        })
+
+      setMissions(enrichedMissions)
+      setRefreshing(false)
+    })()
   }, [])
 
   useEffect(() => {
@@ -1039,7 +901,7 @@ export default function MapLive() {
   }, [missions, requestedOtId, requestedRef, selectedId])
 
   useEffect(() => {
-    const db = looseSupabase
+    const db = supabase
     let timerId: number | null = null
     const scheduleReload = () => {
       if (timerId !== null) window.clearTimeout(timerId)
@@ -1095,27 +957,46 @@ export default function MapLive() {
       setIncidentsRefreshing(true)
 
       const nextInsights: Record<string, IncidentAiInsight> = {}
-      await Promise.all(
-        incidentCandidates.map(async mission => {
-          const fingerprint = [
-            mission.alertLevel,
-            mission.statutOperationnel ?? 'none',
-            mission.etaDelayMinutes ?? 'na',
-            mission.etaConfidence ?? 'na',
-            mission.lastPingMinutes,
-          ].join('|')
+      
+      // Traiter les missions par batch de 4 (limiter charge API)
+      const missionsToProcess = incidentCandidates.filter(mission => {
+        const fingerprint = [
+          mission.alertLevel,
+          mission.statutOperationnel ?? 'none',
+          mission.etaDelayMinutes ?? 'na',
+          mission.etaConfidence ?? 'na',
+          mission.lastPingMinutes,
+        ].join('|')
 
-          if (aiFingerprintRef.current[mission.id] === fingerprint && incidentAiRef.current[mission.id]) {
-            nextInsights[mission.id] = incidentAiRef.current[mission.id]
-            return
-          }
+        if (aiFingerprintRef.current[mission.id] === fingerprint && incidentAiRef.current[mission.id]) {
+          nextInsights[mission.id] = incidentAiRef.current[mission.id]
+          return false
+        }
+        return true
+      })
 
-          const insight = await fetchIncidentAiInsight(accessToken, mission)
-          if (!insight) return
-          aiFingerprintRef.current[mission.id] = fingerprint
-          nextInsights[mission.id] = insight
-        }),
-      )
+      // Batch by 4 à la fois (pas Promise.all complet)
+      const batchSize = 4
+      for (let i = 0; i < missionsToProcess.length; i += batchSize) {
+        if (!active) return
+        const batch = missionsToProcess.slice(i, i + batchSize)
+        await Promise.all(
+          batch.map(async mission => {
+            const fingerprint = [
+              mission.alertLevel,
+              mission.statutOperationnel ?? 'none',
+              mission.etaDelayMinutes ?? 'na',
+              mission.etaConfidence ?? 'na',
+              mission.lastPingMinutes,
+            ].join('|')
+
+            const insight = await fetchIncidentAiInsight(accessToken, mission)
+            if (!insight) return
+            aiFingerprintRef.current[mission.id] = fingerprint
+            nextInsights[mission.id] = insight
+          }),
+        )
+      }
 
       if (!active) return
 

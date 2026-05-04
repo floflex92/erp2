@@ -39,12 +39,14 @@ export function WidgetAlertesChrono() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase
-      .from('vue_conducteur_alertes')
-      .select('id, conducteur_id, alert_type, label, days_remaining, due_on')
-      .order('days_remaining', { ascending: true, nullsFirst: false })
-      .limit(25)
-      .then(async ({ data }) => {
+    async function load() {
+      try {
+        const { data } = await supabase
+          .from('vue_conducteur_alertes')
+          .select('id, conducteur_id, alert_type, label, days_remaining, due_on')
+          .order('days_remaining', { ascending: true, nullsFirst: false })
+          .limit(25)
+
         const rows = (data ?? []) as AlerteRow[]
         const conducteurIds = [...new Set(rows.map(r => r.conducteur_id).filter(Boolean))] as string[]
         if (conducteurIds.length > 0) {
@@ -55,8 +57,14 @@ export function WidgetAlertesChrono() {
           })
         }
         setAlertes(rows)
+      } catch {
+        setAlertes([])
+      } finally {
         setLoading(false)
-      })
+      }
+    }
+
+    void load()
   }, [])
 
   if (loading) {

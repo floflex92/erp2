@@ -105,59 +105,65 @@ export function WidgetCarteClients() {
 
   useEffect(() => {
     async function load() {
-      const [adrsRes, otRes] = await Promise.all([
-        supabase
-          .from('adresses')
-          .select('client_id, latitude, longitude, ville, clients(nom)')
-          .not('latitude', 'is', null)
-          .not('longitude', 'is', null)
-          .eq('actif', true)
-          .limit(200),
-        supabase
-          .from('ordres_transport')
-          .select('type_transport'),
-      ])
+      try {
+        const [adrsRes, otRes] = await Promise.all([
+          supabase
+            .from('adresses')
+            .select('client_id, latitude, longitude, ville, clients(nom)')
+            .not('latitude', 'is', null)
+            .not('longitude', 'is', null)
+            .eq('actif', true)
+            .limit(200),
+          supabase
+            .from('ordres_transport')
+            .select('type_transport'),
+        ])
 
-      const adresses = (adrsRes.data ?? []) as AddressRow[]
-      const otRows = (otRes.data ?? []) as OrderTypeRow[]
+        const adresses = (adrsRes.data ?? []) as AddressRow[]
+        const otRows = (otRes.data ?? []) as OrderTypeRow[]
 
-      // Agréger par client
-      const clientMap = new Map<string, ClientPoint>()
-      for (const a of adresses) {
-        if (!a.client_id || !a.latitude || !a.longitude) continue
-        const nom = (Array.isArray(a.clients) ? a.clients[0] : a.clients)?.nom ?? 'Client'
-        const existing = clientMap.get(a.client_id)
-        if (!existing) {
-          clientMap.set(a.client_id, {
-            clientNom: nom,
-            ville: a.ville,
-            lat: a.latitude,
-            lng: a.longitude,
-            nbOT: 0,
-          })
+        // Agreger par client
+        const clientMap = new Map<string, ClientPoint>()
+        for (const a of adresses) {
+          if (!a.client_id || !a.latitude || !a.longitude) continue
+          const nom = (Array.isArray(a.clients) ? a.clients[0] : a.clients)?.nom ?? 'Client'
+          const existing = clientMap.get(a.client_id)
+          if (!existing) {
+            clientMap.set(a.client_id, {
+              clientNom: nom,
+              ville: a.ville,
+              lat: a.latitude,
+              lng: a.longitude,
+              nbOT: 0,
+            })
+          }
         }
-      }
 
-      // Compter OT par type
-      const otTypes: Record<string, number> = {}
-      for (const ot of otRows) {
-        const transportType = ot.type_transport ?? 'inconnu'
-        otTypes[transportType] = (otTypes[transportType] ?? 0) + 1
-      }
-
-      // Zones couvertes
-      const allPoints = [...clientMap.values()]
-      const covered = new Set<string>()
-      for (const [region, [rlat, rlng]] of Object.entries(FRANCE_REGIONS)) {
-        for (const pt of allPoints) {
-          const d = Math.sqrt(Math.pow(pt.lat - rlat, 2) + Math.pow(pt.lng - rlng, 2)) * 111
-          if (d < 80) { covered.add(region); break }
+        // Compter OT par type
+        const otTypes: Record<string, number> = {}
+        for (const ot of otRows) {
+          const transportType = ot.type_transport ?? 'inconnu'
+          otTypes[transportType] = (otTypes[transportType] ?? 0) + 1
         }
-      }
 
-      setPoints(allPoints)
-      setSuggestions(generateIASuggestions(covered, otTypes))
-      setLoading(false)
+        // Zones couvertes
+        const allPoints = [...clientMap.values()]
+        const covered = new Set<string>()
+        for (const [region, [rlat, rlng]] of Object.entries(FRANCE_REGIONS)) {
+          for (const pt of allPoints) {
+            const d = Math.sqrt(Math.pow(pt.lat - rlat, 2) + Math.pow(pt.lng - rlng, 2)) * 111
+            if (d < 80) { covered.add(region); break }
+          }
+        }
+
+        setPoints(allPoints)
+        setSuggestions(generateIASuggestions(covered, otTypes))
+      } catch {
+        setPoints([])
+        setSuggestions([])
+      } finally {
+        setLoading(false)
+      }
     }
     void load()
   }, [])

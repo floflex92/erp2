@@ -46,15 +46,22 @@ export function WidgetActiviteRecente() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase
-      .from('ordres_transport')
-      .select('id, reference, statut, statut_transport, updated_at, clients(nom)')
-      .order('updated_at', { ascending: false })
-      .limit(15)
-      .then(({ data }) => {
+    async function load() {
+      try {
+        const { data } = await supabase
+          .from('ordres_transport')
+          .select('id, reference, statut, statut_transport, updated_at, clients(nom)')
+          .order('updated_at', { ascending: false })
+          .limit(15)
         setRows((data ?? []) as unknown as OTRow[])
+      } catch {
+        setRows([])
+      } finally {
         setLoading(false)
-      })
+      }
+    }
+
+    void load()
   }, [])
 
   if (loading) {

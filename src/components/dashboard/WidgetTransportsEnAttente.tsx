@@ -42,16 +42,23 @@ export function WidgetTransportsEnAttente() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase
-      .from('ordres_transport')
-      .select('id, reference, statut_transport, type_transport, date_livraison_prevue, date_chargement_prevue, conducteur_id, vehicule_id, clients(nom)')
-      .in('statut_transport', [...ST_BROUILLON, ...ST_CONFIRME])
-      .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
-      .limit(20)
-      .then(({ data }) => {
+    async function load() {
+      try {
+        const { data } = await supabase
+          .from('ordres_transport')
+          .select('id, reference, statut_transport, type_transport, date_livraison_prevue, date_chargement_prevue, conducteur_id, vehicule_id, clients(nom)')
+          .in('statut_transport', [...ST_BROUILLON, ...ST_CONFIRME])
+          .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
+          .limit(20)
         setRows((data ?? []) as unknown as OTRow[])
+      } catch {
+        setRows([])
+      } finally {
         setLoading(false)
-      })
+      }
+    }
+
+    void load()
   }, [])
 
   if (loading) {
