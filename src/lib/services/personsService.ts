@@ -185,15 +185,65 @@ export async function listUnifiedConducteurs(
   companyId?: number,
   options?: { activeOnly?: boolean; allowUnlinked?: boolean },
 ): Promise<UnifiedConducteurListItem[]> {
-  const directory = await listPersonsForDirectory(companyId)
+  let conducteursQuery = looseSupabase
+    .from('conducteurs')
+    .select('id, company_id, nom, prenom, matricule, email, telephone, statut')
+    .order('nom', { ascending: true, nullsFirst: false })
 
-  return directory
-    .filter(person => ['driver', 'conducteur', 'chauffeur'].includes((person.person_type ?? '').toLowerCase()))
+  if (typeof companyId === 'number') {
+    conducteursQuery = conducteursQuery.eq('company_id', companyId)
+  }
+
+  const conducteursRes = await conducteursQuery
+
+  // Source de vérité: tous les écrans doivent au minimum refléter la table `conducteurs`.
+  const linked = (Array.isArray(conducteursRes.data) ? conducteursRes.data : [])
+    .filter(row => !options?.activeOnly || isActiveDriverStatus(typeof row.statut === 'string' ? row.statut : null))
+    .map(row => ({
+      id: String(row.id),
+      company_id: Number(row.company_id ?? 1),
+      nom: typeof row.nom === 'string' ? row.nom : '-',
+      prenom: typeof row.prenom === 'string' ? row.prenom : '',
+      matricule: typeof row.matricule === 'string' ? row.matricule : null,
+      email: typeof row.email === 'string' ? row.email : null,
+      telephone: typeof row.telephone === 'string' ? row.telephone : null,
+      statut: normalizeDriverStatus(typeof row.statut === 'string' ? row.statut : null),
+      legacy_conducteur_id: String(row.id),
+    } satisfies UnifiedConducteurListItem))
+
+  // En cas d'erreur DB, on préserve le comportement historique via l'annuaire.
+  if (conducteursRes.error) {
+    const directory = await listPersonsForDirectory(companyId)
+    return directory
+      .filter(person => ['driver', 'conducteur', 'chauffeur', 'trucker', 'truckers'].includes((person.person_type ?? '').toLowerCase()))
+      .filter(person => !options?.activeOnly || isActiveDriverStatus(person.status))
+      .filter(person => Boolean(person.legacy_conducteur_id) || options?.allowUnlinked === true)
+      .map(person => ({
+        id: person.legacy_conducteur_id ?? person.id,
+        company_id: person.company_id,
+        nom: person.last_name ?? '-',
+        prenom: person.first_name ?? '',
+        matricule: person.matricule ?? null,
+        email: person.email ?? null,
+        telephone: person.phone ?? null,
+        statut: normalizeDriverStatus(person.status),
+        legacy_conducteur_id: person.legacy_conducteur_id ?? null,
+      }))
+      .sort((left, right) => `${left.nom} ${left.prenom}`.localeCompare(`${right.nom} ${right.prenom}`, 'fr'))
+  }
+
+  if (!options?.allowUnlinked) {
+    return linked
+      .sort((left, right) => `${left.nom} ${left.prenom}`.localeCompare(`${right.nom} ${right.prenom}`, 'fr'))
+  }
+
+  const directory = await listPersonsForDirectory(companyId)
+  const unlinked = directory
+    .filter(person => ['driver', 'conducteur', 'chauffeur', 'trucker', 'truckers'].includes((person.person_type ?? '').toLowerCase()))
+    .filter(person => !person.legacy_conducteur_id)
     .filter(person => !options?.activeOnly || isActiveDriverStatus(person.status))
-    // By default, keep only entries linked to a real `conducteurs.id`.
-    .filter(person => Boolean(person.legacy_conducteur_id) || options?.allowUnlinked === true)
     .map(person => ({
-      id: person.legacy_conducteur_id ?? person.id,
+      id: person.id,
       company_id: person.company_id,
       nom: person.last_name ?? '-',
       prenom: person.first_name ?? '',
@@ -201,7 +251,15 @@ export async function listUnifiedConducteurs(
       email: person.email ?? null,
       telephone: person.phone ?? null,
       statut: normalizeDriverStatus(person.status),
-      legacy_conducteur_id: person.legacy_conducteur_id ?? null,
-    }))
+      legacy_conducteur_id: null,
+    } satisfies UnifiedConducteurListItem))
+
+  const mergedById = new Map<string, UnifiedConducteurListItem>()
+  for (const item of linked) mergedById.set(item.id, item)
+  for (const item of unlinked) {
+    if (!mergedById.has(item.id)) mergedById.set(item.id, item)
+  }
+
+  return [...mergedById.values()]
     .sort((left, right) => `${left.nom} ${left.prenom}`.localeCompare(`${right.nom} ${right.prenom}`, 'fr'))
 }

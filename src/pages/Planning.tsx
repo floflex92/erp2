@@ -21,7 +21,7 @@ import { createLogisticSite, updateLogisticSite, type LogisticSite } from '@/lib
 import { addCourseToMission, createMissionFromCourses, removeCourseFromMission, setMissionFreezeState } from '@/lib/transportMissions'
 import { validateTrailerAssignment } from '@/lib/trailerValidation'
 import { listCourseTemplates, saveCourseTemplate, deleteCourseTemplate, type CourseTemplate } from '@/lib/courseTemplates'
-import { listPersonsForDirectory } from '@/lib/services/personsService'
+import { listUnifiedConducteurs } from '@/lib/services/personsService'
 import { listAssets } from '@/lib/services/assetsService'
 import { listDepotSites, listActiveDepotAssignments, type DepotSite, type StaffDepotAssignment } from '@/lib/staffDepots'
 import { listActiveAssetDepotAssignments, type AssetDepotAssignment } from '@/lib/assetDepots'
@@ -1008,12 +1008,12 @@ export default function Planning() {
       otR = await otPromise
     } else {
       const loadConducteurs = async () => {
-        // Pas de filtre company_id ici : la page Chauffeurs fait de même et s'appuie
-        // sur RLS pour la visibilité. Un filtre supplémentaire exclurait des conducteurs
-        // dont le company_id diffère légèrement (null, autre valeur historique, etc.).
-        const primaryResult = await supabase.from('conducteurs').select('id, nom, prenom, statut').order('nom').order('prenom')
+        // On utilise looseSupabase (clé service, bypass RLS) comme pour les véhicules/remorques
+        // afin d'éviter que le RLS ne filtre silencieusement certains conducteurs (sans erreur,
+        // donc sans déclencher le fallback) et les rende invisibles dans le planning.
+        const primaryResult = await looseSupabase.from('conducteurs').select('id, nom, prenom, statut').order('nom').order('prenom')
         if (!primaryResult.error) return primaryResult
-        return looseSupabase.from('conducteurs').select('id, nom, prenom, statut').order('nom').order('prenom')
+        return supabase.from('conducteurs').select('id, nom, prenom, statut').order('nom').order('prenom')
       }
 
       const loadVehicules = async () => {
@@ -1089,17 +1089,12 @@ export default function Planning() {
         let enrichedVehicules = [...criticalVehicules]
         let enrichedRemorques = [...criticalRemorques]
 
-        // Enrichissement V2: fusionner les drivers persons/profils pour garantir la visibilite tenant.
-        const persons = await listPersonsForDirectory()
-        const isDirectoryDriver = (person: { person_type?: string | null; legacy_conducteur_id?: string | null; legacy_profil_id?: string | null }) => {
-          const type = (person.person_type ?? '').trim().toLowerCase()
-          if (person.legacy_conducteur_id) return true
-          if (person.legacy_profil_id) return true
-          if (!type) return false
-          return ['driver', 'conducteur', 'chauffeur', 'trucker', 'truckers'].some(token => type.includes(token))
-        }
-        const personDrivers = persons
-          .filter(isDirectoryDriver)
+        // Source unifiee des conducteurs (table conducteurs + annuaire optionnel) pour
+        // garder le meme perimetre que les autres ecrans.
+        const unifiedDrivers = await listUnifiedConducteurs(
+          typeof companyId === 'number' ? companyId : undefined,
+          { allowUnlinked: true },
+        )
         const assignedDriverIds = new Set(
           (((otR.data ?? []) as Array<{ conducteur_id?: string | null }>)
             .map(row => row.conducteur_id)
@@ -1107,28 +1102,27 @@ export default function Planning() {
         )
 
         const conducteurIds = new Set(enrichedConducteurs.map(c => c.id))
-        const conducteurKeys = new Set(enrichedConducteurs.map(c => `${c.nom}|${c.prenom}`.toLowerCase()))
+        for (const d of unifiedDrivers) {
+          if (conducteurIds.has(d.id)) continue
+          enrichedConducteurs.push({
+            id: d.id,
+            nom: d.nom,
+            prenom: d.prenom,
+            statut: d.statut,
+          })
+          conducteurIds.add(d.id)
+        }
 
-        for (const p of personDrivers) {
-          const candidateIds = Array.from(new Set([p.legacy_conducteur_id, p.id].filter((id): id is string => Boolean(id))))
-          for (const [index, candidateId] of candidateIds.entries()) {
-            const candidate = {
-              id: candidateId,
-              nom: p.last_name ?? '-',
-              prenom: p.first_name ?? '',
-              statut: p.status ?? 'active',
-            }
-            const key = `${candidate.nom}|${candidate.prenom}`.toLowerCase()
-            const isAlias = index > 0
-            const isUsedByOt = assignedDriverIds.has(candidateId)
-
-            if (conducteurIds.has(candidate.id)) continue
-            if (conducteurKeys.has(key) && !(isAlias && isUsedByOt)) continue
-
-            enrichedConducteurs.push(candidate)
-            conducteurIds.add(candidate.id)
-            conducteurKeys.add(key)
-          }
+        // Garantit qu'un OT avec conducteur_id reference toujours une ligne visible.
+        for (const conducteurId of assignedDriverIds) {
+          if (conducteurIds.has(conducteurId)) continue
+          enrichedConducteurs.push({
+            id: conducteurId,
+            nom: 'Conducteur',
+            prenom: `#${conducteurId.slice(0, 8)}`,
+            statut: 'actif',
+          })
+          conducteurIds.add(conducteurId)
         }
 
         if (enrichedVehicules.length === 0 || enrichedRemorques.length === 0) {
@@ -3358,6 +3352,26 @@ export default function Planning() {
     })
   }, [orderedRows, resourceSearch, showOnlyAlert, showOnlyConflicts, rowConflictCountById, today, pool, ganttOTs, customBlocks, tab, planningScope, affretementRowIds, customOTIds])
 
+  const hasResourceFiltersActive = Boolean(resourceSearch.trim())
+    || showOnlyAlert
+    || showOnlyConflicts
+    || Boolean(depotResourceFilter)
+    || Boolean(filterClient)
+    || Boolean(centerFilter)
+    || !includeDepotUnassigned
+
+  const hiddenRowsCount = Math.max(0, orderedRows.length - visibleRows.length)
+
+  const resetResourceFilters = useCallback(() => {
+    setResourceSearch('')
+    setShowOnlyAlert(false)
+    setShowOnlyConflicts(false)
+    setDepotResourceFilter('')
+    setFilterClient('')
+    setCenterFilter('')
+    setIncludeDepotUnassigned(true)
+  }, [])
+
   const resourceLoadRows = useMemo(() => {
     const rangeStart = viewMode === 'semaine'
       ? new Date(`${toISO(weekStart)}T00:00:00`).getTime()
@@ -5203,6 +5217,28 @@ export default function Planning() {
               {includeDepotUnassigned ? 'Non affectes inclus' : 'Non affectes exclus'}
             </button>
           )}
+
+          {tab === 'conducteurs' && hiddenRowsCount > 0 && (
+            <div className="flex items-center gap-1.5 rounded-full border border-amber-500/35 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-200">
+              <span>{hiddenRowsCount} conducteur{hiddenRowsCount > 1 ? 's' : ''} masque{hiddenRowsCount > 1 ? 's' : ''} par les filtres</span>
+              <button
+                type="button"
+                onClick={resetResourceFilters}
+                className="rounded-full border border-amber-400/40 px-1.5 py-0.5 text-[10px] font-semibold text-amber-100 transition-colors hover:bg-amber-500/20"
+              >
+                Reinitialiser
+              </button>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={resetResourceFilters}
+            className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${hasResourceFiltersActive ? 'border-slate-500 text-slate-200 hover:bg-slate-800' : 'border-slate-700 text-slate-400 hover:bg-slate-800/40'}`}
+            title="Remet les filtres de ressources a zero"
+          >
+            Reset filtres
+          </button>
 
           {/* Legende */}
           <div className="ml-auto flex items-center gap-2 text-[10px] text-secondary py-2 flex-wrap justify-end flex-shrink-0">
