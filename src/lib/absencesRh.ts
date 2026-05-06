@@ -6,6 +6,7 @@ export type TypeAbsence =
   | 'arret_maladie'
   | 'arret_at'
   | 'formation'
+  | 'mise_a_pied'
   | 'conge_maternite'
   | 'conge_paternite'
   | 'conge_sans_solde'
@@ -27,7 +28,9 @@ export interface AbsenceRh {
   employe_id: string
   type_absence: TypeAbsence
   date_debut: string
+  heure_debut?: string | null
   date_fin: string
+  heure_fin?: string | null
   nb_jours: number
   statut: StatutAbsence
   motif: string | null
@@ -64,6 +67,7 @@ export const TYPE_ABSENCE_LABELS: Record<TypeAbsence, string> = {
   arret_maladie: 'Arrêt maladie',
   arret_at: 'Accident du travail',
   formation: 'Formation',
+  mise_a_pied: 'Mise à pied',
   conge_maternite: 'Congé maternité',
   conge_paternite: 'Congé paternité',
   conge_sans_solde: 'Congé sans solde',
@@ -181,38 +185,32 @@ export async function fetchAllAbsencesValideesPeriode(
 
 export async function createAbsenceRh(
   absence: Omit<AbsenceRh, 'id' | 'created_at' | 'updated_at'>,
-): Promise<AbsenceRh | null> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any)
-      .from('absences_rh')
-      .insert([absence])
-      .select()
-      .single()
-    if (error) return null
-    return (data as AbsenceRh) ?? null
-  } catch {
-    return null
-  }
+): Promise<AbsenceRh> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('absences_rh')
+    .insert([absence])
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  if (!data) throw new Error('Creation absence: aucune donnee retournee.')
+  return data as AbsenceRh
 }
 
 export async function updateAbsenceRh(
   id: string,
   patch: Partial<AbsenceRh>,
-): Promise<AbsenceRh | null> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any)
-      .from('absences_rh')
-      .update({ ...patch, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single()
-    if (error) return null
-    return (data as AbsenceRh) ?? null
-  } catch {
-    return null
-  }
+): Promise<AbsenceRh> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('absences_rh')
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  if (!data) throw new Error('Mise a jour absence: aucune donnee retournee.')
+  return data as AbsenceRh
 }
 
 export async function deleteAbsenceRh(id: string): Promise<boolean> {
@@ -273,7 +271,7 @@ export function computeAbsenceHeuresFromAbsences(
   hoursPerDay = 8,
 ): { totalHeures: number; detail: { label: string; jours: number; heures: number }[] } {
   const TYPES_NON_REMUNERES: TypeAbsence[] = [
-    'arret_maladie', 'arret_at', 'conge_sans_solde', 'absence_autorisee', 'autre',
+    'arret_maladie', 'arret_at', 'mise_a_pied', 'conge_sans_solde', 'absence_autorisee', 'autre',
   ]
   const detail: { label: string; jours: number; heures: number }[] = []
   let totalHeures = 0

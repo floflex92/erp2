@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useTransition } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { ST_BROUILLON, ST_CONFIRME, ST_PLANIFIE, ST_EN_COURS, ST_TERMINE } from '@/lib/transportCourses'
+import { ST_BROUILLON, ST_CONFIRME, ST_PLANIFIE, ST_EN_COURS } from '@/lib/transportCourses'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { STATUT_OPS, StatutOpsDot, type StatutOps } from '@/lib/statut-ops'
 import SiteMapPicker from '@/components/transports/SiteMapPicker'
@@ -17,18 +17,22 @@ import {
   type AffretementContract,
 } from '@/lib/affretementPortal'
 import { validatePlanningDropAudit, type CEAlert } from '@/lib/ce561Validation'
-import { validateTrailerAssignment } from '@/lib/trailerValidation'
 import { createLogisticSite, updateLogisticSite, type LogisticSite } from '@/lib/transportCourses'
 import { addCourseToMission, createMissionFromCourses, removeCourseFromMission, setMissionFreezeState } from '@/lib/transportMissions'
 import { listCourseTemplates, saveCourseTemplate, deleteCourseTemplate, type CourseTemplate } from '@/lib/courseTemplates'
 import { listPersonsForDirectory } from '@/lib/services/personsService'
 import { listAssets } from '@/lib/services/assetsService'
+import { listDepotSites, listActiveDepotAssignments, type DepotSite, type StaffDepotAssignment } from '@/lib/staffDepots'
+import { listActiveAssetDepotAssignments, type AssetDepotAssignment } from '@/lib/assetDepots'
 import { fetchCustomRows, fetchCustomBlocks, deleteCustomRow as dbDeleteCustomRow, deleteCustomBlock as dbDeleteCustomBlock, type RemoteCustomRow, type RemoteCustomBlock } from '@/lib/planningCustomBlocks'
 import { generatePlanningWeekPDF } from '@/lib/planningPdf'
 import { fetchAllAbsencesValideesPeriode, TYPE_ABSENCE_LABELS, type AbsenceRh } from '@/lib/absencesRh'
 import { useAuth } from '@/lib/auth'
 import { usePlanningCompliance } from '@/hooks/useCompliancePlanning'
 import { useScrollToTopOnChange } from '@/hooks/useScrollToTopOnChange'
+import { usePlanningRelais } from '@/hooks/usePlanningRelais'
+import { usePlanningRetourCharge } from '@/hooks/usePlanningRetourCharge'
+import { usePlanningAssign } from '@/hooks/usePlanningAssign'
 import type {
   OT, Conducteur, Vehicule, Remorque, ClientRef, Affectation,
   Tab, ViewMode, PlanningScope, ColorMode,
@@ -36,9 +40,6 @@ import type {
   PlanningInlineType, CustomRow, CustomBlock,
   DragState, NativeDragPayload, BlockMetrics, RowOrderMap, ContextMenu,
   AffretementContext, RowConflict, BottomDockTab,
-  TransportRelaisStatut, TypeRelais, TransportRelaisRecord,
-  RelaisModal, RelaisDepotForm, RelaisAssignForm,
-  RetourChargeSuggestion, RetourChargeForm,
   SiteUsageType, SiteKind, SiteDraft, SiteLoadRow,
   GeneratedInlineEvent,
 } from './planning/planningTypes'
@@ -83,6 +84,8 @@ const SIDEBAR_COLLAPSED_STORAGE_KEY = 'nexora_sidebar_collapsed_v2'
 const SIDEBAR_COLLAPSED_EVENT = 'nexora:sidebar-collapsed-change'
 const EXPLOITANT_FEATURES_KEY = 'nexora_planning_exploitant_features_v1'
 const ASSIGNMENT_IMPOSSIBLE_BLOCK_KEY = 'nexora_planning_assignment_impossible_block_v1'
+const DEPOT_RESOURCE_FILTER_KEY = 'nexora_planning_depot_resource_filter_v1'
+const DEPOT_INCLUDE_UNASSIGNED_KEY = 'nexora_planning_depot_include_unassigned_v1'
 
 type ExploitantFeatureKey =
   | 'tab_urgences'
@@ -189,9 +192,10 @@ export default function Planning() {
   const [clients,     setClients]     = useState<ClientRef[]>([])
   const [logisticSites, setLogisticSites] = useState<LogisticSite[]>([])
   const [affectations, setAffectations] = useState<Affectation[]>([])
+  const [depotSites, setDepotSites] = useState<DepotSite[]>([])
+  const [staffDepotAssignments, setStaffDepotAssignments] = useState<StaffDepotAssignment[]>([])
+  const [assetDepotAssignments, setAssetDepotAssignments] = useState<AssetDepotAssignment[]>([])
   const [conducteurAbsences, setConducteurAbsences] = useState<Map<string, AbsenceRh[]>>(new Map())
-  const [assignModal,  setAssignModal]  = useState<AssignForm | null>(null)
-  const [assignKeepDuration, setAssignKeepDuration] = useState(true)
   const [selected,     setSelected]     = useState<OT | null>(null)
   const [editDraft,    setEditDraft]    = useState<EditDraft | null>(null)
   const [editSiteDrafts, setEditSiteDrafts] = useState<Record<SiteKind, SiteDraft>>({
@@ -209,13 +213,6 @@ export default function Planning() {
   // Throttle drag-over updates via RAF to avoid per-frame re-renders causing jitter
   const hoverRowRef = useRef<{ rowId:string; dayIdx:number; timeMin:number } | null>(null)
   const dragOverRafRef = useRef<number | null>(null)
-
-  const liveConducteurId = useMemo(() => {
-    if (tab !== 'conducteurs') return null
-    if (hoverRow?.rowId) return hoverRow.rowId
-    if (assignModal?.conducteur_id) return assignModal.conducteur_id
-    return null
-  }, [tab, hoverRow?.rowId, assignModal?.conducteur_id])
 
   const liveComplianceDate = useMemo(() => parseDay(selectedDay), [selectedDay])
   const [savingOtId, setSavingOtId] = useState<string | null>(null)
@@ -361,11 +358,20 @@ export default function Planning() {
   const [filterType,    setFilterType]    = useState('')
   const [filterClient,  setFilterClient]  = useState('')
   const [centerFilter, setCenterFilter] = useState('')
+  const [depotResourceFilter, setDepotResourceFilter] = useState(() => {
+    try {
+      return localStorage.getItem(DEPOT_RESOURCE_FILTER_KEY) ?? ''
+    } catch {
+      return ''
+    }
+  })
+  const [includeDepotUnassigned, setIncludeDepotUnassigned] = useState<boolean>(() => loadBooleanSetting(DEPOT_INCLUDE_UNASSIGNED_KEY, true))
   const [showOnlyAlert, setShowOnlyAlert] = useState(false)
   const [showOnlyConflicts, setShowOnlyConflicts] = useState(false)
   const [conflictPanelRowId, setConflictPanelRowId] = useState<string | null>(null)
   const [resolvingRowId, setResolvingRowId] = useState<string | null>(null)
   const [conflictActionKey, setConflictActionKey] = useState<string | null>(null)
+  const [dropBlockedHint, setDropBlockedHint] = useState<{ rowId: string; message: string } | null>(null)
   const [bottomDockTab, setBottomDockTab] = useState<BottomDockTab>('missions')
   const [simulationMode, setSimulationMode] = useState<boolean>(() => loadBooleanSetting(SIMULATION_MODE_KEY, false))
   const [autoHabillage, setAutoHabillage] = useState<boolean>(() => loadBooleanSetting(AUTO_HABILLAGE_KEY, true))
@@ -380,6 +386,20 @@ export default function Planning() {
   const [retardCommentaire, setRetardCommentaire] = useState('')
   const [retardNouvelleDateLivraison, setRetardNouvelleDateLivraison] = useState('')
   const [retardSaving, setRetardSaving] = useState(false)
+
+  useEffect(() => {
+    try {
+      if (depotResourceFilter) localStorage.setItem(DEPOT_RESOURCE_FILTER_KEY, depotResourceFilter)
+      else localStorage.removeItem(DEPOT_RESOURCE_FILTER_KEY)
+    } catch {
+      // ignore localStorage access issues
+    }
+  }, [depotResourceFilter])
+
+  useEffect(() => {
+    saveBooleanSetting(DEPOT_INCLUDE_UNASSIGNED_KEY, includeDepotUnassigned)
+  }, [includeDepotUnassigned])
+
   const [showExploitantControls, setShowExploitantControls] = useState(false)
   const [exploitantFeatures, setExploitantFeatures] = useState<Record<ExploitantFeatureKey, boolean>>(() => {
     try {
@@ -405,47 +425,8 @@ export default function Planning() {
   const [showRouteOptimizer, setShowRouteOptimizer] = useState(false)
   const [optimizerConducteurId, setOptimizerConducteurId] = useState<string | null>(null)
 
-  // Retour en charge IA
-  const [retourChargeForm, setRetourChargeForm] = useState<RetourChargeForm>({
-    vehicule_id: '',
-    date_debut: '',
-    date_fin: '',
-    retour_depot_avant: '',
-    rayon_km: 200,
-  })
-  const [retourChargeSuggestions, setRetourChargeSuggestions] = useState<RetourChargeSuggestion[]>([])
-  const [retourChargeLoading, setRetourChargeLoading] = useState(false)
-  const [retourChargeError, setRetourChargeError] = useState<string | null>(null)
-  const [retourChargeIaConnected, setRetourChargeIaConnected] = useState(false)
-
   // -- Radar km � vide ---------------------------------------------------------
   const [kmVideSynthese, setKmVideSynthese] = useState<Map<string, { taux_charge_pct: number | null; total_km_vide_estime: number | null }>>(new Map())
-
-  // -- Relais ------------------------------------------------------------------
-  const [relaisList, setRelaisList] = useState<TransportRelaisRecord[]>([])
-  const [relaisLoading, setRelaisLoading] = useState(false)
-  const [relaisError, setRelaisError] = useState<string | null>(null)
-  const [relaisModal, setRelaisModal] = useState<RelaisModal>({ mode: null, ot: null, relais: null })
-  const [relaisDepotForm, setRelaisDepotForm] = useState<RelaisDepotForm>({
-    type_relais: 'depot_marchandise',
-    site_id: '',
-    lieu_nom: '',
-    lieu_adresse: '',
-    date_depot: new Date().toISOString().slice(0, 16),
-    conducteur_depose_id: '',
-    vehicule_depose_id: '',
-    remorque_depose_id: '',
-    notes: '',
-  })
-  const [relaisAssignForm, setRelaisAssignForm] = useState<RelaisAssignForm>({
-    conducteur_reprise_id: '',
-    vehicule_reprise_id: '',
-    remorque_reprise_id: '',
-    date_reprise_prevue: '',
-    notes: '',
-  })
-  const [relaisSaving, setRelaisSaving] = useState(false)
-  const [relaisDepotSites, setRelaisDepotSites] = useState<{ id: string; nom: string; ville: string | null; adresse: string }[]>([])
 
   // Menu contextuel
   const [contextMenu, setContextMenu] = useState<ContextMenu>(null)
@@ -641,80 +622,6 @@ export default function Planning() {
     }
   }
 
-  function buildFallbackRetourChargeSuggestions(form: RetourChargeForm): RetourChargeSuggestion[] {
-    const startBoundary = new Date(`${form.date_debut}T00:00:00`).getTime()
-    const endBoundary = new Date(`${form.date_fin}T23:59:59`).getTime()
-    const hasDateWindow = Number.isFinite(startBoundary) && Number.isFinite(endBoundary)
-    if (!hasDateWindow) return []
-
-    const retourDepotLimitMs = form.retour_depot_avant
-      ? new Date(form.retour_depot_avant).getTime()
-      : null
-
-    const allCandidates = [...pool, ...ganttOTs]
-    const uniqueById = new Map<string, OT>()
-    for (const ot of allCandidates) {
-      if (!uniqueById.has(ot.id)) uniqueById.set(ot.id, ot)
-    }
-
-    const suggestions = Array.from(uniqueById.values())
-      .filter(ot => {
-        const transportStatus = (ot.statut_transport ?? '').trim().toLowerCase()
-        const legacyStatus = (ot.statut ?? '').trim().toLowerCase()
-        const isTerminal = transportStatus === 'termine' || transportStatus === 'annule'
-          || legacyStatus === 'livre' || legacyStatus === 'facture' || legacyStatus === 'annule'
-        if (isTerminal) return false
-        if (ot.vehicule_id && ot.vehicule_id !== form.vehicule_id) return false
-
-        const pickupMs = new Date(ot.date_chargement_prevue ?? '').getTime()
-        if (!Number.isFinite(pickupMs)) return false
-        if (pickupMs < startBoundary || pickupMs > endBoundary) return false
-        return true
-      })
-      .map<RetourChargeSuggestion | null>(ot => {
-        const distanceKm = ot.distance_km && ot.distance_km > 0 ? ot.distance_km : 180
-        const estimatedEmptyKm = clampInt((distanceKm * 0.22) + ((ot.type_transport ?? '').toLowerCase().includes('groupage') ? 24 : 0), 8, Math.max(20, form.rayon_km * 2))
-        if (estimatedEmptyKm > Math.max(form.rayon_km * 1.25, form.rayon_km + 35)) return null
-
-        const revenue = ot.prix_ht ?? 0
-        const estimatedCost = (distanceKm * 0.92) + (estimatedEmptyKm * 0.88)
-        const grossMargin = revenue - estimatedCost
-        const distancePenalty = Math.max(0, estimatedEmptyKm - 45) * 0.18
-        const marginScore = clampInt((grossMargin / Math.max(300, revenue || 700)) * 100 + 45 - distancePenalty, 0, 100)
-
-        const pickupMs = new Date(ot.date_chargement_prevue ?? '').getTime()
-        const deliveryMs = new Date(ot.date_livraison_prevue ?? '').getTime()
-        const loadedDurationMinutes = Number.isFinite(deliveryMs) && deliveryMs > pickupMs
-          ? Math.max(60, Math.round((deliveryMs - pickupMs) / 60000))
-          : clampInt((distanceKm / 62) * 60 + 55, 90, 720)
-        const estimatedEmptyDurationHours = Math.round(((estimatedEmptyKm / 62) * 10)) / 10
-        const predictedFinishMs = pickupMs + (loadedDurationMinutes * 60000) + Math.round(estimatedEmptyDurationHours * 3600000)
-        const retourDepotOk = !retourDepotLimitMs || !Number.isFinite(retourDepotLimitMs) || predictedFinishMs <= retourDepotLimitMs
-        const finalScore = clampInt(marginScore + (retourDepotOk ? 8 : -22), 0, 100)
-
-        return {
-          id: ot.id,
-          reference: ot.reference,
-          client_nom: ot.client_nom,
-          date_chargement_prevue: ot.date_chargement_prevue,
-          date_livraison_prevue: ot.date_livraison_prevue,
-          nature_marchandise: ot.nature_marchandise,
-          prix_ht: ot.prix_ht,
-          distance_km: ot.distance_km,
-          dist_vide_km: estimatedEmptyKm,
-          score_rentabilite: finalScore,
-          duree_vide_estimee_h: estimatedEmptyDurationHours,
-          retour_depot_ok: retourDepotOk,
-          explication_ia: 'Prediction locale optimisee (fallback hors connexion IA).',
-          ia_provider: 'local-heuristique',
-        }
-      })
-      .filter((item): item is RetourChargeSuggestion => Boolean(item))
-      .sort((left, right) => right.score_rentabilite - left.score_rentabilite)
-
-    return suggestions.slice(0, 15)
-  }
-
   function buildGeneratedInlineEvents(ot: OT, rowId: string): GeneratedInlineEvent[] {
     if (!autoHabillage) return []
     const startISO = ot.date_chargement_prevue
@@ -824,6 +731,13 @@ export default function Planning() {
     const abs = conducteurAbsences.get(conducteurId)
     if (!abs) return []
     return abs.filter(a => a.date_debut <= dateFin && a.date_fin >= dateDebut)
+  }
+
+  function showDropBlockedHint(rowId: string, message: string) {
+    setDropBlockedHint({ rowId, message })
+    window.setTimeout(() => {
+      setDropBlockedHint(current => (current?.rowId === rowId ? null : current))
+    }, 4500)
   }
 
   /** Mat�rialise une pause auto-g�n�r�e en customBlock �ditable */
@@ -1161,10 +1075,13 @@ export default function Planning() {
 
       // Phase secondaire : hydratation des données non critiques et enrichissements V2.
       void (async () => {
-        const [siteR, clientR, aR] = await Promise.all([
+        const [siteR, clientR, aR, depotSitesR, staffDepotR, assetDepotR] = await Promise.all([
           looseSupabase.from('sites_logistiques').select(SITE_SELECT).eq('company_id', companyId ?? 1).order('nom'),
           supabase.from('clients').select('id, nom, actif').eq('actif', true).order('nom'),
           supabase.from('affectations').select('id, conducteur_id, vehicule_id, remorque_id, actif').eq('actif', true),
+          listDepotSites(companyId ?? 1),
+          listActiveDepotAssignments(companyId ?? 1),
+          listActiveAssetDepotAssignments(companyId ?? 1),
         ])
 
         let enrichedConducteurs = [...criticalConducteurs]
@@ -1237,6 +1154,9 @@ export default function Planning() {
         setClients(newClients as ClientRef[])
         setLogisticSites(newSites)
         setAffectations(newAffectations as Affectation[])
+        setDepotSites(depotSitesR)
+        setStaffDepotAssignments(staffDepotR)
+        setAssetDepotAssignments(assetDepotR)
 
         refDataCacheRef.current = {
           ts: Date.now(),
@@ -1394,6 +1314,71 @@ export default function Planning() {
       }
     }
     }, [companyId, planningScope, weekStart, viewMode, monthStart])
+
+  // ── Hooks extraits (Phase 2 refactorisation) — placés ici car loadAll doit être défini ─
+
+  const {
+    relaisList, relaisLoading, relaisError,
+    relaisModal, setRelaisModal,
+    relaisDepotForm, setRelaisDepotForm,
+    relaisAssignForm, setRelaisAssignForm,
+    relaisSaving, relaisDepotSites,
+    loadRelais, openRelaisDepot, openRelaisAssign,
+    submitRelaisDepot, submitRelaisAssign, updateRelaisStatut,
+  } = usePlanningRelais({
+    ensureWriteAllowed,
+    pushPlanningNotice,
+    setBottomDockTab,
+    setContextMenu,
+  })
+
+  const {
+    retourChargeForm, setRetourChargeForm,
+    retourChargeSuggestions,
+    retourChargeLoading,
+    retourChargeError,
+    retourChargeIaConnected,
+    searchRetourCharge,
+  } = usePlanningRetourCharge({
+    pool,
+    ganttOTs,
+    pushPlanningNotice,
+  })
+
+  const {
+    assignModal, setAssignModal,
+    assignKeepDuration, setAssignKeepDuration,
+    assignSaving,
+    openAssign,
+    saveAssign,
+  } = usePlanningAssign({
+    tab,
+    conducteurs,
+    remorques,
+    companyId,
+    blockOnCompliance,
+    blockImpossibleAssignments,
+    isMutatingRef,
+    customBlocks,
+    onCustomBlocksChange: setCustomBlocks,
+    onLoadAll: loadAll,
+    onNotice: pushPlanningNotice,
+    onEnsureWriteAllowed: ensureWriteAllowed,
+    onEnsureGroupageEditable: ensureGroupageEditable,
+    onGetGroupageMembers: getGroupageMembersForOt,
+    onBuildComplianceAudit: buildComplianceAuditSummary,
+    onGetConducteurAbsences: getConducteurAbsencesForPeriod,
+    onCloseSelected: closeSelected,
+  })
+
+  const liveConducteurId = useMemo(() => {
+    if (tab !== 'conducteurs') return null
+    if (hoverRow?.rowId) return hoverRow.rowId
+    if (assignModal?.conducteur_id) return assignModal.conducteur_id
+    return null
+  }, [tab, hoverRow?.rowId, assignModal?.conducteur_id])
+
+  // ── Fin hooks extraits ────────────────────────────────────────────────────────
 
   useEffect(() => { void loadAll() }, [loadAll])
 
@@ -1732,173 +1717,6 @@ export default function Planning() {
     pushPlanningNotice('Course mise a jour.')
   }
 
-  function openAssign(ot: OT, resourceId?: string, dropDay?: string, dropTimeMin?: number, applyToGroupage = false) {
-    const preC = tab === 'conducteurs' ? (resourceId ?? ot.conducteur_id ?? '') : (ot.conducteur_id ?? '')
-    const preV = tab === 'camions'     ? (resourceId ?? ot.vehicule_id   ?? '') : (ot.vehicule_id   ?? '')
-    const preR = tab === 'remorques'   ? (resourceId ?? ot.remorque_id   ?? '') : (ot.remorque_id   ?? '')
-    const baseDate = dropDay ?? isoToDate(ot.date_chargement_prevue)
-    const baseTime = dropTimeMin != null
-      ? `${String(Math.floor(dropTimeMin/60)).padStart(2,'0')}:${String(dropTimeMin%60).padStart(2,'0')}`
-      : isoToTime(ot.date_chargement_prevue)
-    const endDate = dropDay ?? isoToDate(ot.date_livraison_prevue ?? ot.date_chargement_prevue)
-    const endTime = isoToTime(ot.date_livraison_prevue)
-    setAssignModal({ ot, conducteur_id:preC, vehicule_id:preV, remorque_id:preR,
-      date_chargement:baseDate, time_chargement:baseTime, date_livraison:endDate, time_livraison:endTime, applyToGroupage })
-    closeSelected()
-  }
-
-  async function saveAssign() {
-    if (!assignModal) return
-    if (!ensureWriteAllowed('Affectation')) return
-    if (!ensureGroupageEditable(assignModal.ot, 'Affectation')) return
-    // -- V�rification absence RH ----------------------------------------------
-    if (assignModal.conducteur_id) {
-      const absConflicts = getConducteurAbsencesForPeriod(
-        assignModal.conducteur_id,
-        assignModal.date_chargement,
-        assignModal.date_livraison,
-      )
-      if (absConflicts.length > 0) {
-        const cName = conducteurs.find(c => c.id === assignModal.conducteur_id)
-        const absLabel = absConflicts.map(a => `${TYPE_ABSENCE_LABELS[a.type_absence]} (${a.date_debut} ? ${a.date_fin})`).join(', ')
-        const ok = window.confirm(
-          `? ${cName ? `${cName.prenom} ${cName.nom}` : 'Ce conducteur'} est en absence : ${absLabel}.\n\nVoulez-vous affecter quand meme ?`
-        )
-        if (!ok) return
-      }
-    }
-    const targets = assignModal.applyToGroupage ? getGroupageMembersForOt(assignModal.ot) : [assignModal.ot]
-    const otId = assignModal.ot.id
-    setSaving(true)
-    isMutatingRef.current = true
-    const plannedStartISO = toDateTimeISO(assignModal.date_chargement, assignModal.time_chargement)
-    const plannedEndISO = toDateTimeISO(assignModal.date_livraison, assignModal.time_livraison)
-    let lastAuditSummary: { message: string; hasBlocking: boolean } | null = null
-    for (const target of targets) {
-      const auditSummary = await buildComplianceAuditSummary({
-        otId: target.id,
-        conducteurId: assignModal.conducteur_id || null,
-        startISO: plannedStartISO,
-        endISO: plannedEndISO,
-      })
-      lastAuditSummary = auditSummary
-      if (blockOnCompliance && auditSummary?.hasBlocking) {
-        setSaving(false)
-        const prefix = assignModal.applyToGroupage ? `Programmation du lot bloquee sur ${target.reference}.` : 'Affectation bloquee.'
-        pushPlanningNotice(`${prefix} ${auditSummary.message}`, 'error')
-        return
-      }
-    }
-
-    const updatePayload = {
-      statut: 'planifie',
-      conducteur_id:          assignModal.conducteur_id  || null,
-      vehicule_id:            assignModal.vehicule_id    || null,
-      remorque_id:            assignModal.remorque_id    || null,
-      date_chargement_prevue: plannedStartISO,
-      date_livraison_prevue:  plannedEndISO,
-    }
-
-    // ── Validation remorque ↔ chargement ─────────────────────────────────────
-    if (assignModal.remorque_id) {
-      const rem = remorques.find(r => r.id === assignModal.remorque_id)
-      if (rem) {
-        const firstOt = targets[0]
-        const otData = {
-          type_chargement:    firstOt.type_chargement,
-          poids_kg:           firstOt.poids_kg,
-          tonnage:            firstOt.tonnage,
-          volume_m3:          firstOt.volume_m3,
-          longueur_m:         firstOt.longueur_m,
-          hors_gabarit:       firstOt.hors_gabarit,
-          temperature_dirigee: firstOt.temperature_dirigee,
-          charge_indivisible: firstOt.charge_indivisible,
-        }
-        const validation = validateTrailerAssignment(otData, rem)
-        if (validation.status === 'blocked' && blockImpossibleAssignments) {
-          setSaving(false)
-          isMutatingRef.current = false
-          pushPlanningNotice(
-            `Affectation remorque BLOQUÉE : ${validation.errors.map(e => e.message).join(' | ')}`,
-            'error',
-          )
-          return
-        }
-        if (validation.status === 'blocked' && !blockImpossibleAssignments) {
-          pushPlanningNotice(
-            `Affectation normalement bloquee (mode permissif actif) : ${validation.errors.map(e => e.message).join(' | ')}`,
-            'success',
-          )
-        }
-        if (validation.status === 'warning') {
-          const msg = validation.warnings.map(w => w.message).join('\n')
-          const ok = window.confirm(`⚠ Avertissement remorque :\n\n${msg}\n\nContinuer malgré tout ?`)
-          if (!ok) { setSaving(false); isMutatingRef.current = false; return }
-        }
-      }
-    }
-    const firstTry = assignModal.applyToGroupage
-      ? await supabase
-          .from('ordres_transport')
-          .update(updatePayload)
-          .in('id', targets.map(target => target.id))
-      : await supabase
-          .from('ordres_transport')
-          .update(updatePayload)
-          .eq('id', otId)
-    if (firstTry.error) {
-      // Some schemas store planned dates as DATE instead of TIMESTAMP.
-      const fallbackPayload = {
-        ...updatePayload,
-        date_chargement_prevue: assignModal.date_chargement,
-        date_livraison_prevue: assignModal.date_livraison,
-      }
-      const fallbackTry = assignModal.applyToGroupage
-        ? await supabase
-            .from('ordres_transport')
-            .update(fallbackPayload)
-            .in('id', targets.map(target => target.id))
-        : await supabase
-            .from('ordres_transport')
-            .update(fallbackPayload)
-            .eq('id', otId)
-      if (fallbackTry.error) {
-        setSaving(false)
-        const message = getUpdateFailureReason(fallbackTry)
-        pushPlanningNotice(`Affectation impossible: ${message}`, 'error')
-        return
-      }
-    }
-    setCustomBlocks(prev => {
-      const targetIds = new Set(targets.map(target => target.id))
-      const upd = prev.filter(block => !block.otId || !targetIds.has(block.otId))
-      if (upd.length !== prev.length) saveCustomBlocks(upd)
-      return upd
-    })
-    // Log historique en fire-and-forget
-    void logOtHistoryBatch(
-      targets.map(t => t.id),
-      {
-        companyId: companyId ?? 1,
-        action: 'affectation',
-        nouveauStatut: 'planifie',
-        details: {
-          conducteur_id: assignModal.conducteur_id || null,
-          vehicule_id: assignModal.vehicule_id || null,
-          date_chargement: plannedStartISO,
-          date_livraison: plannedEndISO,
-        },
-      },
-    )
-    setSaving(false); isMutatingRef.current = false; setAssignModal(null); loadAll()
-    pushPlanningNotice(
-      lastAuditSummary
-        ? `${assignModal.applyToGroupage ? 'Lot programme.' : 'Affectation enregistree.'} ${lastAuditSummary.message}`
-        : assignModal.applyToGroupage ? 'Lot programme.' : 'Affectation enregistree.',
-      blockOnCompliance && lastAuditSummary?.hasBlocking ? 'error' : 'success',
-    )
-  }
-
   function getScheduledBounds(ot: OT): { startISO: string; endISO: string } | null {
     const startISO = ot.date_chargement_prevue ?? ot.date_livraison_prevue
     const endISO = ot.date_livraison_prevue ?? ot.date_chargement_prevue
@@ -1917,6 +1735,22 @@ export default function Planning() {
         openAssign(member, resourceId)
         pushPlanningNotice('Cette course doit etre reglee depuis sa fiche pour definir debut et fin avant positionnement sur le planning.', 'error')
         return false
+      }
+      if (tab === 'conducteurs') {
+        const absConflicts = getConducteurAbsencesForPeriod(
+          resourceId,
+          schedule.startISO.slice(0, 10),
+          schedule.endISO.slice(0, 10),
+        )
+        if (absConflicts.length > 0) {
+          const absLabel = absConflicts
+            .map(a => `${TYPE_ABSENCE_LABELS[a.type_absence]} (${a.date_debut} - ${a.date_fin})`)
+            .join(', ')
+          const blockMessage = `Affectation bloquee: conducteur absent (${absLabel}).`
+          showDropBlockedHint(resourceId, blockMessage)
+          pushPlanningNotice(blockMessage, 'error')
+          return false
+        }
       }
     }
 
@@ -2000,134 +1834,6 @@ export default function Planning() {
 
   // ── Direct block move ─────────────────────────────────────────────────────────
 
-  async function loadRelais() {
-    setRelaisLoading(true)
-    try {
-      const res = await fetch('/.netlify/functions/v11-transport-relay')
-      if (!res.ok) { setRelaisError('Erreur chargement relais.'); return }
-      const body = await res.json() as { data?: TransportRelaisRecord[] }
-      setRelaisList(body.data ?? [])
-      setRelaisError(null)
-    } catch {
-      setRelaisError('Erreur reseau relais.')
-    } finally {
-      setRelaisLoading(false)
-    }
-  }
-
-  async function loadRelaisDepotSites() {
-    try {
-      const res = await fetch('/.netlify/functions/v11-logistic-sites?est_depot_relais=true')
-      if (!res.ok) return
-      const body = await res.json() as { data?: { id: string; nom: string; ville: string | null; adresse: string }[] }
-      setRelaisDepotSites(body.data ?? [])
-    } catch { /* silencieux */ }
-  }
-
-  function openRelaisDepot(ot: OT, type: TypeRelais = 'depot_marchandise') {
-    if (!ensureWriteAllowed('Depot relais')) return
-    setRelaisDepotForm({
-      type_relais: type,
-      site_id: '',
-      lieu_nom: '',
-      lieu_adresse: '',
-      date_depot: new Date().toISOString().slice(0, 16),
-      conducteur_depose_id: ot.conducteur_id ?? '',
-      vehicule_depose_id: ot.vehicule_id ?? '',
-      remorque_depose_id: ot.remorque_id ?? '',
-      notes: '',
-    })
-    void loadRelaisDepotSites()
-    setRelaisModal({ mode: type === 'relais_conducteur' ? 'relais_conducteur' : 'depot', ot, relais: null })
-    setContextMenu(null)
-  }
-
-  function openRelaisAssign(relais: TransportRelaisRecord) {
-    setRelaisAssignForm({
-      conducteur_reprise_id: '',
-      vehicule_reprise_id: '',
-      remorque_reprise_id: '',
-      date_reprise_prevue: '',
-      notes: '',
-    })
-    setRelaisModal({ mode: 'assign', ot: null, relais })
-  }
-
-  async function submitRelaisDepot(e: React.FormEvent) {
-    e.preventDefault()
-    if (!relaisModal.ot) return
-    const form = relaisDepotForm
-    const lieuNom = form.site_id
-      ? (relaisDepotSites.find(s => s.id === form.site_id)?.nom ?? form.lieu_nom.trim())
-      : form.lieu_nom.trim()
-    if (!lieuNom) return
-    setRelaisSaving(true)
-    try {
-      const res = await fetch('/.netlify/functions/v11-transport-relay', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ot_id: relaisModal.ot.id,
-          type_relais: form.type_relais,
-          site_id: form.site_id || null,
-          lieu_nom: lieuNom,
-          lieu_adresse: form.lieu_adresse.trim() || null,
-          conducteur_depose_id: form.conducteur_depose_id || null,
-          vehicule_depose_id: form.vehicule_depose_id || null,
-          remorque_depose_id: form.remorque_depose_id || null,
-          date_depot: form.date_depot || new Date().toISOString(),
-          notes: form.notes.trim() || null,
-        }),
-      })
-      if (!res.ok) { pushPlanningNotice('Erreur creation relais.', 'error'); return }
-      setRelaisModal({ mode: null, ot: null, relais: null })
-      void loadRelais()
-      setBottomDockTab('relais')
-    } catch {
-      pushPlanningNotice('Erreur reseau.', 'error')
-    } finally {
-      setRelaisSaving(false)
-    }
-  }
-
-  async function submitRelaisAssign(e: React.FormEvent) {
-    e.preventDefault()
-    if (!relaisModal.relais) return
-    const form = relaisAssignForm
-    setRelaisSaving(true)
-    try {
-      const res = await fetch(`/.netlify/functions/v11-transport-relay?relais_id=${relaisModal.relais.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          conducteur_reprise_id: form.conducteur_reprise_id || null,
-          vehicule_reprise_id: form.vehicule_reprise_id || null,
-          remorque_reprise_id: form.remorque_reprise_id || null,
-          date_reprise_prevue: form.date_reprise_prevue || null,
-          notes: form.notes.trim() || null,
-        }),
-      })
-      if (!res.ok) { pushPlanningNotice('Erreur affectation.', 'error'); return }
-      setRelaisModal({ mode: null, ot: null, relais: null })
-      void loadRelais()
-    } catch {
-      pushPlanningNotice('Erreur reseau.', 'error')
-    } finally {
-      setRelaisSaving(false)
-    }
-  }
-
-  async function updateRelaisStatut(relaisId: string, statut: TransportRelaisStatut) {
-    try {
-      await fetch(`/.netlify/functions/v11-transport-relay?relais_id=${relaisId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ statut }),
-      })
-      void loadRelais()
-    } catch { /* silencieux */ }
-  }
-
   async function moveBlock(ot: OT, resourceId: string, newStartISO: string, newEndISO: string, notifySuccess = true) {
     if (!ensureWriteAllowed('Deplacement de course')) return
     if (!ensureGroupageEditable(ot, 'Deplacement')) return
@@ -2159,6 +1865,26 @@ export default function Planning() {
         payload,
       }
     })
+
+    if (tab === 'conducteurs') {
+      for (const target of moveTargets) {
+        const absConflicts = getConducteurAbsencesForPeriod(
+          resourceId,
+          target.shiftedStartIso.slice(0, 10),
+          target.shiftedEndIso.slice(0, 10),
+        )
+        if (absConflicts.length > 0) {
+          const absLabel = absConflicts
+            .map(absence => `${TYPE_ABSENCE_LABELS[absence.type_absence]} (${absence.date_debut} - ${absence.date_fin})`)
+            .join(', ')
+          const blockMessage = `Deplacement bloque: conducteur absent (${absLabel}).`
+          showDropBlockedHint(resourceId, blockMessage)
+          pushPlanningNotice(blockMessage, 'error')
+          setSavingOtId(null)
+          return
+        }
+      }
+    }
 
     let lastAuditSummary: { message: string; hasBlocking: boolean } | null = null
     for (const target of moveTargets) {
@@ -3106,7 +2832,7 @@ export default function Planning() {
   const weekDays  = Array.from({ length: 7  }, (_, i) => addDays(weekStart, i))
   const hourSlots = Array.from({ length: 24 }, (_, i) => i)  // 00-23
 
-  type Row = { id:string; primary:string; secondary:string; isCustom?:boolean; isAffretementAsset?: boolean }
+  type Row = { id:string; primary:string; secondary:string; depotLabel?: string; isCustom?:boolean; isAffretementAsset?: boolean }
   const activeAffretementContracts = useMemo(
     () => affretementContracts.filter(contract => ACTIVE_AFFRETEMENT_STATUSES.includes(contract.status)),
     [affretementContracts],
@@ -3238,14 +2964,103 @@ export default function Planning() {
     return [base, extra].filter(Boolean).join(' - ')
   }
 
+  const conducteurDepotById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const assignment of staffDepotAssignments) {
+      if (assignment.conducteur_id) map.set(assignment.conducteur_id, assignment.depot_site_id)
+    }
+    return map
+  }, [staffDepotAssignments])
+
+  const vehiculeDepotById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const assignment of assetDepotAssignments) {
+      if (assignment.vehicule_id) map.set(assignment.vehicule_id, assignment.depot_site_id)
+    }
+    return map
+  }, [assetDepotAssignments])
+
+  const remorqueDepotById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const assignment of assetDepotAssignments) {
+      if (assignment.remorque_id) map.set(assignment.remorque_id, assignment.depot_site_id)
+    }
+    return map
+  }, [assetDepotAssignments])
+
+  const depotNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const site of depotSites) map.set(site.id, site.nom)
+    return map
+  }, [depotSites])
+
+  const getDepotLabel = useCallback((depotId?: string) => {
+    const depotName = depotId ? (depotNameById.get(depotId) ?? null) : null
+    if (!depotName) return ''
+    return depotName
+  }, [depotNameById])
+
   const dbRows: Row[] = tab === 'conducteurs'
-    ? conducteurs.map(c => ({ id:c.id, primary:`${c.prenom} ${c.nom}`,  secondary:conducteurSecondary(c.id) }))
+    ? conducteurs.map(c => ({
+      id: c.id,
+      primary: `${c.prenom} ${c.nom}`,
+      secondary: conducteurSecondary(c.id),
+      depotLabel: getDepotLabel(conducteurDepotById.get(c.id)),
+    }))
     : tab === 'camions'
-    ? vehicules.map(v  => ({ id:v.id, primary:v.immatriculation,         secondary:vehiculeSecondary(v) }))
-    : remorques.map(r  => ({ id:r.id, primary:r.immatriculation,         secondary:remorqueSecondary(r) }))
+    ? vehicules.map(v  => ({
+      id: v.id,
+      primary: v.immatriculation,
+      secondary: vehiculeSecondary(v),
+      depotLabel: getDepotLabel(vehiculeDepotById.get(v.id)),
+    }))
+    : remorques.map(r  => ({
+      id: r.id,
+      primary: r.immatriculation,
+      secondary: remorqueSecondary(r),
+      depotLabel: getDepotLabel(remorqueDepotById.get(r.id)),
+    }))
+
+  const resourceMatchesDepotFilter = useCallback((resourceId: string) => {
+    if (!depotResourceFilter) return true
+    const depotId = tab === 'conducteurs'
+      ? conducteurDepotById.get(resourceId)
+      : tab === 'camions'
+        ? vehiculeDepotById.get(resourceId)
+        : remorqueDepotById.get(resourceId)
+
+    if (depotId === depotResourceFilter) return true
+    if (includeDepotUnassigned && !depotId) return true
+    return false
+  }, [conducteurDepotById, depotResourceFilter, includeDepotUnassigned, remorqueDepotById, tab, vehiculeDepotById])
+
+  const otMatchesDepotFilter = useCallback((ot: OT) => {
+    if (!depotResourceFilter) return true
+    const resourceId = tab === 'conducteurs'
+      ? ot.conducteur_id
+      : tab === 'camions'
+        ? ot.vehicule_id
+        : ot.remorque_id
+    if (!resourceId) return includeDepotUnassigned
+
+    const depotId = tab === 'conducteurs'
+      ? conducteurDepotById.get(resourceId)
+      : tab === 'camions'
+        ? vehiculeDepotById.get(resourceId)
+        : remorqueDepotById.get(resourceId)
+
+    if (depotId === depotResourceFilter) return true
+    if (includeDepotUnassigned && !depotId) return true
+    return false
+  }, [conducteurDepotById, depotResourceFilter, includeDepotUnassigned, remorqueDepotById, tab, vehiculeDepotById])
+
+  const filteredDbRows = useMemo(
+    () => dbRows.filter(row => resourceMatchesDepotFilter(row.id)),
+    [dbRows, resourceMatchesDepotFilter],
+  )
 
   const allRows: Row[] = [
-    ...dbRows,
+    ...filteredDbRows,
     ...affretementRows,
     ...customRows.map(r => ({ id:r.id, primary:r.label, secondary:r.subtitle, isCustom:true })),
   ]
@@ -3348,7 +3163,7 @@ export default function Planning() {
       }
       if (showOnlyConflicts && (rowConflictCountById[row.id] ?? 0) === 0) return false
       if (!q) return true
-      const haystack = `${row.primary} ${row.secondary}`.toLowerCase()
+      const haystack = `${row.primary} ${row.secondary} ${row.depotLabel ?? ''}`.toLowerCase()
       return haystack.includes(q)
     })
   }, [orderedRows, resourceSearch, showOnlyAlert, showOnlyConflicts, rowConflictCountById, today, pool, ganttOTs, customBlocks, tab, planningScope, affretementRowIds, customOTIds])
@@ -3575,6 +3390,7 @@ export default function Planning() {
     let list = pool
       .filter(ot => !customOTIds.has(ot.id))
       .filter(ot => !centerFilter || ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter)
+      .filter(ot => otMatchesDepotFilter(ot))
       .filter(ot => {
         if (viewMode === 'semaine') return blockPos(ot, weekStart) !== null
         if (viewMode === 'mois') {
@@ -3594,7 +3410,7 @@ export default function Planning() {
     if (filterType) list = list.filter(o => o.type_transport === filterType)
     if (filterClient) list = list.filter(o => o.client_nom === filterClient)
     return list
-  }, [pool, customOTIds, centerFilter, viewMode, weekStart, selectedDay, poolSearch, filterType, filterClient, viewPeriodStartISO, viewPeriodEndISO])
+  }, [pool, customOTIds, centerFilter, otMatchesDepotFilter, viewMode, weekStart, selectedDay, poolSearch, filterType, filterClient, viewPeriodStartISO, viewPeriodEndISO])
 
   function getAffretementRowId(ot: OT): string | null {
     const context = affretementContextByOtId[ot.id]
@@ -4323,8 +4139,20 @@ export default function Planning() {
             )
           })()}
 
+          {dropBlockedHint?.rowId === row.id && (
+            <span className="text-[9px] bg-red-900/40 border border-red-500/50 text-red-200 rounded-full px-1.5 py-0.5 font-semibold flex-shrink-0" title={dropBlockedHint.message}>
+              Affectation bloquee
+            </span>
+          )}
+
           {/* ── NOM de la ressource ──────────────────────────────────────────── */}
           <p className={`text-sm font-semibold truncate ${row.isAffretementAsset ? 'text-blue-200' : 'text-slate-200'}`}>{row.primary}</p>
+
+          {row.depotLabel && !row.isCustom && !row.isAffretementAsset && (
+            <span className="text-[9px] bg-cyan-500/15 border border-cyan-400/35 text-cyan-200 rounded-full px-1.5 py-0.5 font-semibold flex-shrink-0" title={`Depot ${row.depotLabel}`}>
+              Depot {row.depotLabel}
+            </span>
+          )}
 
           {/* ── PRIORITÉ 2 : après le nom — orange — attention ───────────────── */}
 
@@ -5109,6 +4937,31 @@ export default function Planning() {
               ))}
             </select>
           </div>
+
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <span className="text-[10px] text-secondary whitespace-nowrap">Depot :</span>
+            <select
+              value={depotResourceFilter}
+              onChange={e => setDepotResourceFilter(e.target.value)}
+              className="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-indigo-500 transition-colors max-w-[150px]"
+            >
+              <option value="">Tous</option>
+              {depotSites.map(site => (
+                <option key={site.id} value={site.id}>{site.nom}</option>
+              ))}
+            </select>
+          </div>
+
+          {depotResourceFilter && (
+            <button
+              type="button"
+              onClick={() => setIncludeDepotUnassigned(v => !v)}
+              className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${includeDepotUnassigned ? 'bg-blue-500/20 border-blue-500/40 text-blue-300' : 'bg-slate-800 border-slate-700 text-secondary hover:text-slate-200'}`}
+              title="Inclure ou exclure les ressources sans depot"
+            >
+              {includeDepotUnassigned ? 'Non affectes inclus' : 'Non affectes exclus'}
+            </button>
+          )}
 
           {/* Legende */}
           <div className="ml-auto flex items-center gap-2 text-[10px] text-secondary py-2 flex-wrap justify-end flex-shrink-0">
@@ -6738,60 +6591,7 @@ export default function Planning() {
                       <button
                         type="button"
                         disabled={retourChargeLoading || !retourChargeForm.vehicule_id || !retourChargeForm.date_debut || !retourChargeForm.date_fin}
-                        onClick={async () => {
-                          setRetourChargeLoading(true)
-                          setRetourChargeError(null)
-                          try {
-                            const { data: sessionData } = await supabase.auth.getSession()
-                            const token = sessionData.session?.access_token
-                            // Position de reference : derniere livraison du vehicule dans les OT termines
-                            const { data: lastOt } = await supabase
-                              .from('ordres_transport')
-                              .select('livraison_lat, livraison_lng')
-                              .eq('vehicule_id', retourChargeForm.vehicule_id)
-                              .in('statut_transport', ST_TERMINE)
-                              .order('date_livraison_prevue', { ascending: false })
-                              .limit(1)
-                              .maybeSingle()
-                            const posLat: number = (lastOt as { livraison_lat?: number | null } | null)?.livraison_lat ?? 48.8566
-                            const posLng: number = (lastOt as { livraison_lng?: number | null } | null)?.livraison_lng ?? 2.3522
-                            if (!token) throw new Error('Session absente pour le moteur IA distant.')
-
-                            const res = await fetch('/.netlify/functions/v11-ai-placement', {
-                              method: 'POST',
-                              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                vehicule_id: retourChargeForm.vehicule_id,
-                                position_lat: posLat,
-                                position_lng: posLng,
-                                date_debut: retourChargeForm.date_debut,
-                                date_fin: retourChargeForm.date_fin,
-                                retour_depot_avant: retourChargeForm.retour_depot_avant || undefined,
-                                rayon_km: retourChargeForm.rayon_km,
-                                limit: 15,
-                              }),
-                            })
-                            const json = await res.json()
-                            if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`)
-
-                            setRetourChargeSuggestions(json.suggestions ?? [])
-                            setRetourChargeIaConnected(true)
-                          } catch (err) {
-                            const fallbackSuggestions = buildFallbackRetourChargeSuggestions(retourChargeForm)
-                            setRetourChargeIaConnected(false)
-                            setRetourChargeSuggestions(fallbackSuggestions)
-
-                            if (fallbackSuggestions.length > 0) {
-                              setRetourChargeError(null)
-                              pushPlanningNotice('IA indisponible: predictions locales optimisees appliquees.')
-                            } else {
-                              const detail = err instanceof Error ? err.message : 'Erreur recherche.'
-                              setRetourChargeError(`IA indisponible. Mode local actif, mais aucune suggestion exploitable. (${detail})`)
-                            }
-                          } finally {
-                            setRetourChargeLoading(false)
-                          }
-                        }}
+                        onClick={() => void searchRetourCharge()}
                         className="w-full rounded-lg px-3 py-2 text-xs font-semibold text-white disabled:opacity-40 transition-colors"
                         style={{ background: '#6366f1' }}
                       >
@@ -7237,9 +7037,9 @@ export default function Planning() {
 
             <div className="p-5 border-t border-slate-800 flex gap-3 justify-end bg-slate-900/95">
               <button onClick={() => setAssignModal(null)} className="px-4 py-2 text-sm text-muted hover:text-white transition-colors">Annuler</button>
-              <button onClick={saveAssign} disabled={saving}
+              <button onClick={saveAssign} disabled={assignSaving}
                 className="px-5 py-2.5 bg-surface text-heading text-sm font-semibold rounded-xl hover:bg-surface-2 disabled:opacity-50 transition-colors">
-                {saving ? 'Enregistrement...' : 'Placer sur le planning'}
+                {assignSaving ? 'Enregistrement...' : 'Placer sur le planning'}
               </button>
             </div>
           </div>

@@ -2,6 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ROLE_LABELS, type Role, useAuth } from '@/lib/auth'
 import type { Tables } from '@/lib/database.types'
+import {
+  listActiveDepotAssignments,
+  listDepotSites,
+  type DepotSite,
+  type StaffDepotAssignment,
+} from '@/lib/staffDepots'
 
 type Profil = Tables<'profils'>
 type ManagedUser = Profil & {
@@ -262,7 +268,7 @@ async function adminRequest<T>(accessToken: string, method: 'GET' | 'POST' | 'PA
 }
 
 export default function Utilisateurs() {
-  const { session, isPlatformAdmin } = useAuth()
+  const { session, isPlatformAdmin, companyId } = useAuth()
   const savedFilters = useMemo(() => readSavedFilters(), [])
 
   const [users, setUsers] = useState<ManagedUser[]>([])
@@ -270,6 +276,8 @@ export default function Utilisateurs() {
   const [roleChanges, setRoleChanges] = useState<RoleChange[]>([])
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
   const [permissionsCatalog, setPermissionsCatalog] = useState<PermissionCatalogEntry[]>([])
+  const [depotSites, setDepotSites] = useState<DepotSite[]>([])
+  const [depotAssignments, setDepotAssignments] = useState<StaffDepotAssignment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -311,6 +319,7 @@ export default function Utilisateurs() {
   const [editTemplateKey, setEditTemplateKey] = useState('')
   const [editNotes, setEditNotes] = useState('')
   const [editExternalEmail, setEditExternalEmail] = useState('')
+  const [editDepotSiteId, setEditDepotSiteId] = useState('')
   const [saving, setSaving] = useState(false)
 
   const [confirmAction, setConfirmAction] = useState<{ id: string; action: string; name: string } | null>(null)
@@ -404,12 +413,25 @@ export default function Utilisateurs() {
         audit_page: auditPage,
         audit_page_size: auditPageSize,
       })
-      setUsers(Array.isArray(data.users) ? data.users : [])
+      const loadedUsers = Array.isArray(data.users) ? data.users : []
+      const companyIds = Array.from(new Set(
+        loadedUsers
+          .map(user => user.company_id)
+          .filter((value): value is number => typeof value === 'number' && Number.isFinite(value)),
+      ))
+      const [loadedDepotSites, loadedDepotAssignments] = await Promise.all([
+        isPlatformAdmin ? listDepotSites() : (typeof companyId === 'number' ? listDepotSites(companyId) : Promise.resolve([])),
+        companyIds.length > 0 ? listActiveDepotAssignments(companyIds, { profilIds: loadedUsers.map(user => user.id) }) : Promise.resolve([]),
+      ])
+
+      setUsers(loadedUsers)
       setRequests(Array.isArray(data.requests) ? data.requests : [])
       setRoleChanges(Array.isArray(data.role_changes) ? data.role_changes : [])
       setAuditEvents(Array.isArray(data.audit_events) ? data.audit_events : [])
       setAuditPagination(data.audit_pagination ?? { page: auditPage, page_size: auditPageSize, total: Array.isArray(data.audit_events) ? data.audit_events.length : 0, days: auditDays, search: auditSearch })
       setPermissionsCatalog(Array.isArray(data.permissions_catalog) ? data.permissions_catalog : [])
+      setDepotSites(loadedDepotSites)
+      setDepotAssignments(loadedDepotAssignments)
       setPagination(data.pagination ?? { page, page_size: pageSize, total: Array.isArray(data.users) ? data.users.length : 0 })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Chargement impossible.')
@@ -419,11 +441,13 @@ export default function Utilisateurs() {
       setAuditEvents([])
       setAuditPagination({ page: 1, page_size: auditPageSize, total: 0, days: auditDays, search: auditSearch })
       setPermissionsCatalog([])
+      setDepotSites([])
+      setDepotAssignments([])
       setPagination({ page: 1, page_size: pageSize, total: 0 })
     } finally {
       setLoading(false)
     }
-  }, [auditDays, auditPage, auditPageSize, auditSearch, filterRole, filterStatus, page, pageSize, search, session?.access_token, sortBy, sortOrder])
+  }, [auditDays, auditPage, auditPageSize, auditSearch, companyId, filterRole, filterStatus, isPlatformAdmin, page, pageSize, search, session?.access_token, sortBy, sortOrder])
 
   useEffect(() => {
     void load()
@@ -523,6 +547,11 @@ export default function Utilisateurs() {
   const auditTotalPages = Math.max(1, Math.ceil((auditPagination.total || 0) / Math.max(1, auditPagination.page_size || auditPageSize)))
   const selectedSet = useMemo(() => new Set(selectedUserIds), [selectedUserIds])
   const companyById = useMemo(() => new Map(companyOptions.map(company => [company.id, company.name])), [companyOptions])
+  const depotSiteById = useMemo(() => new Map(depotSites.map(site => [site.id, site])), [depotSites])
+
+  function currentDepotAssignment(profilId: string) {
+    return depotAssignments.find(assignment => assignment.profil_id === profilId && !assignment.ended_at) ?? null
+  }
 
   function startEdit(user: ManagedUser) {
     setEditId(user.id)
@@ -536,6 +565,7 @@ export default function Utilisateurs() {
     setEditTemplateKey('')
     setEditNotes(user.notes_admin ?? '')
     setEditExternalEmail(user.external_email ?? user.email ?? '')
+    setEditDepotSiteId(currentDepotAssignment(user.id)?.depot_site_id ?? '')
   }
 
   function applyPermissionTemplate(templateKey: string, target: 'create' | 'edit') {
@@ -572,6 +602,7 @@ export default function Utilisateurs() {
         max_concurrent_screens: editMaxScreens,
         external_email: editExternalEmail,
         notes_admin: editNotes,
+        current_site_id: editDepotSiteId || null,
         permissions: permissionsCatalog.length > 0
           ? editPermissions
           : editPermissionsCsv.split(',').map(item => item.trim()).filter(Boolean),
@@ -1071,7 +1102,7 @@ export default function Utilisateurs() {
                 <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-discreet">
                   <input type="checkbox" checked={filteredUsers.length > 0 && filteredUsers.every(user => selectedSet.has(user.id))} onChange={toggleSelectPage} />
                 </th>
-                {['Nom', 'Societe', 'Email externe', 'Telephone', 'Role', 'Statut', 'Type', 'Creation', 'Derniere connexion', 'Origine', 'Actions'].map(header => (
+                {['Nom', 'Societe', 'Depot', 'Email externe', 'Telephone', 'Role', 'Statut', 'Type', 'Creation', 'Derniere connexion', 'Origine', 'Actions'].map(header => (
                   <th key={header} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-discreet">{header}</th>
                 ))}
               </tr>
@@ -1079,9 +1110,27 @@ export default function Utilisateurs() {
             <tbody>
               {filteredUsers.map(user => (
                 <tr key={user.id} className="border-t border-slate-100">
+                  {(() => {
+                    const activeDepotAssignment = currentDepotAssignment(user.id)
+                    const availableDepotSites = depotSites.filter(site => site.company_id === user.company_id)
+                    const activeDepotSite = activeDepotAssignment ? depotSiteById.get(activeDepotAssignment.depot_site_id) : null
+                    return (
+                      <>
                   <td className="px-3 py-2 align-top"><input type="checkbox" checked={selectedSet.has(user.id)} onChange={() => toggleSelection(user.id)} /></td>
                   <td className="px-3 py-2 font-medium text-foreground">{[user.prenom, user.nom].filter(Boolean).join(' ') || 'Non renseigne'}</td>
                   <td className="px-3 py-2 text-discreet">{user.company_name ?? (typeof user.company_id === 'number' ? (companyById.get(user.company_id) ?? `Tenant #${user.company_id}`) : '-')}</td>
+                  <td className="px-3 py-2 text-discreet">
+                    {editId === user.id ? (
+                      <select className={inp} value={editDepotSiteId} onChange={e => setEditDepotSiteId(e.target.value)}>
+                        <option value="">Aucun dépôt</option>
+                        {availableDepotSites.map(site => (
+                          <option key={site.id} value={site.id}>{site.nom}{site.is_primary ? ' · principal' : ''}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      activeDepotSite?.nom ?? '-'
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-secondary">{user.external_email ?? user.email ?? 'N/A'}</td>
                   <td className="px-3 py-2 text-discreet">{user.phone ?? '-'}</td>
                   <td className="px-3 py-2">
@@ -1193,11 +1242,14 @@ export default function Utilisateurs() {
                       </div>
                     )}
                   </td>
+                      </>
+                    )
+                  })()}
                 </tr>
               ))}
               {filteredUsers.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="px-3 py-8 text-center text-sm text-muted">Aucun compte ne correspond aux filtres.</td>
+                  <td colSpan={13} className="px-3 py-8 text-center text-sm text-muted">Aucun compte ne correspond aux filtres.</td>
                 </tr>
               )}
             </tbody>

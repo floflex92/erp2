@@ -80,8 +80,10 @@ const NAV_SECTIONS: NavSection[] = [
       { to: '/parc',         page: 'vehicules',   label: 'Parc',         icon: 'truck'    },
       { to: '/equipements',  page: 'equipements', label: 'Equipements',  icon: 'layers'   },
       { to: '/maintenance',  page: 'maintenance', label: 'Atelier',      icon: 'wrench'   },
+      { to: '/carburant',    page: 'carburant',   label: 'Carburant',    icon: 'leaf'     },
       { to: '/conformite',   page: 'tachygraphe', label: 'Conformité',   icon: 'tachy'    },
       { to: '/entrepots',    page: 'entrepots',   label: 'Entrepôts',    icon: 'warehouse'},
+      { to: '/pilotage-depots', page: 'entrepots', label: 'Pilotage dépôts', icon: 'warehouse'},
     ],
   },
   {

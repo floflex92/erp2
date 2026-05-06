@@ -9,6 +9,7 @@ import OtHistoriquePanel from '@/components/transports/OtHistoriquePanel'
 import { useLogisticSites } from '@/hooks/useLogisticSites'
 import { useTransportStatusHistory } from '@/hooks/useTransportStatusHistory'
 import { useAuth } from '@/lib/auth'
+import { listUnifiedConducteurs } from '@/lib/services/personsService'
 import { computeTruckRoute } from '@/lib/routing'
 import {
   evaluateAffretementCompletionReadiness,
@@ -295,7 +296,7 @@ export default function Transports() {
     const [ots, cls, conds, vehs, rems] = await Promise.all([
       supabase.from('ordres_transport').select('*').order('created_at', { ascending: false }),
       supabase.from('clients').select('id, nom').order('nom'),
-      supabase.from('conducteurs').select('id, nom, prenom').order('nom'),
+      listUnifiedConducteurs(companyId, { activeOnly: true }),
       supabase.from('vehicules').select('id, immatriculation, marque').order('immatriculation'),
       supabase.from('remorques').select('id, immatriculation, type_remorque, charge_utile_kg, longueur_m, volume_max_m3, largeur_utile_m, hauteur_utile_m, nb_palettes_max').order('immatriculation'),
     ])
@@ -303,7 +304,7 @@ export default function Transports() {
     setList(nextList)
     setSelected(current => (current ? (nextList.find(ot => ot.id === current.id) ?? null) : current))
     setClients(cls.data ?? [])
-    setConducteurs(conds.data ?? [])
+    setConducteurs(conds)
     setVehicules(vehs.data ?? [])
     const remorqueRows = (rems.data ?? []) as unknown as Array<{
       id: string

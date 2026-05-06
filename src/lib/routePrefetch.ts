@@ -24,6 +24,7 @@ const routeImporters: Record<string, RouteImporter> = {
   '/amendes': () => import('@/pages/Conformite'),
   '/conformite': () => import('@/pages/Conformite'),
   '/entrepots': () => import('@/pages/Entrepots'),
+  '/pilotage-depots': () => import('@/pages/PilotageDepots'),
   '/facturation': () => import('@/pages/Facturation'),
   '/reglements': () => import('@/pages/ComptabiliteUnifie'),
   '/tresorerie': () => import('@/pages/ComptabiliteUnifie'),

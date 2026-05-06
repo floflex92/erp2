@@ -101,11 +101,18 @@ export class PlanningComplianceService {
       endISO: end_iso,
     }
 
-    const auditResult: PlanningDropAuditResult = await validatePlanningDropAudit(auditInput)
-      .catch((err) => {
-        console.error('Erreur audit CE561:', err)
-        return { alerts: [], source: 'defaults' as const }
-      })
+    // Sécurité : si la validation échoue (réseau, timeout, bug), on BLOQUE
+    // l'affectation. Un fail silencieux (alerts vides) laisserait passer
+    // une infraction CE 561 sans alerte — inacceptable réglementairement.
+    let auditResult: PlanningDropAuditResult
+    try {
+      auditResult = await validatePlanningDropAudit(auditInput)
+    } catch (err) {
+      console.error('Erreur audit CE561 — assignation bloquée par sécurité:', err)
+      result.raison_blocage = 'Validation CE 561 indisponible'
+      result.message_resultat = '❌ Validation réglementaire inaccessible. Réessayez ou contactez l\'administrateur.'
+      return result
+    }
 
     // Mapper vers AlerteFront
     result.alertes = auditResult.alerts.map((a) => ({
@@ -177,13 +184,20 @@ export class PlanningComplianceService {
       return { allowed: true, warning_count: 0, error_count: 0 }
     }
 
-    const auditResult = await validatePlanningDropAudit({
-      otId: input.ot_id,
-      conducteurId: input.conducteur_id,
-      startISO: input.start_iso,
-      endISO: input.end_iso,
-    })
-      .catch(() => ({ alerts: [], source: 'defaults' as const }))
+    // Sécurité : si la pré-validation échoue, on indique un blocage
+    // pour éviter un feedback trompeur côté UI ("drag autorisé" alors que
+    // l'état réglementaire est inconnu).
+    let auditResult: PlanningDropAuditResult
+    try {
+      auditResult = await validatePlanningDropAudit({
+        otId: input.ot_id,
+        conducteurId: input.conducteur_id,
+        startISO: input.start_iso,
+        endISO: input.end_iso,
+      })
+    } catch {
+      return { allowed: false, warning_count: 0, error_count: 1 }
+    }
 
     const errors = auditResult.alerts.filter((a) => a.type === 'bloquant').length
     const warnings = auditResult.alerts.filter((a) => a.type === 'avertissement').length

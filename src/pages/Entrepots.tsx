@@ -3,6 +3,8 @@ import { useAuth } from '@/lib/auth'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { supabase } from '@/lib/supabase'
 import SiteMapPicker from '@/components/transports/SiteMapPicker'
+import { setPrimaryDepotSite } from '@/lib/staffDepots'
+import { listUnifiedConducteurs } from '@/lib/services/personsService'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +30,7 @@ type Site = {
   longitude: number | null
   horaires_ouverture: string | null
   notes_livraison: string | null
+  is_primary: boolean
 }
 
 type Relais = {
@@ -65,8 +68,8 @@ type Client     = { id: string; nom: string }
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const TYPE_SITE_LABELS: Record<string, string> = {
-  entrepot: 'Entrepôt',
-  depot: 'Dépôt',
+  entrepot: 'Dépôt/Entrepôt',
+  depot: 'Dépôt/Entrepôt',
   agence: 'Agence',
   client: 'Site client',
   quai: 'Quai',
@@ -87,6 +90,16 @@ const STATUT_COLORS: Record<string, string> = {
   en_cours_reprise: 'bg-violet-500/20 text-violet-300 border-violet-500/30',
   termine: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
   annule: 'bg-slate-500/20 text-muted border-slate-500/30',
+}
+
+const DEFAULT_PRIMARY_MARSEILLE_SITE = {
+  nom: 'Dépôt principal Marseille',
+  adresse: '16 boulevard du Littoral',
+  code_postal: '13002',
+  ville: 'Marseille',
+  pays: 'France',
+  latitude: '43.3047',
+  longitude: '5.3673',
 }
 
 function fmt(iso: string | null | undefined) {
@@ -144,9 +157,10 @@ export default function Entrepots() {
     // Filtre par company_id direct (tenant isolation)
     const { data } = await looseSupabase
       .from('sites_logistiques')
-      .select('id, nom, adresse, entreprise_id, usage_type, type_site, est_depot_relais, code_postal, ville, pays, contact_nom, contact_tel, capacite_m3, notes, latitude, longitude, horaires_ouverture, notes_livraison')
+      .select('id, nom, adresse, entreprise_id, usage_type, type_site, est_depot_relais, code_postal, ville, pays, contact_nom, contact_tel, capacite_m3, notes, latitude, longitude, horaires_ouverture, notes_livraison, is_primary')
       .eq('company_id', companyId ?? 1)
       .in('type_site', ['entrepot', 'depot'])
+      .order('is_primary', { ascending: false })
       .order('nom')
     setSites((data as Site[] | null) ?? [])
     setSitesLoading(false)
@@ -172,12 +186,12 @@ export default function Entrepots() {
     void Promise.all([
       loadSites(),
       loadRelais(),
-      supabase.from('conducteurs').select('id, nom, prenom').eq('statut', 'actif').order('nom').then(r => { if (!r.error && r.data) setConducteurs(r.data) }),
+      listUnifiedConducteurs(companyId, { activeOnly: true }).then(data => setConducteurs(data.map(c => ({ id: c.id, nom: c.nom, prenom: c.prenom })))),
       supabase.from('vehicules').select('id, immatriculation').neq('statut', 'hors_service').order('immatriculation').then(r => { if (!r.error && r.data) setVehicules(r.data) }),
       supabase.from('remorques').select('id, immatriculation').neq('statut', 'hors_service').order('immatriculation').then(r => { if (!r.error && r.data) setRemorques(r.data) }),
       supabase.from('clients').select('id, nom').eq('actif', true).order('nom').then(r => { if (!r.error && r.data) setClients(r.data) }),
     ])
-  }, [loadSites, loadRelais])
+  }, [companyId, loadSites, loadRelais])
 
   // Helpers lookup
   const conducteurName = (id: string | null | undefined) => {
@@ -197,7 +211,24 @@ export default function Entrepots() {
   // ── Site CRUD ──────────────────────────────────────────────────────────────
 
   function openCreateSite() {
-    setSiteForm({ nom: '', adresse: '', code_postal: '', ville: '', pays: 'France', entreprise_id: '', contact_nom: '', contact_tel: '', type_site: tab === 'depots' ? 'depot' : 'entrepot', est_depot_relais: tab === 'entrepots', capacite_m3: '', horaires_ouverture: '', notes: '', latitude: '', longitude: '' })
+    const hasPrimarySite = sites.some(site => site.is_primary)
+    setSiteForm({
+      nom: hasPrimarySite ? '' : DEFAULT_PRIMARY_MARSEILLE_SITE.nom,
+      adresse: hasPrimarySite ? '' : DEFAULT_PRIMARY_MARSEILLE_SITE.adresse,
+      code_postal: hasPrimarySite ? '' : DEFAULT_PRIMARY_MARSEILLE_SITE.code_postal,
+      ville: hasPrimarySite ? '' : DEFAULT_PRIMARY_MARSEILLE_SITE.ville,
+      pays: 'France',
+      entreprise_id: '',
+      contact_nom: '',
+      contact_tel: '',
+      type_site: tab === 'depots' ? 'depot' : 'entrepot',
+      est_depot_relais: true,
+      capacite_m3: '',
+      horaires_ouverture: '',
+      notes: hasPrimarySite ? '' : 'Point de départ conseillé pour le site principal.',
+      latitude: hasPrimarySite ? '' : DEFAULT_PRIMARY_MARSEILLE_SITE.latitude,
+      longitude: hasPrimarySite ? '' : DEFAULT_PRIMARY_MARSEILLE_SITE.longitude,
+    })
     setShowMap(false)
     setSiteModal({ mode: 'create' })
   }
@@ -251,6 +282,16 @@ export default function Entrepots() {
     await loadSites()
   }
 
+  async function makePrimarySite(site: Site) {
+    try {
+      await setPrimaryDepotSite(companyId ?? 1, site.id)
+      setNotice(`${site.nom} défini comme dépôt principal.`)
+      await loadSites()
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Impossible de définir le dépôt principal.')
+    }
+  }
+
   // ── Assign reprise ─────────────────────────────────────────────────────────
 
   function openAssign(relais: Relais) {
@@ -290,13 +331,8 @@ export default function Entrepots() {
     )
   }, [sites, siteSearch, clientMap])
 
-  const filteredEntrepots = useMemo(
-    () => filteredSites.filter(s => s.type_site === 'entrepot'),
-    [filteredSites],
-  )
-
-  const filteredDepots = useMemo(
-    () => filteredSites.filter(s => s.type_site === 'depot'),
+  const sharedLogisticSites = useMemo(
+    () => filteredSites,
     [filteredSites],
   )
 
@@ -318,8 +354,8 @@ export default function Entrepots() {
       {/* Tabs header */}
       <div className="flex items-center gap-1 px-4 pt-4 pb-0 border-b border-slate-800 flex-shrink-0">
         {([
-          { key: 'entrepots' as EntrepotTab, label: 'Entrepôts', count: sites.filter(s => s.type_site === 'entrepot').length },
-          { key: 'depots' as EntrepotTab, label: 'Dépôts', count: sites.filter(s => s.type_site === 'depot').length },
+          { key: 'entrepots' as EntrepotTab, label: 'Dépôts/Entrepôts', count: sites.length },
+          { key: 'depots' as EntrepotTab, label: 'Dépôts/Entrepôts', count: sites.length },
           { key: 'en_depot' as EntrepotTab, label: 'Marchandises en dépôt', count: relaisDepot.filter(r => r.statut !== 'termine').length },
           { key: 'relais_conducteur' as EntrepotTab, label: 'Relais conducteur', count: relaisConducteur.filter(r => r.statut !== 'termine').length },
         ] as { key: EntrepotTab; label: string; count: number }[]).map(t => (
@@ -344,24 +380,25 @@ export default function Entrepots() {
       {/* Content */}
       <div className="flex-1 overflow-auto p-4 min-h-0">
 
-        {/* ── Onglet Entrepôts ───────────────────────────────────────── */}
+        {/* ── Onglet Dépôts/Entrepôts ────────────────────────────────── */}
         {(tab === 'entrepots' || tab === 'depots') && (() => {
           const isDepotTab = tab === 'depots'
-          const list = isDepotTab ? filteredDepots : filteredEntrepots
-          const emptyMsg = isDepotTab
-            ? 'Aucun dépôt enregistré pour ce tenant.'
-            : 'Aucun entrepôt enregistré.'
-          const newBtnLabel = isDepotTab ? 'Nouveau dépôt' : 'Nouvel entrepôt'
+          const list = sharedLogisticSites
+          const emptyMsg = 'Aucun site logistique enregistré pour ce tenant.'
+          const newBtnLabel = 'Nouveau site logistique'
           const accentClass = isDepotTab
             ? 'bg-amber-600 hover:bg-amber-500'
             : 'bg-indigo-600 hover:bg-indigo-500'
           return (
             <div className="space-y-4">
+              <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-sm text-slate-300">
+                Les dépôts/entrepôts partagent maintenant la même base de sites. Un même site peut servir aux deux usages.
+              </div>
               <div className="flex items-center gap-3 flex-wrap">
                 <input
                   value={siteSearch}
                   onChange={e => setSiteSearch(e.target.value)}
-                  placeholder={isDepotTab ? 'Rechercher un dépôt...' : 'Rechercher un entrepôt...'}
+                  placeholder="Rechercher un site logistique..."
                   className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-64"
                 />
                 {canEdit && (
@@ -390,6 +427,11 @@ export default function Entrepots() {
                         <div>
                           <div className="font-semibold text-slate-100">{site.nom}</div>
                           <div className="text-xs text-muted mt-0.5">{site.adresse}{site.ville ? ` — ${site.ville}` : ''}</div>
+                          {site.is_primary && (
+                            <span className="mt-1 inline-block rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                              Site principal
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-col items-end gap-1 flex-shrink-0">
                           <span className={`text-[10px] px-2 py-0.5 rounded-full ${isDepotTab ? 'bg-amber-500/20 text-amber-300' : 'bg-indigo-500/20 text-indigo-300'}`}>
@@ -414,6 +456,9 @@ export default function Entrepots() {
                       )}
                       {canEdit && (
                         <div className="flex gap-2 mt-1 pt-2 border-t border-slate-800">
+                          {!site.is_primary && (
+                            <button onClick={() => void makePrimarySite(site)} type="button" className="text-xs text-muted hover:text-emerald-300 transition-colors">Définir principal</button>
+                          )}
                           <button onClick={() => openEditSite(site)} type="button" className="text-xs text-muted hover:text-indigo-300 transition-colors">Modifier</button>
                           <button onClick={() => deleteSite(site.id)} type="button" className="text-xs text-muted hover:text-rose-400 transition-colors ml-auto">Supprimer</button>
                         </div>
@@ -554,15 +599,15 @@ export default function Entrepots() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <form onSubmit={submitSite} className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 flex-shrink-0">
-              <h2 className="font-semibold text-slate-100">{siteModal.mode === 'create' ? 'Nouveau site / dépôt' : 'Modifier le site'}</h2>
+              <h2 className="font-semibold text-slate-100">{siteModal.mode === 'create' ? 'Nouveau site logistique' : 'Modifier le site'}</h2>
               <button type="button" onClick={() => setSiteModal(null)} className="text-discreet hover:text-slate-300 text-xl">✕</button>
             </div>
             <div className="overflow-y-auto px-6 py-4 space-y-3 flex-1">
               {([
-                { label: 'Nom du site *', key: 'nom', placeholder: 'Ex: Entrepôt Nord Lyon' },
+                { label: 'Nom du site *', key: 'nom', placeholder: 'Ex: Dépôt/Entrepôt Nord Lyon' },
                 { label: 'Adresse', key: 'adresse', placeholder: 'Rue, numéro...' },
                 { label: 'Code postal', key: 'code_postal', placeholder: '69000' },
-                { label: 'Ville', key: 'ville', placeholder: 'Lyon' },
+                { label: 'Ville', key: 'ville', placeholder: 'Marseille' },
                 { label: 'Pays', key: 'pays', placeholder: 'France' },
                 { label: 'Contact (nom)', key: 'contact_nom', placeholder: 'Jean Dupont' },
                 { label: 'Contact (tél)', key: 'contact_tel', placeholder: '06 00 00 00 00' },
@@ -580,7 +625,7 @@ export default function Entrepots() {
                 </div>
               ))}
               <div>
-                <label className="block text-xs font-medium text-muted mb-1">Type de site</label>
+                <label className="block text-xs font-medium text-muted mb-1">Type principal d'usage</label>
                 <select
                   value={siteForm.type_site}
                   onChange={e => setSiteForm(prev => ({ ...prev, type_site: e.target.value }))}
@@ -588,6 +633,7 @@ export default function Entrepots() {
                 >
                   {Object.entries(TYPE_SITE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
+                <p className="mt-1 text-xs text-discreet">Le site restera disponible dans les vues dépôts et dépôts/entrepôts.</p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-muted mb-1">Notes</label>

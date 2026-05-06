@@ -14,6 +14,18 @@ export interface PersonListItem {
   legacy_profil_id?: string | null
 }
 
+export interface UnifiedConducteurListItem {
+  id: string
+  company_id: number
+  nom: string
+  prenom: string
+  matricule: string | null
+  email: string | null
+  telephone: string | null
+  statut: string
+  legacy_conducteur_id: string | null
+}
+
 function normalizeName(firstName: string | null, lastName: string | null) {
   return `${firstName ?? ''} ${lastName ?? ''}`.trim()
 }
@@ -23,6 +35,20 @@ function buildDirectoryKey(companyId: number, firstName: string | null, lastName
   const normalizedEmail = (email ?? '').trim().toLowerCase()
   const anchor = ((matricule ?? normalizedName) || normalizedEmail || fallbackId || '').toLowerCase()
   return `${companyId}:${anchor}`
+}
+
+function isActiveDriverStatus(status: string | null | undefined) {
+  return normalizeDriverStatus(status) !== 'inactif'
+}
+
+function normalizeDriverStatus(status: string | null | undefined): string {
+  const normalized = String(status ?? '').trim().toLowerCase()
+  if (!normalized) return 'actif'
+  if (['actif', 'active', 'enabled', 'enable', 'ok'].includes(normalized)) return 'actif'
+  if (['inactif', 'inactive', 'disabled', 'archive', 'archived'].includes(normalized)) return 'inactif'
+  if (['conge', 'congé'].includes(normalized)) return 'conge'
+  if (['arret_maladie', 'arrêt_maladie', 'arret maladie', 'arrêt maladie'].includes(normalized)) return 'arret_maladie'
+  return normalized
 }
 
 export async function listPersonsForDirectory(companyId?: number): Promise<PersonListItem[]> {
@@ -144,4 +170,29 @@ export async function listPersonsForDirectory(companyId?: number): Promise<Perso
     const rightName = `${right.last_name ?? ''} ${right.first_name ?? ''}`.trim().toLowerCase()
     return leftName.localeCompare(rightName, 'fr')
   })
+}
+
+export async function listUnifiedConducteurs(
+  companyId?: number,
+  options?: { activeOnly?: boolean; allowUnlinked?: boolean },
+): Promise<UnifiedConducteurListItem[]> {
+  const directory = await listPersonsForDirectory(companyId)
+
+  return directory
+    .filter(person => ['driver', 'conducteur', 'chauffeur'].includes((person.person_type ?? '').toLowerCase()))
+    .filter(person => !options?.activeOnly || isActiveDriverStatus(person.status))
+    // By default, keep only entries linked to a real `conducteurs.id`.
+    .filter(person => Boolean(person.legacy_conducteur_id) || options?.allowUnlinked === true)
+    .map(person => ({
+      id: person.legacy_conducteur_id ?? person.id,
+      company_id: person.company_id,
+      nom: person.last_name ?? '-',
+      prenom: person.first_name ?? '',
+      matricule: person.matricule ?? null,
+      email: person.email ?? null,
+      telephone: person.phone ?? null,
+      statut: normalizeDriverStatus(person.status),
+      legacy_conducteur_id: person.legacy_conducteur_id ?? null,
+    }))
+    .sort((left, right) => `${left.nom} ${left.prenom}`.localeCompare(`${right.nom} ${right.prenom}`, 'fr'))
 }

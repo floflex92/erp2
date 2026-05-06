@@ -66,7 +66,7 @@ export class ErrorBoundary extends Component<Props, State> {
       const dynamicImportError = isDynamicImportFailure(this.state.errorMessage)
       const runningOnLocalDevHost = ['localhost', '127.0.0.1'].includes(window.location.hostname)
       const helperText = dynamicImportError && runningOnLocalDevHost
-        ? 'Le module de page n a pas pu etre charge. Verifiez que le serveur Vite tourne (npm run dev), puis reessayez.'
+        ? 'Le module de page n a pas pu etre charge. En local, demarrez le stack complet avec npm run dev puis ouvrez l application via http://127.0.0.1:8888.'
         : this.state.errorMessage
 
       return this.props.fallback ?? (

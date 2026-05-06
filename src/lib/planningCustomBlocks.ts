@@ -46,8 +46,17 @@ export async function deleteCustomRow(id: string): Promise<void> {
   if (error) console.error('[planningCustomBlocks] deleteCustomRow', error)
 }
 
-export async function syncCustomRows(rows: RemoteCustomRow[]): Promise<void> {
+export async function syncCustomRows(
+  rows: RemoteCustomRow[],
+  options?: { allowDeleteAll?: boolean },
+): Promise<void> {
   if (rows.length === 0) {
+    // Sécurité : un tableau vide issu d'un bug d'initialisation supprimerait
+    // toutes les lignes en base. On exige un opt-in explicite.
+    if (!options?.allowDeleteAll) {
+      console.warn('[planningCustomBlocks] syncCustomRows appelé avec 0 lignes sans allowDeleteAll — opération ignorée.')
+      return
+    }
     await db.from('planning_custom_rows').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     return
   }
@@ -92,8 +101,17 @@ export async function deleteCustomBlock(id: string): Promise<void> {
   if (error) console.error('[planningCustomBlocks] deleteCustomBlock', error)
 }
 
-export async function syncCustomBlocks(blocks: RemoteCustomBlock[]): Promise<void> {
+export async function syncCustomBlocks(
+  blocks: RemoteCustomBlock[],
+  options?: { allowDeleteAll?: boolean },
+): Promise<void> {
   if (blocks.length === 0) {
+    // Sécurité : un tableau vide issu d'un bug d'initialisation supprimerait
+    // tous les blocs en base. On exige un opt-in explicite.
+    if (!options?.allowDeleteAll) {
+      console.warn('[planningCustomBlocks] syncCustomBlocks appelé avec 0 blocs sans allowDeleteAll — opération ignorée.')
+      return
+    }
     await db.from('planning_custom_blocks').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     return
   }

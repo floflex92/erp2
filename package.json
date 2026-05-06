@@ -4,7 +4,8 @@
   "version": "1.15.20",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "netlify dev",
+    "dev:vite": "vite",
     "serv:dev": "netlify dev",
     "dev:full": "npm run serv:dev",
     "typecheck": "tsc -b --pretty false",

@@ -1,3 +1,4 @@
+// @refresh reset
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
@@ -13,6 +14,7 @@ import {
 const SESSION_TIMEOUT_MS = 8000
 const PROFILE_TIMEOUT_MS = 8000
 const LOGIN_TIMEOUT_MS = 10000
+const SESSION_ROLE_STORAGE_PREFIX = 'nexora_session_role_v1:'
 
 const ROLE_VALUES = ['admin', 'super_admin', 'dirigeant', 'exploitant', 'mecanicien', 'commercial', 'comptable', 'rh', 'conducteur', 'conducteur_affreteur', 'client', 'affreteur', 'administratif', 'facturation', 'flotte', 'maintenance', 'observateur', 'demo', 'investisseur', 'logisticien'] as const
 const ROLE_SET = new Set<string>(ROLE_VALUES)
@@ -73,10 +75,10 @@ export const ROLE_LABELS: Record<Role, string> = {
 }
 
 export const ROLE_ACCESS: Record<Role, string[]> = {
-  admin: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'entretiens-salaries', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'reglements', 'tresorerie', 'analytique-transport', 'bilan-co2', 'ops-center', 'compte-client-db', 'alertes', 'optimisation-tournees', 'messagerie-colis', 'formulaires-terrain', 'gestion-temperature'],
+  admin: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'entretiens-salaries', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'reglements', 'tresorerie', 'analytique-transport', 'bilan-co2', 'ops-center', 'compte-client-db', 'alertes', 'optimisation-tournees', 'messagerie-colis', 'formulaires-terrain', 'gestion-temperature', 'carburant'],
   super_admin: ['super-admin'],
-  dirigeant: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'entretiens-salaries', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'reglements', 'tresorerie', 'analytique-transport', 'bilan-co2', 'ops-center', 'compte-client-db', 'optimisation-tournees', 'messagerie-colis', 'formulaires-terrain', 'gestion-temperature'],
-  exploitant: ['dashboard', 'ops-center', 'alertes', 'tasks', 'chauffeurs', 'rh', 'entretiens-salaries', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'reglements', 'analytique-transport', 'bilan-co2', 'compte-client-db', 'espace-client', 'espace-affreteur', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'terrain', 'demandes-clients', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'optimisation-tournees', 'messagerie-colis', 'formulaires-terrain', 'gestion-temperature'],
+  dirigeant: ['dashboard', 'tasks', 'chauffeurs', 'rh', 'entretiens-salaries', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'prospection', 'demandes-clients', 'espace-client', 'espace-affreteur', 'parametres', 'utilisateurs', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'tenant-admin', 'reglements', 'tresorerie', 'analytique-transport', 'bilan-co2', 'ops-center', 'compte-client-db', 'optimisation-tournees', 'messagerie-colis', 'formulaires-terrain', 'gestion-temperature', 'carburant'],
+  exploitant: ['dashboard', 'ops-center', 'alertes', 'tasks', 'chauffeurs', 'rh', 'entretiens-salaries', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'reglements', 'analytique-transport', 'bilan-co2', 'compte-client-db', 'espace-client', 'espace-affreteur', 'frais', 'tachygraphe', 'amendes', 'map-live', 'planning', 'feuille-route', 'terrain', 'demandes-clients', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'optimisation-tournees', 'messagerie-colis', 'formulaires-terrain', 'gestion-temperature', 'carburant'],
   mecanicien: ['tasks', 'vehicules', 'remorques', 'equipements', 'maintenance', 'frais', 'tachygraphe', 'parametres', 'communication', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   commercial: ['dashboard', 'alertes', 'tasks', 'transports', 'clients', 'facturation', 'frais', 'prospection', 'demandes-clients', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'reglements', 'analytique-transport', 'bilan-co2'],
   comptable: ['dashboard', 'alertes', 'tasks', 'facturation', 'comptabilite', 'paie', 'frais', 'clients', 'amendes', 'demandes-clients', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'reglements', 'tresorerie', 'analytique-transport', 'bilan-co2'],
@@ -87,7 +89,7 @@ export const ROLE_ACCESS: Record<Role, string[]> = {
   affreteur: ['tasks', 'espace-affreteur', 'transports', 'entrepots', 'planning', 'map-live', 'feuille-route', 'terrain', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   administratif: ['dashboard', 'alertes', 'tasks', 'clients', 'facturation', 'comptabilite', 'paie', 'frais', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'reglements', 'tresorerie', 'analytique-transport', 'bilan-co2'],
   facturation: ['dashboard', 'alertes', 'tasks', 'clients', 'facturation', 'comptabilite', 'frais', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'reglements', 'tresorerie', 'analytique-transport', 'bilan-co2'],
-  flotte: ['dashboard', 'tasks', 'vehicules', 'remorques', 'equipements', 'maintenance', 'planning', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
+  flotte: ['dashboard', 'tasks', 'vehicules', 'remorques', 'equipements', 'maintenance', 'carburant', 'planning', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   maintenance: ['tasks', 'vehicules', 'remorques', 'equipements', 'maintenance', 'frais', 'parametres', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales'],
   observateur: ['dashboard', 'planning', 'transports', 'clients', 'communication', 'inter-erp', 'coffre', 'mentions-legales'],
   demo: ['dashboard', 'tasks', 'chauffeurs', 'vehicules', 'remorques', 'equipements', 'maintenance', 'transports', 'entrepots', 'clients', 'facturation', 'comptabilite', 'frais', 'planning', 'feuille-route', 'prospection', 'communication', 'inter-erp', 'tchat', 'mail', 'coffre', 'mentions-legales', 'reglements', 'tresorerie', 'analytique-transport', 'bilan-co2', 'optimisation-tournees', 'messagerie-colis', 'formulaires-terrain', 'gestion-temperature'],
@@ -195,6 +197,7 @@ function normalizeAllowedPages(value: unknown): string[] | null {
   if (normalized.has('dashboard')) normalized.add('dashboard-conducteur')
   if (normalized.has('planning')) normalized.add('planning-conducteur')
   if (normalized.has('frais')) normalized.add('frais-rapide')
+  if (normalized.has('vehicules')) normalized.add('carburant')
 
   return Array.from(normalized)
 }
@@ -227,6 +230,38 @@ export function fallbackRoleFromEmail(email: string | null | undefined): Role | 
   if (localPart === 'admin') return 'admin'
   if (localPart === 'direction' || localPart === 'dirigeant') return 'dirigeant'
   return null
+}
+
+function sessionRoleStorageKey(userId: string) {
+  return `${SESSION_ROLE_STORAGE_PREFIX}${userId}`
+}
+
+function readStoredSessionRole(userId: string): Role | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(sessionRoleStorageKey(userId))
+    return normalizeRole(raw)
+  } catch {
+    return null
+  }
+}
+
+function writeStoredSessionRole(userId: string, role: Role) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(sessionRoleStorageKey(userId), role)
+  } catch {
+    // ignore storage failures (private mode / quota)
+  }
+}
+
+function clearStoredSessionRole(userId: string) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.removeItem(sessionRoleStorageKey(userId))
+  } catch {
+    // ignore storage failures
+  }
 }
 
 function fallbackUserMatricule(profileId: string) {
@@ -561,8 +596,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  function setSessionRole(r: Role) { setSessionRoleState(r) }
-  function resetSessionRole() { setSessionRoleState(null) }
+  useEffect(() => {
+    const userId = session?.user?.id
+    if (!userId) return
+    const storedRole = readStoredSessionRole(userId)
+    if (storedRole) setSessionRoleState(prev => prev ?? storedRole)
+  }, [session?.user?.id])
+
+  function setSessionRole(r: Role) {
+    setSessionRoleState(r)
+    if (session?.user?.id) writeStoredSessionRole(session.user.id, r)
+  }
+  function resetSessionRole() {
+    setSessionRoleState(null)
+    if (session?.user?.id) clearStoredSessionRole(session.user.id)
+  }
   function setSessionProfil(profil: Profil | null) {
     if (!profil) {
       setSessionProfilState(null)
@@ -615,6 +663,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsPlatformAdminState(false)
     setImpersonation(null)
     clearPlatformAdminCache()
+    if (session?.user?.id) clearStoredSessionRole(session.user.id)
     // scope:'local' — supprime le token localStorage immédiatement, sans appel réseau.
     // Évite la race condition où un TOKEN_REFRESHED en cours restaurerait la session.
     try {
@@ -642,7 +691,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setImpersonation(null)
     setSessionRoleState(null)
     setSessionProfilState(null)
-  }, [])
+    if (session?.user?.id) clearStoredSessionRole(session.user.id)
+  }, [session?.user?.id])
 
   const profil = session?.user ? (sessionProfil ?? accountProfil) : null
   const metadataRole = normalizeRole(session?.user?.app_metadata?.role ?? session?.user?.user_metadata?.role ?? null)

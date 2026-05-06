@@ -526,6 +526,80 @@ async function ensureDefaultServiceId(dbClient, companyId) {
   return { id: fallbackService.id, error: null }
 }
 
+async function findPrimaryDepotSiteId(dbClient, companyId) {
+  const { data, error } = await dbClient
+    .from('sites_logistiques')
+    .select('id')
+    .eq('company_id', companyId)
+    .in('type_site', ['depot', 'entrepot'])
+    .order('is_primary', { ascending: false })
+    .order('nom', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) return { id: null, error: error.message }
+  return { id: data?.id ?? null, error: null }
+}
+
+async function syncStaffDepotAssignment({
+  dbClient,
+  companyId,
+  depotSiteId,
+  conducteurId = null,
+  profilId = null,
+  assignmentSource = 'manual_transfer',
+  assignedBy = null,
+  notes = null,
+}) {
+  if (!conducteurId && !profilId) return null
+
+  let currentQuery = dbClient
+    .from('staff_depot_assignments')
+    .select('id, depot_site_id')
+    .eq('company_id', companyId)
+    .is('ended_at', null)
+
+  currentQuery = conducteurId
+    ? currentQuery.eq('conducteur_id', conducteurId)
+    : currentQuery.eq('profil_id', profilId)
+
+  const { data: current, error: currentError } = await currentQuery.maybeSingle()
+  if (currentError) return currentError.message
+
+  if (!depotSiteId) {
+    if (!current?.id) return null
+    const { error: closeError } = await dbClient
+      .from('staff_depot_assignments')
+      .update({ ended_at: new Date().toISOString() })
+      .eq('id', current.id)
+    return closeError?.message ?? null
+  }
+
+  if (current?.depot_site_id === depotSiteId) return null
+
+  if (current?.id) {
+    const { error: closeError } = await dbClient
+      .from('staff_depot_assignments')
+      .update({ ended_at: new Date().toISOString() })
+      .eq('id', current.id)
+    if (closeError) return closeError.message
+  }
+
+  const { error: insertError } = await dbClient
+    .from('staff_depot_assignments')
+    .insert({
+      company_id: companyId,
+      depot_site_id: depotSiteId,
+      conducteur_id: conducteurId,
+      profil_id: profilId,
+      assignment_source: assignmentSource,
+      assigned_by: assignedBy,
+      notes,
+    })
+
+  return insertError?.message ?? null
+}
+
 async function syncLegacyRoleRecords({
   dbClient,
   companyId,
@@ -537,8 +611,9 @@ async function syncLegacyRoleRecords({
   matricule,
 }) {
   const warnings = []
+  const conducteurIds = []
   const normalizedRole = normalizeRole(role)
-  if (!normalizedRole) return { warnings }
+  if (!normalizedRole) return { warnings, conducteurIds }
 
   const safeNom = String(nom ?? '').trim() || 'Utilisateur'
   const safePrenom = String(prenom ?? '').trim() || safeNom
@@ -596,11 +671,15 @@ async function syncLegacyRoleRecords({
         .update(conducteurPayload)
         .eq('id', conducteurId)
       if (updateConducteurError) warnings.push(`conducteurs(update): ${updateConducteurError.message}`)
+      else conducteurIds.push(conducteurId)
     } else {
-      const { error: insertConducteurError } = await dbClient
+      const { data: insertedConducteur, error: insertConducteurError } = await dbClient
         .from('conducteurs')
         .insert(conducteurPayload)
+        .select('id')
+        .single()
       if (insertConducteurError) warnings.push(`conducteurs(insert): ${insertConducteurError.message}`)
+      else if (insertedConducteur?.id) conducteurIds.push(insertedConducteur.id)
     }
   }
 
@@ -608,7 +687,7 @@ async function syncLegacyRoleRecords({
     const serviceContext = await ensureDefaultServiceId(dbClient, companyId)
     if (serviceContext.error || !serviceContext.id) {
       warnings.push(`services(default): ${serviceContext.error ?? 'indisponible'}`)
-      return { warnings }
+      return { warnings, conducteurIds }
     }
 
     const displayName = buildDisplayName(safePrenom, safeNom, `Exploitant ${String(profilId).slice(0, 8)}`)
@@ -621,7 +700,7 @@ async function syncLegacyRoleRecords({
 
     if (existingExploitantError) {
       warnings.push(`exploitants(select): ${existingExploitantError.message}`)
-      return { warnings }
+      return { warnings, conducteurIds }
     }
 
     let exploitantId = existingExploitant?.id ?? null
@@ -681,7 +760,7 @@ async function syncLegacyRoleRecords({
     }
   }
 
-  return { warnings }
+  return { warnings, conducteurIds }
 }
 
 function fallbackRoleFromEmail(email) {
@@ -1199,7 +1278,7 @@ async function createAdminUser(clients, rawBody) {
     }
   }
 
-  const { warnings: legacySyncWarnings } = await syncLegacyRoleRecords({
+  const { warnings: legacySyncWarnings, conducteurIds } = await syncLegacyRoleRecords({
     dbClient,
     companyId,
     profilId: profileRow?.id ?? null,
@@ -1209,6 +1288,36 @@ async function createAdminUser(clients, rawBody) {
     email: requestedExternalEmail ?? createdUser.email ?? email,
     matricule: ensuredMatricule,
   })
+
+  const depotWarnings = []
+  const primaryDepot = await findPrimaryDepotSiteId(dbClient, companyId)
+  if (primaryDepot.error) {
+    depotWarnings.push(`depots(primary_lookup): ${primaryDepot.error}`)
+  } else if (primaryDepot.id) {
+    if (profileRow?.id) {
+      const profileDepotError = await syncStaffDepotAssignment({
+        dbClient,
+        companyId,
+        depotSiteId: primaryDepot.id,
+        profilId: profileRow.id,
+        assignmentSource: 'auto_primary',
+        assignedBy: clients.currentUser?.id ?? null,
+      })
+      if (profileDepotError) depotWarnings.push(`depots(profile_assign): ${profileDepotError}`)
+    }
+
+    for (const conducteurId of conducteurIds) {
+      const conducteurDepotError = await syncStaffDepotAssignment({
+        dbClient,
+        companyId,
+        depotSiteId: primaryDepot.id,
+        conducteurId,
+        assignmentSource: 'auto_primary',
+        assignedBy: clients.currentUser?.id ?? null,
+      })
+      if (conducteurDepotError) depotWarnings.push(`depots(conducteur_assign): ${conducteurDepotError}`)
+    }
+  }
 
   await logPlatformAuditEvent(dbClient, {
     currentUser: clients.currentUser,
@@ -1244,7 +1353,7 @@ async function createAdminUser(clients, rawBody) {
       tenant_key: tenantKey,
       requires_email_confirmation: !clients.admin,
     },
-    warnings: [...legacySyncWarnings, ...postCreateWarnings],
+    warnings: [...legacySyncWarnings, ...postCreateWarnings, ...depotWarnings],
     correlation_id: correlationId,
   })
 }
@@ -1258,6 +1367,11 @@ async function updateAdminUser({ admin, sessionClient, currentUser, requestIpHas
   const prenom = typeof body.prenom === 'string' ? body.prenom.trim() : null
   const requestId = typeof body.request_id === 'string' ? body.request_id : null
   const action = typeof body.action === 'string' ? normalizeRoleToken(body.action) : null
+  const currentSiteIdProvided = Object.prototype.hasOwnProperty.call(body, 'current_site_id') || Object.prototype.hasOwnProperty.call(body, 'currentSiteId')
+  const currentSiteIdRaw = body.current_site_id ?? body.currentSiteId
+  const currentSiteId = typeof currentSiteIdRaw === 'string'
+    ? currentSiteIdRaw.trim() || null
+    : (currentSiteIdRaw === null ? null : undefined)
   const bulkAction = typeof body.bulk_action === 'string' ? normalizeRoleToken(body.bulk_action) : action
   const permissions = Array.isArray(body.permissions) ? sanitizePermissions(body.permissions) : null
   const accountType = typeof body.account_type === 'string' ? sanitizeAccountType(body.account_type, 'standard') : null
@@ -1550,6 +1664,20 @@ async function updateAdminUser({ admin, sessionClient, currentUser, requestIpHas
     legacySyncWarnings = warnings
   }
 
+  if (currentSiteIdProvided && typeof updatedProfile?.company_id === 'number') {
+    const depotUpdateError = await syncStaffDepotAssignment({
+      dbClient,
+      companyId: updatedProfile.company_id,
+      depotSiteId: currentSiteId ?? null,
+      profilId: updatedProfile.id,
+      assignmentSource: 'manual_transfer',
+      assignedBy: currentUser.id,
+    })
+    if (depotUpdateError) {
+      return json(400, { error: depotUpdateError })
+    }
+  }
+
   if (targetRole !== effectiveRole) {
     await dbClient.from('user_role_change_log').insert({
       actor_profile_id: null,
@@ -1593,6 +1721,7 @@ async function updateAdminUser({ admin, sessionClient, currentUser, requestIpHas
         account_status: patch.account_status ?? targetProfile.account_status ?? null,
         notes_admin: notesAdmin === undefined ? previousSnapshot.notes_admin : notesAdmin,
         external_email: externalEmail === undefined ? previousSnapshot.external_email : externalEmail,
+        current_site_id: currentSiteIdProvided ? (currentSiteId ?? null) : undefined,
       },
       updated_request_id: requestId,
       updated_permissions: Array.isArray(permissions) ? permissions.length : null,

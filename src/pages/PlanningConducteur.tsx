@@ -122,7 +122,7 @@ type TopTab = 'missions' | 'absences'
 
 const ABSENCE_TYPES_CONDUCTEUR: TypeAbsence[] = [
   'conges_payes', 'rtt', 'arret_maladie', 'arret_at',
-  'formation', 'conge_sans_solde', 'absence_autorisee', 'autre',
+  'formation', 'mise_a_pied', 'conge_sans_solde', 'absence_autorisee', 'autre',
 ]
 
 function todayISO() {
@@ -190,13 +190,18 @@ export default function PlanningConducteur() {
       dateDebut.setDate(dateDebut.getDate() - 14)
       const dateFin = new Date()
       dateFin.setDate(dateFin.getDate() + 30)
+      // Formatage ISO YYYY-MM-DD pour le filtre Supabase
+      const dateDebutISO = dateDebut.toISOString().slice(0, 10)
+      const dateFinISO = dateFin.toISOString().slice(0, 10)
 
       const { data: ots, error: otsErr } = await supabase
         .from('ordres_transport')
         .select('id, reference, statut, statut_transport, statut_operationnel, date_chargement_prevue, date_livraison_prevue, distance_km, nature_marchandise, client_id, vehicule_id, clients!inner(nom)')
         .eq('conducteur_id', conducteur.id)
+        .gte('date_chargement_prevue', dateDebutISO)
+        .lte('date_chargement_prevue', dateFinISO)
         .order('date_chargement_prevue', { ascending: true, nullsFirst: false })
-        .limit(60)
+        .limit(200)
 
       if (otsErr) throw otsErr
 
@@ -323,16 +328,12 @@ export default function PlanningConducteur() {
         integre_paie_par_id: null,
         date_integration_paie: null,
       })
-      if (!result) {
-        setAbsError("Erreur lors de la creation de la demande.")
-        return
-      }
       setAbsSuccess('Demande enregistree ! Elle sera examinee par le service exploitation.')
       setShowAbsForm(false)
       setAbsForm({ type_absence: 'conges_payes', date_debut: todayISO(), date_fin: todayISO(), nb_jours: '1', motif: '' })
       void loadAbsences()
-    } catch {
-      setAbsError("Erreur lors de l'envoi de la demande.")
+    } catch (err) {
+      setAbsError(err instanceof Error ? err.message : "Erreur lors de l'envoi de la demande.")
     } finally {
       setAbsSubmitting(false)
     }

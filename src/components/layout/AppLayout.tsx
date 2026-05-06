@@ -30,6 +30,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/espace-affreteur': 'Espace affreteur',
   '/transports': 'Ordres de transport',
   '/entrepots': 'Entrepots & Depots',
+  '/pilotage-depots': 'Pilotage depots',
   '/chauffeurs': 'Conducteurs',
   '/rh': 'Ressources humaines',
   '/entretiens-salaries': 'Entretiens salaries',

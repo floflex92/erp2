@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { useAuth } from '@/lib/auth'
 import { useScrollToTopOnChange } from '@/hooks/useScrollToTopOnChange'
+import { listUnifiedConducteurs } from '@/lib/services/personsService'
 import {
   ST_ACTIFS,
   ST_EN_COURS,
@@ -566,12 +567,12 @@ export default function OpsCenter() {
     const [{ data: ots }, { data: vehs }, { data: conds }] = await Promise.all([
       supabase.from('ordres_transport').select('id, reference, client_id').not('statut', 'in', '("annule","facture")').order('created_at', { ascending: false }).limit(200),
       supabase.from('vehicules').select('id, immatriculation').eq('statut', 'actif'),
-      supabase.from('conducteurs').select('id, nom, prenom').eq('statut', 'actif'),
+      listUnifiedConducteurs(companyId, { activeOnly: true }),
     ])
     if (ots)   setOtList(ots as OTLite[])
     if (vehs)  setVehicules(vehs as VehiculeLite[])
-    if (conds) setConducteurs(conds as ConducteurLite[])
-  }, [])
+    setConducteurs(conds.map(conducteur => ({ id: conducteur.id, nom: conducteur.nom, prenom: conducteur.prenom })))
+  }, [companyId])
 
   // ─── Effets ───────────────────────────────────────────────────────────────
 

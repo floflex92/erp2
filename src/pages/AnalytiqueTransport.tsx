@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { listUnifiedConducteurs } from '@/lib/services/personsService'
 type Tab = 'synthese' | 'missions' | 'clients' | 'chauffeurs' | 'flotte'
 
 interface MissionAnalytique {
@@ -693,11 +694,11 @@ export default function AnalytiqueTransport() {
     const [missions, vehs, chauf] = await Promise.all([
       (supabase.from('vue_analytique_missions' as any).select('*').order('created_at', { ascending: false }) as any),
       supabase.from('vehicules').select('id, immatriculation, marque, modele, numero_parc').order('immatriculation'),
-      supabase.from('conducteurs').select('id, nom, prenom').order('nom'),
+      listUnifiedConducteurs(undefined, { activeOnly: true }),
     ])
     setData(missions.data ?? [])
     setVehicules(vehs.data ?? [])
-    setChauffeurs((chauf.data ?? []) as Chauffeur[])
+    setChauffeurs(chauf as Chauffeur[])
     setLoading(false)
   }
 

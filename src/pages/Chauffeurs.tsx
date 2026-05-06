@@ -1,13 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { listAssets } from '@/lib/services/assetsService'
 import { listPersonsForDirectory } from '@/lib/services/personsService'
+import {
+  ensureConducteurAssignedToPrimaryDepot,
+  listActiveDepotAssignments,
+  listDepotSites,
+  transferConducteurToDepot,
+  type DepotSite,
+  type StaffDepotAssignment,
+} from '@/lib/staffDepots'
 import { SkeletonTable } from '@/components/ui/SkeletonTable'
 import { DataState } from '@/components/ui/DataState'
 import { ST_PLANIFIE, ST_EN_COURS } from '@/lib/transportCourses'
 import type { Tables, TablesInsert } from '@/lib/database.types'
 import { INTERVIEW_STATUS_LABELS, listInterviewsForEmployee, type InterviewRow } from '@/lib/hrInterviewsModule'
+import { STATUTS_ABSENCE_ACTIFS, TYPE_ABSENCE_LABELS, type TypeAbsence } from '@/lib/absencesRh'
 import type { Service } from '@/domains/services/domain'
 import type { Exploitant } from '@/domains/exploitants/domain'
 
@@ -159,10 +169,13 @@ const EMPTY_DOCUMENT = {
 }
 
 export default function Chauffeurs() {
+  const { companyId } = useAuth()
   const [list, setList] = useState<Conducteur[]>([])
   const [vehicules, setVehicules] = useState<Vehicule[]>([])
   const [remorques, setRemorques] = useState<Remorque[]>([])
   const [affectations, setAffectations] = useState<Affectation[]>([])
+  const [depotSites, setDepotSites] = useState<DepotSite[]>([])
+  const [depotAssignments, setDepotAssignments] = useState<StaffDepotAssignment[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -176,6 +189,7 @@ export default function Chauffeurs() {
   const [canonicalInterviews, setCanonicalInterviews] = useState<InterviewRow[]>([])
   const [mappedProfileLabel, setMappedProfileLabel] = useState<string | null>(null)
   const [activeOrdersByConducteur, setActiveOrdersByConducteur] = useState<Record<string, OtLite[]>>({})
+  const [todayAbsencesByConducteur, setTodayAbsencesByConducteur] = useState<Record<string, TypeAbsence[]>>({})
   const [rhLoading, setRhLoading] = useState(false)
   const [rhError, setRhError] = useState<string | null>(null)
   const [eventForm, setEventForm] = useState<RhEventForm>(EMPTY_EVENT)
@@ -189,17 +203,24 @@ export default function Chauffeurs() {
   const [affForm, setAffForm] = useState(EMPTY_AFF)
   const [affSaving, setAffSaving] = useState(false)
   const [affConducteurServiceId, setAffConducteurServiceId] = useState<string | null>(null)
+  const [affConducteurDepotId, setAffConducteurDepotId] = useState('')
 
   // Services & Exploitants (chargés au mount)
   const [services, setServices] = useState<Service[]>([])
   const [exploitants, setExploitants] = useState<Exploitant[]>([])
+
+  function formatLoadError(err: unknown, fallback: string) {
+    if (err instanceof Error) return err.message
+    if (err && typeof err === 'object' && 'message' in err && typeof err.message === 'string') return err.message
+    return fallback
+  }
 
   async function load() {
     setLoading(true)
     setError(null)
 
     try {
-      const [condRes, vehRes, remRes, affRes, otRes, svcRes, expRes] = await Promise.all([
+      const [condRes, vehRes, remRes, affRes, otRes] = await Promise.all([
         supabase.from('conducteurs').select('*').order('nom').order('prenom'),
         supabase.from('vehicules').select('*').order('immatriculation'),
         supabase.from('remorques').select('*').order('immatriculation'),
@@ -210,16 +231,6 @@ export default function Chauffeurs() {
           .in('statut_transport', [...ST_PLANIFIE, ...ST_EN_COURS])
           .not('conducteur_id', 'is', null)
           .order('date_chargement_prevue', { ascending: true, nullsFirst: false }),
-        looseSupabase
-          .from('services')
-          .select('id,company_id,name,code,color,visual_marker,parent_service_id,is_active,created_at,updated_at,archived_at,description')
-          .eq('is_active', true)
-          .order('name'),
-        looseSupabase
-          .from('exploitants')
-          .select('id,company_id,service_id,profil_id,name,type_exploitant,company_department,is_manager,manager_level,is_active,created_at,updated_at,archived_at')
-          .eq('is_active', true)
-          .order('name'),
       ])
 
       if (condRes.error) throw condRes.error
@@ -232,29 +243,49 @@ export default function Chauffeurs() {
       let vehicules = (vehRes.data ?? []) as Vehicule[]
       let remorques = (remRes.data ?? []) as Remorque[]
 
-      const directoryPersons = await listPersonsForDirectory()
-      const driverPersons = directoryPersons.filter(person => ['driver', 'conducteur', 'chauffeur'].includes((person.person_type ?? '').toLowerCase()))
-      const conducteurKeys = new Set(conducteurs.map(c => `${(c.matricule ?? `${c.nom}|${c.prenom}`).toLowerCase()}`))
-      const conducteurIds = new Set(conducteurs.map(c => c.id))
+      const optionalResults = await Promise.allSettled([
+        listPersonsForDirectory(typeof companyId === 'number' ? companyId : undefined),
+        looseSupabase
+          .from('services')
+          .select('id,company_id,name,code,color,visual_marker,parent_service_id,is_active,created_at,updated_at,archived_at,description')
+          .eq('is_active', true)
+          .order('name'),
+        looseSupabase
+          .from('exploitants')
+          .select('id,company_id,service_id,profil_id,name,type_exploitant,company_department,is_manager,manager_level,is_active,created_at,updated_at,archived_at')
+          .eq('is_active', true)
+          .order('name'),
+        typeof companyId === 'number' ? listDepotSites(companyId) : Promise.resolve([]),
+        typeof companyId === 'number' ? listActiveDepotAssignments(companyId) : Promise.resolve([]),
+      ])
 
-      const mergedFromDirectory = driverPersons
-        .map(person => ({
-          id: person.legacy_conducteur_id ?? person.id,
-          nom: person.last_name ?? '-',
-          prenom: person.first_name ?? '',
-          telephone: person.phone ?? null,
-          email: person.email ?? null,
-          statut: (person.status as Conducteur['statut']) ?? 'actif',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })) as Conducteur[]
+      const [directoryResult, svcResult, expResult, depotSitesResult, depotAssignmentsResult] = optionalResults
 
-      for (const candidate of mergedFromDirectory) {
-        const key = (candidate.matricule ?? `${candidate.nom}|${candidate.prenom}`).toLowerCase()
-        if (conducteurIds.has(candidate.id) || conducteurKeys.has(key)) continue
-        conducteurs.push(candidate)
-        conducteurIds.add(candidate.id)
-        conducteurKeys.add(key)
+      if (directoryResult.status === 'fulfilled') {
+        const directoryPersons = directoryResult.value
+        const driverPersons = directoryPersons.filter(person => ['driver', 'conducteur', 'chauffeur'].includes((person.person_type ?? '').toLowerCase()))
+        const conducteurKeys = new Set(conducteurs.map(c => `${(c.matricule ?? `${c.nom}|${c.prenom}`).toLowerCase()}`))
+        const conducteurIds = new Set(conducteurs.map(c => c.id))
+
+        const mergedFromDirectory = driverPersons
+          .map(person => ({
+            id: person.legacy_conducteur_id ?? person.id,
+            nom: person.last_name ?? '-',
+            prenom: person.first_name ?? '',
+            telephone: person.phone ?? null,
+            email: person.email ?? null,
+            statut: (person.status as Conducteur['statut']) ?? 'actif',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })) as Conducteur[]
+
+        for (const candidate of mergedFromDirectory) {
+          const key = (candidate.matricule ?? `${candidate.nom}|${candidate.prenom}`).toLowerCase()
+          if (conducteurIds.has(candidate.id) || conducteurKeys.has(key)) continue
+          conducteurs.push(candidate)
+          conducteurIds.add(candidate.id)
+          conducteurKeys.add(key)
+        }
       }
 
       if (vehicules.length === 0 || remorques.length === 0) {
@@ -304,21 +335,43 @@ export default function Chauffeurs() {
         })
       }
 
+      const todayIso = new Date().toISOString().slice(0, 10)
+      const conducteurIdsList = conducteurs.map(c => c.id)
+      const todayAbsenceMap: Record<string, TypeAbsence[]> = {}
+      if (conducteurIdsList.length > 0) {
+        const absenceRows = await supabase
+          .from('absences_rh')
+          .select('employe_id,type_absence')
+          .in('employe_id', conducteurIdsList)
+          .in('statut', Array.from(STATUTS_ABSENCE_ACTIFS))
+          .lte('date_debut', todayIso)
+          .gte('date_fin', todayIso)
+
+        if (!absenceRows.error) {
+          for (const row of (absenceRows.data ?? []) as Array<{ employe_id: string; type_absence: TypeAbsence }>) {
+            todayAbsenceMap[row.employe_id] = [...(todayAbsenceMap[row.employe_id] ?? []), row.type_absence]
+          }
+        }
+      }
+
       setList(conducteurs)
       setVehicules(vehicules)
       setRemorques(remorques)
       setAffectations(affRes.data ?? [])
+      setDepotSites(depotSitesResult.status === 'fulfilled' ? (depotSitesResult.value as DepotSite[]) : [])
+      setDepotAssignments(depotAssignmentsResult.status === 'fulfilled' ? (depotAssignmentsResult.value as StaffDepotAssignment[]) : [])
       setActiveOrdersByConducteur(groupedOrders)
-      setServices((svcRes.data as Service[] | null) ?? [])
-      setExploitants((expRes.data as Exploitant[] | null) ?? [])
+      setTodayAbsencesByConducteur(todayAbsenceMap)
+      setServices(svcResult.status === 'fulfilled' ? ((svcResult.value.data as Service[] | null) ?? []) : [])
+      setExploitants(expResult.status === 'fulfilled' ? ((expResult.value.data as Exploitant[] | null) ?? []) : [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Chargement impossible.')
+      setError(formatLoadError(err, 'Chargement impossible.'))
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [companyId])
 
   const conducteurMap = useMemo(
     () => Object.fromEntries(list.map(conducteur => [conducteur.id, conducteur])),
@@ -528,12 +581,20 @@ export default function Chauffeurs() {
     setSaving(true)
 
     try {
-      const query = editingId
-        ? supabase.from('conducteurs').update(payload).eq('id', editingId)
-        : supabase.from('conducteurs').insert(payload)
-
-      const { error: saveError } = await query
-      if (saveError) throw saveError
+      if (editingId) {
+        const { error: saveError } = await supabase.from('conducteurs').update(payload).eq('id', editingId)
+        if (saveError) throw saveError
+      } else {
+        const { data: createdConducteur, error: saveError } = await supabase
+          .from('conducteurs')
+          .insert(payload)
+          .select('id, company_id')
+          .single()
+        if (saveError) throw saveError
+        if (createdConducteur?.id && typeof createdConducteur.company_id === 'number') {
+          await ensureConducteurAssignedToPrimaryDepot(createdConducteur.company_id, createdConducteur.id)
+        }
+      }
 
       setNotice(editingId ? 'Conducteur mis a jour.' : 'Conducteur ajoute.')
       closeForm()
@@ -568,6 +629,10 @@ export default function Chauffeurs() {
     return affectations.find(a => a.conducteur_id === conducteurId) ?? null
   }
 
+  function currentDepotAff(conducteurId: string) {
+    return depotAssignments.find(a => a.conducteur_id === conducteurId && !a.ended_at) ?? null
+  }
+
   function openAffModal(c: Conducteur) {
     resetFeedback()
     const existing = currentAff(c.id)
@@ -587,6 +652,7 @@ export default function Chauffeurs() {
       : { ...EMPTY_AFF, conducteur_id: c.id }
     )
     setAffConducteurServiceId(c.primary_service_id ?? null)
+    setAffConducteurDepotId(currentDepotAff(c.id)?.depot_site_id ?? '')
     setAffModal(c.id)
   }
 
@@ -652,6 +718,14 @@ export default function Chauffeurs() {
       if (conducteur && affConducteurServiceId !== (conducteur.primary_service_id ?? null)) {
         await supabase.from('conducteurs').update({ primary_service_id: affConducteurServiceId }).eq('id', affModal)
       }
+      if (typeof companyId === 'number') {
+        await transferConducteurToDepot({
+          companyId,
+          conducteurId: affModal,
+          depotSiteId: affConducteurDepotId || null,
+          source: 'manual_transfer',
+        })
+      }
       setAffSaving(false)
       setNotice('Affectation retiree.')
       setAffModal(null)
@@ -677,6 +751,14 @@ export default function Chauffeurs() {
     const conducteur = list.find(c => c.id === affModal)
     if (conducteur && affConducteurServiceId !== (conducteur.primary_service_id ?? null)) {
       await supabase.from('conducteurs').update({ primary_service_id: affConducteurServiceId }).eq('id', affModal)
+    }
+    if (typeof companyId === 'number') {
+      await transferConducteurToDepot({
+        companyId,
+        conducteurId: affModal,
+        depotSiteId: affConducteurDepotId || null,
+        source: 'manual_transfer',
+      })
     }
 
     setAffSaving(false)
@@ -907,9 +989,12 @@ export default function Chauffeurs() {
             <tbody>
               {filtered.map((c, i) => {
                 const aff = currentAff(c.id)
+                const depotAff = currentDepotAff(c.id)
+                const depotSite = depotSites.find(site => site.id === depotAff?.depot_site_id) ?? null
                 const veh = aff?.vehicule_id ? vehMap[aff.vehicule_id] : null
                 const rem = aff?.remorque_id ? remMap[aff.remorque_id] : null
                 const otList = activeOrdersByConducteur[c.id] ?? []
+                const todayAbsences = todayAbsencesByConducteur[c.id] ?? []
                 const firstOt = otList[0] ?? null
                 const svcConducteur = services.find(s => s.id === c.primary_service_id) ?? null
                 const expCond = aff?.exploitant_responsable_id
@@ -927,6 +1012,11 @@ export default function Chauffeurs() {
                           style={{ backgroundColor: svcConducteur.color ?? '#475569' }}
                         >
                           {svcConducteur.code ? svcConducteur.code : svcConducteur.name}
+                        </span>
+                      )}
+                      {todayAbsences.length > 0 && (
+                        <span className="mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold bg-rose-100 text-rose-700">
+                          Absent aujourd'hui: {todayAbsences.map(type => TYPE_ABSENCE_LABELS[type]).join(', ')}
                         </span>
                       )}
                     </td>
@@ -1007,6 +1097,9 @@ export default function Chauffeurs() {
                           )}
                           {expCond && (
                             <div className="text-[11px] text-muted">{expCond.name}</div>
+                          )}
+                          {depotSite && (
+                            <div className="text-[11px] text-muted">Dépôt: {depotSite.nom}</div>
                           )}
                         </div>
                       ) : (
@@ -1335,6 +1428,7 @@ export default function Chauffeurs() {
         const selectedVeh = vehicules.find(v => v.id === affForm.vehicule_id)
         const selectedRem = remorques.find(r => r.id === affForm.remorque_id)
         const svcActuel = services.find(s => s.id === affConducteurServiceId)
+        const depotActuel = depotSites.find(site => site.id === affConducteurDepotId) ?? null
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 sm:p-6">
             <div className="max-h-[94vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-surface shadow-2xl sm:max-h-[92vh]">
@@ -1439,6 +1533,24 @@ export default function Chauffeurs() {
                 {/* — Section Service & Exploitant — */}
                 <div className="space-y-4 px-6 py-5">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Service & Exploitant</p>
+
+                  <Field label="Dépôt courant">
+                    <select
+                      className={inp}
+                      value={affConducteurDepotId}
+                      onChange={e => setAffConducteurDepotId(e.target.value)}
+                    >
+                      <option value="">— Aucun dépôt —</option>
+                      {depotSites.map(site => (
+                        <option key={site.id} value={site.id}>
+                          {site.nom}{site.is_primary ? ' · principal' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {depotActuel && (
+                      <p className="mt-1.5 text-xs text-discreet">Affecté à: <span className="font-medium">{depotActuel.nom}</span></p>
+                    )}
+                  </Field>
 
                   {/* Service du conducteur */}
                   <div>

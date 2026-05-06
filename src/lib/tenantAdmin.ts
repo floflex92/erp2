@@ -59,6 +59,7 @@ export const ALL_TENANT_MODULES = [
   'inter-erp',
   'communication',
   'coffre',
+  'carburant',
   'settings',
 ] as const
 
@@ -87,7 +88,7 @@ const LEGACY_TO_MODULES: Record<LegacyTenantModule, TenantModule[]> = {
     'communication',
   ],
   planning: ['planning', 'planning-conducteur', 'map-live', 'feuille-route'],
-  fleet: ['vehicules', 'remorques', 'equipements', 'entrepots'],
+  fleet: ['vehicules', 'remorques', 'equipements', 'entrepots', 'carburant'],
   workshop: ['maintenance'],
   hr: ['chauffeurs', 'rh', 'entretiens-salaries', 'paie', 'frais', 'frais-rapide', 'tachygraphe', 'amendes'],
   accounting: ['facturation', 'comptabilite', 'reglements', 'tresorerie', 'analytique-transport'],
@@ -172,6 +173,7 @@ export const TENANT_MODULE_LABELS: Record<TenantModule, string> = {
   'inter-erp': 'Inter-ERP',
   communication: 'Communication',
   coffre: 'Coffre',
+  carburant: 'Gestion carburant',
   settings: 'Parametres',
 }
 
@@ -215,6 +217,7 @@ export const MODULE_TO_PAGES: Record<TenantModule, string[]> = {
   'inter-erp': ['inter-erp'],
   communication: ['communication'],
   coffre: ['coffre'],
+  carburant: ['carburant'],
   settings: ['parametres', 'utilisateurs', 'mentions-legales', 'tenant-admin', 'super-admin'],
 }
 

@@ -8,6 +8,7 @@ import { listAffretementContractsForDriverEmail } from '@/lib/affretementPortal'
 import { getDigitalSignature } from '@/lib/signatureStore'
 import { createHrPdfAttachment } from '@/lib/hrDocuments'
 import { saveAttachmentToVault } from '@/lib/vault'
+import { listUnifiedConducteurs } from '@/lib/services/personsService'
 
 type OT = Tables<'ordres_transport'>
 type EtapeMission = Tables<'etapes_mission'>
@@ -457,20 +458,19 @@ export default function FeuilleRoute() {
 
     try {
       const [conducteursRes, profilsRes, clientsRes, vehiculesRes, ordersRes] = await Promise.all([
-        supabase.from('conducteurs').select('id,nom,prenom,email,statut').eq('statut', 'actif').order('nom'),
+        listUnifiedConducteurs(undefined, { activeOnly: true }),
         supabase.from('profils').select('id,role,nom,prenom').eq('role', 'conducteur'),
         supabase.from('clients').select('id,nom'),
         supabase.from('vehicules').select('id,immatriculation,marque,modele'),
         supabase.from('ordres_transport').select('*').order('date_chargement_prevue', { ascending: true, nullsFirst: false }),
       ])
 
-      if (conducteursRes.error) throw conducteursRes.error
       if (profilsRes.error) throw profilsRes.error
       if (clientsRes.error) throw clientsRes.error
       if (vehiculesRes.error) throw vehiculesRes.error
       if (ordersRes.error) throw ordersRes.error
 
-      const conducteurs = (conducteursRes.data ?? []) as ConducteurLite[]
+      const conducteurs = conducteursRes as ConducteurLite[]
       const profilsConducteur = (profilsRes.data ?? []) as ProfilLite[]
       const clientRows = (clientsRes.data ?? []) as ClientLite[]
       const vehicules = (vehiculesRes.data ?? []) as VehiculeLite[]

@@ -6,7 +6,7 @@ import { ensureEmployeeJobSheets, ensurePolicyDocuments, generateEmploymentContr
 import { importEmployeeIntakeForm, provisionEmployeeOnboarding } from '@/lib/onboarding'
 import { createPayrollSlip } from '@/lib/payroll'
 import { buildStaffDirectory, findStaffMember, staffDisplayName } from '@/lib/staffDirectory'
-import { createAbsenceRh, deleteAbsenceRh, fetchAbsencesRh, fetchSoldeAbsences, TYPE_ABSENCE_LABELS, STATUT_ABSENCE_LABELS, STATUT_ABSENCE_COLORS, ABSENCE_WORKFLOW_STEPS, upsertSoldeAbsences, updateAbsenceRh, type AbsenceRh, type SoldeAbsences, type TypeAbsence, type StatutAbsence } from '@/lib/absencesRh'
+import { createAbsenceRh, deleteAbsenceRh, fetchAbsencesRh, fetchSoldeAbsences, TYPE_ABSENCE_LABELS, STATUT_ABSENCE_LABELS, STATUT_ABSENCE_COLORS, ABSENCE_WORKFLOW_STEPS, STATUTS_ABSENCE_ACTIFS, upsertSoldeAbsences, updateAbsenceRh, type AbsenceRh, type SoldeAbsences, type TypeAbsence, type StatutAbsence } from '@/lib/absencesRh'
 import { generateCongeDocumentPDF } from '@/lib/congePdf'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
@@ -20,6 +20,7 @@ type RhTab = 'employes' | 'effectif' | 'documents' | 'entretiens' | 'absences'
 type ProfilRow = Tables<'profils'>
 type ConducteurRow = Tables<'conducteurs'>
 type ExploitantRow = Tables<'exploitants'>
+type AbsenceViewMode = 'cards' | 'table' | 'gantt'
 
 type WorkforceMember = {
   id: string
@@ -29,6 +30,16 @@ type WorkforceMember = {
   matricule: string | null
   email: string | null
   statut: string
+}
+
+type AbsenceEmployeeRow = {
+  employeeId: string
+  employeeName: string
+  totalAbsences: number
+  pendingCount: number
+  activeCount: number
+  totalDays: number
+  nextAbsenceLabel: string
 }
 
 export default function Rh() {
@@ -51,12 +62,18 @@ export default function Rh() {
   const [isLoadingAbsences, setIsLoadingAbsences] = useState(false)
   const [absenceFilterEmploye, setAbsenceFilterEmploye] = useState('')
   const [absenceFilterStatut, setAbsenceFilterStatut] = useState<StatutAbsence | 'tous'>('tous')
+  const [absenceFilterBloquantesPlanning, setAbsenceFilterBloquantesPlanning] = useState(false)
+  const [absenceView, setAbsenceView] = useState<AbsenceViewMode>('table')
+  const [absenceGanttDate, setAbsenceGanttDate] = useState(new Date().toISOString().slice(0, 10))
+  const [absenceGanttZoom, setAbsenceGanttZoom] = useState<30 | 60>(60)
   const [showAbsenceForm, setShowAbsenceForm] = useState(false)
   const [editingAbsenceId, setEditingAbsenceId] = useState<string | null>(null)
   const [absenceForm, setAbsenceForm] = useState<Partial<AbsenceRh>>({
     type_absence: 'conges_payes',
     date_debut: new Date().toISOString().slice(0, 10),
     date_fin: new Date().toISOString().slice(0, 10),
+    heure_debut: null,
+    heure_fin: null,
     nb_jours: 1,
     statut: 'demande',
   })
@@ -257,6 +274,100 @@ export default function Rh() {
     })
   }, [workforce, workforceFilter, workforceSearch])
 
+  const filteredAbsences = useMemo(() => {
+    return absences
+      .filter(absence => (!absenceFilterEmploye || absence.employe_id === absenceFilterEmploye))
+      .filter(absence => absenceFilterStatut === 'tous' || absence.statut === absenceFilterStatut)
+      .filter(absence => !absenceFilterBloquantesPlanning || STATUTS_ABSENCE_ACTIFS.includes(absence.statut))
+      .sort((left, right) => {
+        const leftTs = new Date(left.date_debut).getTime()
+        const rightTs = new Date(right.date_debut).getTime()
+        return rightTs - leftTs
+      })
+  }, [absenceFilterBloquantesPlanning, absenceFilterEmploye, absenceFilterStatut, absences])
+
+  const absenceEmployeeRows = useMemo<AbsenceEmployeeRow[]>(() => {
+    const nowIso = new Date().toISOString().slice(0, 10)
+
+    return staff
+      .filter(member => !absenceFilterEmploye || member.id === absenceFilterEmploye)
+      .map(member => {
+        const entries = filteredAbsences.filter(absence => absence.employe_id === member.id)
+        const pendingCount = entries.filter(absence => absence.statut === 'demande').length
+        const activeCount = entries.filter(absence => STATUTS_ABSENCE_ACTIFS.includes(absence.statut)).length
+        const totalDays = entries.reduce((sum, absence) => sum + (Number(absence.nb_jours) || 0), 0)
+        const nextAbsence = entries
+          .filter(absence => absence.date_fin >= nowIso)
+          .sort((left, right) => {
+            const leftTs = new Date(left.date_debut).getTime()
+            const rightTs = new Date(right.date_debut).getTime()
+            return leftTs - rightTs
+          })[0]
+
+        return {
+          employeeId: member.id,
+          employeeName: staffDisplayName(member),
+          totalAbsences: entries.length,
+          pendingCount,
+          activeCount,
+          totalDays,
+          nextAbsenceLabel: nextAbsence
+            ? `${new Date(nextAbsence.date_debut).toLocaleDateString('fr-FR')} -> ${new Date(nextAbsence.date_fin).toLocaleDateString('fr-FR')}`
+            : '-',
+        }
+      })
+      .sort((left, right) => left.employeeName.localeCompare(right.employeeName, 'fr'))
+  }, [absenceFilterEmploye, filteredAbsences, staff])
+
+  function parseTimeToMinutes(value: string | null | undefined, fallback: number) {
+    if (!value) return fallback
+    const [hours, minutes] = value.split(':').map(Number)
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return fallback
+    return Math.max(0, Math.min(1439, hours * 60 + minutes))
+  }
+
+  function formatMinutesToTime(value: number) {
+    const hours = Math.floor(value / 60)
+    const minutes = value % 60
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+  }
+
+  function getAbsenceTimelineBounds(absence: AbsenceRh, focusDate: string) {
+    if (absence.date_debut > focusDate || absence.date_fin < focusDate) return null
+    const startMin = absence.date_debut === focusDate ? parseTimeToMinutes(absence.heure_debut ?? null, 0) : 0
+    const endMin = absence.date_fin === focusDate ? parseTimeToMinutes(absence.heure_fin ?? null, 24 * 60) : 24 * 60
+    return {
+      startMin: Math.max(0, Math.min(startMin, 24 * 60)),
+      endMin: Math.max(Math.max(0, Math.min(endMin, 24 * 60)), startMin + 15),
+      startsBefore: absence.date_debut < focusDate,
+      endsAfter: absence.date_fin > focusDate,
+    }
+  }
+
+  const ganttRows = useMemo(() => {
+    const rows = staff
+      .filter(member => member.role === 'conducteur' || member.role === 'conducteur_affreteur')
+      .map(member => ({
+        member,
+        absences: filteredAbsences.filter(absence => absence.employe_id === member.id && !!getAbsenceTimelineBounds(absence, absenceGanttDate)),
+      }))
+
+    return rows.sort((left, right) => staffDisplayName(left.member).localeCompare(staffDisplayName(right.member), 'fr'))
+  }, [absenceGanttDate, filteredAbsences, staff])
+
+  const ganttSlots = useMemo(() => {
+    const slotSize = absenceGanttZoom
+    const count = Math.ceil((24 * 60) / slotSize)
+    return Array.from({ length: count }, (_, index) => {
+      const minute = index * slotSize
+      return {
+        index,
+        minute,
+        label: formatMinutesToTime(minute),
+      }
+    })
+  }, [absenceGanttZoom])
+
   useEffect(() => {
     void (async () => {
       setIsLoadingAbsences(true)
@@ -440,6 +551,8 @@ export default function Rh() {
       type_absence: 'conges_payes',
       date_debut: new Date().toISOString().slice(0, 10),
       date_fin: new Date().toISOString().slice(0, 10),
+      heure_debut: null,
+      heure_fin: null,
       nb_jours: 1,
       statut: 'demande',
     })
@@ -450,19 +563,41 @@ export default function Rh() {
       setError('Collaborateur, type, date début et fin sont obligatoires.')
       return
     }
+
+    if (
+      absenceForm.date_debut === absenceForm.date_fin
+      && absenceForm.heure_debut
+      && absenceForm.heure_fin
+      && parseTimeToMinutes(absenceForm.heure_fin, 0) <= parseTimeToMinutes(absenceForm.heure_debut, 0)
+    ) {
+      setError("L'heure de fin doit être postérieure à l'heure de début.")
+      return
+    }
+
+    const normalizedAbsenceForm: Partial<AbsenceRh> = {
+      ...absenceForm,
+      heure_debut: absenceForm.heure_debut || null,
+      heure_fin: absenceForm.heure_fin || null,
+    }
+
+    if (
+      normalizedAbsenceForm.date_debut === normalizedAbsenceForm.date_fin
+      && normalizedAbsenceForm.heure_debut
+      && normalizedAbsenceForm.heure_fin
+    ) {
+      const durationMinutes = parseTimeToMinutes(normalizedAbsenceForm.heure_fin, 0) - parseTimeToMinutes(normalizedAbsenceForm.heure_debut, 0)
+      normalizedAbsenceForm.nb_jours = Math.max(0.1, Math.round(((durationMinutes / 60) / 8) * 10) / 10)
+    }
+
     try {
       if (editingAbsenceId) {
-        const updated = await updateAbsenceRh(editingAbsenceId, absenceForm)
-        if (updated) {
-          setAbsences(prev => prev.map(a => a.id === editingAbsenceId ? updated : a))
-          setNotice('Absence mise à jour.')
-          resetAbsenceForm()
-        } else {
-          setError("Erreur lors de la mise à jour.")
-        }
+        const updated = await updateAbsenceRh(editingAbsenceId, normalizedAbsenceForm)
+        setAbsences(prev => prev.map(a => a.id === editingAbsenceId ? updated : a))
+        setNotice('Absence mise à jour.')
+        resetAbsenceForm()
       } else {
         const created = await createAbsenceRh({
-          ...absenceForm as Omit<AbsenceRh, 'id' | 'created_at' | 'updated_at'>,
+          ...normalizedAbsenceForm as Omit<AbsenceRh, 'id' | 'created_at' | 'updated_at'>,
           company_id: null,
           justificatif_url: null,
           validateur_id: null,
@@ -470,13 +605,9 @@ export default function Rh() {
           commentaire_rh: null,
           created_by: profil?.id ?? null,
         })
-        if (created) {
-          setAbsences(prev => [created, ...prev])
-          setNotice('Absence créée.')
-          resetAbsenceForm()
-        } else {
-          setError("Erreur lors de la création.")
-        }
+        setAbsences(prev => [created, ...prev])
+        setNotice('Absence créée.')
+        resetAbsenceForm()
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur inattendue.")
@@ -503,11 +634,11 @@ export default function Rh() {
       stepFields.date_validation = now
     }
 
-    const updated = await updateAbsenceRh(id, {
-      statut,
-      ...stepFields,
-    })
-    if (updated) {
+    try {
+      const updated = await updateAbsenceRh(id, {
+        statut,
+        ...stepFields,
+      })
       setAbsences(prev => prev.map(a => a.id === id ? updated : a))
       const stepLabel = STATUT_ABSENCE_LABELS[statut]
       setNotice(statut === 'refusee' ? 'Absence refusée.' : `Étape : ${stepLabel}.`)
@@ -534,8 +665,8 @@ export default function Rh() {
           setSolde(refreshed)
         }
       }
-    } else {
-      setError('Impossible de changer le statut.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Impossible de changer le statut.')
     }
   }
 
@@ -564,6 +695,71 @@ export default function Rh() {
     })
     if (updated) { setSolde(updated); setNotice('Soldes enregistrés.') }
     else setError('Impossible de sauvegarder les soldes.')
+  }
+
+  function findStaffName(userId: string | null) {
+    if (!userId) return null
+    const member = staff.find(item => item.id === userId)
+    return member ? staffDisplayName(member) : userId.slice(0, 8)
+  }
+
+  function renderAbsenceActions(absence: AbsenceRh) {
+    const nextStep = ABSENCE_WORKFLOW_STEPS.find(
+      step => step.from === absence.statut && profil?.role && step.roles.includes(profil.role),
+    )
+
+    return (
+      <div className="flex flex-col gap-1.5 shrink-0">
+        {nextStep && (
+          <button
+            type="button"
+            onClick={() => void handleValiderAbsence(absence.id, nextStep.to)}
+            className="text-xs px-2.5 py-1 rounded-lg bg-green-100 text-green-700 font-medium hover:bg-green-200"
+          >
+            {nextStep.label}
+          </button>
+        )}
+        {absence.statut !== 'validee' && absence.statut !== 'refusee' && absence.statut !== 'annulee' && (
+          <button
+            type="button"
+            onClick={() => void handleValiderAbsence(absence.id, 'refusee')}
+            className="text-xs px-2.5 py-1 rounded-lg bg-red-100 text-red-700 font-medium hover:bg-red-200"
+          >
+            Refuser
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            setEditingAbsenceId(absence.id)
+            setAbsenceForm(absence)
+            setShowAbsenceForm(true)
+          }}
+          className="text-xs px-2.5 py-1 rounded-lg border border-line text-secondary hover:bg-surface-soft"
+        >
+          Modifier
+        </button>
+        {absence.statut === 'validee' && (
+          <button
+            type="button"
+            onClick={() => {
+              const emp = staff.find(member => member.id === absence.employe_id)
+              generateCongeDocumentPDF({
+                absence,
+                employeNom: emp ? staffDisplayName(emp) : 'Employe',
+                validateurExploitationNom: findStaffName(absence.validateur_exploitation_id),
+                validateurDirectionNom: findStaffName(absence.validateur_direction_id),
+                integrePaieParNom: findStaffName(absence.integre_paie_par_id),
+                validateurFinalNom: findStaffName(absence.validateur_id),
+              })
+            }}
+            className="text-xs px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 font-medium hover:bg-indigo-200"
+          >
+            PDF congé
+          </button>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -914,6 +1110,37 @@ export default function Rh() {
                     <option key={s} value={s}>{STATUT_ABSENCE_LABELS[s]}</option>
                   ))}
                 </select>
+                <label className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-xs font-medium text-secondary">
+                  <input
+                    type="checkbox"
+                    checked={absenceFilterBloquantesPlanning}
+                    onChange={e => setAbsenceFilterBloquantesPlanning(e.target.checked)}
+                  />
+                  Absences bloquantes planning
+                </label>
+                <div className="inline-flex rounded-lg border border-line overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setAbsenceView('table')}
+                    className={`px-3 py-2 text-xs font-semibold ${absenceView === 'table' ? 'bg-slate-900 text-white' : 'bg-surface text-secondary'}`}
+                  >
+                    Tableau
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAbsenceView('cards')}
+                    className={`px-3 py-2 text-xs font-semibold ${absenceView === 'cards' ? 'bg-slate-900 text-white' : 'bg-surface text-secondary'}`}
+                  >
+                    Cartes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAbsenceView('gantt')}
+                    className={`px-3 py-2 text-xs font-semibold ${absenceView === 'gantt' ? 'bg-slate-900 text-white' : 'bg-surface text-secondary'}`}
+                  >
+                    Gantt
+                  </button>
+                </div>
               </div>
               <button
                 type="button"
@@ -1016,12 +1243,28 @@ export default function Rh() {
                       onChange={e => setAbsenceForm(f => ({ ...f, date_debut: e.target.value }))}
                     />
                   </Field>
+                  <Field label="Heure début">
+                    <input
+                      type="time"
+                      className={inp}
+                      value={absenceForm.heure_debut || ''}
+                      onChange={e => setAbsenceForm(f => ({ ...f, heure_debut: e.target.value || null }))}
+                    />
+                  </Field>
                   <Field label="Date fin">
                     <input
                       type="date"
                       className={inp}
                       value={absenceForm.date_fin || ''}
                       onChange={e => setAbsenceForm(f => ({ ...f, date_fin: e.target.value }))}
+                    />
+                  </Field>
+                  <Field label="Heure fin">
+                    <input
+                      type="time"
+                      className={inp}
+                      value={absenceForm.heure_fin || ''}
+                      onChange={e => setAbsenceForm(f => ({ ...f, heure_fin: e.target.value || null }))}
                     />
                   </Field>
                   <Field label="Nb jours">
@@ -1035,6 +1278,9 @@ export default function Rh() {
                     />
                   </Field>
                 </div>
+                <p className="text-xs text-discreet">
+                  Laissez les heures vides pour une absence à la journée. Renseignez-les pour une absence au créneau horaire.
+                </p>
                 <Field label="Motif (optionnel)">
                   <input
                     className={inp}
@@ -1089,12 +1335,52 @@ export default function Rh() {
             <div className="mt-4">
               {isLoadingAbsences ? (
                 <p className="text-sm text-muted py-6 text-center">Chargement...</p>
-              ) : (
+              ) : absenceView === 'table' ? (
+                <div className="rounded-xl border border-line bg-surface overflow-hidden">
+                  <div className="overflow-auto">
+                    <table className="w-full min-w-[980px] text-sm">
+                      <thead className="bg-surface-2 text-foreground">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-semibold">Collaborateur</th>
+                          <th className="px-3 py-2 text-left font-semibold">Absences</th>
+                          <th className="px-3 py-2 text-left font-semibold">Demandes</th>
+                          <th className="px-3 py-2 text-left font-semibold">Actives</th>
+                          <th className="px-3 py-2 text-left font-semibold">Jours cumulés</th>
+                          <th className="px-3 py-2 text-left font-semibold">Prochaine absence</th>
+                          <th className="px-3 py-2 text-left font-semibold">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {absenceEmployeeRows.map(row => (
+                          <tr key={row.employeeId} className="border-t border-line">
+                            <td className="px-3 py-2 font-medium text-heading">{row.employeeName}</td>
+                            <td className="px-3 py-2 text-foreground">{row.totalAbsences}</td>
+                            <td className="px-3 py-2 text-foreground">{row.pendingCount}</td>
+                            <td className="px-3 py-2 text-foreground">{row.activeCount}</td>
+                            <td className="px-3 py-2 text-foreground">{row.totalDays.toFixed(1)} j</td>
+                            <td className="px-3 py-2 text-foreground">{row.nextAbsenceLabel}</td>
+                            <td className="px-3 py-2">
+                              <button
+                                type="button"
+                                onClick={() => setAbsenceFilterEmploye(row.employeeId)}
+                                className="rounded-lg border border-line px-2 py-1 text-xs font-medium text-foreground hover:bg-surface-2"
+                              >
+                                Voir détail
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : filteredAbsences.length === 0 ? (
+                <div className="rounded-xl border border-line bg-surface-soft p-6 text-center">
+                  <p className="text-sm text-discreet">Aucune absence enregistrée.</p>
+                </div>
+              ) : absenceView === 'cards' ? (
                 <div className="space-y-2">
-                  {absences
-                    .filter(a => (!absenceFilterEmploye || a.employe_id === absenceFilterEmploye))
-                    .filter(a => absenceFilterStatut === 'tous' || a.statut === absenceFilterStatut)
-                    .map(a => {
+                  {filteredAbsences.map(a => {
                       const emp = staff.find(m => m.id === a.employe_id)
                       return (
                         <div
@@ -1111,6 +1397,7 @@ export default function Rh() {
                               </span>
                               <span className="text-xs text-discreet">
                                 {a.nb_jours} j · {new Date(a.date_debut).toLocaleDateString('fr-FR')} → {new Date(a.date_fin).toLocaleDateString('fr-FR')}
+                                {(a.heure_debut || a.heure_fin) ? ` · ${a.heure_debut ?? '00:00'} → ${a.heure_fin ?? '24:00'}` : ''}
                               </span>
                             </div>
                             {emp && (
@@ -1141,79 +1428,100 @@ export default function Rh() {
                               })}
                             </div>
                           </div>
-                          <div className="flex flex-col gap-1.5 shrink-0">
-                            {/* Bouton workflow : prochaine étape selon rôle */}
-                            {(() => {
-                              const nextStep = ABSENCE_WORKFLOW_STEPS.find(
-                                s => s.from === a.statut && profil?.role && s.roles.includes(profil.role),
-                              )
-                              if (!nextStep) return null
-                              return (
-                                <button
-                                  type="button"
-                                  onClick={() => void handleValiderAbsence(a.id, nextStep.to)}
-                                  className="text-xs px-2.5 py-1 rounded-lg bg-green-100 text-green-700 font-medium hover:bg-green-200"
-                                >
-                                  {nextStep.label}
-                                </button>
-                              )
-                            })()}
-                            {/* Refuser à tout moment sauf si déjà terminé */}
-                            {a.statut !== 'validee' && a.statut !== 'refusee' && a.statut !== 'annulee' && (
-                              <button
-                                type="button"
-                                onClick={() => void handleValiderAbsence(a.id, 'refusee')}
-                                className="text-xs px-2.5 py-1 rounded-lg bg-red-100 text-red-700 font-medium hover:bg-red-200"
-                              >
-                                Refuser
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingAbsenceId(a.id)
-                                setAbsenceForm(a)
-                                setShowAbsenceForm(true)
-                              }}
-                              className="text-xs px-2.5 py-1 rounded-lg border border-line text-secondary hover:bg-surface-soft"
-                            >
-                              Modifier
-                            </button>
-                            {/* Document de congé PDF quand validée */}
-                            {a.statut === 'validee' && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const empName = staff.find(m => m.id === a.employe_id)
-                                  const findName = (uid: string | null) => {
-                                    if (!uid) return null
-                                    const member = staff.find(m => m.id === uid)
-                                    return member ? staffDisplayName(member) : uid.slice(0, 8)
-                                  }
-                                  generateCongeDocumentPDF({
-                                    absence: a,
-                                    employeNom: empName ? staffDisplayName(empName) : 'Employe',
-                                    validateurExploitationNom: findName(a.validateur_exploitation_id),
-                                    validateurDirectionNom: findName(a.validateur_direction_id),
-                                    integrePaieParNom: findName(a.integre_paie_par_id),
-                                    validateurFinalNom: findName(a.validateur_id),
-                                  })
-                                }}
-                                className="text-xs px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 font-medium hover:bg-indigo-200"
-                              >
-                                PDF congé
-                              </button>
-                            )}
-                          </div>
+                          {renderAbsenceActions(a)}
                         </div>
                       )
                     })}
-                  {absences.filter(a =>
-                    (!absenceFilterEmploye || a.employe_id === absenceFilterEmploye) &&
-                    (absenceFilterStatut === 'tous' || a.statut === absenceFilterStatut)
-                  ).length === 0 && (
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface-soft p-4">
+                    <Field label="Jour affiché">
+                      <input
+                        type="date"
+                        className={`${inp} w-48`}
+                        value={absenceGanttDate}
+                        onChange={e => setAbsenceGanttDate(e.target.value)}
+                      />
+                    </Field>
+                    <Field label="Pas de temps">
+                      <select
+                        className={`${inp} w-40`}
+                        value={absenceGanttZoom}
+                        onChange={e => setAbsenceGanttZoom(Number(e.target.value) as 30 | 60)}
+                      >
+                        <option value={60}>1 heure</option>
+                        <option value={30}>30 minutes</option>
+                      </select>
+                    </Field>
+                  </div>
+
+                  {ganttRows.length === 0 ? (
                     <div className="rounded-xl border border-line bg-surface-soft p-6 text-center">
-                      <p className="text-sm text-discreet">Aucune absence enregistrée.</p>
+                      <p className="text-sm text-discreet">Aucun conducteur disponible pour l'affichage du Gantt.</p>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-line bg-surface overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <div className="min-w-[1200px]">
+                          <div className="grid grid-cols-[240px_1fr] border-b border-line bg-surface-2">
+                            <div className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-discreet">Collaborateur</div>
+                            <div
+                              className="grid"
+                              style={{ gridTemplateColumns: `repeat(${ganttSlots.length}, minmax(28px, 1fr))` }}
+                            >
+                              {ganttSlots.map(slot => (
+                                <div key={slot.index} className="border-l border-line px-1 py-3 text-[10px] font-semibold text-discreet text-center">
+                                  {slot.label}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {ganttRows.map(row => (
+                            <div key={row.member.id} className="grid grid-cols-[240px_1fr] border-b border-line last:border-b-0">
+                              <div className="px-4 py-4">
+                                <p className="text-sm font-semibold text-heading">{staffDisplayName(row.member)}</p>
+                                <p className="mt-1 text-xs text-discreet">{ROLE_LABELS[row.member.role] ?? row.member.role}</p>
+                              </div>
+                              <div className="relative min-h-[84px]">
+                                <div
+                                  className="absolute inset-0 grid"
+                                  style={{ gridTemplateColumns: `repeat(${ganttSlots.length}, minmax(28px, 1fr))` }}
+                                >
+                                  {ganttSlots.map(slot => (
+                                    <div key={slot.index} className="border-l border-line/70 first:border-l-0" />
+                                  ))}
+                                </div>
+                                <div className="relative px-2 py-3 space-y-2">
+                                  {row.absences.map(absence => {
+                                    const bounds = getAbsenceTimelineBounds(absence, absenceGanttDate)
+                                    if (!bounds) return null
+                                    const leftPct = (bounds.startMin / (24 * 60)) * 100
+                                    const widthPct = ((bounds.endMin - bounds.startMin) / (24 * 60)) * 100
+                                    return (
+                                      <div key={absence.id} className="relative h-12 rounded-lg bg-slate-100/40">
+                                        <div
+                                          className="absolute top-1.5 bottom-1.5 rounded-lg border border-blue-300 bg-blue-500/20 px-2 py-1 text-[11px] text-blue-900 overflow-hidden"
+                                          style={{ left: `${leftPct}%`, width: `${Math.max(widthPct, 2)}%` }}
+                                          title={`${TYPE_ABSENCE_LABELS[absence.type_absence]} · ${absence.heure_debut ?? '00:00'} → ${absence.heure_fin ?? '24:00'}`}
+                                        >
+                                          <div className="truncate font-semibold">
+                                            {TYPE_ABSENCE_LABELS[absence.type_absence]}
+                                          </div>
+                                          <div className="truncate text-[10px] text-blue-800/80">
+                                            {bounds.startsBefore ? '<< ' : ''}{absence.heure_debut ?? '00:00'} - {absence.heure_fin ?? '24:00'}{bounds.endsAfter ? ' >>' : ''}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

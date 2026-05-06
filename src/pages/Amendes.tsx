@@ -5,6 +5,7 @@ import { DEMO_PROFILES } from '@/lib/demoUsers'
 import { createFineRecord, extractPdfSearchText, listFineRecords, normalizePlate, parseFineDocument, patchFineRecord, subscribeFineUpdates, type FineConfidence, type FineNature, type FineRecord } from '@/lib/fines'
 import { supabase } from '@/lib/supabase'
 import { serializeTchatPayload } from '@/lib/tchatMessage'
+import { listUnifiedConducteurs } from '@/lib/services/personsService'
 
 type ConducteurLite = {
   id: string
@@ -281,15 +282,15 @@ export default function Amendes() {
     setError(null)
     try {
       const [conducteursRes, vehiculesRes, affectationsRes] = await Promise.all([
-        supabase.from('conducteurs').select('id,nom,prenom,email,statut').eq('statut', 'actif').order('nom'),
+        listUnifiedConducteurs(undefined, { activeOnly: true }),
         supabase.from('vehicules').select('id,immatriculation,marque,modele,statut').order('immatriculation'),
         supabase.from('affectations').select('conducteur_id,vehicule_id,actif,date_debut,date_fin').eq('actif', true),
       ])
 
-      const firstError = conducteursRes.error ?? vehiculesRes.error ?? affectationsRes.error
+      const firstError = vehiculesRes.error ?? affectationsRes.error
       if (firstError && !isConducteurSession) throw firstError
 
-      const nextConducteurs = conducteursRes.error ? [] : (conducteursRes.data ?? []) as ConducteurLite[]
+      const nextConducteurs = conducteursRes as ConducteurLite[]
       const nextVehicules = vehiculesRes.error ? [] : (vehiculesRes.data ?? []) as VehiculeLite[]
       const nextAffectations = affectationsRes.error ? [] : (affectationsRes.data ?? []) as AffectationLite[]
 

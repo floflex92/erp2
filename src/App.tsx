@@ -14,6 +14,7 @@ const Chauffeurs = lazy(() => import('@/pages/Chauffeurs'))
 const Equipements = lazy(() => import('@/pages/Equipements'))
 const Maintenance = lazy(() => import('@/pages/Maintenance'))
 const Entrepots = lazy(() => import('@/pages/Entrepots'))
+const PilotageDepots = lazy(() => import('@/pages/PilotageDepots'))
 const Clients = lazy(() => import('@/pages/Clients'))
 const Facturation = lazy(() => import('@/pages/Facturation'))
 const Comptabilite = lazy(() => import('@/pages/Comptabilite'))
@@ -38,6 +39,7 @@ const OptimisationTournees = lazy(() => import('@/pages/OptimisationTournees'))
 const MessagerieColis = lazy(() => import('@/pages/MessagerieColis'))
 const FormulairesTerrain = lazy(() => import('@/pages/FormulairesTerrain'))
 const GestionTemperature = lazy(() => import('@/pages/GestionTemperature'))
+const GestionCarburant = lazy(() => import('@/pages/GestionCarburant'))
 const PlanningUnifie = lazy(() => import('@/pages/PlanningUnifie'))
 const TransportsUnifie = lazy(() => import('@/pages/TransportsUnifie'))
 const FraisUnifie = lazy(() => import('@/pages/FraisUnifie'))
@@ -161,6 +163,7 @@ export default function App() {
                   <Route path="maintenance" element={<RequireRole page="maintenance"><Maintenance /></RequireRole>} />
                   <Route path="transports" element={<RequireRole page="transports"><TransportsUnifie /></RequireRole>} />
                   <Route path="entrepots" element={<RequireRole page="entrepots"><Entrepots /></RequireRole>} />
+                  <Route path="pilotage-depots" element={<RequireRole page="entrepots"><PilotageDepots /></RequireRole>} />
                   <Route path="clients" element={<RequireRole page="clients"><Clients /></RequireRole>} />
                   <Route path="facturation" element={<RequireRole page="facturation"><Facturation /></RequireRole>} />
                   <Route path="reglements" element={<Navigate to="/comptabilite-finance" replace />} />
@@ -181,6 +184,7 @@ export default function App() {
                   <Route path="feuille-route" element={<RequireRole page="feuille-route"><FeuilleRoute /></RequireRole>} />
                   <Route path="terrain" element={<RequireRole page="terrain"><TerrainUnifie /></RequireRole>} />
                   <Route path="planning" element={<RequireRole page="planning"><PlanningUnifie /></RequireRole>} />
+                  <Route path="carburant" element={<RequireRole page="carburant"><GestionCarburant /></RequireRole>} />
                   <Route path="espace-client" element={<Navigate to="/portails" replace />} />
                   <Route path="espace-affreteur" element={<Navigate to="/portails" replace />} />
                   <Route path="portails" element={<RequireRole page="espace-client"><Portails /></RequireRole>} />
