@@ -52,7 +52,16 @@ function normalizeDriverStatus(status: string | null | undefined): string {
 }
 
 export async function listPersonsForDirectory(companyId?: number): Promise<PersonListItem[]> {
-  const DRIVER_PROFILE_ROLES = new Set(['conducteur', 'conducteur_affreteur'])
+  const DRIVER_PROFILE_ROLES = new Set([
+    'conducteur',
+    'conducteur_affreteur',
+    'driver',
+    'drivers',
+    'chauffeur',
+    'chauffeurs',
+    'trucker',
+    'truckers',
+  ])
 
   let personsQuery = looseSupabase
     .from('persons')

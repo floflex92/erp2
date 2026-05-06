@@ -19,6 +19,7 @@ import {
   saveNumberSetting,
   saveShowAffretementAssets,
   parseDay,
+  resolveTransportTypeKey,
   toISO,
 } from './planningUtils'
 
@@ -120,6 +121,44 @@ describe('planningUtils temporal metrics', () => {
     expect(metrics).not.toBeNull()
     expect(metrics!.leftPct).toBe(0)
     expect(metrics!.widthPct).toBe(100)
+  })
+})
+
+describe('planningUtils transport type resolution', () => {
+  it('mappe les types canoniques vers eux-memes', () => {
+    expect(resolveTransportTypeKey('complet')).toBe('complet')
+    expect(resolveTransportTypeKey('groupage')).toBe('groupage')
+    expect(resolveTransportTypeKey('express')).toBe('express')
+    expect(resolveTransportTypeKey('partiel')).toBe('partiel')
+    expect(resolveTransportTypeKey('messagerie')).toBe('messagerie')
+    expect(resolveTransportTypeKey('frigorifique')).toBe('frigorifique')
+    expect(resolveTransportTypeKey('vrac')).toBe('vrac')
+    expect(resolveTransportTypeKey('conventionnel')).toBe('conventionnel')
+  })
+
+  it('normalise les aliases et variantes metier courants', () => {
+    expect(resolveTransportTypeKey('FTL')).toBe('complet')
+    expect(resolveTransportTypeKey('lot plein')).toBe('complet')
+    expect(resolveTransportTypeKey('LTL')).toBe('partiel')
+    expect(resolveTransportTypeKey('demi-lot')).toBe('partiel')
+    expect(resolveTransportTypeKey('groupage palettes')).toBe('groupage')
+    expect(resolveTransportTypeKey('messagerie colis')).toBe('messagerie')
+    expect(resolveTransportTypeKey('temperature dirigee')).toBe('frigorifique')
+    expect(resolveTransportTypeKey('reefer')).toBe('frigorifique')
+    expect(resolveTransportTypeKey('vrac citerne')).toBe('vrac')
+    expect(resolveTransportTypeKey('tautliner')).toBe('conventionnel')
+  })
+
+  it('respecte la priorite metier quand plusieurs mots sont presents', () => {
+    expect(resolveTransportTypeKey('complet urgent')).toBe('complet')
+    expect(resolveTransportTypeKey('groupage express')).toBe('groupage')
+    expect(resolveTransportTypeKey('partiel urgent')).toBe('partiel')
+  })
+
+  it('retombe sur conventionnel pour les valeurs vides ou inconnues', () => {
+    expect(resolveTransportTypeKey(null)).toBe('conventionnel')
+    expect(resolveTransportTypeKey('')).toBe('conventionnel')
+    expect(resolveTransportTypeKey('type-inconnu-xyz')).toBe('conventionnel')
   })
 })
 

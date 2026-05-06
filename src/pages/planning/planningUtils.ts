@@ -182,6 +182,104 @@ export const TYPE_TRANSPORT_COLORS: Record<string, string> = {
   conventionnel: '#374151', // anthracite — conventionnel
 }
 
+export const TYPE_TRANSPORT_LABELS: Record<string, string> = {
+  complet: 'Complet',
+  groupage: 'Groupage',
+  express: 'Express',
+  partiel: 'Partiel',
+  messagerie: 'Messagerie',
+  frigorifique: 'Frigorifique',
+  vrac: 'Vrac',
+  conventionnel: 'Conventionnel',
+}
+
+const TYPE_TRANSPORT_ALIASES: Record<string, string> = {
+  cpl: 'complet',
+  grp: 'groupage',
+  exp: 'express',
+  ptl: 'partiel',
+  msg: 'messagerie',
+  fri: 'frigorifique',
+  conv: 'conventionnel',
+  route: 'complet',
+  routier: 'complet',
+  fret_complet: 'complet',
+  fretcomplet: 'complet',
+  complet_route: 'complet',
+  lot_plein: 'complet',
+  lotplein: 'complet',
+  full_truck_load: 'complet',
+  ftl: 'complet',
+  ltl: 'partiel',
+  lot_partiel: 'partiel',
+  lotpartiel: 'partiel',
+  demi_lot: 'partiel',
+  demi_lot_route: 'partiel',
+  groupage_lot: 'groupage',
+  groupage_palette: 'groupage',
+  groupage_palettes: 'groupage',
+  frigo: 'frigorifique',
+  frigorifique: 'frigorifique',
+  temperature_dirigee: 'frigorifique',
+  multi_temperature: 'frigorifique',
+  sous_temperature_dirigee: 'frigorifique',
+  sous_temperature: 'frigorifique',
+  reefer: 'frigorifique',
+  colis: 'messagerie',
+  parcel: 'messagerie',
+  parcels: 'messagerie',
+  messagerie_colis: 'messagerie',
+  distribution_colis: 'messagerie',
+  livraison_urbaine: 'messagerie',
+  vrac_liquide: 'vrac',
+  vrac_solide: 'vrac',
+  benne: 'vrac',
+  citerne: 'vrac',
+  tautliner: 'conventionnel',
+  plateau: 'conventionnel',
+  porte_char: 'conventionnel',
+  porte_conteneur: 'conventionnel',
+  container: 'conventionnel',
+  conventionnelle: 'conventionnel',
+  classique: 'conventionnel',
+  standard: 'conventionnel',
+  lot_complet: 'complet',
+  lotcomplet: 'complet',
+}
+
+function hasTransportToken(raw: string, candidates: string[]): boolean {
+  if (!raw) return false
+  const tokens = raw.split('_').filter(Boolean)
+  return candidates.some(candidate => tokens.includes(candidate) || raw.includes(candidate))
+}
+
+export function resolveTransportTypeKey(typeTransport?: string | null): string {
+  const raw = (typeTransport ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  if (!raw) return 'conventionnel'
+  if (TYPE_TRANSPORT_COLORS[raw]) return raw
+  if (TYPE_TRANSPORT_ALIASES[raw]) return TYPE_TRANSPORT_ALIASES[raw]
+
+  // Priorite metier: un type explicite (complet/partiel/groupage...) ne doit pas
+  // changer de couleur a cause d'un qualificatif additionnel (ex: "complet urgent").
+  if (hasTransportToken(raw, ['groupage', 'grp'])) return 'groupage'
+  if (hasTransportToken(raw, ['partiel', 'partielle', 'demi', 'ltl', 'ptl'])) return 'partiel'
+  if (hasTransportToken(raw, ['complet', 'complete', 'cpl', 'ftl', 'route', 'routier', 'fret', 'plein'])) return 'complet'
+
+  // Types secondaires seulement si aucun type principal n'a ete detecte.
+  if (hasTransportToken(raw, ['express', 'urgent', 'exp'])) return 'express'
+  if (hasTransportToken(raw, ['messagerie', 'messageries', 'colis', 'parcel', 'distribution', 'urbaine', 'msg'])) return 'messagerie'
+  if (hasTransportToken(raw, ['frigo', 'frigor', 'temperature', 'multi_temperature', 'reefer', 'fri'])) return 'frigorifique'
+  if (hasTransportToken(raw, ['vrac', 'benne', 'citerne'])) return 'vrac'
+  if (hasTransportToken(raw, ['convention', 'classique', 'standard', 'tautliner', 'plateau', 'container', 'conv'])) return 'conventionnel'
+  return TYPE_TRANSPORT_ALIASES[raw] ?? 'conventionnel'
+}
+
 /** Couleur de contour OT selon timing/statut : vert = ok, orange = retard, rouge = annulé */
 export function getOtBorderColor(ot: {
   statut?: string | null

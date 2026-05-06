@@ -12,6 +12,7 @@ import type { ViewMode, PlanningScope } from '@/pages/planning/planningTypes'
 import {
   addDays, addMonths, getMonday, getMonthStart,
   fmtWeek, toISO, parseDay,
+  TYPE_TRANSPORT_COLORS, TYPE_TRANSPORT_LABELS,
 } from '@/pages/planning/planningUtils'
 
 export interface PlanningCommandBarProps {
@@ -104,16 +105,10 @@ export function PlanningCommandBar({
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  const LEGEND_TYPES: { label: string; color: string }[] = [
-    { label: 'Complet',       color: '#1e3a8a' },
-    { label: 'Groupage',      color: '#c2410c' },
-    { label: 'Express',       color: '#be185d' },
-    { label: 'Partiel',       color: '#6d28d9' },
-    { label: 'Messagerie',    color: '#0284c7' },
-    { label: 'Frigorifique',  color: '#0f766e' },
-    { label: 'Vrac',          color: '#3f6212' },
-    { label: 'Conventionnel', color: '#374151' },
-  ]
+  const LEGEND_TYPES: { label: string; color: string }[] = Object.entries(TYPE_TRANSPORT_COLORS).map(([key, color]) => ({
+    label: TYPE_TRANSPORT_LABELS[key] ?? key,
+    color,
+  }))
 
   const LEGEND_STATUS: { label: string; color: string }[] = [
     { label: "À l'heure / planifié", color: '#4ade80' },
@@ -263,6 +258,33 @@ export function PlanningCommandBar({
 
       {/* ── ZONE DROITE : actions + expert ─────────────────────────────────── */}
       <div className="flex items-center gap-1.5 flex-shrink-0">
+
+        {/* Toggles rapides blocages planning */}
+        <button
+          type="button"
+          onClick={() => onBlockImpossibleChange(!blockImpossibleAssignments)}
+          title="Activer ou desactiver le blocage des affectations declarees impossibles"
+          className={`px-2.5 h-7 rounded-lg text-[11px] font-semibold border transition-colors ${
+            blockImpossibleAssignments
+              ? 'bg-red-600 border-red-500 text-white'
+              : 'bg-emerald-600 border-emerald-500 text-white hover:bg-emerald-500'
+          }`}
+        >
+          Affect impossible {blockImpossibleAssignments ? 'ON' : 'OFF'}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onBlockOnComplianceChange(!blockOnCompliance)}
+          title="Activer ou desactiver le blocage des affectations sur alertes CE561"
+          className={`px-2.5 h-7 rounded-lg text-[11px] font-semibold border transition-colors ${
+            blockOnCompliance
+              ? 'bg-red-600 border-red-500 text-white'
+              : 'bg-emerald-600 border-emerald-500 text-white hover:bg-emerald-500'
+          }`}
+        >
+          CE561 blocage {blockOnCompliance ? 'ON' : 'OFF'}
+        </button>
 
         {/* Réorganiser lignes (état visible en dehors du menu expert) */}
         {isRowEditMode && (

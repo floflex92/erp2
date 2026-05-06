@@ -12,7 +12,7 @@ export type OT = {
   remorque_id: string | null; prix_ht: number | null; statut_operationnel: string | null
   distance_km: number | null; donneur_ordre_id: string | null
   chargement_site_id: string | null; livraison_site_id: string | null
-  mission_id: string | null; groupage_fige: boolean
+  mission_id: string | null; groupage_id: string | null; groupage_fige: boolean
   est_affretee: boolean
   // Automatismes
   mode_livraison?: string | null          // 'manuel' | 'conducteur' | 'gps' | 'api'

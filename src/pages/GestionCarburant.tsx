@@ -1,23 +1,28 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useAuth } from '@/lib/auth'
 import {
-  listCuves, createCuve, updateCuve, deleteCuve,
-  listPleins, createPlein,
-  listCommandes, createCommande,
+  createCuve, updateCuve, deleteCuve,
+  createPlein,
+  createCommande,
   listConsommationsParVehicule,
-  listAnomalies, createAnomalie,
+  createAnomalie,
   getNiveauxCuve, recordNiveauCuve,
-  type Cuve, type Plein, type CommandeCarburant, type AnomalieCarburant, type NiveauCuve,
+  type Cuve, type Plein, type CommandeCarburant, type AnomalieCarburant, type NiveauCuve, type ConsommationVehicule,
 } from '@/lib/fuelManagement'
-import { supabase } from '@/lib/supabase'
-import { STATUTS_ABSENCE_ACTIFS } from '@/lib/absencesRh'
-import { listUnifiedConducteurs } from '@/lib/services/personsService'
+import { useFuelData, type Vehicule, type Conducteur, type DepotOption } from '@/pages/carburant/useFuelData'
+import {
+  canManageFuelByRole,
+  computeCommandeTotals,
+  formatFuelError,
+  isNonNegativeNumber,
+  isPositiveNumber,
+  isValidDriverIdentifier4d,
+  isValidTvaRate,
+  type NoticeType,
+} from '@/pages/carburant/fuelUtils'
 
 type Tab = 'cuves' | 'pleins' | 'commandes' | 'consommation' | 'anomalies' | 'niveaux'
 
-interface Vehicule { id: string; immatriculation: string; numero_parc?: string }
-interface Conducteur { id: string; prenom: string; nom: string }
-interface DepotOption { id: string; nom: string; source: 'adresses' | 'sites_logistiques' }
 type CuveForm = {
   depot_id: string
   numero_cuve: string
@@ -29,6 +34,76 @@ type CuveForm = {
   statut: Cuve['statut']
   notes: string
 }
+type ShowNotice = (msg: string, type?: NoticeType) => void
+
+interface ManageTabBaseProps {
+  companyId: number
+  onRefresh: () => Promise<void>
+  showNotice: ShowNotice
+  canManage: boolean
+}
+
+interface CuvesTabProps extends ManageTabBaseProps {
+  cuves: Cuve[]
+  depots: DepotOption[]
+}
+
+interface PleinsTabProps extends ManageTabBaseProps {
+  pleins: Plein[]
+  vehicules: Vehicule[]
+  conducteurs: Conducteur[]
+  indisponiblesAujourdhui: Set<string>
+  cuves: Cuve[]
+}
+
+interface CommandesTabProps extends ManageTabBaseProps {
+  commandes: CommandeCarburant[]
+  cuves: Cuve[]
+}
+
+interface ConsommationTabProps {
+  companyId: number
+}
+
+interface NiveauxTabProps {
+  cuves: Cuve[]
+  showNotice: ShowNotice
+  canManage: boolean
+}
+
+interface AnomaliesTabProps extends ManageTabBaseProps {
+  anomalies: AnomalieCarburant[]
+  cuves: Cuve[]
+  vehicules: Vehicule[]
+}
+
+type CommandeForm = {
+  fournisseur_nom: string
+  type_carburant: CommandeCarburant['type_carburant']
+  quantite_litres: number
+  date_commande: string
+  date_livraison_prevue: string
+  cuve_id: string
+  price_unit_ht: number
+  taux_tva: number
+  notes: string
+}
+
+type NiveauForm = {
+  niveau_litres: number
+  jauge_type: NiveauCuve['jauge_type']
+  anomalie: boolean
+  anomalie_description: string
+}
+
+type AnomalieForm = {
+  type: AnomalieCarburant['type']
+  cuve_id: string
+  vehicule_id: string
+  litres_manquants: number
+  description: string
+  gravite: AnomalieCarburant['gravite']
+}
 
 const INPUT_CLS = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-slate-400'
 const BTN_PRIMARY = 'px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-medium'
@@ -39,89 +114,39 @@ const TAB_INACTIVE = `${TAB_CLS} border-transparent text-secondary hover:text-fo
 
 export default function GestionCarburant() {
   const { companyId, role } = useAuth()
-  const canManage = role === 'dirigeant' || role === 'exploitant'
+  const canManage = canManageFuelByRole(role)
 
   const [tab, setTab] = useState<Tab>('cuves')
-  const [cuves, setCuves] = useState<Cuve[]>([])
-  const [pleins, setPleins] = useState<Plein[]>([])
-  const [commandes, setCommandes] = useState<CommandeCarburant[]>([])
-  const [anomalies, setAnomalies] = useState<AnomalieCarburant[]>([])
-  const [vehicules, setVehicules] = useState<Vehicule[]>([])
-  const [conducteurs, setConducteurs] = useState<Conducteur[]>([])
-  const [indisponiblesAujourdhui, setIndisponiblesAujourdhui] = useState<Set<string>>(new Set())
-  const [depots, setDepots] = useState<DepotOption[]>([])
+  const [notice, setNotice] = useState<{ msg: string; type: NoticeType } | null>(null)
+  const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const [loading, setLoading] = useState(true)
-  const [notice, setNotice] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const showNotice = useCallback((msg: string, type: NoticeType = 'success') => {
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current)
+    setNotice({ msg, type })
+    noticeTimerRef.current = setTimeout(() => setNotice(null), 4000)
+  }, [])
 
-  const loadAll = useCallback(async () => {
-    if (!companyId) return
-    setLoading(true)
-    try {
-      const [
-        cuvesList,
-        pleinsList,
-        commandesList,
-        anomaliesList,
-        vehiculesList,
-        conducteursList,
-        depotsAdresses,
-        depotsSites,
-      ] = await Promise.all([
-        listCuves(companyId),
-        listPleins(companyId),
-        listCommandes(companyId),
-        listAnomalies(companyId),
-        supabase.from('vehicules').select('id, immatriculation, numero_parc').eq('company_id', companyId),
-        listUnifiedConducteurs(companyId, { activeOnly: true }),
-        supabase.from('adresses').select('id, nom_lieu').eq('company_id', companyId).eq('type_lieu', 'depot'),
-        supabase.from('sites_logistiques').select('id, nom, type_site').eq('company_id', companyId).in('type_site', ['depot', 'entrepot']),
-      ])
-      setCuves(cuvesList)
-      setPleins(pleinsList)
-      setCommandes(commandesList)
-      setAnomalies(anomaliesList)
-      setVehicules((vehiculesList.data || []) as Vehicule[])
-      const conducteursData = conducteursList as Conducteur[]
-      setConducteurs(conducteursData)
-
-      const conducteurIds = conducteursData.map(c => c.id)
-      const todayIso = new Date().toISOString().slice(0, 10)
-      const absencesRes = conducteurIds.length > 0
-        ? await supabase
-          .from('absences_rh')
-          .select('employe_id')
-          .in('employe_id', conducteurIds)
-          .in('statut', Array.from(STATUTS_ABSENCE_ACTIFS))
-          .lte('date_debut', todayIso)
-          .gte('date_fin', todayIso)
-        : { data: [], error: null }
-      if (absencesRes.error) throw absencesRes.error
-      setIndisponiblesAujourdhui(new Set((absencesRes.data ?? []).map(row => row.employe_id as string)))
-
-      const depotMap = new Map<string, DepotOption>()
-      for (const d of (depotsAdresses.data || []) as Array<{ id: string; nom_lieu: string }>) {
-        depotMap.set(d.id, { id: d.id, nom: d.nom_lieu, source: 'adresses' })
-      }
-      for (const s of (depotsSites.data || []) as Array<{ id: string; nom: string }>) {
-        if (!depotMap.has(s.id)) depotMap.set(s.id, { id: s.id, nom: s.nom, source: 'sites_logistiques' })
-      }
-      setDepots(Array.from(depotMap.values()).sort((a, b) => a.nom.localeCompare(b.nom, 'fr')))
-    } catch (err) {
-      showNotice(`Erreur: ${err instanceof Error ? err.message : 'inconnue'}`, 'error')
-    } finally {
-      setLoading(false)
-    }
-  }, [companyId])
+  const {
+    cuves,
+    pleins,
+    commandes,
+    anomalies,
+    vehicules,
+    conducteurs,
+    indisponiblesAujourdhui,
+    depots,
+    loading,
+    loadAll,
+  } = useFuelData({
+    companyId,
+    onError: useCallback((message: string) => showNotice(message, 'error'), [showNotice]),
+  })
 
   useEffect(() => {
-    void loadAll()
-  }, [loadAll])
-
-  function showNotice(msg: string, type: 'success' | 'error' = 'success') {
-    setNotice({ msg, type })
-    setTimeout(() => setNotice(null), 4000)
-  }
+    return () => {
+      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current)
+    }
+  }, [])
 
   return (
     <div className="flex flex-col h-full bg-background text-foreground">
@@ -132,30 +157,30 @@ export default function GestionCarburant() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-line-strong bg-surface px-6 overflow-x-auto">
-        <button className={tab === 'cuves' ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setTab('cuves')}>
+      <div className="flex gap-1 border-b border-line-strong bg-surface px-6 overflow-x-auto" role="tablist" aria-label="Sections gestion carburant">
+        <button role="tab" aria-selected={tab === 'cuves'} className={tab === 'cuves' ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setTab('cuves')}>
           Cuves
         </button>
-        <button className={tab === 'pleins' ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setTab('pleins')}>
+        <button role="tab" aria-selected={tab === 'pleins'} className={tab === 'pleins' ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setTab('pleins')}>
           Pleins
         </button>
-        <button className={tab === 'commandes' ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setTab('commandes')}>
+        <button role="tab" aria-selected={tab === 'commandes'} className={tab === 'commandes' ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setTab('commandes')}>
           Commandes
         </button>
-        <button className={tab === 'consommation' ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setTab('consommation')}>
+        <button role="tab" aria-selected={tab === 'consommation'} className={tab === 'consommation' ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setTab('consommation')}>
           Consommation
         </button>
-        <button className={tab === 'niveaux' ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setTab('niveaux')}>
+        <button role="tab" aria-selected={tab === 'niveaux'} className={tab === 'niveaux' ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setTab('niveaux')}>
           Niveaux
         </button>
-        <button className={tab === 'anomalies' ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setTab('anomalies')}>
+        <button role="tab" aria-selected={tab === 'anomalies'} className={tab === 'anomalies' ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setTab('anomalies')}>
           Anomalies
         </button>
       </div>
 
       {/* Notice */}
       {notice && (
-        <div className={`px-6 py-3 ${notice.type === 'error' ? 'bg-red-500/20 text-red-300' : 'bg-green-500/20 text-green-300'}`}>
+        <div role="status" aria-live={notice.type === 'error' ? 'assertive' : 'polite'} className={`px-6 py-3 ${notice.type === 'error' ? 'bg-red-500/20 text-red-300' : 'bg-green-500/20 text-green-300'}`}>
           {notice.msg}
         </div>
       )}
@@ -165,17 +190,17 @@ export default function GestionCarburant() {
         {loading ? (
           <div className="text-center py-12 text-secondary">Chargement...</div>
         ) : tab === 'cuves' ? (
-          <CuvesTab cuves={cuves} depots={depots} companyId={companyId} onRefresh={loadAll} showNotice={showNotice} canManage={canManage} />
+          <CuvesTab cuves={cuves} depots={depots} companyId={companyId!} onRefresh={loadAll} showNotice={showNotice} canManage={canManage} />
         ) : tab === 'pleins' ? (
-          <PleinsTab pleins={pleins} vehicules={vehicules} conducteurs={conducteurs} indisponiblesAujourdhui={indisponiblesAujourdhui} cuves={cuves} companyId={companyId} onRefresh={loadAll} showNotice={showNotice} canManage={canManage} />
+          <PleinsTab pleins={pleins} vehicules={vehicules} conducteurs={conducteurs} indisponiblesAujourdhui={indisponiblesAujourdhui} cuves={cuves} companyId={companyId!} onRefresh={loadAll} showNotice={showNotice} canManage={canManage} />
         ) : tab === 'commandes' ? (
-          <CommandesTab commandes={commandes} cuves={cuves} companyId={companyId} onRefresh={loadAll} showNotice={showNotice} canManage={canManage} />
+          <CommandesTab commandes={commandes} cuves={cuves} companyId={companyId!} onRefresh={loadAll} showNotice={showNotice} canManage={canManage} />
         ) : tab === 'consommation' ? (
-          <ConsommationTab vehicules={vehicules} companyId={companyId} />
+          <ConsommationTab companyId={companyId!} />
         ) : tab === 'niveaux' ? (
-          <NiveauxTab cuves={cuves} companyId={companyId} onRefresh={loadAll} showNotice={showNotice} canManage={canManage} />
+          <NiveauxTab cuves={cuves} showNotice={showNotice} canManage={canManage} />
         ) : tab === 'anomalies' ? (
-          <AnomaliesTab anomalies={anomalies} cuves={cuves} vehicules={vehicules} companyId={companyId} onRefresh={loadAll} showNotice={showNotice} canManage={canManage} />
+          <AnomaliesTab anomalies={anomalies} cuves={cuves} vehicules={vehicules} companyId={companyId!} onRefresh={loadAll} showNotice={showNotice} canManage={canManage} />
         ) : null}
       </div>
     </div>
@@ -184,7 +209,7 @@ export default function GestionCarburant() {
 
 // ── Onglet Cuves ──────────────────────────────────────────────────────────────
 
-function CuvesTab({ cuves, depots, companyId, onRefresh, showNotice, canManage }: any) {
+function CuvesTab({ cuves, depots, companyId, onRefresh, showNotice, canManage }: CuvesTabProps) {
   const [showing, setShowing] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<CuveForm>({
@@ -201,8 +226,12 @@ function CuvesTab({ cuves, depots, companyId, onRefresh, showNotice, canManage }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!isPositiveNumber(form.capacite_litres)) {
+      showNotice('La capacité de cuve doit être supérieure à 0.', 'error')
+      return
+    }
     try {
-      const selectedDepot = (depots as DepotOption[]).find(d => d.id === form.depot_id) || null
+      const selectedDepot = depots.find(d => d.id === form.depot_id) || null
       const payload = {
         ...form,
         depot_id: selectedDepot?.source === 'adresses' ? selectedDepot.id : null,
@@ -220,7 +249,7 @@ function CuvesTab({ cuves, depots, companyId, onRefresh, showNotice, canManage }
       setShowing(false)
       await onRefresh()
     } catch (err) {
-      showNotice(`Erreur: ${err instanceof Error ? err.message : 'inconnue'}`, 'error')
+      showNotice(formatFuelError(err), 'error')
     }
   }
 
@@ -231,16 +260,19 @@ function CuvesTab({ cuves, depots, companyId, onRefresh, showNotice, canManage }
       showNotice('Cuve supprimée')
       await onRefresh()
     } catch (err) {
-      showNotice(`Erreur: ${err instanceof Error ? err.message : 'inconnue'}`, 'error')
+      showNotice(formatFuelError(err), 'error')
     }
   }
 
-  const groupedByDepot = new Map<string, Cuve[]>()
-  for (const cuve of cuves) {
-    const key = cuve.depot_nom || '(aucun dépôt)'
-    if (!groupedByDepot.has(key)) groupedByDepot.set(key, [])
-    groupedByDepot.get(key)!.push(cuve)
-  }
+  const groupedByDepot = useMemo(() => {
+    const grouped = new Map<string, Cuve[]>()
+    for (const cuve of cuves) {
+      const key = cuve.depot_nom || '(aucun dépôt)'
+      if (!grouped.has(key)) grouped.set(key, [])
+      grouped.get(key)!.push(cuve)
+    }
+    return grouped
+  }, [cuves])
 
   return (
     <div className="space-y-6">
@@ -253,20 +285,20 @@ function CuvesTab({ cuves, depots, companyId, onRefresh, showNotice, canManage }
       {showing && (
         <form onSubmit={handleSubmit} className="bg-surface border border-line rounded-lg p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <select className={INPUT_CLS} value={form.depot_id} onChange={e => setForm({ ...form, depot_id: e.target.value })}>
+            <select aria-label="Depot" className={INPUT_CLS} value={form.depot_id} onChange={e => setForm({ ...form, depot_id: e.target.value })}>
               <option value="">Dépôt (optionnel)</option>
               {depots.map((d: DepotOption) => (<option key={d.id} value={d.id}>{d.nom}</option>))}
             </select>
-            <input type="text" placeholder="Numéro cuve (ex: C001)" className={INPUT_CLS} value={form.numero_cuve} onChange={e => setForm({ ...form, numero_cuve: e.target.value })} required />
-            <select className={INPUT_CLS} value={form.type_carburant} onChange={e => setForm({ ...form, type_carburant: e.target.value as Cuve['type_carburant'] })}>
+            <input aria-label="Numero cuve" type="text" placeholder="Numéro cuve (ex: C001)" className={INPUT_CLS} value={form.numero_cuve} onChange={e => setForm({ ...form, numero_cuve: e.target.value })} required />
+            <select aria-label="Type carburant" className={INPUT_CLS} value={form.type_carburant} onChange={e => setForm({ ...form, type_carburant: e.target.value as Cuve['type_carburant'] })}>
               <option value="gazole">Gazole</option>
               <option value="essence">Essence</option>
               <option value="adblue">AdBlue</option>
               <option value="autre">Autre</option>
             </select>
-            <input type="number" placeholder="Capacité (litres)" className={INPUT_CLS} value={form.capacite_litres} onChange={e => setForm({ ...form, capacite_litres: Number(e.target.value) })} required />
-            <input type="text" placeholder="Marque" className={INPUT_CLS} value={form.marque} onChange={e => setForm({ ...form, marque: e.target.value })} />
-            <input type="text" placeholder="Modèle" className={INPUT_CLS} value={form.modele} onChange={e => setForm({ ...form, modele: e.target.value })} />
+            <input aria-label="Capacite litres" type="number" placeholder="Capacité (litres)" min={1} step="0.01" className={INPUT_CLS} value={form.capacite_litres} onChange={e => setForm({ ...form, capacite_litres: Number(e.target.value) })} required />
+            <input aria-label="Marque cuve" type="text" placeholder="Marque" className={INPUT_CLS} value={form.marque} onChange={e => setForm({ ...form, marque: e.target.value })} />
+            <input aria-label="Modele cuve" type="text" placeholder="Modèle" className={INPUT_CLS} value={form.modele} onChange={e => setForm({ ...form, modele: e.target.value })} />
           </div>
           {depots.length === 0 && (
             <p className="text-xs text-amber-600">
@@ -277,7 +309,7 @@ function CuvesTab({ cuves, depots, companyId, onRefresh, showNotice, canManage }
             <input type="checkbox" checked={form.jauge_electronique} onChange={e => setForm({ ...form, jauge_electronique: e.target.checked })} className="rounded" />
             <span className="text-sm">Jauge électronique</span>
           </label>
-          <textarea placeholder="Notes" className={INPUT_CLS} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={3} />
+          <textarea aria-label="Notes cuve" placeholder="Notes" className={INPUT_CLS} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={3} />
           <div className="flex gap-2">
             <button type="submit" className={BTN_PRIMARY}>Enregistrer</button>
             <button type="button" onClick={() => { setShowing(false); setEditingId(null) }} className={BTN_SECONDARY}>Annuler</button>
@@ -301,7 +333,7 @@ function CuvesTab({ cuves, depots, companyId, onRefresh, showNotice, canManage }
                   <div className="flex gap-2">
                     <button
                       onClick={() => {
-                        const depotByName = (depots as DepotOption[]).find(d => d.nom === cuve.depot_nom)
+                        const depotByName = depots.find(d => d.nom === cuve.depot_nom)
                         setForm({
                           depot_id: cuve.depot_id || depotByName?.id || '',
                           numero_cuve: cuve.numero_cuve,
@@ -334,7 +366,7 @@ function CuvesTab({ cuves, depots, companyId, onRefresh, showNotice, canManage }
 
 // ── Onglet Pleins ──────────────────────────────────────────────────────────────
 
-function PleinsTab({ pleins, vehicules, conducteurs, indisponiblesAujourdhui, cuves, companyId, onRefresh, showNotice, canManage }: any) {
+function PleinsTab({ pleins, vehicules, conducteurs, indisponiblesAujourdhui, cuves, companyId, onRefresh, showNotice, canManage }: PleinsTabProps) {
   const [showing, setShowing] = useState(false)
   const [form, setForm] = useState({
     vehicule_id: '',
@@ -352,9 +384,21 @@ function PleinsTab({ pleins, vehicules, conducteurs, indisponiblesAujourdhui, cu
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!isValidDriverIdentifier4d(form.conducteur_identifiant_4d)) {
+      showNotice('L\'identifiant conducteur doit contenir exactement 4 chiffres.', 'error')
+      return
+    }
+    if (!isPositiveNumber(form.litres_verses)) {
+      showNotice('Le volume versé doit être supérieur à 0.', 'error')
+      return
+    }
+    if (!isPositiveNumber(form.prix_unitaire_ttc)) {
+      showNotice('Le prix unitaire TTC doit être supérieur à 0.', 'error')
+      return
+    }
     try {
-      const vehicule = (vehicules as Vehicule[]).find(v => v.id === form.vehicule_id)
-      const cuve = (cuves as Cuve[]).find(c => c.id === form.cuve_id)
+      const vehicule = vehicules.find(v => v.id === form.vehicule_id)
+      const cuve = cuves.find(c => c.id === form.cuve_id)
 
       await createPlein({
         company_id: companyId,
@@ -380,7 +424,7 @@ function PleinsTab({ pleins, vehicules, conducteurs, indisponiblesAujourdhui, cu
       setShowing(false)
       await onRefresh()
     } catch (err) {
-      showNotice(`Erreur: ${err instanceof Error ? err.message : 'inconnue'}`, 'error')
+      showNotice(formatFuelError(err), 'error')
     }
   }
 
@@ -395,29 +439,29 @@ function PleinsTab({ pleins, vehicules, conducteurs, indisponiblesAujourdhui, cu
       {showing && (
         <form onSubmit={handleSubmit} className="bg-surface border border-line rounded-lg p-6 space-y-4">
           <div className="grid grid-cols-3 gap-4">
-            <select className={INPUT_CLS} value={form.vehicule_id} onChange={e => setForm({ ...form, vehicule_id: e.target.value })} required>
+            <select aria-label="Vehicule" className={INPUT_CLS} value={form.vehicule_id} onChange={e => setForm({ ...form, vehicule_id: e.target.value })} required>
               <option value="">Véhicule</option>
-              {(vehicules as Vehicule[]).map(v => (<option key={v.id} value={v.id}>{v.immatriculation}</option>))}
+              {vehicules.map(v => (<option key={v.id} value={v.id}>{v.immatriculation}</option>))}
             </select>
-            <select className={INPUT_CLS} value={form.conducteur_id} onChange={e => setForm({ ...form, conducteur_id: e.target.value })} required>
+            <select aria-label="Conducteur" className={INPUT_CLS} value={form.conducteur_id} onChange={e => setForm({ ...form, conducteur_id: e.target.value })} required>
               <option value="">Conducteur</option>
-              {(conducteurs as Conducteur[]).map(c => (
+              {conducteurs.map(c => (
                 <option key={c.id} value={c.id}>
                   {c.prenom} {c.nom}{indisponiblesAujourdhui?.has(c.id) ? ' (Indisponible aujourd\'hui)' : ''}
                 </option>
               ))}
             </select>
-            <input type="text" placeholder="Identifiant 4 chiffres" maxLength={4} className={INPUT_CLS} value={form.conducteur_identifiant_4d} onChange={e => setForm({ ...form, conducteur_identifiant_4d: e.target.value })} required />
-            <input type="text" placeholder="Code conducteur" className={INPUT_CLS} value={form.conducteur_code} onChange={e => setForm({ ...form, conducteur_code: e.target.value })} required />
-            <input type="text" placeholder="N° parc" className={INPUT_CLS} value={form.conducteur_num_parc} onChange={e => setForm({ ...form, conducteur_num_parc: e.target.value })} required />
-            <select className={INPUT_CLS} value={form.cuve_id} onChange={e => setForm({ ...form, cuve_id: e.target.value })}>
+            <input aria-label="Identifiant conducteur 4 chiffres" type="text" placeholder="Identifiant 4 chiffres" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} className={INPUT_CLS} value={form.conducteur_identifiant_4d} onChange={e => setForm({ ...form, conducteur_identifiant_4d: e.target.value.replace(/\D/g, '').slice(0, 4) })} required />
+            <input aria-label="Code conducteur" type="text" placeholder="Code conducteur" className={INPUT_CLS} value={form.conducteur_code} onChange={e => setForm({ ...form, conducteur_code: e.target.value })} required />
+            <input aria-label="Numero parc conducteur" type="text" placeholder="N° parc" className={INPUT_CLS} value={form.conducteur_num_parc} onChange={e => setForm({ ...form, conducteur_num_parc: e.target.value })} required />
+            <select aria-label="Cuve" className={INPUT_CLS} value={form.cuve_id} onChange={e => setForm({ ...form, cuve_id: e.target.value })}>
               <option value="">Cuve (optionnel)</option>
-              {(cuves as Cuve[]).map(c => (<option key={c.id} value={c.id}>{c.numero_cuve} ({c.type_carburant})</option>))}
+              {cuves.map(c => (<option key={c.id} value={c.id}>{c.numero_cuve} ({c.type_carburant})</option>))}
             </select>
-            <input type="date" className={INPUT_CLS} value={form.date_plein} onChange={e => setForm({ ...form, date_plein: e.target.value })} required />
-            <input type="time" className={INPUT_CLS} value={form.heure_plein} onChange={e => setForm({ ...form, heure_plein: e.target.value })} />
-            <input type="number" placeholder="Litres versés" step="0.01" className={INPUT_CLS} value={form.litres_verses} onChange={e => setForm({ ...form, litres_verses: Number(e.target.value) })} required />
-            <input type="number" placeholder="Prix/L TTC" step="0.01" className={INPUT_CLS} value={form.prix_unitaire_ttc} onChange={e => setForm({ ...form, prix_unitaire_ttc: Number(e.target.value) })} required />
+            <input aria-label="Date plein" type="date" className={INPUT_CLS} value={form.date_plein} onChange={e => setForm({ ...form, date_plein: e.target.value })} required />
+            <input aria-label="Heure plein" type="time" className={INPUT_CLS} value={form.heure_plein} onChange={e => setForm({ ...form, heure_plein: e.target.value })} />
+            <input aria-label="Litres verses" type="number" placeholder="Litres versés" min={0.01} step="0.01" className={INPUT_CLS} value={form.litres_verses} onChange={e => setForm({ ...form, litres_verses: Number(e.target.value) })} required />
+            <input aria-label="Prix unitaire TTC" type="number" placeholder="Prix/L TTC" min={0.01} step="0.01" className={INPUT_CLS} value={form.prix_unitaire_ttc} onChange={e => setForm({ ...form, prix_unitaire_ttc: Number(e.target.value) })} required />
           </div>
           <div className="flex gap-2">
             <button type="submit" className={BTN_PRIMARY}>Enregistrer</button>
@@ -458,9 +502,9 @@ function PleinsTab({ pleins, vehicules, conducteurs, indisponiblesAujourdhui, cu
 
 // ── Onglet Commandes ──────────────────────────────────────────────────────────
 
-function CommandesTab({ commandes, cuves, companyId, onRefresh, showNotice, canManage }: any) {
+function CommandesTab({ commandes, cuves, companyId, onRefresh, showNotice, canManage }: CommandesTabProps) {
   const [showing, setShowing] = useState(false)
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<CommandeForm>({
     fournisseur_nom: 'ALX',
     type_carburant: 'gazole' as const,
     quantite_litres: 1000,
@@ -474,10 +518,24 @@ function CommandesTab({ commandes, cuves, companyId, onRefresh, showNotice, canM
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!isPositiveNumber(form.quantite_litres)) {
+      showNotice('La quantité commandée doit être supérieure à 0.', 'error')
+      return
+    }
+    if (!isPositiveNumber(form.price_unit_ht)) {
+      showNotice('Le prix HT/L doit être supérieur à 0.', 'error')
+      return
+    }
+    if (!isValidTvaRate(form.taux_tva)) {
+      showNotice('Le taux de TVA doit être compris entre 0 et 100.', 'error')
+      return
+    }
     try {
-      const montantHt = form.quantite_litres * form.price_unit_ht
-      const montantTva = montantHt * (form.taux_tva / 100)
-      const montantTtc = montantHt + montantTva
+      const { montantHt, montantTva, montantTtc } = computeCommandeTotals(
+        form.quantite_litres,
+        form.price_unit_ht,
+        form.taux_tva,
+      )
 
       const numeroCommande = `CMD-${new Date().getTime()}`
 
@@ -509,7 +567,7 @@ function CommandesTab({ commandes, cuves, companyId, onRefresh, showNotice, canM
       setShowing(false)
       await onRefresh()
     } catch (err) {
-      showNotice(`Erreur: ${err instanceof Error ? err.message : 'inconnue'}`, 'error')
+      showNotice(formatFuelError(err), 'error')
     }
   }
 
@@ -524,23 +582,23 @@ function CommandesTab({ commandes, cuves, companyId, onRefresh, showNotice, canM
       {showing && (
         <form onSubmit={handleSubmit} className="bg-surface border border-line rounded-lg p-6 space-y-4">
           <div className="grid grid-cols-3 gap-4">
-            <input type="text" placeholder="Fournisseur" className={INPUT_CLS} value={form.fournisseur_nom} onChange={e => setForm({ ...form, fournisseur_nom: e.target.value })} required />
-            <select className={INPUT_CLS} value={form.type_carburant} onChange={e => setForm({ ...form, type_carburant: e.target.value as any })}>
+            <input aria-label="Fournisseur" type="text" placeholder="Fournisseur" className={INPUT_CLS} value={form.fournisseur_nom} onChange={e => setForm({ ...form, fournisseur_nom: e.target.value })} required />
+            <select aria-label="Type carburant commande" className={INPUT_CLS} value={form.type_carburant} onChange={e => setForm({ ...form, type_carburant: e.target.value as CommandeCarburant['type_carburant'] })}>
               <option value="gazole">Gazole</option>
               <option value="essence">Essence</option>
               <option value="adblue">AdBlue</option>
             </select>
-            <input type="number" placeholder="Quantité (L)" className={INPUT_CLS} value={form.quantite_litres} onChange={e => setForm({ ...form, quantite_litres: Number(e.target.value) })} required />
-            <input type="date" className={INPUT_CLS} value={form.date_commande} onChange={e => setForm({ ...form, date_commande: e.target.value })} required />
-            <input type="date" placeholder="Livraison prévue" className={INPUT_CLS} value={form.date_livraison_prevue} onChange={e => setForm({ ...form, date_livraison_prevue: e.target.value })} />
-            <select className={INPUT_CLS} value={form.cuve_id} onChange={e => setForm({ ...form, cuve_id: e.target.value })}>
+            <input aria-label="Quantite commande litres" type="number" placeholder="Quantité (L)" min={0.01} step="0.01" className={INPUT_CLS} value={form.quantite_litres} onChange={e => setForm({ ...form, quantite_litres: Number(e.target.value) })} required />
+            <input aria-label="Date commande" type="date" className={INPUT_CLS} value={form.date_commande} onChange={e => setForm({ ...form, date_commande: e.target.value })} required />
+            <input aria-label="Date livraison prevue" type="date" placeholder="Livraison prévue" className={INPUT_CLS} value={form.date_livraison_prevue} onChange={e => setForm({ ...form, date_livraison_prevue: e.target.value })} />
+            <select aria-label="Cuve cible commande" className={INPUT_CLS} value={form.cuve_id} onChange={e => setForm({ ...form, cuve_id: e.target.value })}>
               <option value="">Cuve (optionnel)</option>
-              {cuves.map((c: any) => (<option key={c.id} value={c.id}>{c.numero_cuve}</option>))}
+              {cuves.map(c => (<option key={c.id} value={c.id}>{c.numero_cuve}</option>))}
             </select>
-            <input type="number" placeholder="Prix HT/L" step="0.01" className={INPUT_CLS} value={form.price_unit_ht} onChange={e => setForm({ ...form, price_unit_ht: Number(e.target.value) })} required />
-            <input type="number" placeholder="Taux TVA %" className={INPUT_CLS} value={form.taux_tva} onChange={e => setForm({ ...form, taux_tva: Number(e.target.value) })} required />
+            <input aria-label="Prix HT par litre" type="number" placeholder="Prix HT/L" min={0.01} step="0.01" className={INPUT_CLS} value={form.price_unit_ht} onChange={e => setForm({ ...form, price_unit_ht: Number(e.target.value) })} required />
+            <input aria-label="Taux TVA" type="number" placeholder="Taux TVA %" min={0} max={100} step="0.01" className={INPUT_CLS} value={form.taux_tva} onChange={e => setForm({ ...form, taux_tva: Number(e.target.value) })} required />
           </div>
-          <textarea placeholder="Notes" className={INPUT_CLS} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} />
+          <textarea aria-label="Notes commande" placeholder="Notes" className={INPUT_CLS} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} />
           <div className="flex gap-2">
             <button type="submit" className={BTN_PRIMARY}>Créer commande</button>
             <button type="button" onClick={() => setShowing(false)} className={BTN_SECONDARY}>Annuler</button>
@@ -582,8 +640,8 @@ function CommandesTab({ commandes, cuves, companyId, onRefresh, showNotice, canM
 
 // ── Onglet Consommation ────────────────────────────────────────────────────────
 
-function ConsommationTab({ companyId }: any) {
-  const [consommations, setConsommations] = useState<any[]>([])
+function ConsommationTab({ companyId }: ConsommationTabProps) {
+  const [consommations, setConsommations] = useState<ConsommationVehicule[]>([])
   const [period, setPeriod] = useState({ debut: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10), fin: new Date().toISOString().slice(0, 10) })
   const [loading, setLoading] = useState(false)
 
@@ -606,9 +664,9 @@ function ConsommationTab({ companyId }: any) {
   return (
     <div className="space-y-6">
       <div className="flex gap-4 items-center bg-surface border border-line rounded-lg p-4">
-        <input type="date" className={INPUT_CLS + ' max-w-xs'} value={period.debut} onChange={e => setPeriod({ ...period, debut: e.target.value })} />
+        <input aria-label="Debut periode consommation" type="date" className={INPUT_CLS + ' max-w-xs'} value={period.debut} onChange={e => setPeriod({ ...period, debut: e.target.value })} />
         <span>à</span>
-        <input type="date" className={INPUT_CLS + ' max-w-xs'} value={period.fin} onChange={e => setPeriod({ ...period, fin: e.target.value })} />
+        <input aria-label="Fin periode consommation" type="date" className={INPUT_CLS + ' max-w-xs'} value={period.fin} onChange={e => setPeriod({ ...period, fin: e.target.value })} />
       </div>
 
       {loading ? (
@@ -662,10 +720,10 @@ function ConsommationTab({ companyId }: any) {
 
 // ── Onglet Niveaux ────────────────────────────────────────────────────────────
 
-function NiveauxTab({ cuves, showNotice, canManage }: any) {
+function NiveauxTab({ cuves, showNotice, canManage }: NiveauxTabProps) {
   const [selectedCuve, setSelectedCuve] = useState<string | null>(null)
   const [niveaux, setNiveaux] = useState<NiveauCuve[]>([])
-  const [form, setForm] = useState({ niveau_litres: 500, jauge_type: 'manuelle' as const, anomalie: false, anomalie_description: '' })
+  const [form, setForm] = useState<NiveauForm>({ niveau_litres: 500, jauge_type: 'manuelle', anomalie: false, anomalie_description: '' })
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -673,7 +731,7 @@ function NiveauxTab({ cuves, showNotice, canManage }: any) {
       setLoading(true)
       getNiveauxCuve(selectedCuve)
         .then(setNiveaux)
-        .catch(err => showNotice(`Erreur: ${err.message}`, 'error'))
+        .catch(err => showNotice(formatFuelError(err), 'error'))
         .finally(() => setLoading(false))
     }
   }, [selectedCuve, showNotice])
@@ -681,6 +739,15 @@ function NiveauxTab({ cuves, showNotice, canManage }: any) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedCuve) return
+    const selectedCapacity = selectedCuveData?.capacite_litres ?? 0
+    if (!isNonNegativeNumber(form.niveau_litres)) {
+      showNotice('Le niveau relevé ne peut pas être négatif.', 'error')
+      return
+    }
+    if (selectedCapacity > 0 && form.niveau_litres > selectedCapacity) {
+      showNotice('Le niveau relevé dépasse la capacité de la cuve.', 'error')
+      return
+    }
     try {
       await recordNiveauCuve({
         cuve_id: selectedCuve,
@@ -698,18 +765,18 @@ function NiveauxTab({ cuves, showNotice, canManage }: any) {
       const updated = await getNiveauxCuve(selectedCuve)
       setNiveaux(updated)
     } catch (err) {
-      showNotice(`Erreur: ${err instanceof Error ? err.message : 'inconnue'}`, 'error')
+      showNotice(formatFuelError(err), 'error')
     }
   }
 
-  const selectedCuveData = cuves.find((c: any) => c.id === selectedCuve)
+  const selectedCuveData = cuves.find(c => c.id === selectedCuve)
 
   return (
     <div className="space-y-6">
       <div className="flex gap-4 items-end bg-surface border border-line rounded-lg p-4">
-        <select className={INPUT_CLS + ' flex-1'} value={selectedCuve || ''} onChange={e => setSelectedCuve(e.target.value || null)}>
+        <select aria-label="Selection cuve" className={INPUT_CLS + ' flex-1'} value={selectedCuve || ''} onChange={e => setSelectedCuve(e.target.value || null)}>
           <option value="">Sélectionner une cuve...</option>
-          {cuves.map((c: any) => (<option key={c.id} value={c.id}>{c.numero_cuve} ({c.type_carburant}) - {c.capacite_litres}L</option>))}
+          {cuves.map(c => (<option key={c.id} value={c.id}>{c.numero_cuve} ({c.type_carburant}) - {c.capacite_litres}L</option>))}
         </select>
       </div>
 
@@ -737,8 +804,8 @@ function NiveauxTab({ cuves, showNotice, canManage }: any) {
           {canManage && (
             <form onSubmit={handleSubmit} className="bg-surface border border-line rounded-lg p-6 space-y-4">
               <div className="grid grid-cols-3 gap-4">
-                <input type="number" placeholder="Niveau (L)" className={INPUT_CLS} value={form.niveau_litres} onChange={e => setForm({ ...form, niveau_litres: Number(e.target.value) })} required />
-                <select className={INPUT_CLS} value={form.jauge_type} onChange={e => setForm({ ...form, jauge_type: e.target.value as any })}>
+                <input aria-label="Niveau releve litres" type="number" placeholder="Niveau (L)" min={0} step="0.01" className={INPUT_CLS} value={form.niveau_litres} onChange={e => setForm({ ...form, niveau_litres: Number(e.target.value) })} required />
+                <select aria-label="Type jauge" className={INPUT_CLS} value={form.jauge_type} onChange={e => setForm({ ...form, jauge_type: e.target.value as NiveauCuve['jauge_type'] })}>
                   <option value="electronique">Jauge électronique</option>
                   <option value="manuelle">Jauge manuelle</option>
                 </select>
@@ -748,7 +815,7 @@ function NiveauxTab({ cuves, showNotice, canManage }: any) {
                 <span className="text-sm">Anomalie détectée</span>
               </label>
               {form.anomalie && (
-                <textarea placeholder="Description anomalie (évaporation, perte, etc.)" className={INPUT_CLS} value={form.anomalie_description} onChange={e => setForm({ ...form, anomalie_description: e.target.value })} rows={2} />
+                <textarea aria-label="Description anomalie niveau" placeholder="Description anomalie (évaporation, perte, etc.)" className={INPUT_CLS} value={form.anomalie_description} onChange={e => setForm({ ...form, anomalie_description: e.target.value })} rows={2} />
               )}
               <button type="submit" className={BTN_PRIMARY}>Enregistrer relevé</button>
             </form>
@@ -792,19 +859,23 @@ function NiveauxTab({ cuves, showNotice, canManage }: any) {
 
 // ── Onglet Anomalies ──────────────────────────────────────────────────────────
 
-function AnomaliesTab({ anomalies, cuves, vehicules, companyId, onRefresh, showNotice, canManage }: any) {
-  const [form, setForm] = useState({
-    type: 'evaporation_cuve' as const,
+function AnomaliesTab({ anomalies, cuves, vehicules, companyId, onRefresh, showNotice, canManage }: AnomaliesTabProps) {
+  const [form, setForm] = useState<AnomalieForm>({
+    type: 'evaporation_cuve',
     cuve_id: '',
     vehicule_id: '',
     litres_manquants: 10,
     description: '',
-    gravite: 'warning' as const,
+    gravite: 'warning',
   })
   const [showing, setShowing] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!isNonNegativeNumber(form.litres_manquants)) {
+      showNotice('Les litres manquants ne peuvent pas être négatifs.', 'error')
+      return
+    }
     try {
       await createAnomalie({
         company_id: companyId,
@@ -823,18 +894,18 @@ function AnomaliesTab({ anomalies, cuves, vehicules, companyId, onRefresh, showN
       setShowing(false)
       await onRefresh()
     } catch (err) {
-      showNotice(`Erreur: ${err instanceof Error ? err.message : 'inconnue'}`, 'error')
+      showNotice(formatFuelError(err), 'error')
     }
   }
 
-  const typeLabels: Record<string, string> = {
+  const typeLabels: Record<AnomalieCarburant['type'], string> = {
     evaporation_cuve: 'Évaporation cuve',
     consommation_anormale: 'Consommation anormale',
     perte_cuve: 'Perte cuve',
     autre: 'Autre',
   }
 
-  const graviteColors: Record<string, string> = {
+  const graviteColors: Record<AnomalieCarburant['gravite'], string> = {
     info: 'bg-blue-500/20 text-blue-300',
     warning: 'bg-amber-500/20 text-amber-300',
     critique: 'bg-red-500/20 text-red-300',
@@ -851,28 +922,28 @@ function AnomaliesTab({ anomalies, cuves, vehicules, companyId, onRefresh, showN
       {showing && (
         <form onSubmit={handleSubmit} className="bg-surface border border-line rounded-lg p-6 space-y-4">
           <div className="grid grid-cols-3 gap-4">
-            <select className={INPUT_CLS} value={form.type} onChange={e => setForm({ ...form, type: e.target.value as any })}>
+            <select aria-label="Type anomalie" className={INPUT_CLS} value={form.type} onChange={e => setForm({ ...form, type: e.target.value as AnomalieCarburant['type'] })}>
               <option value="evaporation_cuve">Évaporation cuve</option>
               <option value="consommation_anormale">Consommation anormale</option>
               <option value="perte_cuve">Perte cuve</option>
               <option value="autre">Autre</option>
             </select>
-            <select className={INPUT_CLS} value={form.cuve_id} onChange={e => setForm({ ...form, cuve_id: e.target.value })}>
+            <select aria-label="Cuve associee anomalie" className={INPUT_CLS} value={form.cuve_id} onChange={e => setForm({ ...form, cuve_id: e.target.value })}>
               <option value="">Cuve (optionnel)</option>
-              {cuves.map((c: any) => (<option key={c.id} value={c.id}>{c.numero_cuve}</option>))}
+              {cuves.map(c => (<option key={c.id} value={c.id}>{c.numero_cuve}</option>))}
             </select>
-            <select className={INPUT_CLS} value={form.vehicule_id} onChange={e => setForm({ ...form, vehicule_id: e.target.value })}>
+            <select aria-label="Vehicule associe anomalie" className={INPUT_CLS} value={form.vehicule_id} onChange={e => setForm({ ...form, vehicule_id: e.target.value })}>
               <option value="">Véhicule (optionnel)</option>
-              {vehicules.map((v: any) => (<option key={v.id} value={v.id}>{v.immatriculation}</option>))}
+              {vehicules.map(v => (<option key={v.id} value={v.id}>{v.immatriculation}</option>))}
             </select>
-            <input type="number" placeholder="Litres manquants" step="0.1" className={INPUT_CLS} value={form.litres_manquants} onChange={e => setForm({ ...form, litres_manquants: Number(e.target.value) })} />
-            <select className={INPUT_CLS} value={form.gravite} onChange={e => setForm({ ...form, gravite: e.target.value as any })}>
+            <input aria-label="Litres manquants anomalie" type="number" placeholder="Litres manquants" min={0} step="0.1" className={INPUT_CLS} value={form.litres_manquants} onChange={e => setForm({ ...form, litres_manquants: Number(e.target.value) })} />
+            <select aria-label="Gravite anomalie" className={INPUT_CLS} value={form.gravite} onChange={e => setForm({ ...form, gravite: e.target.value as AnomalieCarburant['gravite'] })}>
               <option value="info">Info</option>
               <option value="warning">Warning</option>
               <option value="critique">Critique</option>
             </select>
           </div>
-          <textarea placeholder="Description" className={INPUT_CLS} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} required />
+          <textarea aria-label="Description anomalie" placeholder="Description" className={INPUT_CLS} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} required />
           <div className="flex gap-2">
             <button type="submit" className={BTN_PRIMARY}>Enregistrer</button>
             <button type="button" onClick={() => setShowing(false)} className={BTN_SECONDARY}>Annuler</button>

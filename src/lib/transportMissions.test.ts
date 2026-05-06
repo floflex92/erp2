@@ -91,7 +91,7 @@ describe('transportMissions', () => {
   it('cree une mission et affecte le meme mission_id aux courses selectionnees', async () => {
     const repository = createInMemoryRepository([
       { id: 'c1', mission_id: null, conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, type_transport: 'complet', groupage_fige: false },
-      { id: 'c2', mission_id: null, conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, type_transport: 'complet', groupage_fige: false },
+      { id: 'c2', mission_id: null, conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, type_transport: 'express', groupage_fige: false },
     ])
     const service = createTransportMissionService(repository)
 
@@ -101,6 +101,22 @@ describe('transportMissions', () => {
     expect(mission.type).toBe('groupage')
     expect(repository.courses[0].mission_id).toBe(mission.id)
     expect(repository.courses[1].mission_id).toBe(mission.id)
+    expect(repository.courses[0].type_transport).toBe('complet')
+    expect(repository.courses[1].type_transport).toBe('express')
+  })
+
+  it('ajoute une course a une mission sans ecraser son type transport', async () => {
+    const repository = createInMemoryRepository([
+      { id: 'c1', mission_id: 'mission-1', conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, type_transport: 'complet', groupage_fige: false },
+      { id: 'c2', mission_id: null, conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, type_transport: 'partiel', groupage_fige: false },
+    ])
+    repository.missions.push({ id: 'mission-1', type: 'groupage', conducteur_id: 'd1', vehicule_id: 'v1', remorque_id: null, created_at: '2026-04-14T00:00:00.000Z', updated_at: '2026-04-14T00:00:00.000Z' })
+    const service = createTransportMissionService(repository)
+
+    await service.addCourseToMission('c2', 'mission-1')
+
+    expect(repository.courses[1].mission_id).toBe('mission-1')
+    expect(repository.courses[1].type_transport).toBe('partiel')
   })
 
   it('retire une course d une mission puis dissout la mission restante', async () => {

@@ -20,7 +20,7 @@ export interface Cuve {
   marque: string | null
   modele: string | null
   numero_serie: string | null
-  statut: 'active' | 'maintenance' | 'hors_service'
+  statut: 'active' | 'inactive' | 'maintenance'
   jauge_electronique: boolean
   notes: string | null
   created_at: string

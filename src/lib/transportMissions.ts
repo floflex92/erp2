@@ -22,6 +22,15 @@ export interface TransportMissionRepository {
   deleteMission(missionId: string): Promise<void>
 }
 
+function toError(error: unknown, fallbackMessage: string) {
+  if (error instanceof Error) return error
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = String((error as { message?: unknown }).message ?? '').trim()
+    if (message) return new Error(message)
+  }
+  return new Error(fallbackMessage)
+}
+
 function uniqueIds(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter((value): value is string => Boolean(value))))
 }
@@ -80,7 +89,7 @@ export function createSupabaseTransportMissionRepository(): TransportMissionRepo
         .select('id, mission_id, conducteur_id, vehicule_id, remorque_id, type_transport, groupage_fige')
         .in('id', ids)
 
-      if (query.error) throw query.error
+      if (query.error) throw toError(query.error, 'Lecture des courses impossible.')
       return (query.data ?? []) as MissionScopedCourse[]
     },
     async fetchCourseById(courseId) {
@@ -90,7 +99,7 @@ export function createSupabaseTransportMissionRepository(): TransportMissionRepo
         .eq('id', courseId)
         .maybeSingle()
 
-      if (query.error) throw query.error
+      if (query.error) throw toError(query.error, 'Lecture de la course impossible.')
       return (query.data ?? null) as MissionScopedCourse | null
     },
     async listMissionCourses(missionId) {
@@ -99,7 +108,7 @@ export function createSupabaseTransportMissionRepository(): TransportMissionRepo
         .select('id, mission_id, conducteur_id, vehicule_id, remorque_id, type_transport, groupage_fige')
         .eq('mission_id', missionId)
 
-      if (query.error) throw query.error
+      if (query.error) throw toError(query.error, 'Lecture des courses de mission impossible.')
       return (query.data ?? []) as MissionScopedCourse[]
     },
     async createMission(payload) {
@@ -109,7 +118,7 @@ export function createSupabaseTransportMissionRepository(): TransportMissionRepo
         .select('*')
         .single()
 
-      if (query.error) throw query.error
+      if (query.error) throw toError(query.error, 'Creation de mission impossible.')
       return query.data as TransportMission
     },
     async updateMission(missionId, payload) {
@@ -120,7 +129,7 @@ export function createSupabaseTransportMissionRepository(): TransportMissionRepo
         .select('*')
         .single()
 
-      if (query.error) throw query.error
+      if (query.error) throw toError(query.error, 'Mise a jour de mission impossible.')
       return query.data as TransportMission
     },
     async updateCoursesByIds(courseIds, payload) {
@@ -131,7 +140,7 @@ export function createSupabaseTransportMissionRepository(): TransportMissionRepo
         .update(payload)
         .in('id', ids)
 
-      if (query.error) throw query.error
+      if (query.error) throw toError(query.error, 'Mise a jour des courses impossible.')
     },
     async updateCourseById(courseId, payload) {
       const query = await supabase
@@ -139,7 +148,7 @@ export function createSupabaseTransportMissionRepository(): TransportMissionRepo
         .update(payload)
         .eq('id', courseId)
 
-      if (query.error) throw query.error
+      if (query.error) throw toError(query.error, 'Mise a jour de la course impossible.')
     },
     async setMissionFreezeState(missionId, nextFrozen) {
       const rpcClient = supabase as unknown as {
@@ -149,7 +158,7 @@ export function createSupabaseTransportMissionRepository(): TransportMissionRepo
         p_mission_id: missionId,
         p_next_frozen: nextFrozen,
       })
-      if (rpc.error) throw rpc.error
+      if (rpc.error) throw toError(rpc.error, 'Mise a jour du verrouillage mission impossible.')
     },
     async clearMissionCourses(missionId, payload) {
       const query = await supabase
@@ -157,7 +166,7 @@ export function createSupabaseTransportMissionRepository(): TransportMissionRepo
         .update(payload)
         .eq('mission_id', missionId)
 
-      if (query.error) throw query.error
+      if (query.error) throw toError(query.error, 'Nettoyage des courses de mission impossible.')
     },
     async deleteMission(missionId) {
       const query = await supabase
@@ -165,7 +174,7 @@ export function createSupabaseTransportMissionRepository(): TransportMissionRepo
         .delete()
         .eq('id', missionId)
 
-      if (query.error) throw query.error
+      if (query.error) throw toError(query.error, 'Suppression de mission impossible.')
     },
   }
 }
@@ -223,7 +232,6 @@ export function createTransportMissionService(repository: TransportMissionReposi
 
       await repository.updateCoursesByIds(ids, {
         mission_id: mission.id,
-        type_transport: ids.length > 1 ? 'groupage' : undefined,
       })
 
       for (const previousMissionId of previousMissionIds) {
@@ -250,7 +258,7 @@ export function createTransportMissionService(repository: TransportMissionReposi
         await ensureMissionNotFrozen(repository, previousMissionId, 'Liaison de groupage')
       }
 
-      await repository.updateCourseById(courseId, { mission_id: missionId, type_transport: 'groupage' })
+      await repository.updateCourseById(courseId, { mission_id: missionId })
       const mission = await syncMission(repository, missionId)
 
       if (previousMissionId && previousMissionId !== missionId) {
