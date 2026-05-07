@@ -12,6 +12,26 @@ export type ReleaseNote = {
 
 const documentedReleaseNotes: ReleaseNote[] = [
   {
+    version: '1.15.21',
+    date: '2026-05-07',
+    title: 'Stabilisation planning OT et fiabilisation analytics site/public',
+    summary: 'Release corrective centree sur la pose des OT dans le planning et le durcissement de la chaine analytics (consentement, sanitization, file d attente, dedoublonnage funnel et ping de release).',
+    additions: [
+      'Analytics: catalogue d evenements typé, sanitization des events/params, contexte standard page_path + event_origin et file d attente avant chargement GA.',
+      'Analytics: dedoublonnage des etapes funnel par session et ping de sante de release emise une seule fois par session.',
+      'Instrumentation et tests renforces sur Home, Login, SiteLayout et AnalyticsLoader avec couverture ciblee.',
+    ],
+    modifications: [
+      'Version portee a 1.15.21 avec synchronisation package, appVersion et environnement Netlify.',
+      'Espace Developpement maintenu sur les onglets Developpe, En cours de developpement, Features.',
+      'Features prioritaires maintenues: connectivite/discussion inter-ERP, planning affreteur dedie, groupage multi-courses figeable/deliable avec courses independantes.',
+    ],
+    fixes: [
+      'Corrige : impossibilite de poser certains OT depuis le pool sur le planning a cause d un garde-fou de periode trop strict lors du drop.',
+      'Corrige : perte potentielle d evenements analytics quand le consentement et le chargement GA arrivent apres les interactions utilisateur.',
+    ],
+  },
+  {
     version: '1.15.20',
     date: '2026-04-22',
     title: 'Refonte page Connexion, nouveaux logos NEXORA et lisibilite page A propos',

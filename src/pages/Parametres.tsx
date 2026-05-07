@@ -123,6 +123,8 @@ const ERP_IN_PROGRESS_CARDS = [
     title: 'Statut partiel',
     subtitle: 'Modules déjà visibles mais encore incomplets côté persistance ou logique métier.',
     items: [
+      'Planning transport: correction du drop OT depuis le pool avec affectation ressource maintenue meme hors periode visible.',
+      'Tracking site/public: pipeline analytics durci (consentement, file d attente, sanitization, dedoublonnage funnel, ping release).',
       'Cockpit KPI V2.1 livré par rôle métier avec lecture prioritaire, fallback historique et composants dashboard-v21 réutilisables.',
       'Finance cockpit branchée sur vues SQL dédiées Supabase (KPI, clients, charges, retards) avec fallback historique.',
       'Homepage site public v1.1 livrée : message clarifié, sections conversion et SEO métier transport renforcé.',
