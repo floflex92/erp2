@@ -4,11 +4,33 @@ import tailwindcss from '@tailwindcss/vite'
 import { readFileSync, writeFileSync } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { execSync } from 'child_process'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const packageJson = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version?: string }
 const appVersion = packageJson.version ?? '0.0.0'
 const buildDate = new Date().toISOString().slice(0, 10)
+
+function readLastCommitSubject() {
+  try {
+    return execSync('git log -1 --pretty=%s', { encoding: 'utf8' }).trim()
+  } catch {
+    return 'Mise a jour deploiement continue'
+  }
+}
+
+function resolveBuildRef() {
+  const fromEnv = process.env.COMMIT_REF?.slice(0, 7)
+  if (fromEnv) return fromEnv
+  try {
+    return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim()
+  } catch {
+    return 'local'
+  }
+}
+
+const buildRef = resolveBuildRef()
+const buildCommitSubject = readLastCommitSubject()
 
 /**
  * Injecte des <link rel="modulepreload"> pour les chunks critiques du chemin
@@ -76,6 +98,8 @@ export default defineConfig({
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
     'import.meta.env.VITE_BUILD_DATE': JSON.stringify(buildDate),
+    'import.meta.env.VITE_BUILD_REF': JSON.stringify(buildRef),
+    'import.meta.env.VITE_BUILD_COMMIT_SUBJECT': JSON.stringify(buildCommitSubject),
   },
   plugins: [react(), tailwindcss(), preloadCriticalChunksPlugin()],
   build: {

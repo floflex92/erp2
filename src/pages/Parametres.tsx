@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { canAccess, ROLE_LABELS, useAuth } from '@/lib/auth'
-import { APP_VERSION } from '@/lib/appVersion'
+import { APP_VERSION, BUILD_DATE, BUILD_REF } from '@/lib/appVersion'
 import { DEFAULT_COMPANY_NAME, readCompanySettings, subscribeCompanySettings, updateCompanySettings } from '@/lib/companySettings'
 import { releaseNotes, type ReleaseNote } from '@/lib/releaseNotes'
 import { getDigitalSignature, subscribeDigitalSignatures, upsertDigitalSignature } from '@/lib/signatureStore'
@@ -877,7 +877,7 @@ function DevelopmentVersionsSection() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-heading">Versions</p>
             <h3 className="mt-2 text-xl font-semibold text-heading">Historique des releases interne ERP</h3>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-foreground">
-              Cette vue reste strictement métier: elle indique les ajouts, modifications, rectifications et suppressions, sans exposer de détails techniques de conception.
+              Cette vue reste strictement métier: elle décrit ce qui a été ajouté, modifié, amélioré et supprimé, sans exposer la manière technique de réalisation.
             </p>
           </div>
           <div className="rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold text-foreground">
@@ -895,13 +895,20 @@ function DevelopmentVersionsSection() {
                 <span className="text-sm text-foreground">{note.date}</span>
               </div>
               <h4 className="mt-3 text-lg font-semibold text-heading">Version {note.version}</h4>
-              <p className="mt-2 text-sm leading-6 text-foreground">Communication métier synthétique sans détail d implémentation.</p>
+              <p className="mt-2 text-sm leading-6 text-foreground">Résumé métier des changements visibles pour les équipes opérationnelles.</p>
 
               <div className="mt-4 grid gap-3 lg:grid-cols-4">
-                <DevelopmentVersionMetric title="Ajouts" count={note.additions.length} accent="#2563EB" description="Nouvelles capacités métier livrées." />
-                <DevelopmentVersionMetric title="Modifications" count={note.modifications.length} accent="#0F766E" description="Parcours ou règles métier améliorés." />
-                <DevelopmentVersionMetric title="Rectifications" count={note.fixes.length} accent="#DC2626" description="Anomalies ou écarts corrigés." />
+                <DevelopmentVersionMetric title="Ajouts" count={note.additions.length} accent="#2563EB" description="Nouvelles capacités métier disponibles." />
+                <DevelopmentVersionMetric title="Modifications" count={note.modifications.length} accent="#0F766E" description="Parcours ou règles métier ajustés." />
+                <DevelopmentVersionMetric title="Améliorations" count={note.fixes.length} accent="#DC2626" description="Corrections et fiabilisations fonctionnelles." />
                 <DevelopmentVersionMetric title="Suppressions" count={countSuppressions(note)} accent="#7C2D12" description="Éléments retirés ou décommissionnés." />
+              </div>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                <DevelopmentVersionHighlights label="Ajouté" items={toBusinessHighlights(note.additions)} />
+                <DevelopmentVersionHighlights label="Modifié" items={toBusinessHighlights(note.modifications)} />
+                <DevelopmentVersionHighlights label="Amélioré" items={toBusinessHighlights(note.fixes)} />
+                <DevelopmentVersionHighlights label="Supprimé" items={toBusinessHighlights(extractSuppressions(note))} />
               </div>
             </article>
           ))}
@@ -914,6 +921,8 @@ function DevelopmentVersionsSection() {
           subtitle="Repère rapide sur la release active dans le build courant."
           items={[
             `Version déployée : ${APP_VERSION}`,
+            `Référence build : ${BUILD_REF}`,
+            `Date de build : ${BUILD_DATE}`,
             'Le numéro suit automatiquement le build courant.',
             'Le journal interne conserve une communication métier non technique.',
           ]}
@@ -922,9 +931,9 @@ function DevelopmentVersionsSection() {
           title="Mise à jour future"
           subtitle="Règles de communication pour les prochaines releases."
           items={[
-            'Chaque version doit communiquer les catégories: ajouts, modifications, rectifications, suppressions.',
+            'Chaque version doit communiquer les catégories: ajouts, modifications, améliorations et suppressions.',
             'Ne pas publier de détails de conception ou de mise en oeuvre dans ce panneau.',
-            'Maintenir une formulation orientée bénéfice métier et usage opérationnel.',
+            'Maintenir une formulation orientée impact métier: ce qui change pour les équipes.',
           ]}
         />
       </div>
@@ -937,6 +946,39 @@ function countSuppressions(note: ReleaseNote) {
   return [...note.additions, ...note.modifications, ...note.fixes].reduce((count, item) => {
     return count + (suppressionPattern.test(item) ? 1 : 0)
   }, 0)
+}
+
+function extractSuppressions(note: ReleaseNote) {
+  const suppressionPattern = /suppression|supprim|retir|decommission|désactiv|desactiv/i
+  return [...note.additions, ...note.modifications, ...note.fixes].filter(item => suppressionPattern.test(item))
+}
+
+function simplifyBusinessLine(raw: string) {
+  const cleaned = raw
+    .replace(/^corrige\s*:\s*/i, '')
+    .replace(/^résolue\s*:\s*/i, '')
+    .replace(/^resolue\s*:\s*/i, '')
+    .replace(/^page\s*\/login\s*:\s*/i, 'Connexion : ')
+    .replace(/^page\s*\/a-propos\s*:\s*/i, 'À propos : ')
+    .replace(/signInWithOAuth/gi, 'connexion Google')
+    .replace(/handler/gi, 'action')
+    .replace(/divider\s*"ou"/gi, 'séparateur "ou"')
+    .replace(/ui\/ux/gi, 'interface')
+    .replace(/\([^)]*\)/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+
+  if (cleaned.length <= 115) return cleaned
+  return `${cleaned.slice(0, 112).trimEnd()}...`
+}
+
+function toBusinessHighlights(items: string[]) {
+  const technicalNoisePattern = /version portee|synchronisation package|environnement netlify|espace developpement maintenu|features prioritaires maintenues|service worker|manifest|pipeline|script|cache-bust|build/i
+  return items
+    .map(item => simplifyBusinessLine(item))
+    .filter(item => item.length > 0)
+    .filter(item => !technicalNoisePattern.test(item))
+    .slice(0, 2)
 }
 
 function DevelopmentVersionMetric({
@@ -955,6 +997,23 @@ function DevelopmentVersionMetric({
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: accent }}>{title}</p>
       <p className="mt-3 text-2xl font-semibold text-heading">{count}</p>
       <p className="mt-2 text-xs leading-5 text-secondary">{description}</p>
+    </div>
+  )
+}
+
+function DevelopmentVersionHighlights({ label, items }: { label: string; items: string[] }) {
+  return (
+    <div className="rounded-xl border p-3" style={{ borderColor: 'rgba(148,163,184,0.18)', background: 'rgba(255,255,255,0.8)' }}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-secondary">{label}</p>
+      {items.length === 0 ? (
+        <p className="mt-2 text-xs text-muted">Aucun élément notable sur cette catégorie.</p>
+      ) : (
+        <ul className="mt-2 space-y-1.5 text-xs leading-5 text-foreground">
+          {items.map(item => (
+            <li key={`${label}-${item}`} className="rounded-lg border border-line-strong/80 bg-surface px-2.5 py-1.5">{item}</li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

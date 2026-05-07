@@ -1,4 +1,4 @@
-﻿import { APP_VERSION, BUILD_DATE } from '@/lib/appVersion'
+﻿import { APP_VERSION, BUILD_COMMIT_SUBJECT, BUILD_DATE, BUILD_REF } from '@/lib/appVersion'
 
 export type ReleaseNote = {
   version: string
@@ -908,8 +908,44 @@ function buildFallbackRelease(): ReleaseNote {
   }
 }
 
-export const releaseNotes = documentedReleaseNotes.some(note => note.version === APP_VERSION)
-  ? documentedReleaseNotes
+function normalizeCommitSubject(subject: string) {
+  const cleaned = (subject || '').trim()
+  if (!cleaned) return 'Mise a jour operationnelle du produit'
+  return cleaned
+}
+
+function classifyCommitSubject(subject: string) {
+  const s = subject.toLowerCase()
+  const isSuppression = /delete|remove|supprim|retir|decommission|desactiv|désactiv/.test(s)
+  const isAddition = /add|ajout|nouveau|create|introduce|impl[eé]ment/.test(s)
+  const isFix = /fix|corrig|patch|stabil|fiabil|hotfix/.test(s)
+
+  return {
+    additions: isAddition ? [normalizeCommitSubject(subject)] : ['Mise a jour fonctionnelle integree au deploiement.'],
+    modifications: ['Ajustements sur les parcours metier existants.'],
+    fixes: isFix ? ['Amelioration de fiabilite incluse dans ce deploiement.'] : [],
+    suppressions: isSuppression ? ['Element metier retire ou desactive.'] : [],
+  }
+}
+
+function buildDeploymentSnapshotRelease(): ReleaseNote {
+  const classified = classifyCommitSubject(BUILD_COMMIT_SUBJECT)
+  return {
+    version: `${APP_VERSION}+${BUILD_REF}`,
+    date: BUILD_DATE,
+    title: 'Mise a jour continue de production',
+    summary: 'Snapshot automatique du deploiement Netlify: lecture metier des changements visibles, sans detail de conception.',
+    additions: classified.additions,
+    modifications: [...classified.modifications, ...classified.suppressions],
+    fixes: classified.fixes,
+  }
+}
+
+const hasExactVersion = documentedReleaseNotes.some(note => note.version === APP_VERSION)
+const shouldInjectDeploymentSnapshot = BUILD_REF !== 'local' && !documentedReleaseNotes.some(note => note.version === `${APP_VERSION}+${BUILD_REF}`)
+
+export const releaseNotes = hasExactVersion
+  ? (shouldInjectDeploymentSnapshot ? [buildDeploymentSnapshotRelease(), ...documentedReleaseNotes] : documentedReleaseNotes)
   : [buildFallbackRelease(), ...documentedReleaseNotes]
 
 export const latestReleaseNote = releaseNotes[0]
