@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import * as L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import type * as Leaflet from 'leaflet'
 
 type MapPickResult = {
   latitude: number
@@ -29,64 +28,94 @@ async function reverseGeocode(latitude: number, longitude: number): Promise<stri
 
 export default function SiteMapPicker({ onPick }: SiteMapPickerProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
-  const mapRef = useRef<L.Map | null>(null)
-  const markerRef = useRef<L.Marker | null>(null)
+  const mapRef = useRef<Leaflet.Map | null>(null)
+  const markerRef = useRef<Leaflet.Marker | null>(null)
+  const leafletRef = useRef<typeof import('leaflet') | null>(null)
   const onPickRef = useRef(onPick)
   const [message, setMessage] = useState('Cliquez sur la carte pour detecter une adresse.')
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
     onPickRef.current = onPick
   }, [onPick])
 
   useEffect(() => {
-    const host = mapContainerRef.current
-    if (!host || mapRef.current) return
+    let active = true
 
-    const map = L.map(host, {
-      zoomControl: true,
-      attributionControl: true,
-    }).setView(FRANCE_CENTER, 6)
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors',
-    }).addTo(map)
-
-    map.on('click', async event => {
-      const latitude = event.latlng.lat
-      const longitude = event.latlng.lng
-
-      setMessage('Detection de l adresse en cours...')
+    async function initMap() {
+      const host = mapContainerRef.current
+      if (!host || mapRef.current) return
 
       try {
-        const adresse = await reverseGeocode(latitude, longitude)
+        const leafletModule = await import('leaflet')
+        await import('leaflet/dist/leaflet.css')
+        if (!active || !mapContainerRef.current) return
 
-        if (markerRef.current) {
-          markerRef.current.setLatLng([latitude, longitude])
-        } else {
-          markerRef.current = L.marker([latitude, longitude]).addTo(map)
-        }
+        const leaflet = (leafletModule as unknown as { default?: typeof import('leaflet') }).default ?? leafletModule
 
-        markerRef.current.bindPopup(adresse).openPopup()
-        onPickRef.current({ latitude, longitude, adresse })
-        setMessage(`Adresse detectee: ${adresse}`)
+        leafletRef.current = leaflet
+
+        const map = leaflet.map(mapContainerRef.current, {
+          zoomControl: true,
+          attributionControl: true,
+        }).setView(FRANCE_CENTER, 6)
+
+        leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap contributors',
+        }).addTo(map)
+
+        map.on('click', async event => {
+          const latitude = event.latlng.lat
+          const longitude = event.latlng.lng
+
+          setMessage('Detection de l adresse en cours...')
+
+          try {
+            const adresse = await reverseGeocode(latitude, longitude)
+
+            if (markerRef.current) {
+              markerRef.current.setLatLng([latitude, longitude])
+            } else {
+              markerRef.current = leaflet.marker([latitude, longitude]).addTo(map)
+            }
+
+            markerRef.current.bindPopup(adresse).openPopup()
+            onPickRef.current({ latitude, longitude, adresse })
+            setMessage(`Adresse detectee: ${adresse}`)
+          } catch {
+            setMessage('Impossible de detecter l adresse automatiquement. Reessayez un autre point.')
+          }
+        })
+
+        mapRef.current = map
+        setReady(true)
+
+        requestAnimationFrame(() => map.invalidateSize())
+        setTimeout(() => map.invalidateSize(), 120)
       } catch {
-        setMessage('Impossible de detecter l adresse automatiquement. Reessayez un autre point.')
+        if (!active) return
+        setReady(false)
+        setMessage('Impossible de charger la carte pour le moment.')
       }
-    })
+    }
 
-    mapRef.current = map
+    void initMap()
 
     return () => {
-      map.remove()
+      active = false
+      mapRef.current?.remove()
       mapRef.current = null
       markerRef.current = null
+      leafletRef.current = null
+      setReady(false)
     }
   }, [])
 
   return (
     <div className="space-y-2">
       <div ref={mapContainerRef} className="h-52 w-full rounded-lg border border-line" />
+      {!ready && <p className="text-xs text-discreet">Chargement de la carte...</p>}
       <p className="text-xs text-discreet">{message}</p>
     </div>
   )

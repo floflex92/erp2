@@ -23,6 +23,7 @@ export function usePlanningRelais({
   setBottomDockTab,
   setContextMenu,
 }: UsePlanningRelaisDeps) {
+  const RELAIS_CONDUCTEUR_SANS_LIEU = 'Relais conducteur (sans lieu fixe)'
   const [relaisList,       setRelaisList]       = useState<TransportRelaisRecord[]>([])
   const [relaisLoading,    setRelaisLoading]    = useState(false)
   const [relaisError,      setRelaisError]      = useState<string | null>(null)
@@ -115,10 +116,15 @@ export function usePlanningRelais({
     e.preventDefault()
     if (!relaisModal.ot) return
     const form = relaisDepotForm
-    const lieuNom = form.site_id
+    const rawLieuNom = form.site_id
       ? (relaisDepotSites.find(s => s.id === form.site_id)?.nom ?? form.lieu_nom.trim())
       : form.lieu_nom.trim()
-    if (!lieuNom) return
+    const isRelaisConducteur = form.type_relais === 'relais_conducteur'
+    const lieuNom = rawLieuNom || (isRelaisConducteur ? RELAIS_CONDUCTEUR_SANS_LIEU : '')
+    if (!lieuNom) {
+      pushPlanningNotice('Le nom du lieu est requis pour un depot marchandise.', 'error')
+      return
+    }
     setRelaisSaving(true)
     try {
       const res = await fetch('/.netlify/functions/v11-transport-relay', {

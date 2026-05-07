@@ -480,6 +480,7 @@ export default function Maintenance() {
   // ── État Pièces ─────────────────────────────────────────────────────────────
   const [pieces, setPieces] = useState<Piece[]>(SEED_PIECES)
   const [showPieceForm, setShowPieceForm] = useState(false)
+  const [editingPieceId, setEditingPieceId] = useState<string | null>(null)
   const [pieceForm, setPieceForm] = useState({ reference: '', designation: '', compatibilite: '', quantite: '', quantite_min: '', prix_unitaire: '', fournisseur: '', emplacement: '' })
   const [pieceAjust, setPieceAjust] = useState<{ id: string; delta: string } | null>(null)
 
@@ -1276,7 +1277,27 @@ export default function Maintenance() {
   }, [ots, filterOTStatut, filterOTVehicule])
 
   // ── Actions Pièces ─────────────────────────────────────────────────────────
-  async function addPiece(e: React.SyntheticEvent<HTMLFormElement>) {
+  function resetPieceForm() {
+    setPieceForm({ reference: '', designation: '', compatibilite: '', quantite: '', quantite_min: '', prix_unitaire: '', fournisseur: '', emplacement: '' })
+    setEditingPieceId(null)
+  }
+
+  function editPiece(piece: Piece) {
+    setPieceForm({
+      reference: piece.reference,
+      designation: piece.designation,
+      compatibilite: piece.compatibilite,
+      quantite: String(piece.quantite),
+      quantite_min: String(piece.quantite_min),
+      prix_unitaire: String(piece.prix_unitaire),
+      fournisseur: piece.fournisseur,
+      emplacement: piece.emplacement,
+    })
+    setEditingPieceId(piece.id)
+    setShowPieceForm(true)
+  }
+
+  async function submitPieceForm(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     setSaving(true)
     try {
@@ -1290,33 +1311,76 @@ export default function Maintenance() {
         fournisseur_nom: pieceForm.fournisseur || null,
         emplacement: pieceForm.emplacement || null,
       }
-      const { data, error } = await (supabase as any).from('stock_pieces').insert(payload).select().single()
-      if (error) {
-        if (isMissingOptionalMaintenanceFeature(error)) {
+
+      if (editingPieceId) {
+        // ── Mode Édition ────────────────────────────────────────────────────
+        const { error } = await (supabase as any).from('stock_pieces').update(payload).eq('id', editingPieceId)
+        if (error) {
+          if (isMissingOptionalMaintenanceFeature(error)) {
+            // Mise à jour locale
+            setPieces(prev => prev.map(p => p.id === editingPieceId ? {
+              ...p,
+              reference: pieceForm.reference,
+              designation: pieceForm.designation,
+              compatibilite: pieceForm.compatibilite,
+              quantite: parseInt(pieceForm.quantite) || 0,
+              quantite_min: parseInt(pieceForm.quantite_min) || 1,
+              prix_unitaire: parseFloat(pieceForm.prix_unitaire) || 0,
+              fournisseur: pieceForm.fournisseur,
+              emplacement: pieceForm.emplacement,
+            } : p))
+          } else throw error
+        } else {
+          // Mise à jour réussie en DB
+          setPieces(prev => prev.map(p => p.id === editingPieceId ? {
+            ...p,
+            reference: pieceForm.reference,
+            designation: pieceForm.designation,
+            compatibilite: pieceForm.compatibilite,
+            quantite: parseInt(pieceForm.quantite) || 0,
+            quantite_min: parseInt(pieceForm.quantite_min) || 1,
+            prix_unitaire: parseFloat(pieceForm.prix_unitaire) || 0,
+            fournisseur: pieceForm.fournisseur,
+            emplacement: pieceForm.emplacement,
+          } : p))
+        }
+        setNotice('Pièce mise à jour.')
+      } else {
+        // ── Mode Création ───────────────────────────────────────────────────
+        const { data, error } = await (supabase as any).from('stock_pieces').insert(payload).select().single()
+        if (error) {
+          if (isMissingOptionalMaintenanceFeature(error)) {
+            setPieces(prev => [...prev, {
+              id: `p${Date.now()}`, reference: pieceForm.reference, designation: pieceForm.designation,
+              compatibilite: pieceForm.compatibilite, quantite: parseInt(pieceForm.quantite) || 0,
+              quantite_min: parseInt(pieceForm.quantite_min) || 1, prix_unitaire: parseFloat(pieceForm.prix_unitaire) || 0,
+              fournisseur: pieceForm.fournisseur, emplacement: pieceForm.emplacement, last_cmd: null,
+            }])
+          } else throw error
+        } else if (data) {
+          const sp = data as StockPiece
           setPieces(prev => [...prev, {
-            id: `p${Date.now()}`, reference: pieceForm.reference, designation: pieceForm.designation,
-            compatibilite: pieceForm.compatibilite, quantite: parseInt(pieceForm.quantite) || 0,
-            quantite_min: parseInt(pieceForm.quantite_min) || 1, prix_unitaire: parseFloat(pieceForm.prix_unitaire) || 0,
-            fournisseur: pieceForm.fournisseur, emplacement: pieceForm.emplacement, last_cmd: null,
+            id: sp.id, reference: sp.reference, designation: sp.designation,
+            compatibilite: sp.compatibilite ?? '', quantite: sp.stock_actuel,
+            quantite_min: sp.stock_minimum, prix_unitaire: Number(sp.prix_unitaire_ht ?? 0),
+            fournisseur: sp.fournisseur_nom ?? '', emplacement: sp.emplacement ?? '', last_cmd: null,
           }])
-        } else throw error
-      } else if (data) {
-        const sp = data as StockPiece
-        setPieces(prev => [...prev, {
-          id: sp.id, reference: sp.reference, designation: sp.designation,
-          compatibilite: sp.compatibilite ?? '', quantite: sp.stock_actuel,
-          quantite_min: sp.stock_minimum, prix_unitaire: Number(sp.prix_unitaire_ht ?? 0),
-          fournisseur: sp.fournisseur_nom ?? '', emplacement: sp.emplacement ?? '', last_cmd: null,
-        }])
+        }
+        setNotice('Pièce ajoutée.')
       }
+
       setShowPieceForm(false)
-      setPieceForm({ reference: '', designation: '', compatibilite: '', quantite: '', quantite_min: '', prix_unitaire: '', fournisseur: '', emplacement: '' })
-      setNotice('Pièce ajoutée.')
+      resetPieceForm()
     } catch (err) {
       setDbError(maintenanceError(err))
     } finally {
       setSaving(false)
     }
+  }
+
+  async function addPiece(e: React.SyntheticEvent<HTMLFormElement>) {
+    // Delegate to submitPieceForm which handles both create and edit
+    return submitPieceForm(e)
   }
 
   async function ajusterStock(id: string, delta: number) {
@@ -1407,7 +1471,15 @@ export default function Maintenance() {
           </button>
         )}
         {tab === 'stock' && (
-          <button onClick={() => setShowPieceForm(!showPieceForm)} className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors">
+          <button onClick={() => {
+            if (showPieceForm) {
+              setShowPieceForm(false)
+              resetPieceForm()
+            } else {
+              resetPieceForm()
+              setShowPieceForm(true)
+            }
+          }} className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors">
             + Ajouter une pièce
           </button>
         )}
@@ -1800,10 +1872,10 @@ export default function Maintenance() {
             </div>
           )}
 
-          {/* Formulaire ajout */}
+          {/* Formulaire ajout/édition */}
           {showPieceForm && (
             <div className="bg-surface rounded-xl border border-line p-5">
-              <h3 className="text-sm font-semibold text-foreground mb-4">Nouvelle référence</h3>
+              <h3 className="text-sm font-semibold text-foreground mb-4">{editingPieceId ? 'Modifier pièce' : 'Nouvelle référence'}</h3>
               <form onSubmit={addPiece} className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <div className="lg:col-span-1"><Field label="Référence *"><input className={inp} value={pieceForm.reference} onChange={e => setPieceForm(f => ({ ...f, reference: e.target.value }))} required /></Field></div>
                 <div className="lg:col-span-2"><Field label="Désignation *"><input className={inp} value={pieceForm.designation} onChange={e => setPieceForm(f => ({ ...f, designation: e.target.value }))} required /></Field></div>
@@ -1819,8 +1891,8 @@ export default function Maintenance() {
                 </Field>
                 <Field label="Emplacement"><input className={inp} value={pieceForm.emplacement} onChange={e => setPieceForm(f => ({ ...f, emplacement: e.target.value }))} /></Field>
                 <div className="lg:col-span-4 flex justify-end gap-2">
-                  <button type="button" onClick={() => setShowPieceForm(false)} className="px-4 py-2 text-sm border border-line rounded-lg hover:bg-surface-soft">Annuler</button>
-                  <button type="submit" className="px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700">Enregistrer</button>
+                  <button type="button" onClick={() => { setShowPieceForm(false); resetPieceForm() }} className="px-4 py-2 text-sm border border-line rounded-lg hover:bg-surface-soft">Annuler</button>
+                  <button type="submit" className="px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700">{editingPieceId ? 'Mettre à jour' : 'Enregistrer'}</button>
                 </div>
               </form>
             </div>
@@ -1862,6 +1934,7 @@ export default function Maintenance() {
                           </div>
                         ) : (
                           <div className="flex gap-2 justify-end">
+                            <button onClick={() => editPiece(p)} className="text-xs text-blue-600 hover:text-blue-700 font-medium">Éditer</button>
                             <button onClick={() => setPieceAjust({ id: p.id, delta: '1' })} className="text-xs text-muted hover:text-foreground">+/−</button>
                             <button onClick={() => void deletePiece(p.id)} className="text-xs text-slate-300 hover:text-red-500">✕</button>
                           </div>

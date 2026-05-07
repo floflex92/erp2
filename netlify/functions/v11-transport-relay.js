@@ -10,6 +10,7 @@ const WRITE_ROLES   = ['admin', 'dirigeant', 'exploitant', 'logisticien']
 
 const VALID_TYPE_RELAIS = new Set(['depot_marchandise', 'relais_conducteur'])
 const VALID_STATUTS     = new Set(['en_attente', 'assigne', 'en_cours_reprise', 'termine', 'annule'])
+const DEFAULT_RELAIS_CONDUCTEUR_LIEU = 'Relais conducteur (sans lieu fixe)'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -80,8 +81,9 @@ async function createDeposit(dbClient, companyId, body, auth) {
   if (!ot_id) return json(400, { error: 'ot_id requis.' })
 
   const type_relais = VALID_TYPE_RELAIS.has(body.type_relais) ? body.type_relais : 'depot_marchandise'
-  const lieu_nom = typeof body.lieu_nom === 'string' ? body.lieu_nom.trim() : ''
-  if (!lieu_nom) return json(400, { error: 'lieu_nom requis.' })
+  const requestedLieuNom = typeof body.lieu_nom === 'string' ? body.lieu_nom.trim() : ''
+  const lieu_nom = requestedLieuNom || (type_relais === 'relais_conducteur' ? DEFAULT_RELAIS_CONDUCTEUR_LIEU : '')
+  if (!lieu_nom) return json(400, { error: 'lieu_nom requis pour un depot marchandise.' })
 
   const payload = {
     company_id: companyId,

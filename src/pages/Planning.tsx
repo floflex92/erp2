@@ -5194,7 +5194,7 @@ export default function Planning() {
           </div>
 
           <div className="flex items-center gap-1 flex-shrink-0">
-            <span className="text-[10px] text-secondary whitespace-nowrap">Depot :</span>
+            <span className="text-[10px] text-secondary whitespace-nowrap">Centre ressource :</span>
             <select
               value={depotResourceFilter}
               onChange={e => setDepotResourceFilter(e.target.value)}
@@ -7001,7 +7001,7 @@ export default function Planning() {
                               </td>
                               <td className="px-3 py-2 text-slate-300">{relais.ordres_transport?.client_nom ?? '�'}</td>
                               <td className="px-3 py-2">
-                                <p className="text-slate-200 font-medium">{relais.lieu_nom}</p>
+                                <p className="text-slate-200 font-medium">{relais.lieu_nom || 'Relais conducteur (sans lieu fixe)'}</p>
                                 {relais.lieu_adresse && <p className="text-discreet text-[10px]">{relais.lieu_adresse}</p>}
                               </td>
                               <td className="px-3 py-2 text-muted">{new Date(relais.date_depot).toLocaleString('fr-FR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</td>
@@ -7087,7 +7087,7 @@ export default function Planning() {
                               </td>
                               <td className="px-3 py-2 text-slate-300">{relais.ordres_transport?.client_nom ?? '�'}</td>
                               <td className="px-3 py-2">
-                                <p className="text-slate-200 font-medium">{relais.lieu_nom}</p>
+                                <p className="text-slate-200 font-medium">{relais.lieu_nom || 'Relais conducteur (sans lieu fixe)'}</p>
                                 {relais.lieu_adresse && <p className="text-discreet text-[10px]">{relais.lieu_adresse}</p>}
                               </td>
                               <td className="px-3 py-2 text-slate-300">
@@ -8592,12 +8592,13 @@ export default function Planning() {
                 <>
                   <div>
                     <label className="block text-xs font-medium text-slate-300 mb-1">
-                      {relaisModal.mode === 'relais_conducteur' ? 'Point de rendez-vous *' : 'Nom du depot *'}
+                      {relaisModal.mode === 'relais_conducteur' ? 'Point de rendez-vous (optionnel)' : 'Nom du depot *'}
                     </label>
-                    <input required
+                    <input
+                      required={relaisModal.mode !== 'relais_conducteur'}
                       value={relaisDepotForm.lieu_nom}
                       onChange={e => setRelaisDepotForm(f => ({ ...f, lieu_nom: e.target.value }))}
-                      placeholder={relaisModal.mode === 'relais_conducteur' ? 'ex: Aire A7 km 142, Mont�limar' : 'ex: Entrep�t Nexora Lille'}
+                      placeholder={relaisModal.mode === 'relais_conducteur' ? 'Optionnel: ex: Aire A7 km 142, Montelimar' : 'ex: Entrepot Nexora Lille'}
                       className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" />
                   </div>
                   <div>
@@ -8670,7 +8671,7 @@ export default function Planning() {
                 {relaisModal.relais.type_relais === 'relais_conducteur' ? 'Affecter conducteur de relais' : 'Affecter la reprise'}
               </h3>
               <p className="text-xs text-muted mt-0.5">
-                {relaisModal.relais.lieu_nom}
+                {relaisModal.relais.lieu_nom || 'Relais conducteur (sans lieu fixe)'}
                 {relaisModal.relais.ordres_transport ? ` � Course ${relaisModal.relais.ordres_transport.reference}` : ''}
               </p>
             </div>

@@ -6,12 +6,13 @@ import {
   parseJsonBody,
 } from './_lib/v11-core.js'
 
-const ALLOWED_ROLES = ['admin', 'dirigeant', 'exploitant', 'commercial', 'logisticien']
-const WRITE_ROLES   = ['admin', 'dirigeant', 'exploitant', 'logisticien']
-const DELETE_ROLES  = ['admin', 'dirigeant']
+const ALLOWED_ROLES = ['admin', 'super_admin', 'dirigeant', 'exploitant', 'commercial', 'logisticien']
+const WRITE_ROLES   = ['admin', 'super_admin', 'dirigeant', 'exploitant', 'logisticien']
+const DELETE_ROLES  = ['admin', 'super_admin', 'dirigeant']
 
 const VALID_TYPE_SITE  = new Set(['entrepot', 'depot', 'agence', 'client', 'quai', 'autre'])
 const VALID_USAGE_TYPE = new Set(['chargement', 'livraison', 'mixte'])
+const TENANT_INTERNAL_CLIENT_CODE_PREFIX = 'TENANT_INTERNE'
 
 // ── Sanitize ─────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,66 @@ function sanitizeSite(body) {
   }
 }
 
+function isTenantCenterWithoutClient(site) {
+  const isCenterType = ['depot', 'entrepot', 'agence', 'autre'].includes(site.type_site)
+  return isCenterType && site.usage_type === 'mixte' && !site.entreprise_id
+}
+
+function internalClientCode(companyId) {
+  return `${TENANT_INTERNAL_CLIENT_CODE_PREFIX}_${companyId}`
+}
+
+async function ensureTenantInternalClientId(dbClient, companyId) {
+  const code = internalClientCode(companyId)
+
+  const { data: existing, error: existingError } = await dbClient
+    .from('clients')
+    .select('id')
+    .eq('company_id', companyId)
+    .eq('code_client', code)
+    .maybeSingle()
+
+  if (existingError) throw existingError
+  if (existing?.id) return existing.id
+
+  const payload = {
+    nom: `Entreprise interne (tenant ${companyId})`,
+    type_client: 'chargeur',
+    actif: true,
+    code_client: code,
+    company_id: companyId,
+  }
+
+  const { data: created, error: createError } = await dbClient
+    .from('clients')
+    .insert(payload)
+    .select('id')
+    .single()
+
+  if (createError) {
+    // Conflit concurrent: relire puis continuer.
+    if (createError.code === '23505') {
+      const { data: afterConflict, error: retryError } = await dbClient
+        .from('clients')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('code_client', code)
+        .maybeSingle()
+      if (retryError) throw retryError
+      if (afterConflict?.id) return afterConflict.id
+    }
+    throw createError
+  }
+
+  return created.id
+}
+
+async function resolveEntrepriseId(dbClient, companyId, sanitized) {
+  if (!isTenantCenterWithoutClient(sanitized)) return sanitized
+  const entrepriseId = await ensureTenantInternalClientId(dbClient, companyId)
+  return { ...sanitized, entreprise_id: entrepriseId }
+}
+
 // ── Handlers ─────────────────────────────────────────────────────────────────
 
 async function listSites(dbClient, companyId, params) {
@@ -65,7 +126,7 @@ async function listSites(dbClient, companyId, params) {
       horaires_ouverture, jours_ouverture, notes_livraison, notes,
       latitude, longitude, entreprise_id,
       created_at, updated_at,
-      clients:entreprise_id ( id, nom )
+      clients:entreprise_id ( id, nom, code_client )
     `)
     .eq('company_id', companyId)
     .order('nom', { ascending: true })
@@ -96,7 +157,7 @@ async function getSite(dbClient, companyId, siteId) {
       horaires_ouverture, jours_ouverture, notes_livraison, notes,
       latitude, longitude, entreprise_id,
       created_at, updated_at,
-      clients:entreprise_id ( id, nom )
+      clients:entreprise_id ( id, nom, code_client )
     `)
     .eq('company_id', companyId)
     .eq('id', siteId)
@@ -108,10 +169,11 @@ async function getSite(dbClient, companyId, siteId) {
 async function createSite(dbClient, companyId, body, auth) {
   const sanitized = sanitizeSite(body)
   if (!sanitized) return json(400, { error: 'nom et adresse sont requis. Coordonnees invalides si fournies.' })
+  const resolved = await resolveEntrepriseId(dbClient, companyId, sanitized)
 
   const { data, error } = await dbClient
     .from('sites_logistiques')
-    .insert({ ...sanitized, company_id: companyId })
+    .insert({ ...resolved, company_id: companyId })
     .select('id, nom, adresse, code_postal, ville, type_site, usage_type, est_depot_relais, entreprise_id, created_at')
     .single()
   if (error) {
@@ -125,10 +187,11 @@ async function updateSite(dbClient, companyId, siteId, body) {
   if (!siteId) return json(400, { error: 'site_id requis.' })
   const sanitized = sanitizeSite(body)
   if (!sanitized) return json(400, { error: 'nom et adresse sont requis.' })
+  const resolved = await resolveEntrepriseId(dbClient, companyId, sanitized)
 
   const { data, error } = await dbClient
     .from('sites_logistiques')
-    .update({ ...sanitized, updated_at: new Date().toISOString() })
+    .update({ ...resolved, updated_at: new Date().toISOString() })
     .eq('company_id', companyId)
     .eq('id', siteId)
     .select('id, nom, adresse, code_postal, ville, type_site, usage_type, est_depot_relais, entreprise_id, updated_at')
@@ -147,6 +210,40 @@ async function deleteSite(dbClient, companyId, siteId) {
     .eq('id', siteId)
   if (error) return json(500, { error: error.message })
   return json(200, { deleted: true, site_id: siteId })
+}
+
+async function setPrimarySite(dbClient, companyId, siteId) {
+  if (!siteId) return json(400, { error: 'site_id requis.' })
+
+  const { data: target, error: targetError } = await dbClient
+    .from('sites_logistiques')
+    .select('id, type_site')
+    .eq('company_id', companyId)
+    .eq('id', siteId)
+    .maybeSingle()
+
+  if (targetError) return json(500, { error: targetError.message })
+  if (!target) return json(404, { error: 'Site introuvable.' })
+  if (target.type_site === 'client') return json(400, { error: 'Un site client ne peut pas etre defini comme centre principal.' })
+
+  const { error: resetError } = await dbClient
+    .from('sites_logistiques')
+    .update({ is_primary: false, updated_at: new Date().toISOString() })
+    .eq('company_id', companyId)
+    .in('type_site', ['depot', 'entrepot', 'agence', 'autre'])
+
+  if (resetError) return json(500, { error: resetError.message })
+
+  const { data, error } = await dbClient
+    .from('sites_logistiques')
+    .update({ is_primary: true, updated_at: new Date().toISOString() })
+    .eq('company_id', companyId)
+    .eq('id', siteId)
+    .select('id, nom, is_primary')
+    .single()
+
+  if (error) return json(500, { error: error.message })
+  return json(200, { object: 'LogisticSite', data })
 }
 
 // ── Handler principal ─────────────────────────────────────────────────────────
@@ -177,6 +274,13 @@ export async function handler(event) {
   if (method === 'PUT') {
     const body = parseJsonBody(event)
     return updateSite(dbClient, companyId, qs.site_id, body)
+  }
+
+  if (method === 'PATCH') {
+    if (qs.action === 'set_primary') {
+      return setPrimarySite(dbClient, companyId, qs.site_id)
+    }
+    return json(400, { error: 'Action PATCH non supportee.' })
   }
 
   if (method === 'DELETE') {

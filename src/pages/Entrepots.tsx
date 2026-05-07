@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth'
-import { looseSupabase } from '@/lib/supabaseLoose'
 import { supabase } from '@/lib/supabase'
 import SiteMapPicker from '@/components/transports/SiteMapPicker'
-import { setPrimaryDepotSite } from '@/lib/staffDepots'
 import { listUnifiedConducteurs } from '@/lib/services/personsService'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type EntrepotTab = 'entrepots' | 'depots' | 'en_depot' | 'relais_conducteur'
+type EntrepotTab = 'depots' | 'emplacements' | 'en_depot'
 
 type Site = {
   id: string
@@ -31,6 +29,7 @@ type Site = {
   horaires_ouverture: string | null
   notes_livraison: string | null
   is_primary: boolean
+  clients?: { id: string; nom: string; code_client?: string | null } | null
 }
 
 type Relais = {
@@ -63,13 +62,29 @@ type Relais = {
 type Conducteur = { id: string; nom: string; prenom: string }
 type Vehicule   = { id: string; immatriculation: string }
 type Remorque   = { id: string; immatriculation: string }
-type Client     = { id: string; nom: string }
+type Client     = { id: string; nom: string; code_client?: string | null }
+
+type DepotLocation = {
+  id: string
+  depot_site_id: string
+  code: string
+  libelle: string | null
+  zone: string | null
+  allee: string | null
+  rayon: string | null
+  niveau: string | null
+  position: string | null
+  type_emplacement: string
+  capacite_m3: number | null
+  actif: boolean
+  notes: string | null
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const TYPE_SITE_LABELS: Record<string, string> = {
-  entrepot: 'Dépôt/Entrepôt',
-  depot: 'Dépôt/Entrepôt',
+  entrepot: 'Centre',
+  depot: 'Centre',
   agence: 'Agence',
   client: 'Site client',
   quai: 'Quai',
@@ -93,7 +108,7 @@ const STATUT_COLORS: Record<string, string> = {
 }
 
 const DEFAULT_PRIMARY_MARSEILLE_SITE = {
-  nom: 'Dépôt principal Marseille',
+  nom: 'Centre principal Marseille',
   adresse: '16 boulevard du Littoral',
   code_postal: '13002',
   ville: 'Marseille',
@@ -112,13 +127,15 @@ function fmt(iso: string | null | undefined) {
 export default function Entrepots() {
   const { role, companyId } = useAuth()
   const canEdit = role === 'admin' || role === 'dirigeant' || role === 'exploitant' || role === 'logisticien'
+  const canDelete = role === 'admin' || role === 'dirigeant'
 
-  const [tab, setTab] = useState<EntrepotTab>('entrepots')
+  const [tab, setTab] = useState<EntrepotTab>('depots')
   const [notice, setNotice] = useState<string | null>(null)
 
   // Data
   const [sites, setSites]           = useState<Site[]>([])
   const [relaisList, setRelais]     = useState<Relais[]>([])
+  const [locations, setLocations]   = useState<DepotLocation[]>([])
   const [conducteurs, setConducteurs] = useState<Conducteur[]>([])
   const [vehicules, setVehicules]   = useState<Vehicule[]>([])
   const [remorques, setRemorques]   = useState<Remorque[]>([])
@@ -126,6 +143,7 @@ export default function Entrepots() {
 
   const [sitesLoading, setSitesLoading]   = useState(false)
   const [relaisLoading, setRelaisLoading] = useState(false)
+  const [locationsLoading, setLocationsLoading] = useState(false)
 
   // Site create/edit
   const [siteModal, setSiteModal] = useState<{ mode: 'create' | 'edit'; site?: Site } | null>(null)
@@ -147,6 +165,22 @@ export default function Entrepots() {
 
   // Site search
   const [siteSearch, setSiteSearch] = useState('')
+  const [selectedDepotId, setSelectedDepotId] = useState('')
+  const [locationSaving, setLocationSaving] = useState(false)
+  const [locationForm, setLocationForm] = useState({
+    depot_site_id: '',
+    code: '',
+    libelle: '',
+    zone: '',
+    allee: '',
+    rayon: '',
+    niveau: '',
+    position: '',
+    type_emplacement: 'stockage',
+    capacite_m3: '',
+    actif: true,
+    notes: '',
+  })
 
   // ── Loaders ────────────────────────────────────────────────────────────────
 
@@ -154,16 +188,66 @@ export default function Entrepots() {
 
   const loadSites = useCallback(async () => {
     setSitesLoading(true)
-    // Filtre par company_id direct (tenant isolation)
-    const { data } = await looseSupabase
-      .from('sites_logistiques')
-      .select('id, nom, adresse, entreprise_id, usage_type, type_site, est_depot_relais, code_postal, ville, pays, contact_nom, contact_tel, capacite_m3, notes, latitude, longitude, horaires_ouverture, notes_livraison, is_primary')
-      .eq('company_id', companyId ?? 1)
-      .in('type_site', ['entrepot', 'depot'])
-      .order('is_primary', { ascending: false })
-      .order('nom')
-    setSites((data as Site[] | null) ?? [])
-    setSitesLoading(false)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) {
+        setSites([])
+        setNotice('Session expirée. Recharge la page puis reconnecte-toi.')
+        return
+      }
+
+      const response = await fetch('/.netlify/functions/v11-logistic-sites', {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const body = await response.json().catch(() => ({} as { data?: Site[]; error?: string }))
+      if (!response.ok) {
+        throw new Error(typeof body.error === 'string' ? body.error : `Erreur HTTP ${response.status}`)
+      }
+
+      const rawSites = Array.isArray(body.data) ? body.data : []
+      let normalized = rawSites
+        .filter(site => {
+          if (site.type_site === 'client') return false
+
+          const codeClient = site.clients?.code_client ?? null
+          const tenantInternalCode = `TENANT_INTERNE_${companyId ?? 0}`
+
+          // Centre tenant uniquement: client interne du tenant, ou ancien centre sans client lie.
+          return !site.entreprise_id || codeClient === tenantInternalCode
+        })
+        .sort((a, b) => {
+          const primaryDelta = Number(Boolean(b.is_primary)) - Number(Boolean(a.is_primary))
+          if (primaryDelta !== 0) return primaryDelta
+          return (a.nom ?? '').localeCompare(b.nom ?? '', 'fr', { sensitivity: 'base' })
+        })
+
+      const tenantCenters = normalized
+      if (tenantCenters.length > 0 && !tenantCenters.some(site => site.is_primary) && (companyId ?? 1) > 0) {
+        const fallbackPrimary = tenantCenters[0]
+        try {
+          const { data: sessionData } = await supabase.auth.getSession()
+          const token = sessionData.session?.access_token
+          if (!token) throw new Error('Session expirée.')
+          await fetch(`/.netlify/functions/v11-logistic-sites?action=set_primary&site_id=${encodeURIComponent(fallbackPrimary.id)}`, {
+            method: 'PATCH',
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          normalized = normalized.map(site => {
+            return { ...site, is_primary: site.id === fallbackPrimary.id }
+          })
+        } catch {
+          // Silencieux: on ne bloque pas l'affichage si la promotion automatique échoue.
+        }
+      }
+      setSites(normalized)
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Chargement des centres impossible.')
+      setSites([])
+    } finally {
+      setSitesLoading(false)
+    }
   }, [companyId])
 
   const loadRelais = useCallback(async () => {
@@ -182,6 +266,36 @@ export default function Entrepots() {
     setRelaisLoading(false)
   }, [])
 
+  const loadLocations = useCallback(async (depotSiteId?: string) => {
+    setLocationsLoading(true)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) {
+        setLocations([])
+        setNotice('Session expirée. Recharge la page puis reconnecte-toi.')
+        return
+      }
+
+      const query = depotSiteId ? `?depot_site_id=${encodeURIComponent(depotSiteId)}` : ''
+      const response = await fetch(`/.netlify/functions/v11-depot-locations${query}`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const body = await response.json().catch(() => ({} as { data?: DepotLocation[]; error?: string }))
+      if (!response.ok) {
+        throw new Error(typeof body.error === 'string' ? body.error : `Erreur HTTP ${response.status}`)
+      }
+
+      setLocations(Array.isArray(body.data) ? body.data : [])
+    } catch (err) {
+      setLocations([])
+      setNotice(err instanceof Error ? err.message : 'Chargement des emplacements impossible.')
+    } finally {
+      setLocationsLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     void Promise.all([
       loadSites(),
@@ -189,19 +303,39 @@ export default function Entrepots() {
       listUnifiedConducteurs(companyId, { activeOnly: true }).then(data => setConducteurs(data.map(c => ({ id: c.id, nom: c.nom, prenom: c.prenom })))),
       supabase.from('vehicules').select('id, immatriculation').neq('statut', 'hors_service').order('immatriculation').then(r => { if (!r.error && r.data) setVehicules(r.data) }),
       supabase.from('remorques').select('id, immatriculation').neq('statut', 'hors_service').order('immatriculation').then(r => { if (!r.error && r.data) setRemorques(r.data) }),
-      supabase.from('clients').select('id, nom').eq('actif', true).order('nom').then(r => { if (!r.error && r.data) setClients(r.data) }),
+      supabase.from('clients').select('id, nom, code_client').eq('actif', true).order('nom').then(r => { if (!r.error && r.data) setClients(r.data) }),
     ])
   }, [companyId, loadSites, loadRelais])
+
+  useEffect(() => {
+    if (sites.length === 0) {
+      setSelectedDepotId('')
+      setLocationForm(prev => ({ ...prev, depot_site_id: '' }))
+      setLocations([])
+      return
+    }
+
+    const activeSelection = sites.some(site => site.id === selectedDepotId)
+      ? selectedDepotId
+      : sites[0].id
+
+    if (activeSelection !== selectedDepotId) {
+      setSelectedDepotId(activeSelection)
+    }
+
+    setLocationForm(prev => ({
+      ...prev,
+      depot_site_id: activeSelection,
+    }))
+
+    void loadLocations(activeSelection)
+  }, [sites, selectedDepotId, loadLocations])
 
   // Helpers lookup
   const conducteurName = (id: string | null | undefined) => {
     if (!id) return '—'
     const c = conducteurs.find(x => x.id === id)
     return c ? `${c.prenom} ${c.nom}` : id.slice(0, 8)
-  }
-  const vehiculeImmat = (id: string | null | undefined) => {
-    if (!id) return '—'
-    return vehicules.find(x => x.id === id)?.immatriculation ?? id.slice(0, 8)
   }
   const siteName = (id: string | null | undefined) => {
     if (!id) return null
@@ -221,7 +355,7 @@ export default function Entrepots() {
       entreprise_id: '',
       contact_nom: '',
       contact_tel: '',
-      type_site: tab === 'depots' ? 'depot' : 'entrepot',
+      type_site: 'depot',
       est_depot_relais: true,
       capacite_m3: '',
       horaires_ouverture: '',
@@ -253,10 +387,16 @@ export default function Entrepots() {
       setNotice('Le nom du site est obligatoire.')
       return
     }
+    if (!siteForm.adresse.trim()) {
+      setNotice('L\'adresse du centre est obligatoire.')
+      return
+    }
+
     setSiteSaving(true)
     const payload = {
       nom: siteForm.nom.trim(),
-      adresse: siteForm.adresse.trim() || null,
+      adresse: siteForm.adresse.trim(),
+      usage_type: 'mixte',
       code_postal: siteForm.code_postal.trim() || null, ville: siteForm.ville.trim() || null,
       pays: siteForm.pays.trim() || 'France', entreprise_id: siteForm.entreprise_id.trim() || null,
       contact_nom: siteForm.contact_nom.trim() || null, contact_tel: siteForm.contact_tel.trim() || null,
@@ -266,29 +406,98 @@ export default function Entrepots() {
       latitude: siteForm.latitude ? Number(siteForm.latitude) : null,
       longitude: siteForm.longitude ? Number(siteForm.longitude) : null,
     }
-    if (siteModal?.mode === 'edit' && siteModal.site) {
-      await looseSupabase.from('sites_logistiques').update(payload).eq('id', siteModal.site.id)
-    } else {
-      await looseSupabase.from('sites_logistiques').insert(payload)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) {
+        throw new Error('Session expirée. Recharge la page puis reconnecte-toi.')
+      }
+
+      const isEdit = siteModal?.mode === 'edit' && !!siteModal.site
+      const query = isEdit ? `?site_id=${encodeURIComponent(siteModal!.site!.id)}` : ''
+      const response = await fetch(`/.netlify/functions/v11-logistic-sites${query}`, {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const body = await response.json().catch(() => ({} as Record<string, unknown>))
+      if (!response.ok) {
+        const msg = typeof body.error === 'string' ? body.error : `Erreur HTTP ${response.status}`
+        throw new Error(msg)
+      }
+
+      setSiteModal(null)
+      await loadSites()
+      setNotice(siteModal?.mode === 'edit' ? 'Centre mis à jour.' : 'Centre créé avec succès.')
+    } catch (err) {
+      const details = (typeof err === 'object' && err !== null)
+        ? [
+          (err as { message?: string }).message,
+          (err as { details?: string }).details,
+          (err as { hint?: string }).hint,
+        ].filter(Boolean).join(' · ')
+        : ''
+      setNotice(details || (err instanceof Error ? err.message : 'Impossible d\'enregistrer le centre.'))
+    } finally {
+      setSiteSaving(false)
     }
-    setSiteSaving(false)
-    setSiteModal(null)
-    await loadSites()
   }
 
   async function deleteSite(id: string) {
     if (!confirm('Supprimer ce site ? Cette action est irréversible.')) return
-    await looseSupabase.from('sites_logistiques').delete().eq('id', id)
-    await loadSites()
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) {
+        throw new Error('Session expirée. Recharge la page puis reconnecte-toi.')
+      }
+
+      const response = await fetch(`/.netlify/functions/v11-logistic-sites?site_id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const body = await response.json().catch(() => ({} as Record<string, unknown>))
+      if (!response.ok) {
+        const msg = typeof body.error === 'string' ? body.error : `Erreur HTTP ${response.status}`
+        throw new Error(msg)
+      }
+      await loadSites()
+      setNotice('Centre supprimé.')
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Impossible de supprimer le centre.')
+    }
   }
 
   async function makePrimarySite(site: Site) {
     try {
-      await setPrimaryDepotSite(companyId ?? 1, site.id)
-      setNotice(`${site.nom} défini comme dépôt principal.`)
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) {
+        throw new Error('Session expirée. Recharge la page puis reconnecte-toi.')
+      }
+
+      const response = await fetch(`/.netlify/functions/v11-logistic-sites?action=set_primary&site_id=${encodeURIComponent(site.id)}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const body = await response.json().catch(() => ({} as Record<string, unknown>))
+      if (!response.ok) {
+        const msg = typeof body.error === 'string' ? body.error : `Erreur HTTP ${response.status}`
+        throw new Error(msg)
+      }
+
+      setNotice(`${site.nom} défini comme centre principal.`)
       await loadSites()
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Impossible de définir le dépôt principal.')
+      setNotice(err instanceof Error ? err.message : 'Impossible de définir le centre principal.')
     }
   }
 
@@ -320,6 +529,135 @@ export default function Entrepots() {
     await loadRelais()
   }
 
+  async function submitLocation(e: React.FormEvent) {
+    e.preventDefault()
+    if (!locationForm.depot_site_id) {
+      setNotice('Selectionne un centre pour creer un emplacement.')
+      return
+    }
+    if (!locationForm.code.trim()) {
+      setNotice('Le code emplacement est obligatoire.')
+      return
+    }
+
+    setLocationSaving(true)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) throw new Error('Session expirée. Recharge la page puis reconnecte-toi.')
+
+      const payload = {
+        depot_site_id: locationForm.depot_site_id,
+        code: locationForm.code.trim(),
+        libelle: locationForm.libelle.trim() || null,
+        zone: locationForm.zone.trim() || null,
+        allee: locationForm.allee.trim() || null,
+        rayon: locationForm.rayon.trim() || null,
+        niveau: locationForm.niveau.trim() || null,
+        position: locationForm.position.trim() || null,
+        type_emplacement: locationForm.type_emplacement,
+        capacite_m3: locationForm.capacite_m3 ? Number(locationForm.capacite_m3) : null,
+        actif: locationForm.actif,
+        notes: locationForm.notes.trim() || null,
+      }
+
+      const response = await fetch('/.netlify/functions/v11-depot-locations', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+      const body = await response.json().catch(() => ({} as { error?: string }))
+      if (!response.ok) {
+        throw new Error(typeof body.error === 'string' ? body.error : `Erreur HTTP ${response.status}`)
+      }
+
+      setLocationForm(prev => ({
+        ...prev,
+        code: '',
+        libelle: '',
+        zone: '',
+        allee: '',
+        rayon: '',
+        niveau: '',
+        position: '',
+        type_emplacement: 'stockage',
+        capacite_m3: '',
+        actif: true,
+        notes: '',
+      }))
+      await loadLocations(locationForm.depot_site_id)
+      setNotice('Emplacement cree.')
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Creation emplacement impossible.')
+    } finally {
+      setLocationSaving(false)
+    }
+  }
+
+  async function toggleLocationActive(location: DepotLocation) {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) throw new Error('Session expirée. Recharge la page puis reconnecte-toi.')
+
+      const response = await fetch(`/.netlify/functions/v11-depot-locations?location_id=${encodeURIComponent(location.id)}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          depot_site_id: location.depot_site_id,
+          code: location.code,
+          libelle: location.libelle,
+          zone: location.zone,
+          allee: location.allee,
+          rayon: location.rayon,
+          niveau: location.niveau,
+          position: location.position,
+          type_emplacement: location.type_emplacement,
+          capacite_m3: location.capacite_m3,
+          actif: !location.actif,
+          notes: location.notes,
+        }),
+      })
+      const body = await response.json().catch(() => ({} as { error?: string }))
+      if (!response.ok) {
+        throw new Error(typeof body.error === 'string' ? body.error : `Erreur HTTP ${response.status}`)
+      }
+
+      await loadLocations(selectedDepotId)
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Mise a jour emplacement impossible.')
+    }
+  }
+
+  async function deleteLocation(locationId: string) {
+    if (!confirm('Supprimer cet emplacement ?')) return
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) throw new Error('Session expirée. Recharge la page puis reconnecte-toi.')
+
+      const response = await fetch(`/.netlify/functions/v11-depot-locations?location_id=${encodeURIComponent(locationId)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const body = await response.json().catch(() => ({} as { error?: string }))
+      if (!response.ok) {
+        throw new Error(typeof body.error === 'string' ? body.error : `Erreur HTTP ${response.status}`)
+      }
+
+      await loadLocations(selectedDepotId)
+      setNotice('Emplacement supprime.')
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Suppression emplacement impossible.')
+    }
+  }
+
   // ── Filtered data ──────────────────────────────────────────────────────────
 
   const filteredSites = useMemo(() => {
@@ -336,8 +674,17 @@ export default function Entrepots() {
     [filteredSites],
   )
 
+  const selectedDepot = useMemo(
+    () => sites.find(site => site.id === selectedDepotId) ?? null,
+    [sites, selectedDepotId],
+  )
+
+  const filteredLocations = useMemo(
+    () => locations.filter(location => !selectedDepotId || location.depot_site_id === selectedDepotId),
+    [locations, selectedDepotId],
+  )
+
   const relaisDepot     = relaisList.filter(r => r.type_relais === 'depot_marchandise')
-  const relaisConducteur = relaisList.filter(r => r.type_relais === 'relais_conducteur')
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -354,10 +701,9 @@ export default function Entrepots() {
       {/* Tabs header */}
       <div className="flex items-center gap-1 px-4 pt-4 pb-0 border-b border-slate-800 flex-shrink-0">
         {([
-          { key: 'entrepots' as EntrepotTab, label: 'Dépôts/Entrepôts', count: sites.length },
-          { key: 'depots' as EntrepotTab, label: 'Dépôts/Entrepôts', count: sites.length },
-          { key: 'en_depot' as EntrepotTab, label: 'Marchandises en dépôt', count: relaisDepot.filter(r => r.statut !== 'termine').length },
-          { key: 'relais_conducteur' as EntrepotTab, label: 'Relais conducteur', count: relaisConducteur.filter(r => r.statut !== 'termine').length },
+          { key: 'depots' as EntrepotTab, label: 'Entrepots tenant', count: sharedLogisticSites.length },
+          { key: 'emplacements' as EntrepotTab, label: 'Emplacements', count: filteredLocations.length },
+          { key: 'en_depot' as EntrepotTab, label: 'Marchandises en centre', count: relaisDepot.filter(r => r.statut !== 'termine').length },
         ] as { key: EntrepotTab; label: string; count: number }[]).map(t => (
           <button
             key={t.key}
@@ -377,22 +723,25 @@ export default function Entrepots() {
         ))}
       </div>
 
+      <div className="px-4 pt-3">
+        <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs text-slate-300">
+          Les entrepots affiches ici sont uniquement les centres logistiques internes du tenant, utilises pour stocker, decharger et charger les marchandises.
+        </div>
+      </div>
+
       {/* Content */}
       <div className="flex-1 overflow-auto p-4 min-h-0">
 
-        {/* ── Onglet Dépôts/Entrepôts ────────────────────────────────── */}
-        {(tab === 'entrepots' || tab === 'depots') && (() => {
-          const isDepotTab = tab === 'depots'
+        {/* ── Onglet Centres ──────────────────────────────────────────── */}
+        {tab === 'depots' && (() => {
           const list = sharedLogisticSites
           const emptyMsg = 'Aucun site logistique enregistré pour ce tenant.'
           const newBtnLabel = 'Nouveau site logistique'
-          const accentClass = isDepotTab
-            ? 'bg-amber-600 hover:bg-amber-500'
-            : 'bg-indigo-600 hover:bg-indigo-500'
+          const accentClass = 'bg-amber-600 hover:bg-amber-500'
           return (
             <div className="space-y-4">
               <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-sm text-slate-300">
-                Les dépôts/entrepôts partagent maintenant la même base de sites. Un même site peut servir aux deux usages.
+                Ces centres logistiques du tenant servent a stocker les marchandises, organiser les zones de dechargement et preparer le chargement.
               </div>
               <div className="flex items-center gap-3 flex-wrap">
                 <input
@@ -434,11 +783,11 @@ export default function Entrepots() {
                           )}
                         </div>
                         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full ${isDepotTab ? 'bg-amber-500/20 text-amber-300' : 'bg-indigo-500/20 text-indigo-300'}`}>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
                             {TYPE_SITE_LABELS[site.type_site ?? ''] ?? site.type_site ?? 'Site'}
                           </span>
                           {site.est_depot_relais && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-700 text-muted">Dépôt relais</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-700 text-muted">Relais planning actif</span>
                           )}
                         </div>
                       </div>
@@ -460,7 +809,9 @@ export default function Entrepots() {
                             <button onClick={() => void makePrimarySite(site)} type="button" className="text-xs text-muted hover:text-emerald-300 transition-colors">Définir principal</button>
                           )}
                           <button onClick={() => openEditSite(site)} type="button" className="text-xs text-muted hover:text-indigo-300 transition-colors">Modifier</button>
-                          <button onClick={() => deleteSite(site.id)} type="button" className="text-xs text-muted hover:text-rose-400 transition-colors ml-auto">Supprimer</button>
+                          {canDelete && (
+                            <button onClick={() => deleteSite(site.id)} type="button" className="text-xs text-muted hover:text-rose-400 transition-colors ml-auto">Supprimer</button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -471,13 +822,197 @@ export default function Entrepots() {
           )
         })()}
 
-        {/* ── Onglet En dépôt ────────────────────────────────────────── */}
+        {/* ── Onglet Emplacements ───────────────────────────────────── */}
+        {tab === 'emplacements' && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-sm text-slate-300">
+              Cree des emplacements physiques par centre (zone, allee, rayon, niveau) pour structurer le stockage et les operations quai.
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={selectedDepotId}
+                onChange={e => {
+                  const depotId = e.target.value
+                  setSelectedDepotId(depotId)
+                  setLocationForm(prev => ({ ...prev, depot_site_id: depotId }))
+                  void loadLocations(depotId)
+                }}
+                className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+              >
+                {sites.map(site => (
+                  <option key={site.id} value={site.id}>{site.nom}</option>
+                ))}
+              </select>
+              {selectedDepot && (
+                <span className="text-xs text-discreet">Centre actif : {selectedDepot.nom}</span>
+              )}
+            </div>
+
+            {canEdit && (
+              <form onSubmit={submitLocation} className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <input
+                    value={locationForm.code}
+                    onChange={e => setLocationForm(prev => ({ ...prev, code: e.target.value }))}
+                    placeholder="Code * (A-01-03)"
+                    className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                  <input
+                    value={locationForm.libelle}
+                    onChange={e => setLocationForm(prev => ({ ...prev, libelle: e.target.value }))}
+                    placeholder="Libelle"
+                    className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                  <select
+                    value={locationForm.type_emplacement}
+                    onChange={e => setLocationForm(prev => ({ ...prev, type_emplacement: e.target.value }))}
+                    className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="stockage">Stockage</option>
+                    <option value="quai_chargement">Quai chargement</option>
+                    <option value="quai_dechargement">Quai dechargement</option>
+                    <option value="cross_dock">Cross-dock</option>
+                    <option value="tampon">Zone tampon</option>
+                    <option value="autre">Autre</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <input
+                    value={locationForm.zone}
+                    onChange={e => setLocationForm(prev => ({ ...prev, zone: e.target.value }))}
+                    placeholder="Zone"
+                    className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                  <input
+                    value={locationForm.allee}
+                    onChange={e => setLocationForm(prev => ({ ...prev, allee: e.target.value }))}
+                    placeholder="Allee"
+                    className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                  <input
+                    value={locationForm.rayon}
+                    onChange={e => setLocationForm(prev => ({ ...prev, rayon: e.target.value }))}
+                    placeholder="Rayon"
+                    className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                  <input
+                    value={locationForm.niveau}
+                    onChange={e => setLocationForm(prev => ({ ...prev, niveau: e.target.value }))}
+                    placeholder="Niveau"
+                    className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                  <input
+                    value={locationForm.position}
+                    onChange={e => setLocationForm(prev => ({ ...prev, position: e.target.value }))}
+                    placeholder="Position"
+                    className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <input
+                    value={locationForm.capacite_m3}
+                    onChange={e => setLocationForm(prev => ({ ...prev, capacite_m3: e.target.value }))}
+                    placeholder="Capacite m3"
+                    className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                  <input
+                    value={locationForm.notes}
+                    onChange={e => setLocationForm(prev => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Notes"
+                    className="md:col-span-2 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <label className="inline-flex items-center gap-2 text-xs text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={locationForm.actif}
+                      onChange={e => setLocationForm(prev => ({ ...prev, actif: e.target.checked }))}
+                    />
+                    Emplacement actif
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={locationSaving}
+                    className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                  >
+                    {locationSaving ? 'Creation...' : 'Ajouter emplacement'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {locationsLoading ? (
+              <div className="text-discreet text-sm py-8 text-center">Chargement des emplacements...</div>
+            ) : filteredLocations.length === 0 ? (
+              <div className="text-discreet text-sm py-10 text-center">Aucun emplacement pour ce centre.</div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-slate-800">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-discreet text-xs border-b border-slate-800 bg-slate-900/70">
+                      <th className="px-3 py-2 font-medium">Code</th>
+                      <th className="px-3 py-2 font-medium">Type</th>
+                      <th className="px-3 py-2 font-medium">Adresse interne</th>
+                      <th className="px-3 py-2 font-medium">Capacite</th>
+                      <th className="px-3 py-2 font-medium">Statut</th>
+                      {canEdit && <th className="px-3 py-2 font-medium">Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {filteredLocations.map(location => (
+                      <tr key={location.id} className="hover:bg-slate-900/40">
+                        <td className="px-3 py-2 text-slate-200 font-mono">{location.code}</td>
+                        <td className="px-3 py-2 text-slate-300">{location.type_emplacement}</td>
+                        <td className="px-3 py-2 text-muted">
+                          {[location.zone, location.allee, location.rayon, location.niveau, location.position].filter(Boolean).join(' / ') || '—'}
+                        </td>
+                        <td className="px-3 py-2 text-muted">{location.capacite_m3 != null ? `${location.capacite_m3} m3` : '—'}</td>
+                        <td className="px-3 py-2">
+                          <span className={`text-[11px] px-2 py-0.5 rounded-full border ${location.actif ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-slate-700 text-slate-300 border-slate-600'}`}>
+                            {location.actif ? 'Actif' : 'Inactif'}
+                          </span>
+                        </td>
+                        {canEdit && (
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() => void toggleLocationActive(location)}
+                                className="text-xs text-indigo-300 hover:text-indigo-200"
+                              >
+                                {location.actif ? 'Desactiver' : 'Activer'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void deleteLocation(location.id)}
+                                className="text-xs text-rose-300 hover:text-rose-200"
+                              >
+                                Supprimer
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Onglet En centre ───────────────────────────────────────── */}
         {tab === 'en_depot' && (
           <div className="space-y-3">
             {relaisLoading ? (
               <div className="text-discreet text-sm py-8 text-center">Chargement...</div>
             ) : relaisDepot.length === 0 ? (
-              <div className="text-discreet text-sm py-12 text-center">Aucune marchandise en dépôt actuellement.</div>
+              <div className="text-discreet text-sm py-12 text-center">Aucune marchandise en centre actuellement.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -485,8 +1020,8 @@ export default function Entrepots() {
                     <tr className="text-left text-discreet text-xs border-b border-slate-800">
                       <th className="pb-2 pr-4 font-medium">OT</th>
                       <th className="pb-2 pr-4 font-medium">Site / Lieu</th>
-                      <th className="pb-2 pr-4 font-medium">Conducteur dépôt</th>
-                      <th className="pb-2 pr-4 font-medium">Date dépôt</th>
+                      <th className="pb-2 pr-4 font-medium">Conducteur centre</th>
+                      <th className="pb-2 pr-4 font-medium">Date centre</th>
                       <th className="pb-2 pr-4 font-medium">Reprise prévue</th>
                       <th className="pb-2 pr-4 font-medium">Conducteur reprise</th>
                       <th className="pb-2 pr-4 font-medium">Statut</th>
@@ -531,67 +1066,6 @@ export default function Entrepots() {
             )}
           </div>
         )}
-
-        {/* ── Onglet Relais conducteur ────────────────────────────────── */}
-        {tab === 'relais_conducteur' && (
-          <div className="space-y-3">
-            {relaisLoading ? (
-              <div className="text-discreet text-sm py-8 text-center">Chargement...</div>
-            ) : relaisConducteur.length === 0 ? (
-              <div className="text-discreet text-sm py-12 text-center">Aucun relais conducteur en cours.</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-discreet text-xs border-b border-slate-800">
-                      <th className="pb-2 pr-4 font-medium">OT</th>
-                      <th className="pb-2 pr-4 font-medium">Lieu</th>
-                      <th className="pb-2 pr-4 font-medium">Conducteur dépose</th>
-                      <th className="pb-2 pr-4 font-medium">Véhicule</th>
-                      <th className="pb-2 pr-4 font-medium">Date relais</th>
-                      <th className="pb-2 pr-4 font-medium">Conducteur reprise</th>
-                      <th className="pb-2 pr-4 font-medium">Statut</th>
-                      {canEdit && <th className="pb-2 font-medium">Actions</th>}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {relaisConducteur.map(r => (
-                      <tr key={r.id} className="hover:bg-slate-900/50">
-                        <td className="py-2.5 pr-4 text-slate-300 font-mono text-xs">{r.ot_id?.slice(0, 8) ?? '—'}</td>
-                        <td className="py-2.5 pr-4 text-slate-300">{siteName(r.site_id) ?? r.lieu_libre_nom ?? r.lieu_libre_adresse ?? '—'}</td>
-                        <td className="py-2.5 pr-4 text-muted">{conducteurName(r.conducteur_depose_id)}</td>
-                        <td className="py-2.5 pr-4 text-muted">{vehiculeImmat(r.vehicule_depose_id)}</td>
-                        <td className="py-2.5 pr-4 text-muted">{fmt(r.date_depot)}</td>
-                        <td className="py-2.5 pr-4 text-muted">{conducteurName(r.conducteur_reprise_id)}</td>
-                        <td className="py-2.5 pr-4">
-                          <span className={`text-[11px] px-2 py-0.5 rounded-full border ${STATUT_COLORS[r.statut]}`}>
-                            {STATUT_LABELS[r.statut]}
-                          </span>
-                        </td>
-                        {canEdit && (
-                          <td className="py-2.5">
-                            <div className="flex gap-2">
-                              {r.statut === 'en_attente' && (
-                                <button onClick={() => openAssign(r)} type="button" className="text-xs px-2 py-1 rounded bg-blue-600/20 text-blue-300 hover:bg-blue-600/40 border border-blue-500/30 transition-colors">
-                                  Assigner
-                                </button>
-                              )}
-                              {(r.statut === 'assigne' || r.statut === 'en_cours_reprise') && (
-                                <button onClick={() => updateStatut(r.id, 'termine')} type="button" className="text-xs px-2 py-1 rounded bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/40 border border-emerald-500/30 transition-colors">
-                                  Terminer
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* ── Modal site ──────────────────────────────────────────────────────── */}
@@ -603,9 +1077,23 @@ export default function Entrepots() {
               <button type="button" onClick={() => setSiteModal(null)} className="text-discreet hover:text-slate-300 text-xl">✕</button>
             </div>
             <div className="overflow-y-auto px-6 py-4 space-y-3 flex-1">
+              <div>
+                <label className="block text-xs font-medium text-muted mb-1">Entreprise rattachee (optionnel)</label>
+                <select
+                  value={siteForm.entreprise_id}
+                  onChange={e => setSiteForm(prev => ({ ...prev, entreprise_id: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="">Centre interne du tenant (sans client)</option>
+                  {clients.map(client => (
+                    <option key={client.id} value={client.id}>{client.nom}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-discreet">Renseigne une entreprise uniquement pour un site client de chargement/livraison.</p>
+              </div>
               {([
-                { label: 'Nom du site *', key: 'nom', placeholder: 'Ex: Dépôt/Entrepôt Nord Lyon' },
-                { label: 'Adresse', key: 'adresse', placeholder: 'Rue, numéro...' },
+                { label: 'Nom du site *', key: 'nom', placeholder: 'Ex: Centre Nord Lyon' },
+                { label: 'Adresse *', key: 'adresse', placeholder: 'Rue, numéro...' },
                 { label: 'Code postal', key: 'code_postal', placeholder: '69000' },
                 { label: 'Ville', key: 'ville', placeholder: 'Marseille' },
                 { label: 'Pays', key: 'pays', placeholder: 'France' },
@@ -633,7 +1121,7 @@ export default function Entrepots() {
                 >
                   {Object.entries(TYPE_SITE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
-                <p className="mt-1 text-xs text-discreet">Le site restera disponible dans les vues dépôts et dépôts/entrepôts.</p>
+                <p className="mt-1 text-xs text-discreet">Le site restera disponible dans les vues centres.</p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-muted mb-1">Notes</label>
@@ -703,7 +1191,7 @@ export default function Entrepots() {
                   onChange={e => setSiteForm(prev => ({ ...prev, est_depot_relais: e.target.checked }))}
                   className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-indigo-500"
                 />
-                <span className="text-sm text-slate-300">Utilisable comme dépôt de relais</span>
+                <span className="text-sm text-slate-300">Activer les depots/relais depuis le planning</span>
               </label>
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-800 flex-shrink-0">
