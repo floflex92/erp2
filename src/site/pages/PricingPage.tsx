@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
+import { useEffect } from 'react'
 import SiteSection from '@/site/components/SiteSection'
 import useSiteMeta from '@/site/hooks/useSiteMeta'
+import { EVENTS, trackEvent, trackPageView } from '@/site/lib/analytics'
 
 const inlineLinkClassName = 'font-semibold text-[#2563EB]'
 
@@ -56,6 +58,10 @@ export default function PricingPage() {
     ],
   })
 
+  useEffect(() => {
+    trackPageView('/tarifs-erp-transport')
+  }, [])
+
   return (
     <div className="space-y-8">
       <section className="rounded-[2.2rem] border border-white/80 bg-white px-6 py-8 shadow-[0_24px_80px_rgba(15,23,42,0.1)] sm:px-8 sm:py-10">
@@ -78,6 +84,136 @@ export default function PricingPage() {
             .
           </p>
         </div>
+      </section>
+
+      {/* ── PLANS TARIFAIRES ── */}
+      <section className="rounded-[2.2rem] border border-white/80 bg-white px-6 py-10 shadow-[0_24px_80px_rgba(15,23,42,0.1)] sm:px-8 sm:py-12">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-sky-800">Formules</p>
+        <h2 className="mt-4 text-3xl font-semibold tracking-tight text-[var(--site-text)] sm:text-[2.4rem] sm:leading-[1.06]">
+          Trois niveaux d'accès à la plateforme
+        </h2>
+        <p className="mt-3 max-w-2xl text-base leading-7 text-[var(--site-text-secondary)]">
+          Chaque formule inclut l'onboarding, les mises à jour et l'hébergement RGPD Europe. Pas de frais cachés.
+        </p>
+
+        <div className="mt-10 grid gap-6 lg:grid-cols-3">
+          {/* Essentiel */}
+          <article className="flex flex-col rounded-[1.8rem] border border-slate-200 bg-slate-50 p-7">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Essentiel</p>
+            <p className="mt-4 text-[2.6rem] font-bold leading-none tracking-tight text-[var(--site-text)]">
+              390 <span className="text-xl font-semibold text-slate-400">€ / mois</span>
+            </p>
+            <p className="mt-1 text-sm text-slate-500">jusqu'à 20 véhicules · 5 utilisateurs</p>
+            <ul className="mt-6 flex-1 space-y-3 text-sm text-slate-700">
+              {[
+                'Planning & dispatch',
+                'Gestion flotte et véhicules',
+                'Dossiers conducteurs',
+                'Facturation et bons de livraison',
+                'Conformité de base (CT, VGP)',
+                'Tableau de bord exploitation',
+                'Support email sous 48h',
+              ].map(f => (
+                <li key={f} className="flex items-start gap-2">
+                  <svg className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <Link
+              to="/demonstration"
+              onClick={() => trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'pricing_essentiel', target: '/demonstration' })}
+              className="mt-8 block rounded-xl border border-sky-700 bg-white px-5 py-3 text-center text-sm font-semibold text-sky-700 transition-colors hover:bg-sky-50"
+            >
+              Demander un devis
+            </Link>
+          </article>
+
+          {/* Opérateur — mis en avant */}
+          <article className="relative flex flex-col rounded-[1.8rem] border-2 border-sky-600 bg-white p-7 shadow-[0_16px_48px_rgba(14,165,233,0.14)]">
+            <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-sky-600 px-4 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white">
+              Le plus choisi
+            </span>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-600">Opérateur</p>
+            <p className="mt-4 text-[2.6rem] font-bold leading-none tracking-tight text-[var(--site-text)]">
+              790 <span className="text-xl font-semibold text-slate-400">€ / mois</span>
+            </p>
+            <p className="mt-1 text-sm text-slate-500">jusqu'à 80 véhicules · 20 utilisateurs</p>
+            <ul className="mt-6 flex-1 space-y-3 text-sm text-slate-700">
+              {[
+                'Tout Essentiel, plus :',
+                'Planning groupage & tournées',
+                'Module atelier / maintenance',
+                'Carburant et TCO',
+                'RH, absences et paie partielle',
+                'Frais et notes de frais',
+                'Portail client et affrété',
+                'Comptabilité et trésorerie',
+                'Support prioritaire sous 8h',
+              ].map(f => (
+                <li key={f} className={`flex items-start gap-2 ${f.endsWith(':') ? 'font-semibold text-slate-900' : ''}`}>
+                  {!f.endsWith(':') && (
+                    <svg className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                  )}
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <Link
+              to="/demonstration"
+              onClick={() => trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'pricing_operateur', target: '/demonstration' })}
+              className="mt-8 block rounded-xl bg-sky-600 px-5 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-sky-700"
+            >
+              Demander un devis
+            </Link>
+          </article>
+
+          {/* Entreprise */}
+          <article className="flex flex-col rounded-[1.8rem] border border-slate-200 bg-slate-50 p-7">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Entreprise</p>
+            <p className="mt-4 text-[2.6rem] font-bold leading-none tracking-tight text-[var(--site-text)]">
+              Sur devis
+            </p>
+            <p className="mt-1 text-sm text-slate-500">flotte &gt; 80 véhicules · utilisateurs illimités</p>
+            <ul className="mt-6 flex-1 space-y-3 text-sm text-slate-700">
+              {[
+                'Tout Opérateur, plus :',
+                'Multi-dépôts / multi-entités',
+                'Intégrations ERP / WMS / TMS tiers',
+                'API publique documentée',
+                'Webhooks configurables',
+                'SSO SAML / LDAP',
+                'SLA garanti 99,9 %',
+                'Customer success dédié',
+              ].map(f => (
+                <li key={f} className={`flex items-start gap-2 ${f.endsWith(':') ? 'font-semibold text-slate-900' : ''}`}>
+                  {!f.endsWith(':') && (
+                    <svg className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                  )}
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <Link
+              to="/contact"
+              onClick={() => trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'pricing_entreprise', target: '/contact' })}
+              className="mt-8 block rounded-xl border border-sky-700 bg-white px-5 py-3 text-center text-sm font-semibold text-sky-700 transition-colors hover:bg-sky-50"
+            >
+              Nous contacter
+            </Link>
+          </article>
+        </div>
+
+        <p className="mt-8 text-center text-xs text-slate-400">
+          Tarifs HT. Engagement annuel. Essai gratuit 30 jours sans carte bancaire.{' '}
+          <Link
+            to="/demonstration"
+            onClick={() => trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'pricing_footer_trial', target: '/demonstration' })}
+            className="font-semibold text-sky-600 hover:underline"
+          >
+            Tester la plateforme →
+          </Link>
+        </p>
       </section>
 
       <SiteSection

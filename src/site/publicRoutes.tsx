@@ -26,6 +26,7 @@ const IaTransportPage = lazy(() => import('@/site/pages/IaTransportPage'))
 const IntegrationsPage = lazy(() => import('@/site/pages/IntegrationsPage'))
 const LogicielGestionFlotteCamionPage = lazy(() => import('@/site/pages/LogicielGestionFlotteCamionPage'))
 const LogicielTransportPage = lazy(() => import('@/site/pages/LogicielTransportPage'))
+const MarketingFunnelPage = lazy(() => import('@/site/pages/MarketingFunnelPage'))
 const PlanningIntelligentPage = lazy(() => import('@/site/pages/PlanningIntelligentPage'))
 const PricingPage = lazy(() => import('@/site/pages/PricingPage'))
 const PresentationPage = lazy(() => import('@/site/pages/PresentationPage'))
@@ -57,6 +58,7 @@ export function getPublicSiteRoutes() {
         <Route path="comparatif-erp-transport" element={<ComparatifPage />} />
         <Route path="erp" element={<Navigate to="/erp-transport" replace />} />
         <Route path="logiciel-transport" element={<LogicielTransportPage />} />
+        <Route path="pilotage-funnel" element={<MarketingFunnelPage />} />
         <Route path="articles" element={<ArticlesPage />} />
         <Route path="articles/:slug" element={<ArticlePage />} />
         <Route path="demonstration" element={<DemoPage />} />

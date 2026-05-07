@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Tables, TablesInsert } from '@/lib/database.types'
 import { logOtHistory } from '@/lib/otHistory'
@@ -30,6 +30,7 @@ import {
   listOtLignes,
   syncOtLignes,
 } from '@/lib/transportCourses'
+import { getOtPodProof, loadOtPodProofs, saveOtPodProofs, type OtPodProof } from '@/lib/otPodProofs'
 import { addCourseToMission, assembleIndependentCourses, createMissionFromCourses, removeCourseFromMission, setMissionFreezeState } from '@/lib/transportMissions'
 import {
   TYPES_CHARGEMENT_LABELS,
@@ -108,6 +109,20 @@ type TransportContextMenu = {
   ot: OT
 } | null
 
+type CsvImportReport = {
+  inserted: number
+  ignored: number
+  issues: string[]
+}
+
+type PodDraft = {
+  receiverName: string
+  receiverSignature: string
+  comment: string
+  fileName: string
+  fileDataUrl: string
+}
+
 
 const STATUT_LABELS: Record<string, string> = {
   brouillon: 'Brouillon', confirme: 'Confirmé', en_cours: 'En cours',
@@ -132,6 +147,67 @@ const SITE_USAGE_LABELS: Record<SiteUsageType, string> = {
   chargement: 'Chargement uniquement',
   livraison: 'Livraison uniquement',
   mixte: 'Chargement et livraison',
+}
+
+const OT_STATUS_FLOW_LOCKED = ['brouillon', 'confirme', 'planifie', 'en_cours', 'livre', 'facture'] as const
+
+function normalizeLooseText(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
+function canTransitionTransportStatus(currentRaw: string | null | undefined, next: TransportStatus) {
+  const current = (currentRaw ?? 'en_attente_validation') as TransportStatus
+  if (current === next) return false
+  if (current === 'termine' || current === 'annule') return false
+  if (next === 'annule') return true
+
+  const currentIndex = TRANSPORT_STATUS_FLOW.indexOf(current)
+  const nextIndex = TRANSPORT_STATUS_FLOW.indexOf(next)
+  if (currentIndex < 0 || nextIndex < 0) return false
+  return nextIndex === currentIndex + 1
+}
+
+function canTransitionOtStatus(current: string, next: string) {
+  if (current === next) return false
+  if (current === 'facture' || current === 'annule') return false
+  if (next === 'annule') return true
+
+  const currentIndex = OT_STATUS_FLOW_LOCKED.indexOf(current as (typeof OT_STATUS_FLOW_LOCKED)[number])
+  const nextIndex = OT_STATUS_FLOW_LOCKED.indexOf(next as (typeof OT_STATUS_FLOW_LOCKED)[number])
+  if (currentIndex < 0 || nextIndex < 0) return false
+  return nextIndex === currentIndex + 1
+}
+
+function parseCsvLine(line: string, delimiter: string) {
+  const values: string[] = []
+  let current = ''
+  let inQuotes = false
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i]
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"'
+        i += 1
+      } else {
+        inQuotes = !inQuotes
+      }
+      continue
+    }
+    if (char === delimiter && !inQuotes) {
+      values.push(current.trim())
+      current = ''
+      continue
+    }
+    current += char
+  }
+  values.push(current.trim())
+  return values
 }
 
 const EMPTY_OT: TransportForm = {
@@ -245,6 +321,7 @@ function SummaryPill({ label, value, tone = 'neutral' }: { label: string; value:
 
 export default function Transports() {
   const { role, profil, user, companyId } = useAuth()
+  const csvInputRef = useRef<HTMLInputElement | null>(null)
   const isAffreteurSession = role === 'affreteur'
   const canCreateOt = !isAffreteurSession
   const canEditOt = !isAffreteurSession
@@ -270,6 +347,15 @@ export default function Transports() {
   const [groupageTargetId, setGroupageTargetId] = useState('')
   const [batchGroupageSelection, setBatchGroupageSelection] = useState<string[]>([])
   const [contextMenu, setContextMenu] = useState<TransportContextMenu>(null)
+  const [importingCsv, setImportingCsv] = useState(false)
+  const [podStore, setPodStore] = useState<Record<string, OtPodProof>>(() => loadOtPodProofs())
+  const [podDraft, setPodDraft] = useState<PodDraft>({
+    receiverName: '',
+    receiverSignature: '',
+    comment: '',
+    fileName: '',
+    fileDataUrl: '',
+  })
 
   const [showForm, setShowForm] = useState(false)
   const [editingOtId, setEditingOtId] = useState<string | null>(null)
@@ -409,6 +495,10 @@ export default function Transports() {
   }, [selected?.id])
 
   const clientMap = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c.nom])), [clients])
+  const clientIdByName = useMemo(() => {
+    const entries = clients.map(client => [normalizeLooseText(client.nom), client.id] as const)
+    return new Map(entries)
+  }, [clients])
   const conducteurMap = useMemo(() => Object.fromEntries(conducteurs.map(c => [c.id, `${c.prenom} ${c.nom}`])), [conducteurs])
   const vehiculeMap = useMemo(() => Object.fromEntries(vehicules.map(v => [v.id, `${v.immatriculation}${v.marque ? ` · ${v.marque}` : ''}`])), [vehicules])
   const siteMap = useMemo(() => Object.fromEntries(sites.map(s => [s.id, s])), [sites])
@@ -443,9 +533,29 @@ export default function Transports() {
     return batchGroupageSelection.filter(id => independentGroupageCandidateIds.has(id))
   }, [batchGroupageSelection, independentGroupageCandidateIds])
 
+  const selectedPod = useMemo(() => {
+    if (!selected) return null
+    return podStore[selected.id] ?? null
+  }, [podStore, selected])
+
   useEffect(() => {
     setBatchGroupageSelection(current => current.filter(id => independentGroupageCandidateIds.has(id)))
   }, [independentGroupageCandidateIds])
+
+  useEffect(() => {
+    if (!selected) {
+      setPodDraft({ receiverName: '', receiverSignature: '', comment: '', fileName: '', fileDataUrl: '' })
+      return
+    }
+    const existing = getOtPodProof(selected.id)
+    setPodDraft({
+      receiverName: existing?.receiverName ?? '',
+      receiverSignature: existing?.receiverSignature ?? '',
+      comment: existing?.comment ?? '',
+      fileName: existing?.fileName ?? '',
+      fileDataUrl: existing?.fileDataUrl ?? '',
+    })
+  }, [selected])
 
   const selectedGroupMembers = useMemo(() => {
     if (!selected?.mission_id) return []
@@ -701,6 +811,113 @@ export default function Transports() {
     void loadAll()
   }
 
+  async function savePodForSelected() {
+    if (!selected) return
+    if (!podDraft.receiverName.trim() || !podDraft.receiverSignature.trim() || !podDraft.fileDataUrl) {
+      setStatusGuardNotice('POD incomplet: destinataire, signature et fichier preuve sont obligatoires.')
+      return
+    }
+
+    const nextStore = {
+      ...podStore,
+      [selected.id]: {
+        otId: selected.id,
+        receiverName: podDraft.receiverName.trim(),
+        receiverSignature: podDraft.receiverSignature.trim(),
+        comment: podDraft.comment.trim(),
+        fileName: podDraft.fileName,
+        fileDataUrl: podDraft.fileDataUrl,
+        savedAt: new Date().toISOString(),
+      },
+    }
+    setPodStore(nextStore)
+    saveOtPodProofs(nextStore)
+    setStatusGuardNotice('POD enregistré. La course peut maintenant être clôturée.')
+  }
+
+  async function handlePodFileChange(file: File | null) {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : ''
+      setPodDraft(current => ({
+        ...current,
+        fileName: file.name,
+        fileDataUrl: dataUrl,
+      }))
+    }
+    reader.readAsDataURL(file)
+  }
+
+  async function importOtCsv(file: File) {
+    setImportingCsv(true)
+    try {
+      const text = await file.text()
+      const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+      if (lines.length < 2) {
+        setStatusGuardNotice('Import CSV: fichier vide ou sans données.')
+        return
+      }
+
+      const delimiter = lines[0].includes(';') ? ';' : ','
+      const headers = parseCsvLine(lines[0], delimiter).map(header => normalizeLooseText(header))
+      const report: CsvImportReport = { inserted: 0, ignored: 0, issues: [] }
+      const payloads: TablesInsert<'ordres_transport'>[] = []
+
+      for (let lineIndex = 1; lineIndex < lines.length; lineIndex += 1) {
+        const values = parseCsvLine(lines[lineIndex], delimiter)
+        const row = Object.fromEntries(headers.map((key, idx) => [key, (values[idx] ?? '').trim()])) as Record<string, string>
+
+        const clientId = row.client_id || clientIdByName.get(normalizeLooseText(row.client_nom || row.client || '')) || ''
+        if (!clientId) {
+          report.ignored += 1
+          report.issues.push(`Ligne ${lineIndex + 1}: client introuvable (client_id ou client_nom requis).`)
+          continue
+        }
+
+        const typeTransport = row.type_transport || 'complet'
+        const sourceCourse = row.source_course || 'manuel'
+
+        payloads.push({
+          client_id: clientId,
+          donneur_ordre_id: row.donneur_ordre_id || row.donneur_ordre || clientId,
+          type_transport: typeTransport,
+          source_course: sourceCourse,
+          statut: row.statut || 'brouillon',
+          statut_transport: row.statut_transport || 'en_attente_validation',
+          reference_externe: row.reference_externe || null,
+          nature_marchandise: row.nature_marchandise || null,
+          date_chargement_prevue: row.date_chargement_prevue || null,
+          date_livraison_prevue: row.date_livraison_prevue || null,
+          prix_ht: row.prix_ht ? Number(row.prix_ht) : null,
+          distance_km: row.distance_km ? Number(row.distance_km) : null,
+          poids_kg: row.poids_kg ? Number(row.poids_kg) : null,
+          nombre_colis: row.nombre_colis ? Number(row.nombre_colis) : null,
+          numero_bl: row.numero_bl || null,
+          numero_cmr: row.numero_cmr || null,
+        })
+      }
+
+      if (payloads.length === 0) {
+        setStatusGuardNotice(`Import CSV terminé: 0 insertion, ${report.ignored} ignorée(s).`)
+        return
+      }
+
+      const { error } = await supabase.from('ordres_transport').insert(payloads)
+      if (error) {
+        setStatusGuardNotice(`Import CSV impossible: ${error.message}`)
+        return
+      }
+
+      report.inserted = payloads.length
+      const headIssues = report.issues.slice(0, 2).join(' | ')
+      setStatusGuardNotice(`Import CSV réussi: ${report.inserted} OT créés, ${report.ignored} ignorés.${headIssues ? ` ${headIssues}` : ''}`)
+      await loadAll()
+    } finally {
+      setImportingCsv(false)
+    }
+  }
+
   async function toggleAffretement(ot: OT, onboardingId: string | null) {
     await setCourseAffretement(ot.id, onboardingId)
     if (selected?.id === ot.id) {
@@ -784,8 +1001,34 @@ export default function Transports() {
     }))
   }, [form.client_id, form.donneur_ordre_id])
 
+  async function handleTransportStatusTransition(ot: OT, nextStatus: TransportStatus) {
+    if (!canChangeOtStatus) return
+    if (!canTransitionTransportStatus(ot.statut_transport, nextStatus)) {
+      setStatusGuardNotice('Transition statut transport bloquée: seul le statut suivant est autorisé (ou annulation).')
+      return
+    }
+    if (nextStatus === 'termine' && !podStore[ot.id]) {
+      setStatusGuardNotice('POD manquant: ajoutez une preuve de livraison avant de passer en terminé.')
+      return
+    }
+
+    await updateTransportStatus(ot.id, nextStatus)
+    if (selected?.id === ot.id) {
+      setSelected({ ...selected, statut_transport: nextStatus })
+    }
+    setList(current => current.map(item => (item.id === ot.id ? { ...item, statut_transport: nextStatus } : item)))
+  }
+
   async function updateStatut(ot: OT, statut: string) {
     if (!canChangeOtStatus) return
+    if (!canTransitionOtStatus(ot.statut, statut)) {
+      setStatusGuardNotice('Transition OT bloquée: progression séquentielle obligatoire (ou annulation).')
+      return
+    }
+    if ((statut === 'livre' || statut === 'facture') && !podStore[ot.id]) {
+      setStatusGuardNotice('POD manquant: impossible de livrer/facturer sans preuve de livraison.')
+      return
+    }
 
     let nextStatut = statut
     const contract = getAffretementContractByOtId(ot.id)
@@ -991,6 +1234,27 @@ export default function Transports() {
             >
               Suivi affretement
             </button>
+          <input
+            ref={csvInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={event => {
+              const file = event.target.files?.[0] ?? null
+              if (file) {
+                void importOtCsv(file)
+              }
+              event.currentTarget.value = ''
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => csvInputRef.current?.click()}
+            disabled={!canCreateOt || importingCsv}
+            className="rounded-lg border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-foreground transition hover:bg-surface-soft disabled:opacity-50"
+          >
+            {importingCsv ? 'Import en cours...' : 'Importer CSV'}
+          </button>
           <button
             onClick={openCreateForm}
             disabled={!canCreateOt}
@@ -1275,8 +1539,8 @@ export default function Transports() {
                         <button
                           key={statusKey}
                           type="button"
-                          onClick={() => { void updateTransportStatus(selected.id, statusKey) }}
-                          disabled={selected.statut_transport === statusKey}
+                          onClick={() => { void handleTransportStatusTransition(selected, statusKey) }}
+                          disabled={!canTransitionTransportStatus(selected.statut_transport, statusKey)}
                           className={`rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
                             selected.statut_transport === statusKey
                               ? 'bg-slate-200 text-discreet cursor-default'
@@ -1313,7 +1577,7 @@ export default function Transports() {
                           <button
                             key={k}
                             onClick={() => updateStatut(selected, k)}
-                            disabled={selected.statut === k}
+                            disabled={!canTransitionOtStatus(selected.statut, k)}
                             className={`rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
                               selected.statut === k
                                 ? 'bg-slate-200 text-discreet cursor-default'
@@ -1352,6 +1616,103 @@ export default function Transports() {
                         </button>
                       ))}
                     </div>
+                  </div>
+                </div>
+              </SectionCard>
+
+              <SectionCard title="POD / preuve de livraison" description="Capture de preuve obligatoire avant clôture de la livraison et facturation.">
+                <div className="space-y-4">
+                  {selectedPod ? (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                      POD enregistré le {new Date(selectedPod.savedAt).toLocaleString('fr-FR')}.
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      Aucun POD enregistré. Les statuts Livré / Facturé / Terminé sont bloqués tant que la preuve n est pas fournie.
+                    </div>
+                  )}
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Field label="Nom du destinataire *">
+                      <input
+                        className={inp}
+                        value={podDraft.receiverName}
+                        onChange={event => setPodDraft(current => ({ ...current, receiverName: event.target.value }))}
+                        placeholder="Nom et prénom"
+                      />
+                    </Field>
+                    <Field label="Signature / visa *">
+                      <input
+                        className={inp}
+                        value={podDraft.receiverSignature}
+                        onChange={event => setPodDraft(current => ({ ...current, receiverSignature: event.target.value }))}
+                        placeholder="Ex: Signé conforme"
+                      />
+                    </Field>
+                    <div className="md:col-span-2">
+                      <Field label="Commentaire POD">
+                        <textarea
+                          className={`${inp} min-h-[90px] resize-y`}
+                          value={podDraft.comment}
+                          onChange={event => setPodDraft(current => ({ ...current, comment: event.target.value }))}
+                          placeholder="Anomalie, réserve, heure de remise..."
+                        />
+                      </Field>
+                    </div>
+                    <div className="md:col-span-2">
+                      <Field label="Preuve (photo BL signé / CMR / document) *">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <label className="rounded-xl border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-foreground transition hover:bg-surface-soft cursor-pointer">
+                            Choisir un fichier
+                            <input
+                              type="file"
+                              accept="image/*,.pdf"
+                              className="hidden"
+                              onChange={event => {
+                                void handlePodFileChange(event.target.files?.[0] ?? null)
+                                event.currentTarget.value = ''
+                              }}
+                            />
+                          </label>
+                          <span className="text-xs text-secondary">{podDraft.fileName || 'Aucun fichier sélectionné'}</span>
+                          {podDraft.fileDataUrl && (
+                            <a
+                              href={podDraft.fileDataUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs font-semibold text-blue-700 hover:text-blue-800"
+                            >
+                              Ouvrir la preuve
+                            </a>
+                          )}
+                        </div>
+                      </Field>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => { void savePodForSelected() }}
+                      className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                    >
+                      Enregistrer POD
+                    </button>
+                    {selectedPod && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = { ...podStore }
+                          delete next[selected.id]
+                          setPodStore(next)
+                          saveOtPodProofs(next)
+                          setStatusGuardNotice('POD supprimé pour cet OT.')
+                        }}
+                        className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                      >
+                        Supprimer POD
+                      </button>
+                    )}
                   </div>
                 </div>
               </SectionCard>

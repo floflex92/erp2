@@ -2,7 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import useSiteMeta from '@/site/hooks/useSiteMeta'
 import { sitePhotos } from '@/site/lib/sitePhotos'
-import { EVENTS, trackEvent, trackFunnelStep } from '@/site/lib/analytics'
+import {
+  EVENTS,
+  FUNNELS,
+  FUNNEL_STEPS,
+  assignExperimentVariant,
+  trackEvent,
+  trackFunnelStep,
+} from '@/site/lib/analytics'
 
 const conducteursScreenshot = '/site/screenshots/mecano01.webp'
 const planningScreenshot = '/site/screenshots/planning01.webp'
@@ -590,6 +597,10 @@ export default function HomePage() {
   const [videoOpen, setVideoOpen] = useState(false)
   const [lightboxImage, setLightboxImage] = useState<LightboxImage | null>(null)
   const [latestArticles, setLatestArticles] = useState<ArticlePreview[]>([])
+  const heroCtaVariant = useMemo(
+    () => assignExperimentVariant('home_hero_primary_label_v1', ['demander_demo', 'voir_plateforme_action'], { surface: 'home_hero' }) ?? 'demander_demo',
+    [],
+  )
 
   useSiteMeta({
     title: 'ERP transport routier : planning et flotte',
@@ -599,8 +610,11 @@ export default function HomePage() {
   })
 
   useEffect(() => {
-    trackFunnelStep('marketing_demo', 'home_view', { surface: 'homepage' })
-  }, [])
+    trackFunnelStep(FUNNELS.MARKETING_DEMO, FUNNEL_STEPS.MARKETING_DEMO.HOME_VIEW, {
+      surface: 'homepage',
+      hero_cta_variant: heroCtaVariant,
+    })
+  }, [heroCtaVariant])
 
   useEffect(() => {
     let removeScript = () => {}
@@ -787,13 +801,20 @@ export default function HomePage() {
               <Link
                 to="/demonstration"
                 onClick={() => {
-                  trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'home_hero_primary', target: '/demonstration' })
-                  trackFunnelStep('marketing_demo', 'demo_click', { placement: 'home_hero_primary' })
+                  trackEvent(EVENTS.MARKETING_CTA_CLICK, {
+                    placement: 'home_hero_primary',
+                    target: '/demonstration',
+                    variant: heroCtaVariant,
+                  })
+                  trackFunnelStep(FUNNELS.MARKETING_DEMO, FUNNEL_STEPS.MARKETING_DEMO.DEMO_CLICK, {
+                    placement: 'home_hero_primary',
+                    variant: heroCtaVariant,
+                  })
                 }}
                 className="site-hero-cta uppercase"
                 style={{ letterSpacing: '0.08em' }}
               >
-                Demander une démo
+                {heroCtaVariant === 'voir_plateforme_action' ? 'Voir la plateforme en action' : 'Demander une démo'}
                 <span aria-hidden="true" className="ml-3 text-lg leading-none">→</span>
               </Link>
               <Link
@@ -1515,7 +1536,7 @@ export default function HomePage() {
                 to="/demonstration"
                 onClick={() => {
                   trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'home_final_primary', target: '/demonstration' })
-                  trackFunnelStep('marketing_demo', 'demo_click', { placement: 'home_final_primary' })
+                  trackFunnelStep(FUNNELS.MARKETING_DEMO, FUNNEL_STEPS.MARKETING_DEMO.DEMO_CLICK, { placement: 'home_final_primary' })
                 }}
                 className="site-hero-cta uppercase"
                 style={{ letterSpacing: '0.08em' }}

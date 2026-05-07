@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { SegmentedTabBar } from '@/components/ui/SegmentedTabBar'
 
 type Tab = 'reglements' | 'relances' | 'scoring'
 
@@ -96,23 +97,7 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
     { key: 'relances', label: 'Relances' },
     { key: 'scoring', label: 'Scoring clients' },
   ]
-  return (
-    <div className="flex gap-1 mb-6 border-b border-line">
-      {tabs.map(t => (
-        <button
-          key={t.key}
-          onClick={() => onChange(t.key)}
-          className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
-            active === t.key
-              ? 'border-slate-800 text-foreground'
-              : 'border-transparent text-discreet hover:text-foreground'
-          }`}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
-  )
+  return <SegmentedTabBar active={active} onChange={onChange} tabs={tabs} ariaLabel="Navigation reglements" />
 }
 
 function Stat({ label, value, sub, color = 'slate' }: {

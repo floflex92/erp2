@@ -5,6 +5,7 @@ import { evaluateAffretementCompletionReadiness, getAffretementContractByOtId } 
 import { buildInvoicePdf } from '@/lib/invoicePdf'
 import { DataState } from '@/components/ui/DataState'
 import { SkeletonTable } from '@/components/ui/SkeletonTable'
+import { SegmentedTabBar } from '@/components/ui/SegmentedTabBar'
 
 type Facture = Tables<'factures'>
 type FactureFournisseur = Tables<'compta_factures_fournisseurs'>
@@ -160,23 +161,7 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
     { key: 'journal',     label: 'Journal' },
     { key: 'tarifs',      label: 'Tarifs transport' },
   ]
-  return (
-    <div className="flex gap-1 mb-6 border-b border-line pb-0">
-      {tabs.map(t => (
-        <button
-          key={t.key}
-          onClick={() => onChange(t.key)}
-          className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
-            active === t.key
-              ? 'border-slate-800 text-foreground'
-              : 'border-transparent text-discreet hover:text-foreground'
-          }`}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
-  )
+  return <SegmentedTabBar active={active} onChange={onChange} tabs={tabs} ariaLabel="Navigation facturation" className="flex gap-1 mb-6 border-b border-line pb-0" />
 }
 
 // ─── Bar chart (CSS) ─────────────────────────────────────────────────────────

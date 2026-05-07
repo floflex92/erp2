@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   __analyticsInternals,
   EVENTS,
+  assignExperimentVariant,
   flushPendingAnalyticsEvents,
+  getAnalyticsDebugEvents,
+  getMarketingFunnelSnapshot,
   trackEvent,
   trackFunnelStep,
   trackPageView,
@@ -17,6 +20,7 @@ describe('analytics hardening', () => {
     __analyticsInternals.clearPendingQueue()
     __analyticsInternals.clearFunnelSessionState()
     __analyticsInternals.clearReleaseHealthState()
+    __analyticsInternals.clearExperimentState()
     vi.restoreAllMocks()
   })
 
@@ -151,5 +155,76 @@ describe('analytics hardening', () => {
       page_path: '/',
       surface: 'site_layout',
     })
+  })
+
+  it('assigne une variante experiment stable et track une seule fois par session', () => {
+    const gtagSpy = vi.fn()
+    window.gtag = gtagSpy
+    window.localStorage.setItem('nexora-cookie-consent-v1', 'accepted')
+
+    const first = assignExperimentVariant('home_hero_primary_label_v1', ['A', 'B'], { surface: 'home_hero' })
+    const second = assignExperimentVariant('home_hero_primary_label_v1', ['A', 'B'], { surface: 'home_hero' })
+
+    expect(first).toBeTruthy()
+    expect(second).toBe(first)
+    expect(gtagSpy).toHaveBeenCalledTimes(1)
+    expect(gtagSpy).toHaveBeenCalledWith('event', 'experiment_assigned', {
+      page_path: '/',
+      event_origin: 'web',
+      experiment_id: 'home_hero_primary_label_v1',
+      variant: first,
+      surface: 'home_hero',
+    })
+  })
+
+  it('assigne une variante experiment meme sans consentement mais ne track pas', () => {
+    const gtagSpy = vi.fn()
+    window.gtag = gtagSpy
+
+    const assigned = assignExperimentVariant('pricing_card_order_v1', ['control', 'alt'])
+
+    expect(assigned).toBeTruthy()
+    expect(gtagSpy).not.toHaveBeenCalled()
+  })
+
+  it('stocke localement les events trackes pour un pilotage funnel', () => {
+    const gtagSpy = vi.fn()
+    window.gtag = gtagSpy
+    window.localStorage.setItem('nexora-cookie-consent-v1', 'accepted')
+
+    trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'home_hero_primary' })
+
+    const events = getAnalyticsDebugEvents()
+    expect(events.length).toBe(1)
+    expect(events[0]?.name).toBe(EVENTS.MARKETING_CTA_CLICK)
+    expect(events[0]?.params).toMatchObject({
+      placement: 'home_hero_primary',
+      page_path: '/',
+      event_origin: 'web',
+    })
+  })
+
+  it('calcule un snapshot funnel marketing coherent', () => {
+    const gtagSpy = vi.fn()
+    window.gtag = gtagSpy
+    window.localStorage.setItem('nexora-cookie-consent-v1', 'accepted')
+
+    trackFunnelStep('marketing_demo', 'home_view')
+    trackFunnelStep('marketing_demo', 'demo_click')
+    trackFunnelStep('marketing_demo', 'demo_form_submit')
+    trackFunnelStep('marketing_demo', 'demo_form_success')
+    trackFunnelStep('marketing_contact', 'contact_page_view')
+    trackFunnelStep('marketing_contact', 'contact_form_submit')
+
+    const snapshot = getMarketingFunnelSnapshot()
+    expect(snapshot.homeViews).toBe(1)
+    expect(snapshot.demoClicks).toBe(1)
+    expect(snapshot.demoFormSubmits).toBe(1)
+    expect(snapshot.demoFormSuccesses).toBe(1)
+    expect(snapshot.contactPageViews).toBe(1)
+    expect(snapshot.contactFormSubmits).toBe(1)
+    expect(snapshot.contactFormSuccesses).toBe(0)
+    expect(snapshot.clickRateFromHomeView).toBe(100)
+    expect(snapshot.contactSuccessRateFromSubmits).toBe(0)
   })
 })

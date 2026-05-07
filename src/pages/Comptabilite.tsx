@@ -4,6 +4,7 @@ import SaisieEcrituresTab from '@/components/comptabilite/SaisieEcrituresTab'
 import PlanComptableTab from '@/components/comptabilite/PlanComptableTab'
 import TvaDeclarativeTab from '@/components/comptabilite/TvaDeclarativeTab'
 import PrimesRapprochementTab from '@/components/comptabilite/PrimesRapprochementTab'
+import { SegmentedTabBar } from '@/components/ui/SegmentedTabBar'
 
 type Tab = 'saisie' | 'plan-comptable' | 'primes-paie' | 'balance' | 'grand-livre' | 'bilan' | 'resultat' | 'tva' | 'export-fec'
 
@@ -81,23 +82,7 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
     { key: 'export-fec', label: 'Export FEC' },
   ]
 
-  return (
-    <div className="flex gap-1 mb-6 border-b border-line pb-0">
-      {tabs.map(t => (
-        <button
-          key={t.key}
-          onClick={() => onChange(t.key)}
-          className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
-            active === t.key
-              ? 'border-slate-800 text-foreground'
-              : 'border-transparent text-discreet hover:text-foreground'
-          }`}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
-  )
+  return <SegmentedTabBar active={active} onChange={onChange} tabs={tabs} ariaLabel="Navigation comptabilité" className="flex gap-1 mb-6 border-b border-line pb-0" />
 }
 
 function BalanceTab() {

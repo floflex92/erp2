@@ -3,7 +3,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { firstPage, useAuth } from '@/lib/auth'
 import { sitePhotos } from '@/site/lib/sitePhotos'
-import { EVENTS, trackEvent, trackFunnelStep, trackPageView } from '@/site/lib/analytics'
+import { EVENTS, FUNNELS, FUNNEL_STEPS, trackEvent, trackFunnelStep, trackPageView } from '@/site/lib/analytics'
 
 type DemoStatus = 'idle' | 'loading' | 'success' | 'error'
 
@@ -20,6 +20,27 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
+  // ── Reset mot de passe ─────────────────────────────────────────────────────
+  const [showReset, setShowReset] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetStatus, setResetStatus] = useState<'idle' | 'loading' | 'sent' | 'error'>('idle')
+  const [resetError, setResetError] = useState<string | null>(null)
+
+  async function handleResetSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setResetError(null)
+    setResetStatus('loading')
+    const { error: resetErr } = await supabase.auth.resetPasswordForEmail(resetEmail.trim().toLowerCase(), {
+      redirectTo: `${window.location.origin}/parametres`,
+    })
+    if (resetErr) {
+      setResetError('Impossible d\'envoyer le lien. Vérifiez l\'email et réessayez.')
+      setResetStatus('error')
+    } else {
+      setResetStatus('sent')
+    }
+  }
+
   // ── Mode démo ──────────────────────────────────────────────────────────────
   const [showDemo, setShowDemo] = useState(false)
   const [demoEmail, setDemoEmail] = useState('')
@@ -31,7 +52,7 @@ export default function Login() {
     setDemoError(null)
     setDemoStatus('loading')
     trackEvent(EVENTS.LOGIN_DEMO_SUBMIT, { source: 'demo_magic_link' })
-    trackFunnelStep('marketing_demo', 'login_demo_submit', { source: 'demo_magic_link' })
+    trackFunnelStep(FUNNELS.MARKETING_DEMO, 'login_demo_submit', { source: 'demo_magic_link' })
 
     try {
       const res = await fetch('/.netlify/functions/demo-magic-link', {
@@ -63,7 +84,7 @@ export default function Login() {
 
       setDemoStatus('success')
       trackEvent(EVENTS.LOGIN_DEMO_SUCCESS, { source: 'demo_magic_link' })
-      trackFunnelStep('marketing_demo', 'login_demo_success', { source: 'demo_magic_link' })
+      trackFunnelStep(FUNNELS.MARKETING_DEMO, 'login_demo_success', { source: 'demo_magic_link' })
       // Redirection simple vers le dashboard — le rôle sera lu depuis le profil en base
       navigate('/dashboard', { replace: true })
     } catch {
@@ -90,8 +111,8 @@ export default function Login() {
 
   useEffect(() => {
     trackPageView('/login')
-    trackFunnelStep('marketing_demo', 'login_view', { mode: demoMode ? 'demo' : 'standard' })
-  }, [])
+    trackFunnelStep(FUNNELS.MARKETING_DEMO, 'login_view', { mode: demoMode ? 'demo' : 'standard' })
+  }, [demoMode])
 
   if (loading || profilLoading) {
     return (
@@ -120,7 +141,7 @@ export default function Login() {
     setError(null)
     setSubmitting(true)
     trackEvent(EVENTS.LOGIN_SUBMIT, { remember_me: rememberMe })
-    trackFunnelStep('auth_login', 'submit', { remember_me: rememberMe })
+    trackFunnelStep(FUNNELS.AUTH_LOGIN, FUNNEL_STEPS.AUTH_LOGIN.SUBMIT, { remember_me: rememberMe })
     const { error: signInError } = await signIn(email, password)
     setSubmitting(false)
     if (signInError) {
@@ -129,7 +150,7 @@ export default function Login() {
       return
     }
     trackEvent(EVENTS.LOGIN_SUBMIT_SUCCESS, { source: 'password' })
-    trackFunnelStep('auth_login', 'success', { source: 'password' })
+    trackFunnelStep(FUNNELS.AUTH_LOGIN, FUNNEL_STEPS.AUTH_LOGIN.SUCCESS, { source: 'password' })
   }
 
   const inputStyle: React.CSSProperties = {
@@ -439,10 +460,79 @@ export default function Login() {
                     />
                     Se souvenir de moi
                   </label>
-                  <Link to="/contact" className="text-sm font-semibold transition-colors hover:underline" style={{ color: '#1F4E8C' }}>
+                  <button
+                    type="button"
+                    onClick={() => { setShowReset(true); setResetEmail(email); setResetStatus('idle'); setResetError(null) }}
+                    className="text-sm font-semibold transition-colors hover:underline"
+                    style={{ color: '#1F4E8C' }}
+                  >
                     Mot de passe oublié ?
-                  </Link>
+                  </button>
                 </div>
+
+                {/* ── Modal reset mot de passe ── */}
+                {showReset && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}>
+                    <div className="w-full max-w-sm rounded-2xl p-8 shadow-2xl" style={{ background: '#FFFFFF' }}>
+                      <h2 className="text-xl font-bold" style={{ color: '#0B1F3A' }}>Réinitialiser le mot de passe</h2>
+                      {resetStatus === 'sent' ? (
+                        <>
+                          <p className="mt-4 text-sm leading-6" style={{ color: '#166534' }}>
+                            Un lien de réinitialisation a été envoyé à <strong>{resetEmail}</strong>. Vérifiez votre boîte mail (y compris les spams).
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setShowReset(false)}
+                            className="mt-6 w-full rounded-xl py-3 text-sm font-semibold text-white"
+                            style={{ background: 'linear-gradient(135deg,#0B1F3A,#1F4E8C)' }}
+                          >
+                            Fermer
+                          </button>
+                        </>
+                      ) : (
+                        <form onSubmit={handleResetSubmit} className="mt-5 grid gap-4">
+                          <p className="text-sm leading-6" style={{ color: '#475569' }}>
+                            Entrez votre adresse email. Vous recevrez un lien pour créer un nouveau mot de passe.
+                          </p>
+                          <input
+                            type="email"
+                            required
+                            autoFocus
+                            placeholder="votre@email.fr"
+                            value={resetEmail}
+                            onChange={e => setResetEmail(e.target.value)}
+                            className="w-full rounded-xl px-4 py-3 text-base outline-none transition-colors"
+                            style={{ border: '1px solid #DBE2EC', borderRadius: '10px', color: '#1B1B1B', background: '#FFFFFF' }}
+                            disabled={resetStatus === 'loading'}
+                          />
+                          {resetError && (
+                            <p className="rounded-lg px-4 py-3 text-sm" style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA' }}>
+                              {resetError}
+                            </p>
+                          )}
+                          <div className="flex gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setShowReset(false)}
+                              className="flex-1 rounded-xl py-3 text-sm font-semibold transition-colors"
+                              style={{ border: '1px solid #E5E7EB', color: '#475569' }}
+                            >
+                              Annuler
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={resetStatus === 'loading'}
+                              className="flex-1 rounded-xl py-3 text-sm font-semibold text-white disabled:opacity-60"
+                              style={{ background: 'linear-gradient(135deg,#0B1F3A,#1F4E8C)' }}
+                            >
+                              {resetStatus === 'loading' ? 'Envoi…' : 'Envoyer le lien'}
+                            </button>
+                          </div>
+                        </form>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {error && (
                   <div className="rounded-lg px-4 py-3 text-sm" style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA' }}>

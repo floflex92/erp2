@@ -87,6 +87,7 @@ const EXPLOITANT_FEATURES_KEY = 'nexora_planning_exploitant_features_v1'
 const ASSIGNMENT_IMPOSSIBLE_BLOCK_KEY = 'nexora_planning_assignment_impossible_block_v1'
 const DEPOT_RESOURCE_FILTER_KEY = 'nexora_planning_depot_resource_filter_v1'
 const DEPOT_INCLUDE_UNASSIGNED_KEY = 'nexora_planning_depot_include_unassigned_v1'
+const PLANNING_VIEW_MODE_KEY = 'nexora_planning_view_mode_v1'
 
 type ExploitantFeatureKey =
   | 'tab_urgences'
@@ -172,7 +173,15 @@ export default function Planning() {
   const [selectedDay, setSelectedDay] = useState(() => toISO(new Date()))
   const [monthStart,  setMonthStart]  = useState(() => getMonthStart(new Date()))
   const [tab,         setTab]         = useState<Tab>('conducteurs')
-  const [viewMode,    setViewMode]    = useState<ViewMode>('semaine')
+  const [viewMode,    setViewMode]    = useState<ViewMode>(() => {
+    try {
+      const raw = localStorage.getItem(PLANNING_VIEW_MODE_KEY)
+      if (raw === 'semaine' || raw === 'jour' || raw === 'mois') return raw
+    } catch {
+      // ignore localStorage access issues
+    }
+    return 'semaine'
+  })
   useScrollToTopOnChange(tab)
   useScrollToTopOnChange(viewMode)
   const [planningScope, setPlanningScope] = useState<PlanningScope>(() => {
@@ -544,6 +553,14 @@ export default function Planning() {
       // ignore localStorage access issues
     }
   }, [planningScope])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PLANNING_VIEW_MODE_KEY, viewMode)
+    } catch {
+      // ignore localStorage access issues
+    }
+  }, [viewMode])
 
   useEffect(() => {
     if (role !== 'affreteur') return
@@ -3311,10 +3328,14 @@ export default function Planning() {
   const rowConflictPairsById: Record<string, RowConflict[]> = useMemo(() => {
     const viewStart = viewMode === 'semaine'
       ? new Date(`${toISO(weekStart)}T00:00:00`).getTime()
-      : new Date(`${selectedDay}T00:00:00`).getTime()
+      : viewMode === 'mois'
+        ? new Date(`${toISO(getMonthStart(monthStart))}T00:00:00`).getTime()
+        : new Date(`${selectedDay}T00:00:00`).getTime()
     const viewEnd = viewMode === 'semaine'
       ? new Date(`${toISO(addDays(weekStart, 6))}T23:59:59`).getTime()
-      : new Date(`${selectedDay}T23:59:59`).getTime()
+      : viewMode === 'mois'
+        ? new Date(`${toISO(addDays(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0), 0))}T23:59:59`).getTime()
+        : new Date(`${selectedDay}T23:59:59`).getTime()
 
     const next: Record<string, RowConflict[]> = {}
     for (const row of orderedRows) {
@@ -3325,7 +3346,7 @@ export default function Planning() {
       next[row.id] = buildRowConflicts(rowOTs(row.id), viewStart, viewEnd)
     }
     return next
-  }, [orderedRows, selectedDay, viewMode, weekStart, pool, ganttOTs, customBlocks, tab, planningScope, affretementRowIds, customOTIds])
+  }, [orderedRows, selectedDay, viewMode, weekStart, monthStart, pool, ganttOTs, customBlocks, tab, planningScope, affretementRowIds, customOTIds])
 
   const rowConflictCountById: Record<string, number> = useMemo(() => {
     const next: Record<string, number> = {}
@@ -3371,10 +3392,14 @@ export default function Planning() {
   const resourceLoadRows = useMemo(() => {
     const rangeStart = viewMode === 'semaine'
       ? new Date(`${toISO(weekStart)}T00:00:00`).getTime()
-      : new Date(`${selectedDay}T00:00:00`).getTime()
+      : viewMode === 'mois'
+        ? new Date(`${toISO(getMonthStart(monthStart))}T00:00:00`).getTime()
+        : new Date(`${selectedDay}T00:00:00`).getTime()
     const rangeEnd = viewMode === 'semaine'
       ? new Date(`${toISO(addDays(weekStart, 6))}T23:59:59`).getTime()
-      : new Date(`${selectedDay}T23:59:59`).getTime()
+      : viewMode === 'mois'
+        ? new Date(`${toISO(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0))}T23:59:59`).getTime()
+        : new Date(`${selectedDay}T23:59:59`).getTime()
 
     return visibleRows
       .filter(row => !row.isCustom)
@@ -3400,7 +3425,7 @@ export default function Planning() {
         if (right.missionCount !== left.missionCount) return right.missionCount - left.missionCount
         return right.plannedMinutes - left.plannedMinutes
       })
-  }, [centerFilter, rowConflictCountById, selectedDay, viewMode, visibleRows, weekStart, pool, ganttOTs, customBlocks, tab, planningScope, affretementRowIds, customOTIds])
+  }, [centerFilter, rowConflictCountById, selectedDay, viewMode, visibleRows, weekStart, monthStart, pool, ganttOTs, customBlocks, tab, planningScope, affretementRowIds, customOTIds])
 
   // Map id ? ville pour les sites logistiques
   const sitesMap = useMemo(() => {
@@ -4016,7 +4041,18 @@ export default function Planning() {
     .filter(ot => !resolveRowId(ot))
     .filter(ot => !customOTIds.has(ot.id))
     .filter(ot => !centerFilter || ot.chargement_site_id === centerFilter || ot.livraison_site_id === centerFilter)
-    .filter(ot => viewMode === 'semaine' ? blockPos(ot, weekStart) !== null : isoToDate(ot.date_chargement_prevue) === selectedDay)
+    .filter(ot => {
+      if (viewMode === 'semaine') return blockPos(ot, weekStart) !== null
+      if (viewMode === 'mois') {
+        if (!ot.date_chargement_prevue && !ot.date_livraison_prevue) return false
+        const start = (ot.date_chargement_prevue ?? ot.date_livraison_prevue ?? '').slice(0, 10)
+        const end = (ot.date_livraison_prevue ?? ot.date_chargement_prevue ?? '').slice(0, 10)
+        const monthFrom = toISO(getMonthStart(monthStart))
+        const monthTo = toISO(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0))
+        return start <= monthTo && end >= monthFrom
+      }
+      return isoToDate(ot.date_chargement_prevue) === selectedDay
+    })
 
   const bottomDockUrgences = useMemo(() => {
     return buildPlanningUrgences({
@@ -4294,7 +4330,18 @@ export default function Planning() {
     // Charge de la ressource sur la semaine visible
     const rowOtList = row.isCustom ? [] : rowOTs(row.id)
     const rowCount  = rowOtList.filter(o =>
-      viewMode === 'semaine' ? blockPos(o, weekStart) !== null : isoToDate(o.date_chargement_prevue) === selectedDay
+      viewMode === 'semaine'
+        ? blockPos(o, weekStart) !== null
+        : viewMode === 'mois'
+          ? (() => {
+              if (!o.date_chargement_prevue && !o.date_livraison_prevue) return false
+              const start = (o.date_chargement_prevue ?? o.date_livraison_prevue ?? '').slice(0, 10)
+              const end = (o.date_livraison_prevue ?? o.date_chargement_prevue ?? '').slice(0, 10)
+              const monthFrom = toISO(getMonthStart(monthStart))
+              const monthTo = toISO(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0))
+              return start <= monthTo && end >= monthFrom
+            })()
+          : isoToDate(o.date_chargement_prevue) === selectedDay
     ).length
     const hasLateOT = rowOtList.some(o => isOtLate12h(o))
     const conflictCount = rowConflictCountById[row.id] ?? 0

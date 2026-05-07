@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom'
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import useSiteMeta from '@/site/hooks/useSiteMeta'
 import { sitePhotos } from '@/site/lib/sitePhotos'
+import { supabase } from '@/lib/supabase'
+import { EVENTS, FUNNELS, FUNNEL_STEPS, trackEvent, trackFunnelStep, trackPageView } from '@/site/lib/analytics'
 
 const sectionPx: React.CSSProperties = { paddingInline: 'clamp(24px, 8vw, 160px)' }
 const sectionPy: React.CSSProperties = { paddingBlock: 'clamp(80px, 12vw, 160px)' }
@@ -38,6 +40,11 @@ export default function ContactPage() {
   const [challenge] = useState(generateChallenge)
   const [captchaInput, setCaptchaInput] = useState('')
 
+  useEffect(() => {
+    trackPageView('/contact')
+    trackFunnelStep(FUNNELS.MARKETING_CONTACT, FUNNEL_STEPS.MARKETING_CONTACT.CONTACT_PAGE_VIEW, { surface: 'contact_page' })
+  }, [])
+
   useSiteMeta({
     title: 'Contact — démo ERP transport routier',
     description: 'Contactez NEXORA Truck pour qualifier votre projet ERP transport et organiser un rendez-vous de démonstration personnalisé.',
@@ -59,6 +66,18 @@ export default function ContactPage() {
     }
 
     setSubmitting(true)
+    trackEvent(EVENTS.MARKETING_FORM_SUBMIT, {
+      form_name: 'contact',
+      surface: 'contact_page',
+      objective: form.objective,
+      vehicles: form.vehicles,
+    })
+    trackFunnelStep(FUNNELS.MARKETING_CONTACT, FUNNEL_STEPS.MARKETING_CONTACT.CONTACT_FORM_SUBMIT, {
+      surface: 'contact_page',
+      objective: form.objective,
+      vehicles: form.vehicles,
+    })
+
     try {
       const formData = new FormData()
       formData.append('form-name', 'contact')
@@ -74,8 +93,32 @@ export default function ContactPage() {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams(formData as unknown as Record<string, string>).toString(),
       })
+      // Créer un prospect dans le CRM (fire-and-forget)
+      supabase.from('prospects').insert({
+        nom_entreprise: form.company,
+        contact_nom: form.name,
+        source_lead: 'site_web',
+        statut: 'lead',
+        probabilite_closing: 20,
+        notes: `Contact web — objectif: ${form.objective} — flotte: ${form.vehicles} — message: ${form.message}`,
+      }).then(() => {})
+      trackEvent(EVENTS.MARKETING_FORM_SUCCESS, {
+        form_name: 'contact',
+        surface: 'contact_page',
+        objective: form.objective,
+        vehicles: form.vehicles,
+      })
+      trackFunnelStep(FUNNELS.MARKETING_CONTACT, FUNNEL_STEPS.MARKETING_CONTACT.CONTACT_FORM_SUCCESS, {
+        surface: 'contact_page',
+        objective: form.objective,
+        vehicles: form.vehicles,
+      })
       setSuccess(true)
     } catch {
+      trackEvent(EVENTS.MARKETING_FORM_ERROR, {
+        form_name: 'contact',
+        surface: 'contact_page',
+      })
       setError('Erreur lors de l\'envoi. Veuillez réessayer ou nous contacter par email.')
     } finally {
       setSubmitting(false)
@@ -186,6 +229,7 @@ export default function ContactPage() {
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <a
                 href="#contact-form"
+                onClick={() => trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'contact_hero_schedule', target: '#contact-form' })}
                 className="inline-flex items-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(20,184,166,0.35)] transition-transform hover:-translate-y-0.5"
                 style={{ background: 'linear-gradient(135deg,#14B8A6,#22D3EE)' }}
               >
@@ -194,6 +238,7 @@ export default function ContactPage() {
               </a>
               <a
                 href="tel:+33782711705"
+                onClick={() => trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'contact_hero_phone', target: 'tel:+33782711705' })}
                 className="inline-flex items-center gap-2 rounded-lg border px-5 py-3 text-sm font-semibold transition-colors"
                 style={{ borderColor: 'rgba(96,165,250,0.55)', color: '#E2E8F0', background: 'rgba(15,23,42,0.35)' }}
               >

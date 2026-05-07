@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
-import type { Tables, TablesInsert } from '@/lib/database.types'
+import type { Tables } from '@/lib/database.types'
 import { buildStaffDirectory, staffDisplayName } from '@/lib/staffDirectory'
+import { SegmentedTabBar } from '@/components/ui/SegmentedTabBar'
 
 // ── Types DB ─────────────────────────────────────────────────────────────────
 type Vehicule = Tables<'vehicules'>
@@ -376,16 +377,7 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
     { key: 'reglages',       label: 'Réglage alertes' },
     { key: 'couts',          label: 'Coûts & Analyses' },
   ]
-  return (
-    <div className="flex gap-1 mb-6 border-b border-line">
-      {tabs.map(t => (
-        <button key={t.key} onClick={() => onChange(t.key)}
-          className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${active === t.key ? 'border-slate-800 text-foreground' : 'border-transparent text-discreet hover:text-foreground'}`}>
-          {t.label}
-        </button>
-      ))}
-    </div>
-  )
+  return <SegmentedTabBar active={active} onChange={onChange} tabs={tabs} ariaLabel="Navigation maintenance" />
 }
 
 function BarChart({ data, height = 120, color = '#1e293b' }: { data: { label: string; value: number }[]; height?: number; color?: string }) {
@@ -1165,6 +1157,43 @@ export default function Maintenance() {
     return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 6)
   }, [entretiens, remorqueLabel, vehiculeLabel])
 
+  const tcoByAsset = useMemo(() => {
+    const vehiculeMap = new Map(vehicules.map(v => [v.id, v]))
+    const agg = new Map<string, { label: string; cout: number; interventions: number; kmActuel: number | null }>()
+
+    entretiens
+      .filter(e => e.service_date.startsWith(yearStr))
+      .forEach(e => {
+        const key = e.vehicule_id ? `vehicule:${e.vehicule_id}` : e.remorque_id ? `remorque:${e.remorque_id}` : `parc:${e.id}`
+        const label = vehiculeLabel(e.vehicule_id) ?? remorqueLabel(e.remorque_id) ?? 'Parc'
+        const current = agg.get(key) ?? {
+          label,
+          cout: 0,
+          interventions: 0,
+          kmActuel: e.vehicule_id ? (vehiculeMap.get(e.vehicule_id)?.km_actuel ?? null) : null,
+        }
+        current.cout += Number(e.cout_ht ?? 0)
+        current.interventions += 1
+        agg.set(key, current)
+      })
+
+    return Array.from(agg.values())
+      .map(item => ({
+        ...item,
+        tcoKm: item.kmActuel && item.kmActuel > 0 ? item.cout / item.kmActuel : null,
+      }))
+      .sort((a, b) => b.cout - a.cout)
+  }, [entretiens, remorqueLabel, vehiculeLabel, vehicules, yearStr])
+
+  const tcoMoyenKm = useMemo(() => {
+    const withKm = tcoByAsset.filter(item => item.kmActuel && item.kmActuel > 0)
+    if (withKm.length === 0) return null
+    const totalCost = withKm.reduce((sum, item) => sum + item.cout, 0)
+    const totalKm = withKm.reduce((sum, item) => sum + (item.kmActuel ?? 0), 0)
+    if (totalKm <= 0) return null
+    return totalCost / totalKm
+  }, [tcoByAsset])
+
   // Stock alertes
   const stockAlertes = pieces.filter(p => p.quantite <= p.quantite_min)
 
@@ -1191,7 +1220,7 @@ export default function Maintenance() {
         covered_by_contract: false,
         mecanicien_assign: otForm.mecanicien || null,
         priority: otForm.priorite,
-        statut: 'planifie',
+        statut: otForm.statut,
       } as any)
       if (error) throw error
       setShowOTForm(false)
@@ -1205,23 +1234,36 @@ export default function Maintenance() {
     }
   }
 
-  async function demarrerOT(ot: OT) {
-    if (!confirm(`Démarrer l'OT "${ot.description}" ? Le véhicule passera en statut Maintenance.`)) return
+  async function setOTStatus(ot: OT, nextStatus: OTStatut, successMessage: string) {
     setSaving(true)
     try {
-      const { error } = await supabase.from('flotte_entretiens').update({
-        statut: 'en_cours',
-        date_debut_reelle: new Date().toISOString(),
-      } as any).eq('id', ot.id)
+      const payload: Record<string, unknown> = {
+        statut: nextStatus,
+      }
+      if (nextStatus === 'en_cours') {
+        payload.date_debut_reelle = new Date().toISOString()
+      }
+      if (nextStatus === 'cloture' || nextStatus === 'annule') {
+        payload.date_fin_reelle = new Date().toISOString()
+      }
+      if (nextStatus === 'cloture') {
+        payload.service_date = new Date().toISOString().slice(0, 10)
+      }
+
+      const { error } = await supabase.from('flotte_entretiens').update(payload as any).eq('id', ot.id)
       if (error) {
         if (isMissingOptionalMaintenanceFeature(error)) {
-          setOts(prev => prev.map(o => o.id === ot.id ? { ...o, statut: 'en_cours' as OTStatut } : o))
-          setNotice('OT démarré (local — migration DB requise).')
-        } else throw error
-      } else {
-        setNotice(`OT démarré — véhicule en maintenance.`)
-        await load()
+          setOts(prev => prev
+            .map(item => item.id === ot.id ? { ...item, statut: nextStatus, date_cloture: nextStatus === 'cloture' || nextStatus === 'annule' ? new Date().toISOString() : item.date_cloture } : item)
+            .filter(item => item.statut !== 'cloture' && item.statut !== 'annule'))
+          setNotice(`${successMessage} (local — migration DB requise).`)
+          return
+        }
+        throw error
       }
+
+      setNotice(successMessage)
+      await load()
     } catch (err) {
       setDbError(maintenanceError(err))
     } finally {
@@ -1229,43 +1271,27 @@ export default function Maintenance() {
     }
   }
 
+  async function demarrerOT(ot: OT) {
+    if (!confirm(`Démarrer l'OT "${ot.description}" ? Le véhicule passera en statut Maintenance.`)) return
+    await setOTStatus(ot, 'en_cours', 'OT démarré — véhicule en maintenance.')
+  }
+
+  async function attendrePiecesOT(ot: OT) {
+    await setOTStatus(ot, 'en_attente_pieces', 'OT mis en attente pièces.')
+  }
+
+  async function reprendreOT(ot: OT) {
+    await setOTStatus(ot, 'en_cours', 'OT repris en atelier.')
+  }
+
+  async function annulerOT(ot: OT) {
+    if (!confirm(`Annuler l'OT "${ot.description}" ?`)) return
+    await setOTStatus(ot, 'annule', 'OT annulé.')
+  }
+
   async function cloturerOT(ot: OT) {
     if (!confirm(`Clôturer l'OT "${ot.description}" ?`)) return
-    setSaving(true)
-    try {
-      const { error: updateErr } = await supabase.from('flotte_entretiens').update({
-        statut: 'cloture',
-        date_fin_reelle: new Date().toISOString(),
-        service_date: new Date().toISOString().slice(0, 10),
-        cout_ht: ot.cout_ht,
-        ...(otForm.next_due_date ? { next_due_date: otForm.next_due_date } : {}),
-      } as any).eq('id', ot.id)
-      if (updateErr) {
-        if (isMissingOptionalMaintenanceFeature(updateErr)) {
-          const payload: TablesInsert<'flotte_entretiens'> = {
-            vehicule_id: ot.vehicule_id,
-            remorque_id: ot.remorque_id,
-            maintenance_type: ot.type,
-            service_date: new Date().toISOString().slice(0, 10),
-            cout_ht: ot.cout_ht,
-            prestataire: ot.prestataire,
-            garage: ot.garage,
-            notes: [ot.description, ot.pieces_utilisees ? `Pièces: ${ot.pieces_utilisees}` : '', ot.mecanicien ? `Mécanicien: ${ot.mecanicien}` : ''].filter(Boolean).join(' · ') || null,
-            next_due_date: otForm.next_due_date || null,
-            covered_by_contract: false,
-          }
-          const { error: insertErr } = await supabase.from('flotte_entretiens').insert(payload)
-          if (insertErr) throw insertErr
-        } else throw updateErr
-      }
-      setOts(prev => prev.filter(o => o.id !== ot.id))
-      setNotice(`OT clôturé — ${ot.description}`)
-      await load()
-    } catch (err) {
-      setDbError(maintenanceError(err))
-    } finally {
-      setSaving(false)
-    }
+    await setOTStatus(ot, 'cloture', `OT clôturé — ${ot.description}`)
   }
 
   const filteredOTs = useMemo(() => {
@@ -1669,10 +1695,28 @@ export default function Maintenance() {
                               Démarrer
                             </button>
                           )}
+                          {(o.statut === 'planifie' || o.statut === 'en_cours') && (
+                            <button onClick={() => void attendrePiecesOT(o)} disabled={saving}
+                              className="text-xs text-orange-600 hover:text-orange-700 font-medium transition-colors disabled:opacity-50">
+                              Att. pièces
+                            </button>
+                          )}
+                          {o.statut === 'en_attente_pieces' && (
+                            <button onClick={() => void reprendreOT(o)} disabled={saving}
+                              className="text-xs text-indigo-600 hover:text-indigo-700 font-medium transition-colors disabled:opacity-50">
+                              Reprendre
+                            </button>
+                          )}
                           {o.statut !== 'cloture' && o.statut !== 'annule' && (
                             <button onClick={() => void cloturerOT(o)} disabled={saving}
                               className="text-xs text-emerald-600 hover:text-emerald-700 font-medium transition-colors disabled:opacity-50">
                               Clôturer
+                            </button>
+                          )}
+                          {o.statut !== 'cloture' && o.statut !== 'annule' && (
+                            <button onClick={() => void annulerOT(o)} disabled={saving}
+                              className="text-xs text-red-600 hover:text-red-700 font-medium transition-colors disabled:opacity-50">
+                              Annuler
                             </button>
                           )}
                         </div>
@@ -2610,11 +2654,12 @@ export default function Maintenance() {
       {/* ══ TAB: COÛTS & ANALYSES ══════════════════════════════════════════════ */}
       {tab === 'couts' && (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             <KPI label={`Coût ${new Date().toLocaleString('fr-FR', { month: 'long' })}`} value={fmtEur(coutMois)} color="amber" />
             <KPI label={`Coût annuel ${yearStr}`} value={fmtEur(coutAnnee)} color="slate" />
             <KPI label="Interventions ext." value={entretiens.filter(e => e.prestataire || e.garage).length} color="blue" sub="Sous-traitées" />
             <KPI label="Coût moyen / interv." value={entretiens.length > 0 ? fmtEur(coutAnnee / entretiens.filter(e => e.service_date.startsWith(yearStr)).length || 0) : '—'} color="slate" />
+            <KPI label="TCO moyen / km" value={tcoMoyenKm != null ? `${tcoMoyenKm.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/km` : '—'} color={tcoMoyenKm != null && tcoMoyenKm > 1 ? 'red' : 'blue'} />
           </div>
 
           {/* Coût mensuel */}
@@ -2669,6 +2714,40 @@ export default function Maintenance() {
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="bg-surface rounded-xl border border-line overflow-hidden">
+            <div className="p-4 border-b bg-surface-soft">
+              <p className="text-sm font-semibold text-foreground">TCO par actif ({yearStr})</p>
+            </div>
+            {tcoByAsset.length === 0 ? (
+              <div className="p-8 text-center text-muted text-sm">Aucune donnée TCO disponible.</div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-surface-soft border-b border-line">
+                  <tr>
+                    {['Actif', 'Interventions', 'Coût total', 'Km actuel', 'TCO / km'].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-discreet uppercase tracking-wide">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tcoByAsset.slice(0, 20).map((item, i) => (
+                    <tr key={`${item.label}-${i}`} className={`border-t border-slate-100 ${i % 2 !== 0 ? 'bg-surface-soft' : ''}`}>
+                      <td className="px-4 py-2.5 font-mono text-xs font-semibold text-foreground">{item.label}</td>
+                      <td className="px-4 py-2.5 text-secondary">{item.interventions}</td>
+                      <td className="px-4 py-2.5 font-medium text-foreground">{fmtEur(item.cout)}</td>
+                      <td className="px-4 py-2.5 text-discreet">{item.kmActuel != null ? `${item.kmActuel.toLocaleString('fr-FR')} km` : '—'}</td>
+                      <td className={`px-4 py-2.5 font-semibold ${item.tcoKm != null && item.tcoKm > 1 ? 'text-red-600' : 'text-foreground'}`}>
+                        {item.tcoKm != null
+                          ? `${item.tcoKm.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/km`
+                          : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
 
           {/* Historique complet */}

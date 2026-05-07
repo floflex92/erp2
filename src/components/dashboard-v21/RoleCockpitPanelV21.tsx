@@ -11,7 +11,7 @@ import { RoleCockpitPanel } from '@/components/dashboard/RoleCockpitPanel'
 
 const ChartsHost = lazy(() => import('@/components/dashboard-v21/charts/ChartsHost'))
 
-type PeriodFilter = 'day' | 'week' | 'month' | 'quarter'
+type PeriodFilter = 'day' | 'week' | 'month' | 'quarter' | 'custom'
 type CockpitRole = 'exploitant' | 'conducteur' | 'dirigeant' | 'parc' | 'commercial' | 'rh' | 'finance'
 
 type LooseRow = Record<string, unknown>
@@ -259,6 +259,32 @@ export function RoleCockpitPanelV21() {
   const [activityFilter, setActivityFilter] = useState('all')
   const [showLegacy, setShowLegacy] = useState(false)
 
+  // Date range picker
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
+
+  // Drill-down modal
+  type DrillRow = { label: string; value: string }
+  type DrillModal = { title: string; rows: DrillRow[] } | null
+  const [drillModal, setDrillModal] = useState<DrillModal>(null)
+
+  function openDrill(title: string, rows: DrillRow[]) {
+    setDrillModal({ title, rows })
+  }
+
+  function exportPdf() {
+    const style = document.createElement('style')
+    style.id = 'nexora-print-override'
+    style.textContent = `@media print {
+      .nx-shell > aside, .nx-shell > nav, .nx-topbar, [data-no-print], .nx-skip-link { display: none !important; }
+      body { background: white !important; }
+      .nx-shell { display: block !important; }
+    }`
+    document.head.appendChild(style)
+    window.print()
+    document.head.removeChild(style)
+  }
+
   const [loading, setLoading] = useState(true)
   const [hydrating, setHydrating] = useState(false)
   const [hydrationProgress, setHydrationProgress] = useState(0)
@@ -304,7 +330,24 @@ export function RoleCockpitPanelV21() {
     }
   }, [])
 
-  const baseStartDate = useMemo(() => getStartDate(period), [period])
+  const baseStartDate = useMemo(() => {
+    if (period === 'custom' && customStart) {
+      const d = new Date(customStart)
+      d.setHours(0, 0, 0, 0)
+      return d
+    }
+    return getStartDate(period)
+  }, [period, customStart])
+
+  const baseEndDate = useMemo(() => {
+    if (period === 'custom' && customEnd) {
+      const d = new Date(customEnd)
+      d.setHours(23, 59, 59, 999)
+      return d
+    }
+    return new Date()
+  }, [period, customEnd])
+
 
   const clientNameById = useMemo(() => {
     const map = new Map<string, string>()
@@ -355,7 +398,7 @@ export function RoleCockpitPanelV21() {
     function inRange(row: LooseRow, keys: string[]) {
       const rowDate = getRowDate(row, keys)
       if (!rowDate) return false
-      return rowDate >= baseStartDate
+      return rowDate >= baseStartDate && rowDate <= baseEndDate
     }
 
     const orders = data.orders.filter(order => matchCoreFilters(order) && inRange(order, ['created_at', 'date_chargement_prevue', 'date_livraison_prevue']))
@@ -381,7 +424,7 @@ export function RoleCockpitPanelV21() {
       missionCosts,
       bankMoves,
     }
-  }, [activityFilter, agencyFilter, baseStartDate, clientFilter, data.bankMoves, data.financeChargeBreakdown, data.financeClientPerf, data.financeKpis, data.financeLatePayments, data.invoices, data.margins, data.missionCosts, data.orders, data.supplierInvoices, serviceFilter])
+  }, [activityFilter, agencyFilter, baseStartDate, baseEndDate, clientFilter, data.bankMoves, data.financeChargeBreakdown, data.financeClientPerf, data.financeKpis, data.financeLatePayments, data.invoices, data.margins, data.missionCosts, data.orders, data.supplierInvoices, serviceFilter])
 
   const view = useMemo(() => {
     const doneStatuses = new Set(['termine', 'livre', 'facture', 'cloture'])
@@ -725,6 +768,13 @@ export function RoleCockpitPanelV21() {
             delta={formatPercent(view.plannedOrders.length > 0 ? (view.doneOrders.length / view.plannedOrders.length) * 100 : 0)}
             note="Execution de la periode"
             tone={view.lateOrders.length > 0 ? 'warning' : 'success'}
+            onClick={() => openDrill('OT — Détail par statut', [
+              { label: 'Terminées', value: formatCompact(view.doneOrders.length) },
+              { label: 'Planifiées', value: formatCompact(view.plannedOrders.length) },
+              { label: 'En retard', value: formatCompact(view.lateOrders.length) },
+              { label: 'Taux réalisation', value: formatPercent(view.plannedOrders.length > 0 ? (view.doneOrders.length / view.plannedOrders.length) * 100 : 0) },
+              ...view.lateOrders.slice(0, 5).map(o => ({ label: `Retard: ${toString(o.reference, toString(o.id as string, 'OT'))}`, value: toString(o.statut_operationnel as string, 'retard') })),
+            ])}
           />
         </div>
 
@@ -786,8 +836,33 @@ export function RoleCockpitPanelV21() {
     return (
       <div className="grid gap-4 xl:grid-cols-2">
         <div className="grid gap-3 md:grid-cols-2 xl:col-span-2">
-          <KpiCard label="CA global" value={formatCurrency(view.revenue)} delta={formatPercent(view.marginRate)} note="Marge moyenne" tone="info" />
-          <KpiCard label="Marge globale" value={formatCurrency(view.margin)} delta={formatPercent(view.fleetUsage)} note="Utilisation flotte" tone={view.marginRate >= 10 ? 'success' : 'warning'} />
+          <KpiCard
+            label="CA global"
+            value={formatCurrency(view.revenue)}
+            delta={formatPercent(view.marginRate)}
+            note="Marge moyenne"
+            tone="info"
+            onClick={() => openDrill('CA global — Top clients', [
+              ...Object.entries(
+                filtered.margins.reduce<Record<string, number>>((acc, row) => {
+                  const k = toString(row.client, 'Client inconnu')
+                  acc[k] = (acc[k] ?? 0) + toNumber(row.chiffre_affaires)
+                  return acc
+                }, {})
+              ).sort(([,a],[,b]) => b - a).slice(0, 10).map(([label, val]) => ({ label, value: formatCurrency(val) })),
+            ])}
+          />
+          <KpiCard
+            label="Marge globale"
+            value={formatCurrency(view.margin)}
+            delta={formatPercent(view.fleetUsage)}
+            note="Utilisation flotte"
+            tone={view.marginRate >= 10 ? 'success' : 'warning'}
+            onClick={() => openDrill('Marge — Par mois', [
+              ...groupByMonth(filtered.margins, 'marge_brute', ['created_at', 'date_livraison_prevue'])
+                .map(item => ({ label: item.label, value: formatCurrency(item.value) })),
+            ])}
+          />
         </div>
 
         <ChartContainer title="CA vs couts" subtitle="Vision decisionnelle">
@@ -983,13 +1058,22 @@ export function RoleCockpitPanelV21() {
             <h2 className="mt-1 text-xl font-semibold text-[color:var(--text-heading)]">{headerSubtitle}</h2>
             <p className="mt-1 text-xs text-[color:var(--text-secondary)]">Priorite UX: lecture instantanee, contrastes forts, widgets strictement utiles.</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowLegacy(true)}
-            className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-xs font-semibold text-[color:var(--text-primary)]"
-          >
-            Ouvrir cockpit historique
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={exportPdf}
+              className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-xs font-semibold text-[color:var(--text-primary)] hover:bg-[color:var(--surface-soft)] transition-colors"
+            >
+              ↓ Exporter PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowLegacy(true)}
+              className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-xs font-semibold text-[color:var(--text-primary)]"
+            >
+              Ouvrir cockpit historique
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
@@ -1000,24 +1084,39 @@ export function RoleCockpitPanelV21() {
               <option value="week">Semaine</option>
               <option value="month">Mois</option>
               <option value="quarter">Trimestre</option>
+              <option value="custom">Plage personnalisée</option>
             </select>
           </label>
 
-          <label className="text-xs font-semibold text-[color:var(--text-secondary)]">
-            Agence
-            <select value={agencyFilter} onChange={event => setAgencyFilter(event.target.value)} className="mt-1 w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm text-[color:var(--text-primary)]">
-              <option value="all">Toutes</option>
-              {filterOptions.agencies.map(item => <option key={item} value={item}>{item}</option>)}
-            </select>
-          </label>
-
-          <label className="text-xs font-semibold text-[color:var(--text-secondary)]">
-            Service
-            <select value={serviceFilter} onChange={event => setServiceFilter(event.target.value)} className="mt-1 w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm text-[color:var(--text-primary)]">
-              <option value="all">Tous</option>
-              {filterOptions.services.map(item => <option key={item} value={item}>{item}</option>)}
-            </select>
-          </label>
+          {period === 'custom' ? (
+            <>
+              <label className="text-xs font-semibold text-[color:var(--text-secondary)]">
+                Du
+                <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="mt-1 w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm text-[color:var(--text-primary)]" />
+              </label>
+              <label className="text-xs font-semibold text-[color:var(--text-secondary)]">
+                Au
+                <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="mt-1 w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm text-[color:var(--text-primary)]" />
+              </label>
+            </>
+          ) : (
+            <>
+              <label className="text-xs font-semibold text-[color:var(--text-secondary)]">
+                Agence
+                <select value={agencyFilter} onChange={event => setAgencyFilter(event.target.value)} className="mt-1 w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm text-[color:var(--text-primary)]">
+                  <option value="all">Toutes</option>
+                  {filterOptions.agencies.map(item => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-semibold text-[color:var(--text-secondary)]">
+                Service
+                <select value={serviceFilter} onChange={event => setServiceFilter(event.target.value)} className="mt-1 w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm text-[color:var(--text-primary)]">
+                  <option value="all">Tous</option>
+                  {filterOptions.services.map(item => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </label>
+            </>
+          )}
 
           <label className="text-xs font-semibold text-[color:var(--text-secondary)]">
             Client
@@ -1058,6 +1157,44 @@ export function RoleCockpitPanelV21() {
       {dashboardRole === 'commercial' ? renderCommercial() : null}
       {dashboardRole === 'rh' ? renderRh() : null}
       {dashboardRole === 'finance' ? renderFinance() : null}
+
+      {/* ── Drill-down modal ───────────────────────────────────────────── */}
+      {drillModal && (
+        <div
+          className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+          onClick={() => setDrillModal(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl shadow-2xl"
+            style={{ background: 'var(--surface)', maxHeight: '80vh', overflowY: 'auto' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b px-6 py-4" style={{ borderColor: 'var(--border)' }}>
+              <h3 className="text-base font-bold" style={{ color: 'var(--text-heading)' }}>{drillModal.title}</h3>
+              <button
+                onClick={() => setDrillModal(null)}
+                className="rounded-full p-1.5 transition hover:bg-[color:var(--surface-soft)]"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <table className="w-full text-sm">
+              <tbody>
+                {drillModal.rows.length > 0 ? drillModal.rows.map((row, i) => (
+                  <tr key={i} className="border-b" style={{ borderColor: 'var(--border)' }}>
+                    <td className="px-6 py-2.5" style={{ color: 'var(--text-secondary)' }}>{row.label}</td>
+                    <td className="px-6 py-2.5 text-right font-semibold" style={{ color: 'var(--text-heading)' }}>{row.value}</td>
+                  </tr>
+                )) : (
+                  <tr><td colSpan={2} className="px-6 py-6 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>Aucune donnée sur cette période</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </section>
   )
 }

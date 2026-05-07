@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { canAccess, ROLE_LABELS, useAuth } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
 import { APP_VERSION, BUILD_DATE, BUILD_REF } from '@/lib/appVersion'
 import { DEFAULT_COMPANY_NAME, readCompanySettings, subscribeCompanySettings, updateCompanySettings } from '@/lib/companySettings'
 import { releaseNotes, type ReleaseNote } from '@/lib/releaseNotes'
@@ -197,6 +198,183 @@ const ERP_FEATURE_CARDS = [
     ],
   },
 ] as const
+
+// ── MFA TOTP Section ──────────────────────────────────────────────────────────
+type MfaFactor = { id: string; friendly_name?: string; factor_type: string; status: string }
+type EnrollData = { id: string; totp: { qr_code: string; secret: string; uri: string } }
+
+function MfaSection() {
+  const [factors, setFactors] = useState<MfaFactor[]>([])
+  const [loading, setLoading] = useState(true)
+  const [enrolling, setEnrolling] = useState(false)
+  const [enrollData, setEnrollData] = useState<EnrollData | null>(null)
+  const [code, setCode] = useState('')
+  const [verifyStatus, setVerifyStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
+  const [verifyErr, setVerifyErr] = useState<string | null>(null)
+  const [unenrollId, setUnenrollId] = useState<string | null>(null)
+
+  const loadFactors = useCallback(async () => {
+    setLoading(true)
+    const { data } = await supabase.auth.mfa.listFactors()
+    setFactors((data?.totp ?? []) as MfaFactor[])
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { void loadFactors() }, [loadFactors])
+
+  async function startEnroll() {
+    setEnrolling(true)
+    setEnrollData(null)
+    setCode('')
+    setVerifyStatus('idle')
+    setVerifyErr(null)
+    const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Authenticator' })
+    setEnrolling(false)
+    if (error || !data) return
+    setEnrollData(data as unknown as EnrollData)
+  }
+
+  async function verifyEnroll() {
+    if (!enrollData) return
+    setVerifyStatus('loading')
+    setVerifyErr(null)
+    const { data: challengeData, error: challengeErr } = await supabase.auth.mfa.challenge({ factorId: enrollData.id })
+    if (challengeErr || !challengeData) {
+      setVerifyStatus('error')
+      setVerifyErr('Impossible de démarrer le défi.')
+      return
+    }
+    const { error: verifyErr } = await supabase.auth.mfa.verify({
+      factorId: enrollData.id,
+      challengeId: challengeData.id,
+      code: code.trim(),
+    })
+    if (verifyErr) {
+      setVerifyStatus('error')
+      setVerifyErr('Code incorrect. Vérifiez l\'heure de votre appareil.')
+      return
+    }
+    setVerifyStatus('ok')
+    setEnrollData(null)
+    await loadFactors()
+  }
+
+  async function unenroll(factorId: string) {
+    setUnenrollId(factorId)
+    await supabase.auth.mfa.unenroll({ factorId })
+    setUnenrollId(null)
+    await loadFactors()
+  }
+
+  return (
+    <Card>
+      <CardLabel>Double authentification (MFA)</CardLabel>
+      <p className="mt-2 text-sm nx-subtle">
+        Protégez votre compte avec une application d'authentification (Google Authenticator, Authy, etc.).
+      </p>
+
+      {loading ? (
+        <p className="mt-3 text-sm nx-subtle">Chargement…</p>
+      ) : factors.length === 0 && !enrollData ? (
+        <div className="mt-4">
+          <button
+            onClick={() => void startEnroll()}
+            disabled={enrolling}
+            className="rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg,#0B1F3A,#1F4E8C)' }}
+          >
+            {enrolling ? 'Génération…' : 'Activer la double authentification'}
+          </button>
+        </div>
+      ) : enrollData ? (
+        <div className="mt-4 grid gap-4">
+          <p className="text-sm" style={{ color: '#475569' }}>
+            Scannez ce QR code avec votre application, puis entrez le code à 6 chiffres pour confirmer.
+          </p>
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+            {/* QR code affiché via img SVG inline */}
+            <img
+              src={enrollData.totp.qr_code}
+              alt="QR code MFA"
+              className="h-36 w-36 rounded-xl border"
+              style={{ borderColor: '#E5E7EB' }}
+            />
+            <div className="text-xs" style={{ color: '#64748B' }}>
+              <p className="mb-1 font-semibold">Ou saisissez manuellement&nbsp;:</p>
+              <code className="select-all break-all rounded-lg px-3 py-2 font-mono text-[11px]" style={{ background: '#F8FAFC', display: 'block' }}>
+                {enrollData.totp.secret}
+              </code>
+            </div>
+          </div>
+          <label className="grid gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Code de vérification</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={code}
+              onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
+              placeholder="123456"
+              className="w-40 rounded-xl border px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#1F4E8C]/30"
+              style={{ borderColor: '#DBE2EC', background: '#FFFFFF', color: '#1B1B1B' }}
+              disabled={verifyStatus === 'loading' || verifyStatus === 'ok'}
+            />
+          </label>
+          {verifyStatus === 'error' && verifyErr && (
+            <p className="rounded-lg px-4 py-2 text-sm" style={{ background: '#FEF2F2', color: '#991B1B' }}>{verifyErr}</p>
+          )}
+          {verifyStatus === 'ok' && (
+            <p className="rounded-lg px-4 py-2 text-sm" style={{ background: '#F0FDF4', color: '#166534' }}>MFA activé avec succès !</p>
+          )}
+          <div className="flex gap-3">
+            <button
+              onClick={() => { setEnrollData(null); setCode('') }}
+              className="rounded-xl border px-4 py-2 text-sm font-medium"
+              style={{ borderColor: '#E5E7EB', color: '#475569' }}
+            >
+              Annuler
+            </button>
+            <button
+              onClick={() => void verifyEnroll()}
+              disabled={code.length !== 6 || verifyStatus === 'loading' || verifyStatus === 'ok'}
+              className="rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              style={{ background: 'linear-gradient(135deg,#0B1F3A,#1F4E8C)' }}
+            >
+              {verifyStatus === 'loading' ? 'Vérification…' : 'Confirmer'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {factors.map(f => (
+            <div key={f.id} className="flex items-center justify-between rounded-xl border px-4 py-3" style={{ borderColor: '#E5E7EB' }}>
+              <div>
+                <p className="text-sm font-medium" style={{ color: '#1B1B1B' }}>{f.friendly_name ?? 'Authenticator'}</p>
+                <p className="text-xs nx-subtle capitalize">{f.status === 'verified' ? 'Actif' : f.status}</p>
+              </div>
+              <button
+                onClick={() => void unenroll(f.id)}
+                disabled={unenrollId === f.id}
+                className="rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-red-50 disabled:opacity-50"
+                style={{ borderColor: '#FECACA', color: '#DC2626' }}
+              >
+                {unenrollId === f.id ? 'Suppression…' : 'Désactiver'}
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() => void startEnroll()}
+            disabled={enrolling}
+            className="rounded-xl border px-4 py-2 text-sm font-medium disabled:opacity-50"
+            style={{ borderColor: '#E5E7EB', color: '#475569' }}
+          >
+            {enrolling ? 'Génération…' : '+ Ajouter un autre appareil'}
+          </button>
+        </div>
+      )}
+    </Card>
+  )
+}
 
 export default function Parametres() {
   const { role, sessionRole, isAdmin, isDemoSession, profil, accountProfil, tenantAllowedPages, enabledModules, companyId } = useAuth()
@@ -446,6 +624,7 @@ export default function Parametres() {
                 </div>
               </Card>
             </div>
+            <MfaSection />
           </div>
         )}
 

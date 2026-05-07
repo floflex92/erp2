@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import useSiteMeta from '@/site/hooks/useSiteMeta'
 import FrameDashboard from '@/site/components/frames/FrameDashboard'
 import FramePlanning from '@/site/components/frames/FramePlanning'
 import FrameChauffeur from '@/site/components/frames/FrameChauffeur'
 import { sitePhotos } from '@/site/lib/sitePhotos'
+import { supabase } from '@/lib/supabase'
+import { EVENTS, FUNNELS, FUNNEL_STEPS, trackEvent, trackFunnelStep, trackPageView } from '@/site/lib/analytics'
 
 const sectionPx: React.CSSProperties = { paddingInline: 'clamp(24px, 8vw, 160px)' }
 const sectionPy: React.CSSProperties = { paddingBlock: 'clamp(80px, 12vw, 160px)' }
@@ -30,6 +32,13 @@ const initialForm: DemoFormState = {
 export default function DemoPage() {
   const [form, setForm] = useState<DemoFormState>(initialForm)
   const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    trackPageView('/demonstration')
+    trackFunnelStep(FUNNELS.MARKETING_DEMO, FUNNEL_STEPS.MARKETING_DEMO.DEMO_PAGE_VIEW, { surface: 'demo_page' })
+  }, [])
 
   useSiteMeta({
     title: 'Démonstration ERP transport : accès gratuit',
@@ -52,18 +61,82 @@ export default function DemoPage() {
     setForm(prev => ({ ...prev, [key]: value }))
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setSubmitted(true)
-    const win = window as Window & { dataLayer?: Array<Record<string, unknown>> }
-    if (!Array.isArray(win.dataLayer)) win.dataLayer = []
-    win.dataLayer.push({ event: 'demo_request', fleet_size: form.fleetSize, priority: form.priority })
+    setSubmitting(true)
+    setError(null)
+    trackEvent(EVENTS.MARKETING_FORM_SUBMIT, {
+      form_name: 'demo_reservation',
+      surface: 'demo_page',
+      fleet_size: form.fleetSize,
+      priority: form.priority,
+    })
+    trackFunnelStep(FUNNELS.MARKETING_DEMO, FUNNEL_STEPS.MARKETING_DEMO.DEMO_FORM_SUBMIT, {
+      surface: 'demo_page',
+      fleet_size: form.fleetSize,
+      priority: form.priority,
+    })
+
+    try {
+      // 1. Netlify Forms
+      const body = new URLSearchParams({
+        'form-name': 'demo-reservation',
+        company: form.company,
+        email: form.email,
+        fleetSize: form.fleetSize,
+        priority: form.priority,
+        date: form.date,
+        slot: form.slot,
+      })
+      await fetch('/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+
+      // 2. Supabase prospect (fire-and-forget, ne bloque pas l'UX)
+      supabase.from('prospects').insert({
+        nom_entreprise: form.company,
+        source_lead: 'site_web',
+        statut: 'lead',
+        probabilite_closing: 20,
+        notes: `Demande démo site — flotte: ${form.fleetSize} — priorité: ${form.priority} — date souhaitée: ${form.date || 'NC'} ${form.slot}`,
+      }).then(() => {})
+
+      trackEvent(EVENTS.MARKETING_FORM_SUCCESS, {
+        form_name: 'demo_reservation',
+        surface: 'demo_page',
+        fleet_size: form.fleetSize,
+        priority: form.priority,
+      })
+      trackFunnelStep(FUNNELS.MARKETING_DEMO, FUNNEL_STEPS.MARKETING_DEMO.DEMO_FORM_SUCCESS, {
+        surface: 'demo_page',
+        fleet_size: form.fleetSize,
+        priority: form.priority,
+      })
+
+      setSubmitted(true)
+    } catch {
+      trackEvent(EVENTS.MARKETING_FORM_ERROR, {
+        form_name: 'demo_reservation',
+        surface: 'demo_page',
+      })
+      setError('Erreur lors de l\'envoi. Veuillez réessayer ou nous contacter par email.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const inputStyle: React.CSSProperties = { border: '1px solid #E5E5E5', borderRadius: '8px', color: '#1D1D1F' }
 
   return (
     <>
+      {/* Netlify Forms bot detection */}
+      <form name="demo-reservation" data-netlify="true" netlify-honeypot="bot-field" hidden>
+        <input name="company" />
+        <input name="email" />
+        <input name="fleetSize" />
+        <input name="priority" />
+        <input name="date" />
+        <input name="slot" />
+      </form>
+
       {/* ── HERO ── */}
       <section
         className="relative flex min-h-[75vh] w-full flex-col items-center justify-center overflow-hidden text-center"
@@ -92,12 +165,17 @@ export default function DemoPage() {
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <Link
               to="/login?mode=demo"
+              onClick={() => {
+                trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'demo_hero_primary', target: '/login?mode=demo' })
+                trackFunnelStep(FUNNELS.MARKETING_DEMO, FUNNEL_STEPS.MARKETING_DEMO.DEMO_CLICK, { placement: 'demo_hero_primary' })
+              }}
               className="site-btn-primary px-8 py-4 text-base transition-colors"
             >
               Accéder à la démo gratuite
             </Link>
             <a
               href="#reservation"
+              onClick={() => trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'demo_hero_secondary', target: '#reservation' })}
               className="text-sm font-semibold transition-colors"
               style={{ color: '#93C5FD' }}
             >
@@ -253,8 +331,8 @@ export default function DemoPage() {
               </label>
             </div>
             <div className="mt-6 flex flex-wrap gap-3">
-              <button type="submit" className="site-btn-primary px-6 py-3 text-sm transition-colors">
-                Préparer ma démo
+              <button type="submit" disabled={submitting} className="site-btn-primary px-6 py-3 text-sm transition-colors disabled:opacity-60">
+                {submitting ? 'Envoi en cours…' : 'Préparer ma démo'}
               </button>
               <a
                 href={`mailto:contact@nexora-truck.fr?subject=${demoSubject}&body=${demoBody}`}
@@ -267,6 +345,11 @@ export default function DemoPage() {
             {submitted && (
               <p className="mt-5 rounded-lg px-4 py-3 text-sm" style={{ background: '#F0FDF4', color: '#166534', border: '1px solid #BBF7D0' }}>
                 Demande enregistrée. Un conseiller NEXORA Truck vous contacte avec une trame de démonstration personnalisée.
+              </p>
+            )}
+            {error && (
+              <p className="mt-5 rounded-lg px-4 py-3 text-sm" style={{ background: '#FFF1F2', color: '#9F1239', border: '1px solid #FECDD3' }}>
+                {error}
               </p>
             )}
           </form>
