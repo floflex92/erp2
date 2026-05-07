@@ -1,4 +1,5 @@
 import { looseSupabase } from '@/lib/supabaseLoose'
+import { isActiveDriverStatus, normalizeDriverStatus } from '@/lib/driverStatus'
 
 export interface PersonListItem {
   id: string
@@ -35,20 +36,6 @@ function buildDirectoryKey(companyId: number, firstName: string | null, lastName
   const normalizedEmail = (email ?? '').trim().toLowerCase()
   const anchor = ((matricule ?? normalizedName) || normalizedEmail || fallbackId || '').toLowerCase()
   return `${companyId}:${anchor}`
-}
-
-function isActiveDriverStatus(status: string | null | undefined) {
-  return normalizeDriverStatus(status) !== 'inactif'
-}
-
-function normalizeDriverStatus(status: string | null | undefined): string {
-  const normalized = String(status ?? '').trim().toLowerCase()
-  if (!normalized) return 'actif'
-  if (['actif', 'active', 'enabled', 'enable', 'ok'].includes(normalized)) return 'actif'
-  if (['inactif', 'inactive', 'disabled', 'archive', 'archived'].includes(normalized)) return 'inactif'
-  if (['conge', 'congé'].includes(normalized)) return 'conge'
-  if (['arret_maladie', 'arrêt_maladie', 'arret maladie', 'arrêt maladie'].includes(normalized)) return 'arret_maladie'
-  return normalized
 }
 
 export async function listPersonsForDirectory(companyId?: number): Promise<PersonListItem[]> {
@@ -185,6 +172,17 @@ export async function listUnifiedConducteurs(
   companyId?: number,
   options?: { activeOnly?: boolean; allowUnlinked?: boolean },
 ): Promise<UnifiedConducteurListItem[]> {
+  type ConducteurRow = {
+    id: string | number | null
+    company_id: number | null
+    nom: string | null
+    prenom: string | null
+    matricule: string | null
+    email: string | null
+    telephone: string | null
+    statut: string | null
+  }
+
   let conducteursQuery = looseSupabase
     .from('conducteurs')
     .select('id, company_id, nom, prenom, matricule, email, telephone, statut')
@@ -195,9 +193,12 @@ export async function listUnifiedConducteurs(
   }
 
   const conducteursRes = await conducteursQuery
+  const conducteurRows: ConducteurRow[] = Array.isArray(conducteursRes.data)
+    ? conducteursRes.data as ConducteurRow[]
+    : []
 
   // Source de vérité: tous les écrans doivent au minimum refléter la table `conducteurs`.
-  const linked = (Array.isArray(conducteursRes.data) ? conducteursRes.data : [])
+  const linked = conducteurRows
     .filter(row => !options?.activeOnly || isActiveDriverStatus(typeof row.statut === 'string' ? row.statut : null))
     .map(row => ({
       id: String(row.id),
@@ -228,7 +229,7 @@ export async function listUnifiedConducteurs(
         telephone: person.phone ?? null,
         statut: normalizeDriverStatus(person.status),
         legacy_conducteur_id: person.legacy_conducteur_id ?? null,
-      }))
+      } satisfies UnifiedConducteurListItem))
       .sort((left, right) => `${left.nom} ${left.prenom}`.localeCompare(`${right.nom} ${right.prenom}`, 'fr'))
   }
 

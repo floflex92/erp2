@@ -117,6 +117,9 @@ export default defineConfig({
           if (id.includes('node_modules/@supabase/')) return 'vendor-supabase'
           if (id.includes('node_modules/leaflet/')) return 'vendor-leaflet'
           if (id.includes('node_modules/@anthropic-ai/')) return 'vendor-ai'
+          if (id.includes('node_modules/recharts/')) return 'vendor-recharts'
+          if (id.includes('node_modules/jspdf/')) return 'vendor-pdf'
+          if (id.includes('node_modules/html2canvas/')) return 'vendor-canvas'
           return undefined
         },
       },

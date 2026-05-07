@@ -31,6 +31,7 @@ function makeOt(overrides: Partial<OT> = {}): OT {
     chargement_site_id: null,
     livraison_site_id: null,
     mission_id: null,
+    groupage_id: null,
     groupage_fige: false,
     est_affretee: false,
     ...overrides,

@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
+import { looseSupabase } from '@/lib/supabaseLoose'
 
 const LS_KEY = 'nexora_onboarding_v1'
 
@@ -38,7 +39,7 @@ const STEPS = [
 
 // ── Step components ───────────────────────────────────────────────────────────
 
-function StepSociete({ companyId, onNext }: { companyId: string | null; onNext: () => void }) {
+function StepSociete({ companyId, onNext }: { companyId: number | null; onNext: () => void }) {
   const [nom, setNom] = useState('')
   const [siret, setSiret] = useState('')
   const [adresse, setAdresse] = useState('')
@@ -86,7 +87,7 @@ function StepSociete({ companyId, onNext }: { companyId: string | null; onNext: 
   )
 }
 
-function StepVehicule({ companyId, onNext, onBack }: { companyId: string | null; onNext: () => void; onBack: () => void }) {
+function StepVehicule({ companyId, onNext, onBack }: { companyId: number | null; onNext: () => void; onBack: () => void }) {
   const [immat, setImmat] = useState('')
   const [type, setType] = useState('tracteur')
   const [saving, setSaving] = useState(false)
@@ -98,7 +99,7 @@ function StepVehicule({ companyId, onNext, onBack }: { companyId: string | null;
     if (!companyId) { onNext(); return }
     setSaving(true)
     setErr(null)
-    const { error } = await supabase
+    const { error } = await looseSupabase
       .from('vehicules')
       .insert({ immatriculation: immat.trim().toUpperCase(), type, statut: 'actif', company_id: companyId })
     setSaving(false)
@@ -141,7 +142,7 @@ function StepVehicule({ companyId, onNext, onBack }: { companyId: string | null;
   )
 }
 
-function StepConducteur({ companyId, onNext, onBack }: { companyId: string | null; onNext: () => void; onBack: () => void }) {
+function StepConducteur({ companyId, onNext, onBack }: { companyId: number | null; onNext: () => void; onBack: () => void }) {
   const [prenom, setPrenom] = useState('')
   const [nom, setNom] = useState('')
   const [permis, setPermis] = useState('')
@@ -153,7 +154,7 @@ function StepConducteur({ companyId, onNext, onBack }: { companyId: string | nul
     if (!companyId) { onNext(); return }
     setSaving(true)
     setErr(null)
-    const { error } = await supabase
+    const { error } = await looseSupabase
       .from('conducteurs')
       .insert({ prenom: prenom.trim(), nom: nom.trim(), numero_permis: permis.trim() || null, statut: 'actif', company_id: companyId })
     setSaving(false)
@@ -194,7 +195,7 @@ function StepConducteur({ companyId, onNext, onBack }: { companyId: string | nul
   )
 }
 
-function StepOT({ companyId, onNext, onBack }: { companyId: string | null; onNext: () => void; onBack: () => void }) {
+function StepOT({ companyId, onNext, onBack }: { companyId: number | null; onNext: () => void; onBack: () => void }) {
   const [client, setClient] = useState('')
   const [depart, setDepart] = useState('')
   const [arrivee, setArrivee] = useState('')
@@ -207,7 +208,7 @@ function StepOT({ companyId, onNext, onBack }: { companyId: string | null; onNex
     if (!companyId) { onNext(); return }
     setSaving(true)
     setErr(null)
-    const { error } = await supabase
+    const { error } = await looseSupabase
       .from('transport_missions')
       .insert({
         client_nom: client.trim(),
@@ -333,7 +334,7 @@ function StepUtilisateurs({ onFinish, onBack }: { onFinish: () => void; onBack: 
 
 export default function OnboardingWizard({ onClose }: { onClose: () => void }) {
   const { profil } = useAuth()
-  const companyId = profil?.company_id ?? null
+  const companyId = profil?.companyId ?? null
   const [step, setStep] = useState(0)
 
   function finish() {

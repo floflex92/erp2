@@ -6,7 +6,6 @@ import {
   EVENTS,
   type AnalyticsDebugEvent,
   getAnalyticsDebugEvents,
-  getMarketingFunnelSnapshot,
   __analyticsInternals,
 } from '@/site/lib/analytics'
 
@@ -43,7 +42,7 @@ function toRate(numerator: number, denominator: number) {
   return Number(((numerator / denominator) * 100).toFixed(1))
 }
 
-function toCsvValue(value: string | number) {
+function toCsvValue(value: string | number | boolean) {
   const asString = String(value).replace(/"/g, '""')
   return `"${asString}"`
 }
@@ -100,12 +99,23 @@ function formatDeltaCount(current: number, previous: number) {
     return 'nouveau'
   }
 
+  const delta = ((current - previous) / previous) * 100
+  const sign = delta > 0 ? '+' : ''
+  return `${sign}${delta.toFixed(1)}%`
+}
+
+function formatDeltaRate(current: number, previous: number) {
+  const delta = current - previous
+  const sign = delta > 0 ? '+' : ''
+  return `${sign}${delta.toFixed(1)} pts`
+}
+
 function getTrendTone(current: number, previous: number): 'positive' | 'negative' | 'neutral' {
   if (current > previous) return 'positive'
   if (current < previous) return 'negative'
   return 'neutral'
 }
-  const delta = ((current - previous) / previous) * 100
+
 function StatCard({
   label,
   value,
@@ -126,13 +136,16 @@ function StatCard({
         ? 'text-rose-700'
         : 'text-slate-500'
 
-  return `${sign}${delta.toFixed(1)}%`
-}
-
-function formatDeltaRate(current: number, previous: number) {
+  return (
+    <article
+      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.06)]"
+      style={{ animation: 'nexora-funnel-fade-up 280ms ease both', animationDelay: `${animationDelayMs}ms` }}
+    >
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">{value}</p>
       {helper && <p className={`mt-2 text-xs ${helperColorClass}`}>{helper}</p>}
-  const sign = delta > 0 ? '+' : ''
-  return `${sign}${delta.toFixed(1)} pts`
+    </article>
+  )
 }
 
 function buildSessions(events: AnalyticsDebugEvent[]): SessionGroup[] {
@@ -190,10 +203,7 @@ function buildSessionRowsFromSessions(sessions: SessionGroup[]): SessionRow[] {
     const endedAt = session.events[session.events.length - 1]?.createdAt ?? startedAt
 
     return {
-      <article
-        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.06)]"
-        style={{ animation: `nexora-funnel-fade-up 280ms ease both`, animationDelay: `${animationDelayMs}ms` }}
-      >
+      sessionId: session.id,
       startedAt,
       endedAt,
       eventCount: session.events.length,
@@ -211,16 +221,6 @@ function buildSessionRowsFromSessions(sessions: SessionGroup[]): SessionRow[] {
       contactSuccessRateFromSubmits: toRate(contactFormSuccesses, contactFormSubmits),
     }
   })
-}
-
-function StatCard({ label, value, helper }: { label: string; value: string | number; helper?: string }) {
-  return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">{value}</p>
-      {helper && <p className="mt-2 text-xs text-slate-500">{helper}</p>}
-    </article>
-  )
 }
 
 export default function MarketingFunnelPage() {

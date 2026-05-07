@@ -705,10 +705,10 @@ export default function HomePage() {
     let cancelled = false
 
     const cancelIdle = scheduleIdleWork(() => {
-      import('@/site/content/articleIndex')
+      import('@/site/content/latestArticlePreviews')
         .then(mod => {
           if (cancelled) return
-          setLatestArticles(mod.articleIndex.slice(-2))
+          setLatestArticles(mod.latestArticlePreviews)
         })
         .catch(() => {
           if (cancelled) return

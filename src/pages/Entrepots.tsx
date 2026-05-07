@@ -208,7 +208,7 @@ export default function Entrepots() {
 
       const rawSites = Array.isArray(body.data) ? body.data : []
       let normalized = rawSites
-        .filter(site => {
+        .filter((site: Site) => {
           if (site.type_site === 'client') return false
 
           const codeClient = site.clients?.code_client ?? null
@@ -217,14 +217,14 @@ export default function Entrepots() {
           // Centre tenant uniquement: client interne du tenant, ou ancien centre sans client lie.
           return !site.entreprise_id || codeClient === tenantInternalCode
         })
-        .sort((a, b) => {
+        .sort((a: Site, b: Site) => {
           const primaryDelta = Number(Boolean(b.is_primary)) - Number(Boolean(a.is_primary))
           if (primaryDelta !== 0) return primaryDelta
           return (a.nom ?? '').localeCompare(b.nom ?? '', 'fr', { sensitivity: 'base' })
         })
 
       const tenantCenters = normalized
-      if (tenantCenters.length > 0 && !tenantCenters.some(site => site.is_primary) && (companyId ?? 1) > 0) {
+      if (tenantCenters.length > 0 && !tenantCenters.some((site: Site) => site.is_primary) && (companyId ?? 1) > 0) {
         const fallbackPrimary = tenantCenters[0]
         try {
           const { data: sessionData } = await supabase.auth.getSession()
@@ -234,7 +234,7 @@ export default function Entrepots() {
             method: 'PATCH',
             headers: { Authorization: `Bearer ${token}` },
           })
-          normalized = normalized.map(site => {
+          normalized = normalized.map((site: Site) => {
             return { ...site, is_primary: site.id === fallbackPrimary.id }
           })
         } catch {
@@ -300,7 +300,7 @@ export default function Entrepots() {
     void Promise.all([
       loadSites(),
       loadRelais(),
-      listUnifiedConducteurs(companyId, { activeOnly: true }).then(data => setConducteurs(data.map(c => ({ id: c.id, nom: c.nom, prenom: c.prenom })))),
+      listUnifiedConducteurs(companyId ?? undefined, { activeOnly: true }).then(data => setConducteurs(data.map(c => ({ id: c.id, nom: c.nom, prenom: c.prenom })))),
       supabase.from('vehicules').select('id, immatriculation').neq('statut', 'hors_service').order('immatriculation').then(r => { if (!r.error && r.data) setVehicules(r.data) }),
       supabase.from('remorques').select('id, immatriculation').neq('statut', 'hors_service').order('immatriculation').then(r => { if (!r.error && r.data) setRemorques(r.data) }),
       supabase.from('clients').select('id, nom, code_client').eq('actif', true).order('nom').then(r => { if (!r.error && r.data) setClients(r.data) }),

@@ -1,11 +1,10 @@
-import { useState, useEffect, useRef, useCallback, useMemo, useTransition } from 'react'
+import { lazy, Suspense, useState, useEffect, useRef, useCallback, useMemo, useTransition } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { ST_BROUILLON, ST_CONFIRME, ST_PLANIFIE, ST_EN_COURS } from '@/lib/transportCourses'
 import { looseSupabase } from '@/lib/supabaseLoose'
 import { STATUT_OPS, StatutOpsDot, type StatutOps } from '@/lib/statut-ops'
 import SiteMapPicker from '@/components/transports/SiteMapPicker'
-import RouteOptimizerPanel from '@/components/transports/RouteOptimizerPanel'
 import { ComplianceCountersBar } from '@/components/planning/ComplianceCountersBar'
 import { PlanningCommandBar } from '@/components/planning/PlanningCommandBar'
 import { PlanningDecisionBar } from '@/components/planning/PlanningDecisionBar'
@@ -26,7 +25,6 @@ import { listAssets } from '@/lib/services/assetsService'
 import { listDepotSites, listActiveDepotAssignments, type DepotSite, type StaffDepotAssignment } from '@/lib/staffDepots'
 import { listActiveAssetDepotAssignments, type AssetDepotAssignment } from '@/lib/assetDepots'
 import { fetchCustomRows, fetchCustomBlocks, deleteCustomRow as dbDeleteCustomRow, deleteCustomBlock as dbDeleteCustomBlock, type RemoteCustomRow, type RemoteCustomBlock } from '@/lib/planningCustomBlocks'
-import { generatePlanningWeekPDF } from '@/lib/planningPdf'
 import { fetchAllAbsencesValideesPeriode, TYPE_ABSENCE_LABELS, type AbsenceRh } from '@/lib/absencesRh'
 import { useAuth } from '@/lib/auth'
 import { usePlanningCompliance } from '@/hooks/useCompliancePlanning'
@@ -66,6 +64,12 @@ import {
   loadBooleanSetting, saveBooleanSetting, loadNumberSetting, saveNumberSetting,
   uid,
 } from './planning/planningUtils'
+
+const PlanningAssignModal = lazy(() => import('@/components/planning/PlanningAssignModal'))
+const PlanningRetardModal = lazy(() => import('@/components/planning/PlanningRetardModal'))
+const PlanningConfirmModal = lazy(() => import('@/components/planning/PlanningConfirmModal'))
+const PlanningRelaisModals = lazy(() => import('@/components/planning/PlanningRelaisModals'))
+const RouteOptimizerPanel = lazy(() => import('@/components/transports/RouteOptimizerPanel'))
 import {
   applyAssignDurationFromStart,
   formatAssignDurationLabel,
@@ -128,13 +132,6 @@ const EXPLOITANT_FEATURE_DEFAULTS: Record<ExploitantFeatureKey, boolean> = {
 
 function normalizeResourceStatus(value: string | null | undefined): string {
   return (value ?? '').trim().toLowerCase()
-}
-
-function isDriverActiveStatus(value: string | null | undefined): boolean {
-  const normalized = normalizeResourceStatus(value)
-  if (!normalized) return true
-  // Masquer uniquement les conducteurs désactivés/inactifs/archivés
-  return !['inactif', 'inactive', 'disabled', 'archive', 'archived'].includes(normalized)
 }
 
 function isAssetAvailableStatus(value: string | null | undefined): boolean {
@@ -214,7 +211,7 @@ export default function Planning() {
     livraison: makeEmptySiteDraft(),
   })
   const [saving,       setSaving]       = useState(false)
-  const [planningNotice, setPlanningNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [planningNotice, setPlanningNotice] = useState<{ type: 'success' | 'error' | 'warning'; message: string } | null>(null)
 
   // Drag & drop (OT blocks)
   const [drag,       setDragState]  = useState<DragState | null>(null)
@@ -453,7 +450,7 @@ export default function Planning() {
   const bottomDockResizeRef = useRef<{ startY: number; startHeight: number } | null>(null)
   const today = toISO(new Date())
 
-  function pushPlanningNotice(message: string, type: 'success' | 'error' = 'success') {
+  function pushPlanningNotice(message: string, type: 'success' | 'error' | 'warning' = 'success') {
     setPlanningNotice({ type, message })
     if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current)
     noticeTimerRef.current = window.setTimeout(() => {
@@ -3017,7 +3014,7 @@ export default function Planning() {
 
   // ── Block color resolver ───────────────────────────────────────────────────────
 
-  function getBlockColors(ot: OT, rowId: string): { cls:string; style:React.CSSProperties } {
+  function getBlockColors(ot: OT, _rowId: string): { cls:string; style:React.CSSProperties } {
     const borderColor = getOtBorderColor(ot)
     const bgHex = TYPE_TRANSPORT_COLORS[resolveTransportTypeKey(ot.type_transport)] ?? '#374151'
     // Fond = type transport, contour épais = statut timing
@@ -3378,6 +3375,15 @@ export default function Planning() {
     || !includeDepotUnassigned
 
   const hiddenRowsCount = Math.max(0, orderedRows.length - visibleRows.length)
+
+  const exportPlanningWeekPdf = useCallback(async () => {
+    const { generatePlanningWeekPDF } = await import('@/lib/planningPdf')
+    generatePlanningWeekPDF({
+      weekStart,
+      rows: visibleRows.map(r => ({ id: r.id, label: r.primary, subtitle: r.secondary })),
+      getRowOTs: rowId => rowOTs(rowId),
+    })
+  }, [rowOTs, visibleRows, weekStart])
 
   const resetResourceFilters = useCallback(() => {
     setResourceSearch('')
@@ -4833,7 +4839,7 @@ export default function Planning() {
           onCreateCourse={() => openPlanningCreationModal({ type: 'course' })}
           onCreateHlp={() => openPlanningCreationModal({ type: 'hlp' })}
           onNavigateOT={() => navigate('/transports')}
-          onExportPDF={() => generatePlanningWeekPDF({ weekStart, rows: visibleRows.map(r => ({ id: r.id, label: r.primary, subtitle: r.secondary })), getRowOTs: rowId => rowOTs(rowId) })}
+          onExportPDF={() => { void exportPlanningWeekPdf() }}
           isRowEditMode={isRowEditMode}
           onRowEditModeChange={setIsRowEditMode}
           blockImpossibleAssignments={blockImpossibleAssignments}
@@ -4995,11 +5001,7 @@ export default function Planning() {
             {/* Export PDF � uniquement en vue semaine */}
             {viewMode === 'semaine' && (
               <button
-                onClick={() => generatePlanningWeekPDF({
-                  weekStart,
-                  rows: visibleRows.map(r => ({ id: r.id, label: r.primary, subtitle: r.secondary })),
-                  getRowOTs: rowId => rowOTs(rowId),
-                })}
+                onClick={() => { void exportPlanningWeekPdf() }}
                 title="Exporter le planning de la semaine en PDF"
                 className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-xs font-medium border border-slate-700 text-slate-300 hover:border-slate-500"
               >
@@ -7216,169 +7218,32 @@ export default function Planning() {
 
       {/* -- Assign modal -------------------------------------------------------- */}
       {assignModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[160] p-4" onClick={() => setAssignModal(null)}>
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-5xl shadow-2xl max-h-[88vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="p-5 border-b border-slate-800">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-base font-semibold text-white">Reglage course planning</h3>
-                <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-800 text-slate-300">{STATUT_LABEL[getEffectiveOtLegacyStatus(assignModal.ot)] ?? getEffectiveOtLegacyStatus(assignModal.ot)}</span>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${assignScheduleMeta.valid ? 'bg-emerald-500/20 text-emerald-200' : 'bg-rose-500/20 text-rose-200'}`}>
-                  Duree: {assignDurationLabel}
-                </span>
-              </div>
-              <p className="text-muted text-sm mt-1 flex flex-wrap items-center gap-2">
-                <span className="font-mono">{assignModal.ot.reference}</span>
-                <span className="text-secondary">-</span><span>{assignModal.ot.client_nom}</span>
-                {assignModal.ot.prix_ht && <span className="ml-auto text-discreet">{assignModal.ot.prix_ht.toFixed(0)} EUR HT</span>}
-              </p>
-            </div>
-
-            <div className="p-5 overflow-y-auto space-y-4">
-              {assignGroupMembers.length > 1 && (
-                <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-3 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setAssignModal(m => m ? { ...m, applyToGroupage: false } : m)}
-                      className={`rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${assignModal.applyToGroupage ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-surface text-heading'}`}
-                    >
-                      Modifier cette course
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAssignModal(m => m ? { ...m, applyToGroupage: true } : m)}
-                      className={`rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${assignModal.applyToGroupage ? 'bg-indigo-400 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
-                    >
-                      Modifier la mission
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-indigo-100/90">
-                    {assignModal.applyToGroupage
-                      ? `Cette programmation s'appliquera aux ${assignGroupMembers.length} courses de la mission ${getGroupageBubbleLabel(assignModal.ot)}.`
-                      : `Seule la course ${assignModal.ot.reference} sera modifiee. Le reste de la mission restera inchange.`}
-                  </p>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted">Planification</p>
-                    <label className="inline-flex items-center gap-2 text-[11px] text-slate-300">
-                      <input
-                        type="checkbox"
-                        checked={assignKeepDuration}
-                        onChange={event => setAssignKeepDuration(event.target.checked)}
-                      />
-                      Conserver la duree
-                    </label>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="block">
-                      <span className="text-xs font-medium text-muted">Date chargement</span>
-                      <input
-                        type="date"
-                        value={assignModal.date_chargement}
-                        onChange={e => updateAssignStart(e.target.value, assignModal.time_chargement)}
-                        className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-slate-500 transition-colors"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs font-medium text-muted">Heure depart</span>
-                      <input
-                        type="time"
-                        step={900}
-                        value={assignModal.time_chargement}
-                        onChange={e => updateAssignStart(assignModal.date_chargement, e.target.value)}
-                        className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-slate-500 transition-colors"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs font-medium text-muted">Date livraison</span>
-                      <input
-                        type="date"
-                        value={assignModal.date_livraison}
-                        onChange={e => setAssignModal(m => m && { ...m, date_livraison: e.target.value })}
-                        className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-slate-500 transition-colors"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs font-medium text-muted">Heure arrivee</span>
-                      <input
-                        type="time"
-                        step={900}
-                        value={assignModal.time_livraison}
-                        onChange={e => setAssignModal(m => m && { ...m, time_livraison: e.target.value })}
-                        className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-slate-500 transition-colors"
-                      />
-                    </label>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-700/70 bg-slate-800/60 p-3 space-y-2">
-                    <p className="text-[11px] font-semibold text-slate-300">Ajustements rapides</p>
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" onClick={() => shiftAssignStart(-30)} className="px-2.5 py-1 rounded-lg text-[11px] border border-slate-600 text-slate-200 hover:border-slate-400">Depart -30 min</button>
-                      <button type="button" onClick={() => shiftAssignStart(30)} className="px-2.5 py-1 rounded-lg text-[11px] border border-slate-600 text-slate-200 hover:border-slate-400">Depart +30 min</button>
-                      <button type="button" onClick={() => shiftAssignStart(60)} className="px-2.5 py-1 rounded-lg text-[11px] border border-slate-600 text-slate-200 hover:border-slate-400">Depart +1h</button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {[120, 240, 480, 600].map(minutes => (
-                        <button
-                          key={minutes}
-                          type="button"
-                          onClick={() => applyAssignDuration(minutes)}
-                          className="px-2.5 py-1 rounded-lg text-[11px] border border-slate-600 text-slate-200 hover:border-slate-400"
-                        >
-                          Duree {minutes >= 60 ? `${Math.floor(minutes / 60)}h` : `${minutes} min`}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-
-                <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-muted">Ressources</p>
-                  {[
-                    { label:'Conducteur', key:'conducteur_id' as const, items: conducteurs.map(c => {
-                      const isAbsent = assignModal && getConducteurAbsencesForPeriod(c.id, assignModal.date_chargement, assignModal.date_livraison).length > 0
-                      return { id: c.id, label: `${c.prenom} ${c.nom}${isAbsent ? ' ? ABSENT' : ''}`, absent: isAbsent }
-                    }).sort((a, b) => (a.absent ? 1 : 0) - (b.absent ? 1 : 0)), placeholder:'Non affecte' },
-                    { label:'Camion',     key:'vehicule_id'   as const, items: vehicules.map(v  => ({ id:v.id, label:`${v.immatriculation}${v.marque?` - ${v.marque}`:''}`, absent: false })), placeholder:'Non affecte' },
-                    { label:'Remorque',   key:'remorque_id'   as const, items: remorques.map(r  => ({ id:r.id, label:`${r.immatriculation} - ${r.type_remorque}`, absent: false })), placeholder:'Sans remorque' },
-                  ].map(({ label, key, items, placeholder }) => (
-                    <label key={key} className="block">
-                      <span className="text-xs font-medium text-muted">{label}</span>
-                      <select value={assignModal[key]}
-                        onChange={e => setAssignModal(m => m && { ...m, [key]: e.target.value })}
-                        className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-slate-500 transition-colors">
-                        <option value="">{placeholder}</option>
-                        {items.map(i => <option key={i.id} value={i.id}>{i.label}</option>)}
-                      </select>
-                    </label>
-                  ))}
-
-                  <div className="rounded-xl border border-slate-700/70 bg-slate-800/60 p-3">
-                    <p className="text-[11px] text-slate-300 font-semibold">Controle planning</p>
-                    <p className={`text-xs mt-1 ${assignScheduleMeta.valid ? 'text-emerald-300' : 'text-rose-300'}`}>
-                      {assignScheduleMeta.valid
-                        ? `Fenetre valide: ${assignDurationLabel} planifiee.`
-                        : 'Fenetre invalide: la livraison doit etre apres le chargement.'}
-                    </p>
-                  </div>
-                </section>
-              </div>
-            </div>
-
-            <div className="p-5 border-t border-slate-800 flex gap-3 justify-end bg-slate-900/95">
-              <button onClick={() => setAssignModal(null)} className="px-4 py-2 text-sm text-muted hover:text-white transition-colors">Annuler</button>
-              <button onClick={saveAssign} disabled={assignSaving}
-                className="px-5 py-2.5 bg-surface text-heading text-sm font-semibold rounded-xl hover:bg-surface-2 disabled:opacity-50 transition-colors">
-                {assignSaving ? 'Enregistrement...' : 'Placer sur le planning'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <Suspense fallback={null}>
+          <PlanningAssignModal
+            assignModal={assignModal}
+            assignGroupMembers={assignGroupMembers}
+            assignScheduleMeta={assignScheduleMeta}
+            assignDurationLabel={assignDurationLabel}
+            assignKeepDuration={assignKeepDuration}
+            assignSaving={assignSaving}
+            conducteurs={conducteurs}
+            vehicules={vehicules}
+            remorques={remorques}
+            getEffectiveOtLegacyStatus={getEffectiveOtLegacyStatus}
+            getGroupageBubbleLabel={getGroupageBubbleLabel}
+            getConducteurAbsencesForPeriod={getConducteurAbsencesForPeriod}
+            onClose={() => setAssignModal(null)}
+            onSetApplyToGroupage={next => setAssignModal(current => current ? { ...current, applyToGroupage: next } : current)}
+            onSetKeepDuration={setAssignKeepDuration}
+            onUpdateAssignStart={updateAssignStart}
+            onSetDateLivraison={nextDate => setAssignModal(current => current ? { ...current, date_livraison: nextDate } : current)}
+            onSetTimeLivraison={nextTime => setAssignModal(current => current ? { ...current, time_livraison: nextTime } : current)}
+            onShiftAssignStart={shiftAssignStart}
+            onApplyAssignDuration={applyAssignDuration}
+            onUpdateResource={(key, value) => setAssignModal(current => current ? { ...current, [key]: value } : current)}
+            onSave={saveAssign}
+          />
+        </Suspense>
       )}
 
       {/* -- Add custom block modal ---------------------------------------------- */}
@@ -8087,69 +7952,18 @@ export default function Planning() {
 
       {/* ── Modal validation retard ──────────────────────────────────────────── */}
       {retardModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[170] p-4" onClick={() => setRetardModal(null)}>
-          <div className="bg-slate-900 border border-red-800/50 rounded-2xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="p-5 border-b border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-red-500/20 border border-red-500/30 flex items-center justify-center flex-shrink-0">
-                  <svg className="w-5 h-5 text-red-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm0 11a1 1 0 0 1-1-1V7a1 1 0 0 1 2 0v5a1 1 0 0 1-1 1zm0 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
-                </div>
-                <div>
-                  <h3 className="text-base font-semibold text-white">Gérer le retard</h3>
-                  <p className="text-xs text-muted mt-0.5">{retardModal.ot.reference} · {retardModal.ot.client_nom}</p>
-                </div>
-                <button type="button" onClick={() => setRetardModal(null)} className="ml-auto text-discreet hover:text-white">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M18 6 6 18M6 6l12 12"/></svg>
-                </button>
-              </div>
-            </div>
-            <div className="p-5 space-y-4">
-              <div className="rounded-xl bg-red-950/30 border border-red-800/30 p-3 text-xs text-red-300">
-                Date de livraison prévue : <span className="font-bold">{retardModal.ot.date_livraison_prevue?.slice(0,16).replace('T',' ') ?? '—'}</span>
-                <br/>
-                Retard : <span className="font-bold text-red-200">
-                  {retardModal.ot.date_livraison_prevue
-                    ? `+${Math.floor((Date.now() - new Date(retardModal.ot.date_livraison_prevue).getTime()) / 3600000)}h`
-                    : '—'}
-                </span>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Reporter la date de livraison (optionnel)</label>
-                <input
-                  type="datetime-local"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none"
-                  value={retardNouvelleDateLivraison}
-                  onChange={e => setRetardNouvelleDateLivraison(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Commentaire / motif du retard</label>
-                <textarea
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none resize-none"
-                  rows={3}
-                  placeholder="Embouteillage, problème mécanique, client absent..."
-                  value={retardCommentaire}
-                  onChange={e => setRetardCommentaire(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="p-4 border-t border-slate-800 flex gap-3 justify-end">
-              <button type="button" onClick={() => setRetardModal(null)} className="px-4 py-2 text-sm text-muted hover:text-white transition-colors">
-                Annuler
-              </button>
-              <button
-                type="button"
-                disabled={retardSaving}
-                onClick={() => void handleValiderRetard()}
-                className="px-5 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors"
-              >
-                {retardSaving ? 'Enregistrement...' : 'Valider le retard'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <Suspense fallback={null}>
+          <PlanningRetardModal
+            ot={retardModal.ot}
+            newDeliveryDate={retardNouvelleDateLivraison}
+            comment={retardCommentaire}
+            saving={retardSaving}
+            onClose={() => setRetardModal(null)}
+            onChangeNewDeliveryDate={setRetardNouvelleDateLivraison}
+            onChangeComment={setRetardCommentaire}
+            onSubmit={() => { void handleValiderRetard() }}
+          />
+        </Suspense>
       )}
 
       {conflictPanelRowId && (
@@ -8544,15 +8358,13 @@ export default function Planning() {
 
       {/* -- Modale Confirmation ---------------------------------------------- */}
       {confirmModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70]" onClick={() => { confirmModal.resolve(false); setConfirmModal(null) }}>
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
-            <p className="text-sm text-white mb-4">{confirmModal.message}</p>
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => { confirmModal.resolve(false); setConfirmModal(null) }} className="px-3 py-2 text-sm text-muted hover:text-white transition-colors">Annuler</button>
-              <button onClick={() => { confirmModal.resolve(true); setConfirmModal(null) }} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-xl transition-colors">Confirmer</button>
-            </div>
-          </div>
-        </div>
+        <Suspense fallback={null}>
+          <PlanningConfirmModal
+            message={confirmModal.message}
+            onCancel={() => { confirmModal.resolve(false); setConfirmModal(null) }}
+            onConfirm={() => { confirmModal.resolve(true); setConfirmModal(null) }}
+          />
+        </Suspense>
       )}
 
       {/* -- Modale Notification client --------------------------------------- */}
@@ -8594,201 +8406,35 @@ export default function Planning() {
       )}
 
       {/* -- Panneau Optimisation Tournée ------------------------------------- */}
-      <RouteOptimizerPanel
-        open={showRouteOptimizer}
-        onClose={() => setShowRouteOptimizer(false)}
-        conducteurs={conducteurs}
-        defaultConducteurId={optimizerConducteurId}
-        defaultDate={toISO(new Date())}
-        onApplied={() => void loadAll()}
-      />
+      <Suspense fallback={null}>
+        <RouteOptimizerPanel
+          open={showRouteOptimizer}
+          onClose={() => setShowRouteOptimizer(false)}
+          conducteurs={conducteurs}
+          defaultConducteurId={optimizerConducteurId}
+          defaultDate={toISO(new Date())}
+          onApplied={() => void loadAll()}
+        />
+      </Suspense>
 
       {/* -- Modales Relais --------------------------------------------------- */}
 
-      {/* Modale D�p�t marchandise */}
-      {(relaisModal.mode === 'depot' || relaisModal.mode === 'relais_conducteur') && relaisModal.ot && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[160] p-4"
-          onClick={() => setRelaisModal({ mode: null, ot: null, relais: null })}>
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl"
-            onClick={e => e.stopPropagation()}>
-            <div className="p-5 border-b border-slate-800">
-              <h3 className="text-base font-semibold text-white">
-                {relaisModal.mode === 'relais_conducteur' ? 'Relais conducteur' : 'Deposer en entrepot / depot'}
-              </h3>
-              <p className="text-xs text-muted mt-0.5">Course {relaisModal.ot.reference} � {relaisModal.ot.client_nom}</p>
-            </div>
-            <form onSubmit={e => void submitRelaisDepot(e)} className="p-5 space-y-4">
-              {/* Site logistique */}
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Site connu (optionnel)</label>
-                <select
-                  value={relaisDepotForm.site_id}
-                  onChange={e => {
-                    const s = relaisDepotSites.find(x => x.id === e.target.value)
-                    setRelaisDepotForm(f => ({
-                      ...f,
-                      site_id: e.target.value,
-                      lieu_nom: s?.nom ?? f.lieu_nom,
-                      lieu_adresse: s?.adresse ?? f.lieu_adresse,
-                    }))
-                  }}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
-                  <option value="">� Saisie libre �</option>
-                  {relaisDepotSites.map(s => (
-                    <option key={s.id} value={s.id}>{s.nom}{s.ville ? ` (${s.ville})` : ''}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Lieu libre si pas de site */}
-              {!relaisDepotForm.site_id && (
-                <>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1">
-                      {relaisModal.mode === 'relais_conducteur' ? 'Point de rendez-vous (optionnel)' : 'Nom du depot *'}
-                    </label>
-                    <input
-                      required={relaisModal.mode !== 'relais_conducteur'}
-                      value={relaisDepotForm.lieu_nom}
-                      onChange={e => setRelaisDepotForm(f => ({ ...f, lieu_nom: e.target.value }))}
-                      placeholder={relaisModal.mode === 'relais_conducteur' ? 'Optionnel: ex: Aire A7 km 142, Montelimar' : 'ex: Entrepot Nexora Lille'}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1">Adresse (optionnel)</label>
-                    <input
-                      value={relaisDepotForm.lieu_adresse}
-                      onChange={e => setRelaisDepotForm(f => ({ ...f, lieu_adresse: e.target.value }))}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" />
-                  </div>
-                </>
-              )}
-
-              {/* Date d�p�t / RDV */}
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  {relaisModal.mode === 'relais_conducteur' ? 'Date / heure du RDV' : 'Date de depot'}
-                </label>
-                <input type="datetime-local"
-                  value={relaisDepotForm.date_depot}
-                  onChange={e => setRelaisDepotForm(f => ({ ...f, date_depot: e.target.value }))}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" />
-              </div>
-
-              {/* V�hicule */}
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  {relaisModal.mode === 'relais_conducteur' ? 'Conducteur qui repart (conducteur A)' : 'Conducteur qui d�pose'}
-                </label>
-                <select
-                  value={relaisDepotForm.conducteur_depose_id}
-                  onChange={e => setRelaisDepotForm(f => ({ ...f, conducteur_depose_id: e.target.value }))}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
-                  <option value="">� Aucun �</option>
-                  {conducteurs.map(c => (
-                    <option key={c.id} value={c.id}>{c.prenom} {c.nom}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Notes */}
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Notes</label>
-                <textarea rows={2}
-                  value={relaisDepotForm.notes}
-                  onChange={e => setRelaisDepotForm(f => ({ ...f, notes: e.target.value }))}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white resize-none" />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setRelaisModal({ mode: null, ot: null, relais: null })}
-                  className="px-4 py-2 text-xs text-muted hover:text-white transition-colors">Annuler</button>
-                <button type="submit" disabled={relaisSaving}
-                  className="px-5 py-2.5 text-xs font-semibold rounded-xl bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-50 transition-colors">
-                  {relaisSaving ? 'Enregistrement...' : relaisModal.mode === 'relais_conducteur' ? 'Creer le relais' : 'Deposer'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modale Affectation reprise */}
-      {relaisModal.mode === 'assign' && relaisModal.relais && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[160] p-4"
-          onClick={() => setRelaisModal({ mode: null, ot: null, relais: null })}>
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl"
-            onClick={e => e.stopPropagation()}>
-            <div className="p-5 border-b border-slate-800">
-              <h3 className="text-base font-semibold text-white">
-                {relaisModal.relais.type_relais === 'relais_conducteur' ? 'Affecter conducteur de relais' : 'Affecter la reprise'}
-              </h3>
-              <p className="text-xs text-muted mt-0.5">
-                {relaisModal.relais.lieu_nom || 'Relais conducteur (sans lieu fixe)'}
-                {relaisModal.relais.ordres_transport ? ` � Course ${relaisModal.relais.ordres_transport.reference}` : ''}
-              </p>
-            </div>
-            <form onSubmit={e => void submitRelaisAssign(e)} className="p-5 space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  {relaisModal.relais.type_relais === 'relais_conducteur' ? 'Conducteur B (continue la route)' : 'Conducteur qui reprend'}
-                </label>
-                <select
-                  value={relaisAssignForm.conducteur_reprise_id}
-                  onChange={e => setRelaisAssignForm(f => ({ ...f, conducteur_reprise_id: e.target.value }))}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
-                  <option value="">� Aucun �</option>
-                  {conducteurs.map(c => (
-                    <option key={c.id} value={c.id}>{c.prenom} {c.nom}</option>
-                  ))}
-                </select>
-              </div>
-
-              {relaisModal.relais.type_relais === 'depot_marchandise' && (
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Vehicule pour la reprise</label>
-                  <select
-                    value={relaisAssignForm.vehicule_reprise_id}
-                    onChange={e => setRelaisAssignForm(f => ({ ...f, vehicule_reprise_id: e.target.value }))}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
-                    <option value="">� Aucun �</option>
-                    {vehicules.map(v => (
-                      <option key={v.id} value={v.id}>{v.immatriculation}{v.modele ? ` � ${v.modele}` : ''}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  {relaisModal.relais.type_relais === 'relais_conducteur' ? 'Date / heure RDV' : 'Date de reprise prevue'}
-                </label>
-                <input type="datetime-local"
-                  value={relaisAssignForm.date_reprise_prevue}
-                  onChange={e => setRelaisAssignForm(f => ({ ...f, date_reprise_prevue: e.target.value }))}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Notes</label>
-                <textarea rows={2}
-                  value={relaisAssignForm.notes}
-                  onChange={e => setRelaisAssignForm(f => ({ ...f, notes: e.target.value }))}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white resize-none" />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setRelaisModal({ mode: null, ot: null, relais: null })}
-                  className="px-4 py-2 text-xs text-muted hover:text-white transition-colors">Annuler</button>
-                <button type="submit" disabled={relaisSaving}
-                  className="px-5 py-2.5 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50 transition-colors">
-                  {relaisSaving ? 'Enregistrement...' : 'Affecter'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <Suspense fallback={null}>
+        <PlanningRelaisModals
+          relaisModal={relaisModal}
+          relaisDepotForm={relaisDepotForm}
+          setRelaisDepotForm={setRelaisDepotForm}
+          relaisAssignForm={relaisAssignForm}
+          setRelaisAssignForm={setRelaisAssignForm}
+          relaisSaving={relaisSaving}
+          relaisDepotSites={relaisDepotSites}
+          conducteurs={conducteurs}
+          vehicules={vehicules}
+          onClose={() => setRelaisModal({ mode: null, ot: null, relais: null })}
+          onSubmitRelaisDepot={event => { void submitRelaisDepot(event) }}
+          onSubmitRelaisAssign={event => { void submitRelaisAssign(event) }}
+        />
+      </Suspense>
     </div>
   )
 }

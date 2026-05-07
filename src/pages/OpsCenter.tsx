@@ -564,14 +564,14 @@ export default function OpsCenter() {
   }, [])
 
   const fetchReferentiel = useCallback(async () => {
-    const [{ data: ots }, { data: vehs }, { data: conds }] = await Promise.all([
+    const [{ data: ots }, { data: vehs }, conds] = await Promise.all([
       supabase.from('ordres_transport').select('id, reference, client_id').not('statut', 'in', '("annule","facture")').order('created_at', { ascending: false }).limit(200),
       supabase.from('vehicules').select('id, immatriculation').eq('statut', 'actif'),
-      listUnifiedConducteurs(companyId, { activeOnly: true }),
+      listUnifiedConducteurs(companyId ?? undefined, { activeOnly: true }),
     ])
     if (ots)   setOtList(ots as OTLite[])
     if (vehs)  setVehicules(vehs as VehiculeLite[])
-    setConducteurs(conds.map(conducteur => ({ id: conducteur.id, nom: conducteur.nom, prenom: conducteur.prenom })))
+    setConducteurs(conds.map((conducteur: ConducteurLite) => ({ id: conducteur.id, nom: conducteur.nom, prenom: conducteur.prenom })))
   }, [companyId])
 
   // ─── Effets ───────────────────────────────────────────────────────────────

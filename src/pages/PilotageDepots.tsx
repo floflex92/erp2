@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { listUnifiedConducteurs } from '@/lib/services/personsService'
+import { normalizeTenantDepotSites } from '@/lib/depotSites'
 import {
   listActiveDepotAssignments,
   transferConducteurToDepot,
@@ -96,35 +97,8 @@ export default function PilotageDepots() {
       throw new Error(typeof body.error === 'string' ? body.error : `Erreur HTTP ${response.status}`)
     }
 
-    const data = Array.isArray(body.data) ? body.data : []
-    return data
-      .filter(site => {
-        const typeSite = String(site.type_site ?? '')
-        if (typeSite === 'client') return false
-
-        const relation = site.clients
-        const client = Array.isArray(relation)
-          ? (relation[0] as { code_client?: unknown } | undefined)
-          : (relation as { code_client?: unknown } | null | undefined)
-
-        const codeClient = typeof client?.code_client === 'string' ? client.code_client : ''
-        const tenantInternalCode = `TENANT_INTERNE_${tenantCompanyId}`
-
-        // Centres du tenant: client interne du tenant, ou anciens centres sans client rattache.
-        return !site.entreprise_id || codeClient === tenantInternalCode
-      })
-      .map(site => ({
-        id: String(site.id),
-        company_id: typeof site.company_id === 'number' ? site.company_id : tenantCompanyId,
-        nom: String(site.nom ?? 'Centre'),
-        type_site: String(site.type_site ?? 'depot'),
-        is_primary: Boolean(site.is_primary),
-      }))
-      .sort((a, b) => {
-        const primaryDelta = Number(Boolean(b.is_primary)) - Number(Boolean(a.is_primary))
-        if (primaryDelta !== 0) return primaryDelta
-        return a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' })
-      })
+    const data: Array<Record<string, unknown>> = Array.isArray(body.data) ? body.data : []
+    return normalizeTenantDepotSites(data, tenantCompanyId) as DepotSite[]
   }, [])
 
   const loadAll = useCallback(async () => {

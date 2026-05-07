@@ -307,7 +307,7 @@ export default function PlanningConducteur() {
     setAbsSuccess(null)
     try {
       const nbJours = Math.max(0.5, parseFloat(absForm.nb_jours) || 1)
-      const result = await createAbsenceRh({
+      await createAbsenceRh({
         company_id: null,
         employe_id: profil.id,
         type_absence: absForm.type_absence,

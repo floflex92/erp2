@@ -382,7 +382,7 @@ export default function Transports() {
     const [ots, cls, conds, vehs, rems] = await Promise.all([
       supabase.from('ordres_transport').select('*').order('created_at', { ascending: false }),
       supabase.from('clients').select('id, nom').order('nom'),
-      listUnifiedConducteurs(companyId, { activeOnly: true }),
+      listUnifiedConducteurs(companyId ?? undefined, { activeOnly: true }),
       supabase.from('vehicules').select('id, immatriculation, marque').order('immatriculation'),
       supabase.from('remorques').select('id, immatriculation, type_remorque, charge_utile_kg, longueur_m, volume_max_m3, largeur_utile_m, hauteur_utile_m, nb_palettes_max').order('immatriculation'),
     ])
