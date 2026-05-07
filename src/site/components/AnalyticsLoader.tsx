@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { COOKIE_CONSENT_STORAGE_KEY } from '@/site/components/CookieBanner'
+import { flushPendingAnalyticsEvents } from '@/site/lib/analytics'
 
 const GA_ID = 'G-4QQVY1DQT2'
 const ANALYTICS_LOADED_KEY = '__nexora_ga_loaded'
@@ -26,6 +27,7 @@ function loadGoogleAnalytics() {
   window.gtag = gtag
   gtag('js', new Date())
   gtag('config', GA_ID)
+  flushPendingAnalyticsEvents()
 }
 
 /**

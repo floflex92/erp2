@@ -5,6 +5,8 @@ import { looseSupabase } from '@/lib/supabaseLoose'
 import { listAssets } from '@/lib/services/assetsService'
 import type { Tables, TablesInsert } from '@/lib/database.types'
 import FlotteAmortissements from '@/components/flotte/FlotteAmortissements'
+import { DataState } from '@/components/ui/DataState'
+import { SkeletonTable } from '@/components/ui/SkeletonTable'
 
 type Vehicule = Tables<'vehicules'>
 type VehiculeRow = Vehicule & {
@@ -820,9 +822,12 @@ export default function Vehicules() {
 
       <div className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-muted text-sm">Chargement...</div>
+          <DataState.Loading><SkeletonTable cols={6} rows={7} /></DataState.Loading>
         ) : filtered.length === 0 ? (
-          <div className="p-8 text-center text-muted text-sm">{search ? 'Aucun resultat' : 'Aucun vehicule enregistre'}</div>
+          <DataState.Empty
+            label={search ? 'Aucun résultat' : 'Aucun véhicule enregistré'}
+            sublabel={search ? 'Essayez un autre terme de recherche.' : 'Ajoutez votre premier véhicule pour démarrer le suivi de flotte.'}
+          />
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-surface-soft border-b border-line">

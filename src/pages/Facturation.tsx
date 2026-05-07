@@ -3,6 +3,8 @@ import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
 import { evaluateAffretementCompletionReadiness, getAffretementContractByOtId } from '@/lib/affretementPortal'
 import { buildInvoicePdf } from '@/lib/invoicePdf'
+import { DataState } from '@/components/ui/DataState'
+import { SkeletonTable } from '@/components/ui/SkeletonTable'
 
 type Facture = Tables<'factures'>
 type FactureFournisseur = Tables<'compta_factures_fournisseurs'>
@@ -1363,11 +1365,12 @@ export default function Facturation() {
             </div>
             <div className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
               {loading ? (
-                <div className="p-8 text-center text-muted text-sm">Chargement...</div>
+                <DataState.Loading><SkeletonTable cols={8} rows={7} /></DataState.Loading>
               ) : filtered.length === 0 ? (
-                <div className="p-8 text-center text-muted text-sm">
-                  {search || filterStatut !== 'tous' ? 'Aucun résultat' : 'Aucune facture enregistrée'}
-                </div>
+                <DataState.Empty
+                  label={search || filterStatut !== 'tous' ? 'Aucun résultat' : 'Aucune facture enregistrée'}
+                  sublabel={search || filterStatut !== 'tous' ? 'Modifiez les filtres pour voir plus de résultats.' : 'Créez votre première facture depuis un ordre de transport.'}
+                />
               ) : (
                 <table className="w-full text-sm">
                   <thead className="bg-surface-soft border-b border-line">
@@ -2050,9 +2053,12 @@ export default function Facturation() {
           </div>
           <div className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
             {loading ? (
-              <div className="p-8 text-center text-muted text-sm">Chargement...</div>
+              <DataState.Loading><SkeletonTable cols={8} rows={7} /></DataState.Loading>
             ) : supplierInvoices.length === 0 ? (
-              <div className="p-8 text-center text-muted text-sm">Aucune facture fournisseur enregistrée.</div>
+              <DataState.Empty
+                label="Aucune facture fournisseur enregistrée."
+                sublabel="Ajoutez des achats fournisseurs pour un suivi comptable complet."
+              />
             ) : (
               <table className="w-full text-sm">
                 <thead className="bg-surface-soft border-b border-line">

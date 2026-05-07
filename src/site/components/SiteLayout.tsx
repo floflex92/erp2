@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import CookieBanner, { reopenCookiePreferences } from '@/site/components/CookieBanner'
 import AnalyticsLoader from '@/site/components/AnalyticsLoader'
+import { EVENTS, trackEvent, trackPageView, trackReleaseHealthPingOnce } from '@/site/lib/analytics'
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -33,6 +34,10 @@ export default function SiteLayout() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
 
+  const trackNavClick = (placement: string, target: string) => {
+    trackEvent(EVENTS.MARKETING_NAV_CLICK, { placement, target })
+  }
+
   const hasDarkHero = DARK_HERO_PATHS.has(pathname)
   // Fond foncé si la nav est scrollée (rgba(2,6,23,0.82)) OU si la page a un hero sombre non scrollé.
   // Dans les deux cas il faut du texte clair pour respecter le contraste.
@@ -44,6 +49,14 @@ export default function SiteLayout() {
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
+    trackPageView(pathname)
+  }, [pathname])
+
+  useEffect(() => {
+    trackReleaseHealthPingOnce({ surface: 'site_layout' })
   }, [])
 
   return (
@@ -66,7 +79,13 @@ export default function SiteLayout() {
 
           <nav className="hidden items-center gap-8 lg:flex">
             {NAV_ITEMS.map(item => (
-              <Link key={item.to} to={item.to} className="site-nav-pill transition-colors" style={{ color: navTextColor }}>
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={() => trackNavClick('site_header_desktop', item.to)}
+                className="site-nav-pill transition-colors"
+                style={{ color: navTextColor }}
+              >
                 {item.label}
               </Link>
             ))}
@@ -75,6 +94,7 @@ export default function SiteLayout() {
           <div className="flex items-center gap-3">
             <Link
               to="/login"
+              onClick={() => trackNavClick('site_header_login', '/login')}
               className="inline-flex min-h-[44px] items-center px-1 text-sm font-medium transition-colors"
               style={{ color: navTextColor }}
             >
@@ -82,6 +102,7 @@ export default function SiteLayout() {
             </Link>
             <Link
               to="/connexion-erp"
+              onClick={() => trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'site_header_trial', target: '/connexion-erp' })}
               className="site-btn-primary px-4 py-2 text-sm transition-colors"
             >
               Essai gratuit
@@ -104,7 +125,10 @@ export default function SiteLayout() {
               <Link
                 key={item.to}
                 to={item.to}
-                onClick={() => setMenuOpen(false)}
+                onClick={() => {
+                  trackNavClick('site_header_mobile', item.to)
+                  setMenuOpen(false)
+                }}
                 className="flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium transition-colors"
                 style={{ color: navTextColor }}
               >
@@ -113,7 +137,10 @@ export default function SiteLayout() {
             ))}
             <Link
               to="/login"
-              onClick={() => setMenuOpen(false)}
+              onClick={() => {
+                trackNavClick('site_header_mobile_login', '/login')
+                setMenuOpen(false)
+              }}
               className="flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium transition-colors"
               style={{ color: navTextColor }}
             >

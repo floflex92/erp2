@@ -1608,6 +1608,13 @@ textarea:focus {
   animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
+
 @keyframes site-reel-progress {
   0% {
     transform: translateX(-100%);
@@ -2007,6 +2014,51 @@ textarea:focus {
 [data-theme='night'] .nx-main [class*='bg-blue-'][class*='text-blue-'],
 [data-theme='night'] .nx-main [class*='bg-indigo-'][class*='text-indigo-'] {
   color: unset !important;
+}
+
+/* ─── Accessibilité : contraste élevé ──────────────────────────────────── */
+/* Active quand l'OS demande un contraste renforcé (Win/Mac "Increase contrast"). */
+@media (prefers-contrast: more) {
+  :root,
+  [data-theme='light'] {
+    --text: #000000;
+    --text-heading: #000000;
+    --text-secondary: #111827;
+    --text-discreet: #374151;
+    --muted: #374151;
+    --border: #6b7280;
+    --border-strong: #374151;
+    --input-border: #374151;
+    --input-placeholder: #374151;
+  }
+
+  [data-theme='dark'],
+  [data-theme='night'] {
+    --text: #ffffff;
+    --text-heading: #ffffff;
+    --text-secondary: #f1f5f9;
+    --text-discreet: #cbd5e1;
+    --muted: #cbd5e1;
+    --border: #94a3b8;
+    --border-strong: #cbd5e1;
+    --input-border: #94a3b8;
+    --input-placeholder: #94a3b8;
+  }
+
+  /* Anneau de focus plus épais et plus visible */
+  :focus-visible {
+    outline-width: 4px;
+    outline-style: solid;
+    outline-color: var(--primary);
+    outline-offset: 3px;
+  }
+
+  /* Bordures renforcées sur les éléments interactifs */
+  .nx-btn,
+  .nx-tab-button,
+  .nx-badge {
+    border-width: 2px;
+  }
 }
 
 /* OT bubbles in planning: enforce white text on all inner labels and meta. */

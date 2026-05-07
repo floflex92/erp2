@@ -19,7 +19,12 @@ import type { ReactNode } from 'react'
 
 /* ─── Loading (wraps a skeleton) ────────────────────────────────────────── */
 function Loading({ children }: { children: ReactNode }) {
-  return <div className="nx-fadein">{children}</div>
+  return (
+    <div className="nx-fadein" role="status" aria-label="Chargement en cours…">
+      <span className="sr-only">Chargement en cours…</span>
+      {children}
+    </div>
+  )
 }
 
 /* ─── Refreshing (bandeau non-bloquant) ─────────────────────────────────── */

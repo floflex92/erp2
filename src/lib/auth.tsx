@@ -359,6 +359,22 @@ function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, label: strin
   })
 }
 
+/**
+ * Fast-path : vérifie si un token Supabase existe en localStorage SANS appel réseau.
+ * Si false → l'utilisateur est définitivement non-authentifié → on peut sauter getSession().
+ * Supabase stocke ses tokens sous la clé `sb-{projectRef}-auth-token`.
+ */
+function hasStoredSupabaseSession(): boolean {
+  try {
+    return Object.keys(window.localStorage).some(
+      k => k.startsWith('sb-') && k.endsWith('-auth-token'),
+    )
+  } catch {
+    // localStorage inaccessible (private mode, quota, cross-origin) → on laisse getSession() décider
+    return true
+  }
+}
+
 interface AuthContextType {
   session: Session | null
   user: User | null
@@ -532,6 +548,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let active = true
+
+    // Fast-path : si aucun token Supabase en localStorage, l'utilisateur est
+    // anonyme → on court-circuite getSession() (appel async inutile) et on
+    // passe directement loading=false. onAuthStateChange reste actif pour
+    // capturer un SIGNED_IN ultérieur (ex: l'utilisateur va sur /login).
+    if (!hasStoredSupabaseSession()) {
+      setSession(null)
+      setAccountProfil(null)
+      setSessionProfilState(null)
+      setSessionRoleState(null)
+      setProfilLoading(false)
+      setLoading(false)
+
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+        if (!active) return
+        if (event === 'INITIAL_SESSION') return
+        if (event === 'TOKEN_REFRESHED') { if (s) setSession(s); return }
+        setSession(s)
+        setAuthError(null)
+        if (s?.user) void loadProfil(s.user)
+        else {
+          setAccountProfil(null)
+          setSessionProfilState(null)
+          setSessionRoleState(null)
+          setProfilLoading(false)
+        }
+      })
+      return () => { active = false; subscription.unsubscribe() }
+    }
 
     void (async () => {
       try {

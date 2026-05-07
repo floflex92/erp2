@@ -1808,10 +1808,13 @@ export default function Planning() {
           const absLabel = absConflicts
             .map(a => `${TYPE_ABSENCE_LABELS[a.type_absence]} (${a.date_debut} - ${a.date_fin})`)
             .join(', ')
-          const blockMessage = `Affectation bloquee: conducteur absent (${absLabel}).`
-          showDropBlockedHint(resourceId, blockMessage)
-          pushPlanningNotice(blockMessage, 'error')
-          return false
+          if (blockImpossibleAssignments) {
+            const blockMessage = `Affectation bloquee: conducteur absent (${absLabel}).`
+            showDropBlockedHint(resourceId, blockMessage)
+            pushPlanningNotice(blockMessage, 'error')
+            return false
+          }
+          pushPlanningNotice(`Mode permissif actif: affectation maintenue malgre absence conducteur (${absLabel}).`, 'success')
         }
       }
     }
@@ -1944,11 +1947,14 @@ export default function Planning() {
           const absLabel = absConflicts
             .map(absence => `${TYPE_ABSENCE_LABELS[absence.type_absence]} (${absence.date_debut} - ${absence.date_fin})`)
             .join(', ')
-          const blockMessage = `Deplacement bloque: conducteur absent (${absLabel}).`
-          showDropBlockedHint(resourceId, blockMessage)
-          pushPlanningNotice(blockMessage, 'error')
-          setSavingOtId(null)
-          return
+          if (blockImpossibleAssignments) {
+            const blockMessage = `Deplacement bloque: conducteur absent (${absLabel}).`
+            showDropBlockedHint(resourceId, blockMessage)
+            pushPlanningNotice(blockMessage, 'error')
+            setSavingOtId(null)
+            return
+          }
+          pushPlanningNotice(`Mode permissif actif: deplacement maintenu malgre absence conducteur (${absLabel}).`, 'success')
         }
       }
     }
@@ -2550,11 +2556,6 @@ export default function Planning() {
             setDrag(null)
             return
           }
-          if (!getWeekBlockMetrics(activeDrag.ot, weekStart)) {
-            pushPlanningNotice('Cette course n\'est pas planifi�e cette semaine. Naviguez vers sa p�riode pour l\'assigner.', 'error')
-            setDrag(null)
-            return
-          }
           const overlapTarget = findOverlapTarget(rowId, currentSchedule.startISO, currentSchedule.endISO, movingOtIds)
           if (overlapTarget) {
             const shouldCreateGroupage = await showConfirm(`Superposition detectee avec ${overlapTarget.reference}. Voulez-vous creer un groupage deliable ?`)
@@ -2622,11 +2623,6 @@ export default function Planning() {
           if (!currentSchedule) {
             openAssign(activeDrag.ot, rowId)
             pushPlanningNotice('Reglez les dates de la course depuis sa fiche avant de la placer sur le planning.', 'error')
-            setDrag(null)
-            return
-          }
-          if (!getDayBlockMetrics(activeDrag.ot.date_chargement_prevue, activeDrag.ot.date_livraison_prevue, selectedDay)) {
-            pushPlanningNotice('Cette course n\'est pas planifi�e ce jour. Naviguez vers son jour pour l\'assigner.', 'error')
             setDrag(null)
             return
           }
@@ -4794,9 +4790,17 @@ export default function Planning() {
           isRowEditMode={isRowEditMode}
           onRowEditModeChange={setIsRowEditMode}
           blockImpossibleAssignments={blockImpossibleAssignments}
-          onBlockImpossibleChange={next => { saveBooleanSetting(ASSIGNMENT_IMPOSSIBLE_BLOCK_KEY, next); setBlockImpossibleAssignments(next) }}
+          onBlockImpossibleChange={next => {
+            saveBooleanSetting(ASSIGNMENT_IMPOSSIBLE_BLOCK_KEY, next)
+            setBlockImpossibleAssignments(next)
+            pushPlanningNotice(next ? 'Blocage des affectations impossibles active.' : 'Mode permissif actif: les affectations impossibles restent autorisees avec alerte.')
+          }}
           blockOnCompliance={blockOnCompliance}
-          onBlockOnComplianceChange={next => { saveComplianceBlockMode(next); setBlockOnCompliance(next) }}
+          onBlockOnComplianceChange={next => {
+            saveComplianceBlockMode(next)
+            setBlockOnCompliance(next)
+            pushPlanningNotice(next ? 'Blocage CE561 active sur les alertes bloquantes.' : 'CE561 en mode audit: les alertes restent informatives.')
+          }}
           simulationMode={simulationMode}
           onSimulationModeChange={next => { setSimulationMode(next); saveBooleanSetting(SIMULATION_MODE_KEY, next) }}
           scanningWeek={scanningWeek}
@@ -4883,6 +4887,7 @@ export default function Planning() {
               onClick={() => setBlockImpossibleAssignments(current => {
                 const next = !current
                 saveBooleanSetting(ASSIGNMENT_IMPOSSIBLE_BLOCK_KEY, next)
+                pushPlanningNotice(next ? 'Blocage des affectations impossibles active.' : 'Mode permissif actif: les affectations impossibles restent autorisees avec alerte.')
                 return next
               })}
               title="Activer ou desactiver le blocage des affectations declarees impossibles"
@@ -4899,6 +4904,7 @@ export default function Planning() {
               onClick={() => setBlockOnCompliance(current => {
                 const next = !current
                 saveComplianceBlockMode(next)
+                pushPlanningNotice(next ? 'Blocage CE561 active sur les alertes bloquantes.' : 'CE561 en mode audit: les alertes restent informatives.')
                 return next
               })}
               title="Activer ou desactiver le blocage des affectations sur alertes CE 561"

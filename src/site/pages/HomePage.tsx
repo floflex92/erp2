@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import useSiteMeta from '@/site/hooks/useSiteMeta'
 import { sitePhotos } from '@/site/lib/sitePhotos'
-import { articleIndex } from '@/site/content/articleIndex'
+import { EVENTS, trackEvent, trackFunnelStep } from '@/site/lib/analytics'
 
 const conducteursScreenshot = '/site/screenshots/mecano01.webp'
 const planningScreenshot = '/site/screenshots/planning01.webp'
@@ -29,6 +29,33 @@ type FeatureScreenshot = {
 type LightboxImage = {
   src: string
   alt: string
+}
+
+type ArticlePreview = {
+  slug: string
+  title: string
+  description: string
+}
+
+function appendJsonLdScript(id: string, payload: unknown) {
+  const script = document.createElement('script')
+  script.type = 'application/ld+json'
+  script.id = id
+  script.text = JSON.stringify(payload)
+  document.head.appendChild(script)
+  return () => { script.remove() }
+}
+
+function scheduleIdleWork(callback: () => void) {
+  if (typeof window === 'undefined') return () => {}
+
+  if ('requestIdleCallback' in window) {
+    const idleId = window.requestIdleCallback(callback, { timeout: 1600 })
+    return () => window.cancelIdleCallback(idleId)
+  }
+
+  const timeoutId = globalThis.setTimeout(callback, 700)
+  return () => globalThis.clearTimeout(timeoutId)
 }
 
 const FEATURE_SCREENSHOTS: Partial<Record<FeatureTab['key'], FeatureScreenshot>> = {
@@ -526,6 +553,9 @@ function LazySection({ children, minHeight = '320px' }: { children: React.ReactN
       entries => {
         if (entries.some(entry => entry.isIntersecting)) {
           setIsVisible(true)
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('nexora:lazy-section-mounted'))
+          }
           observer.disconnect()
         }
       },
@@ -559,6 +589,7 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<FeatureTab['key']>('planning')
   const [videoOpen, setVideoOpen] = useState(false)
   const [lightboxImage, setLightboxImage] = useState<LightboxImage | null>(null)
+  const [latestArticles, setLatestArticles] = useState<ArticlePreview[]>([])
 
   useSiteMeta({
     title: 'ERP transport routier : planning et flotte',
@@ -568,10 +599,13 @@ export default function HomePage() {
   })
 
   useEffect(() => {
-    const script = document.createElement('script')
-    script.type = 'application/ld+json'
-    script.id = 'home-organization-jsonld'
-    script.text = JSON.stringify({
+    trackFunnelStep('marketing_demo', 'home_view', { surface: 'homepage' })
+  }, [])
+
+  useEffect(() => {
+    let removeScript = () => {}
+    const cancelIdle = scheduleIdleWork(() => {
+      removeScript = appendJsonLdScript('home-organization-jsonld', {
       '@context': 'https://schema.org',
       '@type': 'Organization',
       name: 'NEXORA Truck',
@@ -591,15 +625,17 @@ export default function HomePage() {
         'https://www.facebook.com/nexoratruck',
       ],
     })
-    document.head.appendChild(script)
-    return () => { script.remove() }
+    })
+    return () => {
+      cancelIdle()
+      removeScript()
+    }
   }, [])
 
   useEffect(() => {
-    const script = document.createElement('script')
-    script.type = 'application/ld+json'
-    script.id = 'home-aggregaterating-jsonld'
-    script.text = JSON.stringify({
+    let removeScript = () => {}
+    const cancelIdle = scheduleIdleWork(() => {
+      removeScript = appendJsonLdScript('home-aggregaterating-jsonld', {
       '@context': 'https://schema.org',
       '@type': 'SoftwareApplication',
       name: 'NEXORA Truck',
@@ -614,15 +650,17 @@ export default function HomePage() {
         worstRating: '1',
       },
     })
-    document.head.appendChild(script)
-    return () => { script.remove() }
+    })
+    return () => {
+      cancelIdle()
+      removeScript()
+    }
   }, [])
 
   useEffect(() => {
-    const script = document.createElement('script')
-    script.type = 'application/ld+json'
-    script.id = 'home-video-jsonld'
-    script.text = JSON.stringify({
+    let removeScript = () => {}
+    const cancelIdle = scheduleIdleWork(() => {
+      removeScript = appendJsonLdScript('home-video-jsonld', {
       '@context': 'https://schema.org',
       '@type': 'VideoObject',
       name: 'Démonstration NEXORA Truck — ERP transport routier',
@@ -642,8 +680,32 @@ export default function HomePage() {
         },
       },
     })
-    document.head.appendChild(script)
-    return () => { script.remove() }
+    })
+    return () => {
+      cancelIdle()
+      removeScript()
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const cancelIdle = scheduleIdleWork(() => {
+      import('@/site/content/articleIndex')
+        .then(mod => {
+          if (cancelled) return
+          setLatestArticles(mod.articleIndex.slice(-2))
+        })
+        .catch(() => {
+          if (cancelled) return
+          setLatestArticles([])
+        })
+    })
+
+    return () => {
+      cancelled = true
+      cancelIdle()
+    }
   }, [])
 
   /* Reveal observer */
@@ -668,12 +730,11 @@ export default function HomePage() {
     }
 
     observeRevealNodes()
-    const mutationObserver = new MutationObserver(() => observeRevealNodes())
-    mutationObserver.observe(document.body, { childList: true, subtree: true })
+    window.addEventListener('nexora:lazy-section-mounted', observeRevealNodes)
 
     return () => {
       obs.disconnect()
-      mutationObserver.disconnect()
+      window.removeEventListener('nexora:lazy-section-mounted', observeRevealNodes)
     }
   }, [])
 
@@ -724,22 +785,50 @@ export default function HomePage() {
             />
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <Link
-                to="/solution"
+                to="/demonstration"
+                onClick={() => {
+                  trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'home_hero_primary', target: '/demonstration' })
+                  trackFunnelStep('marketing_demo', 'demo_click', { placement: 'home_hero_primary' })
+                }}
                 className="site-hero-cta uppercase"
                 style={{ letterSpacing: '0.08em' }}
               >
-                Découvrir nos solutions
+                Demander une démo
                 <span aria-hidden="true" className="ml-3 text-lg leading-none">→</span>
+              </Link>
+              <Link
+                to="/solution"
+                onClick={() => trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'home_hero_secondary', target: '/solution' })}
+                className="inline-flex min-h-[44px] items-center rounded-xl border px-5 py-2.5 text-sm font-semibold uppercase tracking-[0.06em] transition-colors hover:bg-slate-50"
+                style={{ borderColor: '#1e3a8a', color: '#1e3a8a' }}
+              >
+                Voir la solution
               </Link>
               <button
                 type="button"
-                onClick={() => setVideoOpen(true)}
-                className="inline-flex min-h-[44px] items-center text-sm font-semibold"
+                onClick={() => {
+                  trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'home_hero_video', target: 'video_demo' })
+                  setVideoOpen(true)
+                }}
+                className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold"
                 style={{ color: '#1e3a8a' }}
+                aria-label="Visionner la vidéo de démonstration NEXORA"
               >
-                Voir la démo vidéo ▶
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                Voir la démo vidéo
               </button>
             </div>
+            {/* Trust badge — social proof immédiat sous les CTA */}
+            <p className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs" style={{ color: '#64748B' }}>
+              <span className="flex items-center gap-1">
+                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="#16A34A" aria-hidden="true"><path d="M8 0l2 5.5H16l-4.9 3.5 1.9 5.5L8 11 3 14.5l1.9-5.5L0 5.5h6z"/></svg>
+                4.8/5 satisfaction
+              </span>
+              <span>·</span>
+              <span>+120 transporteurs</span>
+              <span>·</span>
+              <span>Opérationnel en 72h</span>
+            </p>
           </div>
 
           {/* Right column — visual + floating KPI card */}
@@ -750,6 +839,8 @@ export default function HomePage() {
                 srcSet={sitePhotos.truckRoadWide.srcSet([768, 1400])}
                 sizes="(min-width: 1024px) 48vw, 92vw"
                 alt="Camion NEXORA sur la route — pilotage transport en temps réel"
+                width={1400}
+                height={1050}
                 loading="eager"
                 fetchPriority="high"
                 decoding="async"
@@ -851,18 +942,25 @@ export default function HomePage() {
         </div>
       </section>
 
-      <LazySection minHeight="220px">
-        <section
-          className="w-full bg-white text-center"
-          style={{ ...sectionPx, paddingBlock: 'clamp(24px, 4vw, 44px)' }}
-          data-reveal
-          aria-label="Indicateurs clés NEXORA Truck"
-        >
-          <p className="text-sm font-semibold tracking-wide" style={{ color: '#1f2937' }}>
-            +120 transporteurs | 4.8/5 satisfaction | 98,7% disponibilité opérationnelle | Opérationnel en 72h
-          </p>
-        </section>
-      </LazySection>
+      <section
+        className="w-full bg-white text-center"
+        style={{ ...sectionPx, paddingBlock: 'clamp(24px, 4vw, 44px)' }}
+        aria-label="Indicateurs clés NEXORA Truck"
+      >
+        <dl className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
+          {([
+            { label: 'transporteurs actifs', value: '+120' },
+            { label: 'satisfaction client', value: '4.8/5' },
+            { label: 'disponibilité opérationnelle', value: '98,7%' },
+            { label: 'mise en route garantie', value: '72h' },
+          ] as const).map(stat => (
+            <div key={stat.label} className="flex items-baseline gap-1.5">
+              <dt className="text-xs font-medium" style={{ color: '#64748B' }}>{stat.label}</dt>
+              <dd className="text-sm font-extrabold" style={{ color: '#0B1B3B' }}>{stat.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
 
       <LazySection minHeight="520px">
         <section
@@ -948,6 +1046,7 @@ export default function HomePage() {
                 <p className="text-lg font-bold" style={{ color: '#0B1B3B' }}>Le chaos vous coûte cher.</p>
                 <Link
                   to="/solution"
+                  onClick={() => trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'home_problem_solution_link', target: '/solution' })}
                   className="site-hero-gradient-text mt-1 inline-block text-lg font-bold"
                 >
                   Reprenez le contrôle.
@@ -1248,7 +1347,11 @@ export default function HomePage() {
             ))}
           </div>
 
-          <Link to="/solution" className="site-btn-primary mt-10 inline-flex px-6 py-3 text-sm">
+          <Link
+            to="/solution"
+            onClick={() => trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'home_modules_footer', target: '/solution' })}
+            className="site-btn-primary mt-10 inline-flex px-6 py-3 text-sm"
+          >
             Explorer tous les modules
           </Link>
         </section>
@@ -1332,17 +1435,32 @@ export default function HomePage() {
             </Link>
           </div>
           <div className="mt-8 grid gap-5 md:grid-cols-2">
-            {articleIndex.slice(-2).map(article => (
-              <Link
-                key={article.slug}
-                to={`/articles/${article.slug}`}
-                aria-label={`Lire l'article : ${article.title}`}
-                className="rounded-[1.5rem] border border-slate-200 bg-[#f8fafc] p-6 transition-colors hover:border-slate-300"
-              >
-                <h3 className="text-lg font-semibold" style={{ color: '#000000' }}>{article.title}</h3>
-                <p className="mt-3 text-sm leading-7" style={{ color: '#374151' }}>{article.description}</p>
-              </Link>
-            ))}
+            {latestArticles.length > 0 ? (
+              latestArticles.map(article => (
+                <Link
+                  key={article.slug}
+                  to={`/articles/${article.slug}`}
+                  aria-label={`Lire l'article : ${article.title}`}
+                  className="rounded-[1.5rem] border border-slate-200 bg-[#f8fafc] p-6 transition-colors hover:border-slate-300"
+                >
+                  <h3 className="text-lg font-semibold" style={{ color: '#000000' }}>{article.title}</h3>
+                  <p className="mt-3 text-sm leading-7" style={{ color: '#374151' }}>{article.description}</p>
+                </Link>
+              ))
+            ) : (
+              <>
+                <article className="rounded-[1.5rem] border border-slate-200 bg-[#f8fafc] p-6" aria-hidden="true">
+                  <div className="nx-skeleton h-7 w-4/5" />
+                  <div className="nx-skeleton mt-4 h-5 w-full" />
+                  <div className="nx-skeleton mt-2 h-5 w-11/12" />
+                </article>
+                <article className="rounded-[1.5rem] border border-slate-200 bg-[#f8fafc] p-6" aria-hidden="true">
+                  <div className="nx-skeleton h-7 w-4/5" />
+                  <div className="nx-skeleton mt-4 h-5 w-full" />
+                  <div className="nx-skeleton mt-2 h-5 w-11/12" />
+                </article>
+              </>
+            )}
           </div>
         </section>
       </LazySection>
@@ -1395,6 +1513,10 @@ export default function HomePage() {
             <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
               <Link
                 to="/demonstration"
+                onClick={() => {
+                  trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'home_final_primary', target: '/demonstration' })
+                  trackFunnelStep('marketing_demo', 'demo_click', { placement: 'home_final_primary' })
+                }}
                 className="site-hero-cta uppercase"
                 style={{ letterSpacing: '0.08em' }}
               >
@@ -1403,6 +1525,7 @@ export default function HomePage() {
               </Link>
               <Link
                 to="/connexion-erp"
+                onClick={() => trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'home_final_secondary', target: '/connexion-erp' })}
                 className="inline-flex min-h-[48px] items-center rounded-xl border px-6 py-3 text-sm font-semibold uppercase tracking-[0.08em] transition-colors"
                 style={{ borderColor: '#0B1B3B', color: '#0B1B3B', background: '#FFFFFF' }}
               >

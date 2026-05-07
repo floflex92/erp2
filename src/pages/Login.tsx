@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { firstPage, useAuth } from '@/lib/auth'
 import { sitePhotos } from '@/site/lib/sitePhotos'
+import { EVENTS, trackEvent, trackFunnelStep, trackPageView } from '@/site/lib/analytics'
 
 type DemoStatus = 'idle' | 'loading' | 'success' | 'error'
 
@@ -29,6 +30,8 @@ export default function Login() {
     e.preventDefault()
     setDemoError(null)
     setDemoStatus('loading')
+    trackEvent(EVENTS.LOGIN_DEMO_SUBMIT, { source: 'demo_magic_link' })
+    trackFunnelStep('marketing_demo', 'login_demo_submit', { source: 'demo_magic_link' })
 
     try {
       const res = await fetch('/.netlify/functions/demo-magic-link', {
@@ -41,6 +44,7 @@ export default function Login() {
       if (!res.ok || !data.hashed_token) {
         setDemoError(data.error ?? 'Erreur inattendue. Réessayez.')
         setDemoStatus('error')
+        trackEvent(EVENTS.LOGIN_DEMO_ERROR, { stage: 'request_link' })
         return
       }
 
@@ -53,15 +57,19 @@ export default function Login() {
       if (otpError) {
         setDemoError('Lien invalide ou expiré. Réessayez.')
         setDemoStatus('error')
+        trackEvent(EVENTS.LOGIN_DEMO_ERROR, { stage: 'verify_otp' })
         return
       }
 
       setDemoStatus('success')
+      trackEvent(EVENTS.LOGIN_DEMO_SUCCESS, { source: 'demo_magic_link' })
+      trackFunnelStep('marketing_demo', 'login_demo_success', { source: 'demo_magic_link' })
       // Redirection simple vers le dashboard — le rôle sera lu depuis le profil en base
       navigate('/dashboard', { replace: true })
     } catch {
       setDemoError('Connexion impossible. Vérifiez votre réseau.')
       setDemoStatus('error')
+      trackEvent(EVENTS.LOGIN_DEMO_ERROR, { stage: 'network' })
     }
   }
 
@@ -78,6 +86,11 @@ export default function Login() {
     if (!persistedError) return
     setError(persistedError)
     window.localStorage.removeItem('nexora_screen_limit_error_v1')
+  }, [])
+
+  useEffect(() => {
+    trackPageView('/login')
+    trackFunnelStep('marketing_demo', 'login_view', { mode: demoMode ? 'demo' : 'standard' })
   }, [])
 
   if (loading || profilLoading) {
@@ -106,9 +119,17 @@ export default function Login() {
     e.preventDefault()
     setError(null)
     setSubmitting(true)
+    trackEvent(EVENTS.LOGIN_SUBMIT, { remember_me: rememberMe })
+    trackFunnelStep('auth_login', 'submit', { remember_me: rememberMe })
     const { error: signInError } = await signIn(email, password)
     setSubmitting(false)
-    if (signInError) setError(signInError)
+    if (signInError) {
+      trackEvent(EVENTS.LOGIN_SUBMIT_ERROR, { reason: signInError.slice(0, 80) })
+      setError(signInError)
+      return
+    }
+    trackEvent(EVENTS.LOGIN_SUBMIT_SUCCESS, { source: 'password' })
+    trackFunnelStep('auth_login', 'success', { source: 'password' })
   }
 
   const inputStyle: React.CSSProperties = {
@@ -319,7 +340,13 @@ export default function Login() {
               <div className="mt-6 text-center">
                 <button
                   type="button"
-                  onClick={() => { setShowDemo(false); setDemoEmail(''); setDemoStatus('idle'); setDemoError(null) }}
+                  onClick={() => {
+                    trackEvent(EVENTS.LOGIN_DEMO_BACK_TO_LOGIN, { source: 'demo_panel' })
+                    setShowDemo(false)
+                    setDemoEmail('')
+                    setDemoStatus('idle')
+                    setDemoError(null)
+                  }}
                   className="text-sm transition-colors hover:text-[#1D1D1F]"
                   style={{ color: '#64748B' }}
                 >
@@ -378,7 +405,10 @@ export default function Login() {
                     />
                     <button
                       type="button"
-                      onClick={() => setShowPassword(v => !v)}
+                      onClick={() => {
+                        trackEvent(EVENTS.LOGIN_PASSWORD_VISIBILITY_TOGGLE, { visible: !showPassword })
+                        setShowPassword(v => !v)
+                      }}
                       aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                       className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 transition-colors hover:text-[#1F4E8C]"
                       style={{ color: '#94A3B8' }}
@@ -441,7 +471,10 @@ export default function Login() {
                   Pas encore de compte ?{' '}
                   <button
                     type="button"
-                    onClick={() => setShowDemo(true)}
+                    onClick={() => {
+                      trackEvent(EVENTS.MARKETING_CTA_CLICK, { placement: 'login_footer_trial', target: 'demo_mode' })
+                      setShowDemo(true)
+                    }}
                     className="font-semibold transition-colors hover:underline"
                     style={{ color: '#1F4E8C' }}
                   >
