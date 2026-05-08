@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: ["master", "main", "develop"]
+  pull_request:
+    branches: ["master", "main"]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: erp2/package-lock.json
+
+      - name: Install dependencies
+        working-directory: erp2
+        run: npm ci
+
+      # --- Gate 1 : TypeScript ---
+      - name: TypeScript check
+        working-directory: erp2
+        run: npm run typecheck
+
+      # --- Gate 2 : Lint ---
+      - name: Lint
+        working-directory: erp2
+        run: npm run lint
+
+      # --- Gate 3 : Tests critiques (planning, drivers, depots, engines) ---
+      - name: Critical tests
+        working-directory: erp2
+        run: npm run test:critical
+
+      # --- Gate 4 : Tests complets ---
+      - name: Full test suite
+        working-directory: erp2
+        run: npm run test
+
+      # --- Gate 5 : Build (vérifie aussi SSR + prerender) ---
+      - name: Build
+        working-directory: erp2
+        env:
+          VITE_APP_VERSION: ${{ github.sha }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'placeholder' }}
+        run: npm run build
+
+      # --- Gate 6 : Bundle size budget ---
+      - name: Check bundle size
+        working-directory: erp2
+        run: |
+          # Vérifie qu'aucun chunk ne dépasse 250 kB (gzippé estimé ~80 kB)
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            const distDir = 'dist/assets';
+            if (!fs.existsSync(distDir)) process.exit(0);
+            const files = fs.readdirSync(distDir).filter(f => f.endsWith('.js'));
+            let failed = false;
+            const LIMIT_KB = 250;
+            files.forEach(f => {
+              const stats = fs.statSync(path.join(distDir, f));
+              const kb = stats.size / 1024;
+              if (kb > LIMIT_KB) {
+                console.error('OVER BUDGET: ' + f + ' = ' + kb.toFixed(0) + ' kB (limit: ' + LIMIT_KB + ' kB)');
+                failed = true;
+              }
+            });
+            if (failed) process.exit(1);
+            console.log('Bundle budget OK');
+          "
+
+      # --- Rapport de taille des chunks (toujours visible) ---
+      - name: Bundle size report
+        working-directory: erp2
+        if: always()
+        run: |
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            const distDir = 'dist/assets';
+            if (!fs.existsSync(distDir)) { console.log('No dist/assets'); process.exit(0); }
+            const files = fs.readdirSync(distDir)
+              .filter(f => f.endsWith('.js'))
+              .map(f => ({ name: f, kb: (fs.statSync(path.join(distDir, f)).size / 1024).toFixed(0) }))
+              .sort((a, b) => b.kb - a.kb)
+              .slice(0, 15);
+            console.log('Top 15 JS chunks:');
+            files.forEach(f => console.log('  ' + f.kb.padStart(6) + ' kB  ' + f.name));
+          "
