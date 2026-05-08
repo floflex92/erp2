@@ -269,6 +269,42 @@ function fallbackUserMatricule(profileId: string) {
   return `USR-${token}`
 }
 
+function fallbackDisplayName(user: User): { nom: string; prenom: string } {
+  const metadataNom = typeof user.user_metadata?.nom === 'string' ? user.user_metadata.nom.trim() : ''
+  const metadataPrenom = typeof user.user_metadata?.prenom === 'string' ? user.user_metadata.prenom.trim() : ''
+  if (metadataNom || metadataPrenom) {
+    return {
+      nom: metadataNom || 'Utilisateur',
+      prenom: metadataPrenom || 'NEXORA',
+    }
+  }
+
+  const local = (user.email ?? '').split('@')[0] ?? ''
+  const [first = '', ...rest] = local.split(/[._-]+/).filter(Boolean)
+  const guessedPrenom = first ? `${first.slice(0, 1).toUpperCase()}${first.slice(1)}` : 'NEXORA'
+  const guessedNomRaw = rest.join(' ')
+  const guessedNom = guessedNomRaw ? `${guessedNomRaw.slice(0, 1).toUpperCase()}${guessedNomRaw.slice(1)}` : 'Utilisateur'
+  return { nom: guessedNom, prenom: guessedPrenom }
+}
+
+function buildFallbackProfil(user: User): Profil {
+  const fallbackRole = fallbackRoleFromEmail(user.email)
+    ?? normalizeRole(user.app_metadata?.role ?? user.user_metadata?.role ?? null)
+    ?? 'exploitant'
+  const { nom, prenom } = fallbackDisplayName(user)
+  return {
+    id: user.id,
+    role: fallbackRole,
+    matricule: fallbackUserMatricule(user.id),
+    nom,
+    prenom,
+    tenantKey: 'default',
+    tenantAllowedPages: null,
+    companyId: 1,
+    enabledModules: null,
+  }
+}
+
 type ProfileRow = {
   id: string
   role: string
@@ -288,6 +324,16 @@ function findMissingProfileColumn(error: { code?: string | null; message?: strin
   const raw = [error.code, error.message, error.details, error.hint].filter(Boolean).join(' ').toLowerCase()
   if (!raw) return null
   return PROFILE_OPTIONAL_COLUMNS.find(column => raw.includes(column)) ?? null
+}
+
+function isBootstrapFunctionPermissionError(error: { code?: string | null; message?: string | null; details?: string | null; hint?: string | null } | null): boolean {
+  if (!error) return false
+  const raw = [error.code, error.message, error.details, error.hint].filter(Boolean).join(' ').toLowerCase()
+  if (!raw.includes('permission denied')) return false
+  return raw.includes('function my_company_id')
+    || raw.includes('function my_login_enabled')
+    || raw.includes('function is_tenant_admin')
+    || raw.includes('function is_platform_admin')
 }
 
 function normalizeProfileRow(data: ProfileRow): ProfileRow {
@@ -316,6 +362,11 @@ async function fetchProfileRow(userId: string): Promise<ProfileRow | null> {
 
     if (!error) {
       return data ? normalizeProfileRow(data as unknown as ProfileRow) : null
+    }
+
+    if (isBootstrapFunctionPermissionError(error)) {
+      console.warn('[auth] profile select blocked by missing EXECUTE grant, using bootstrap fallback', error)
+      return null
     }
 
     const missingColumn = findMissingProfileColumn(error)
@@ -529,14 +580,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // TENANT ADMIN SETTINGS : modules actifs (null = tous actifs)
             enabledModules,
           }
-        : null
+        : buildFallbackProfil(user)
       setAccountProfil(p)
       setAuthError(null)
     } catch (err) {
       const msg = err instanceof Error ? err.message : (typeof err === 'object' && err !== null && 'message' in err ? String((err as { message: unknown }).message) : String(err))
       console.error('[auth] loadProfil error:', msg, err)
-      setAccountProfil(null)
-      setAuthError(`Impossible de charger le profil utilisateur. (${msg})`)
+      // Evite de bloquer la connexion: on degrade vers un profil fallback temporaire.
+      setAccountProfil(buildFallbackProfil(user))
+      setAuthError(null)
     } finally {
       setProfilLoading(false)
     }

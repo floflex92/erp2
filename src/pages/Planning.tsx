@@ -69,6 +69,8 @@ const PlanningAssignModal = lazy(() => import('@/components/planning/PlanningAss
 const PlanningRetardModal = lazy(() => import('@/components/planning/PlanningRetardModal'))
 const PlanningConfirmModal = lazy(() => import('@/components/planning/PlanningConfirmModal'))
 const PlanningRelaisModals = lazy(() => import('@/components/planning/PlanningRelaisModals'))
+const PlanningAddBlockModal = lazy(() => import('@/components/planning/PlanningAddBlockModal'))
+const PlanningConflictModal = lazy(() => import('@/components/planning/PlanningConflictModal'))
 const RouteOptimizerPanel = lazy(() => import('@/components/transports/RouteOptimizerPanel'))
 import {
   applyAssignDurationFromStart,
@@ -92,6 +94,7 @@ const ASSIGNMENT_IMPOSSIBLE_BLOCK_KEY = 'nexora_planning_assignment_impossible_b
 const DEPOT_RESOURCE_FILTER_KEY = 'nexora_planning_depot_resource_filter_v1'
 const DEPOT_INCLUDE_UNASSIGNED_KEY = 'nexora_planning_depot_include_unassigned_v1'
 const PLANNING_VIEW_MODE_KEY = 'nexora_planning_view_mode_v1'
+const PLANNING_RESYNC_COOLDOWN_MS = 45000
 
 type ExploitantFeatureKey =
   | 'tab_urgences'
@@ -141,7 +144,7 @@ function isAssetAvailableStatus(value: string | null | undefined): boolean {
 }
 
 export default function Planning() {
-  const { role, companyId } = useAuth()
+  const { role, companyId, reloadProfil } = useAuth()
   const navigate = useNavigate()
   const planningComplianceService = usePlanningCompliance()
 
@@ -303,6 +306,29 @@ export default function Planning() {
   const [blockImpossibleAssignments, setBlockImpossibleAssignments] = useState<boolean>(() => loadBooleanSetting(ASSIGNMENT_IMPOSSIBLE_BLOCK_KEY, true))
   const [complianceBlockingRules, setComplianceBlockingRules] = useState<Record<string, boolean>>(() => loadComplianceBlockingRules())
   const [showComplianceRules, setShowComplianceRules] = useState(false)
+  const bootstrapPermissionRecoveryAttemptedRef = useRef(false)
+  const accessRecoveryAttemptedRef = useRef(false)
+
+  const hasRecentPlanningRecoveryAttempt = useCallback((kind: 'bootstrap' | 'access') => {
+    if (typeof window === 'undefined') return false
+    const storageKey = `nexora_planning_recovery_${kind}_v1:${companyId ?? 'na'}`
+    const raw = window.sessionStorage.getItem(storageKey)
+    if (!raw) return false
+    const ts = Number(raw)
+    return Number.isFinite(ts) && (Date.now() - ts) < PLANNING_RESYNC_COOLDOWN_MS
+  }, [companyId])
+
+  const markPlanningRecoveryAttempt = useCallback((kind: 'bootstrap' | 'access') => {
+    if (typeof window === 'undefined') return
+    const storageKey = `nexora_planning_recovery_${kind}_v1:${companyId ?? 'na'}`
+    window.sessionStorage.setItem(storageKey, String(Date.now()))
+  }, [companyId])
+
+  const clearPlanningRecoveryAttempts = useCallback(() => {
+    if (typeof window === 'undefined') return
+    window.sessionStorage.removeItem(`nexora_planning_recovery_bootstrap_v1:${companyId ?? 'na'}`)
+    window.sessionStorage.removeItem(`nexora_planning_recovery_access_v1:${companyId ?? 'na'}`)
+  }, [companyId])
   const [lastComplianceAudit, setLastComplianceAudit] = useState<{
     alerts: CEAlert[]
     effectiveBlockingCodes: string[]
@@ -1200,7 +1226,15 @@ export default function Planning() {
     }
 
     // -- OT : fallback minimal si la colonne est_affretee est manquante -------
-    let finalOtR = otR as { data: unknown[] | null; error: { message?: string } | null }
+    let finalOtR = otR as {
+      data: unknown[] | null
+      error: {
+        code?: string | null
+        message?: string | null
+        details?: string | null
+        hint?: string | null
+      } | null
+    }
     if (otR.error) {
       const fallback = await supabase
         .from('ordres_transport')
@@ -1223,13 +1257,82 @@ export default function Planning() {
       }
     }
 
+    const normalizedOtErrorPayload = [
+      finalOtR.error?.code,
+      finalOtR.error?.message,
+      finalOtR.error?.details,
+      finalOtR.error?.hint,
+    ].filter(Boolean).join(' ').toLowerCase()
+    const isBootstrapFunctionPermissionDenied =
+      normalizedOtErrorPayload.includes('permission denied')
+      && (normalizedOtErrorPayload.includes('function my_company_id') || normalizedOtErrorPayload.includes('function my_login_enabled'))
+    const isAccessDeniedAtLoad = normalizedOtErrorPayload.includes('row-level security') || normalizedOtErrorPayload.includes('permission denied') || normalizedOtErrorPayload.includes('rls')
+
+    // Tentative unique de recuperation quand les fonctions bootstrap viennent d'etre corrigees
+    // (grant applique cote DB mais session/profile encore stale cote client).
+    if (
+      finalOtR.error
+      && isBootstrapFunctionPermissionDenied
+      && !bootstrapPermissionRecoveryAttemptedRef.current
+      && !hasRecentPlanningRecoveryAttempt('bootstrap')
+    ) {
+      bootstrapPermissionRecoveryAttemptedRef.current = true
+      markPlanningRecoveryAttempt('bootstrap')
+      if (lastLoadErrorRef.current !== 'Synchronisation des droits planning en cours...') {
+        pushPlanningNotice('Synchronisation des droits planning en cours...', 'warning')
+        lastLoadErrorRef.current = 'Synchronisation des droits planning en cours...'
+      }
+      pendingRealtimeRefreshRef.current = true
+      void (async () => {
+        try {
+          await supabase.auth.refreshSession()
+          await reloadProfil()
+        } catch {
+          // No-op: le chargement normal affichera l'erreur si la recuperation echoue.
+        }
+      })()
+      return
+    }
+
+    if (
+      finalOtR.error
+      && isAccessDeniedAtLoad
+      && !accessRecoveryAttemptedRef.current
+      && !hasRecentPlanningRecoveryAttempt('access')
+    ) {
+      accessRecoveryAttemptedRef.current = true
+      markPlanningRecoveryAttempt('access')
+      if (lastLoadErrorRef.current !== 'Resynchronisation de la session planning en cours...') {
+        pushPlanningNotice('Resynchronisation de la session planning en cours...', 'warning')
+        lastLoadErrorRef.current = 'Resynchronisation de la session planning en cours...'
+      }
+      pendingRealtimeRefreshRef.current = true
+      void (async () => {
+        try {
+          await supabase.auth.refreshSession()
+          await reloadProfil()
+        } catch {
+          // No-op: si la resynchronisation echoue, le prochain chargement montrera l'erreur finale.
+        }
+      })()
+      return
+    }
+
     // -- Traitement OTs (dans une transition pour ne pas bloquer le rendu) ----
     const processOTs = () => {
       if (finalOtR.error) {
         const rawMessage = finalOtR.error.message ?? 'Erreur inconnue de chargement.'
-        const normalized = rawMessage.toLowerCase()
+        const normalized = [
+          finalOtR.error.code,
+          finalOtR.error.message,
+          finalOtR.error.details,
+          finalOtR.error.hint,
+        ].filter(Boolean).join(' ').toLowerCase()
+        const isBootstrapPermissionError = normalized.includes('permission denied') && (normalized.includes('function my_company_id') || normalized.includes('function my_login_enabled'))
         const isAccessDenied = normalized.includes('row-level security') || normalized.includes('permission denied') || normalized.includes('rls')
-        const noticeMessage = isAccessDenied
+        const noticeMessage = isBootstrapPermissionError
+          ? 'Chargement du planning bloque: droits SQL incomplets (my_company_id/my_login_enabled). Reconnectez-vous, puis verifiez les GRANT EXECUTE en base.'
+          : isAccessDenied
           ? 'Chargement du planning bloque par les droits RLS. Verifiez le role utilisateur et les policies SQL des tables planning.'
           : `Erreur de chargement planning: ${rawMessage}`
         if (lastLoadErrorRef.current !== noticeMessage) {
@@ -1241,6 +1344,9 @@ export default function Planning() {
         setCancelledOTs([])
         setSelected(null)
       } else if (finalOtR.data) {
+        bootstrapPermissionRecoveryAttemptedRef.current = false
+        accessRecoveryAttemptedRef.current = false
+        clearPlanningRecoveryAttempts()
         lastLoadErrorRef.current = null
         type OtLoadRow = Omit<OT, 'client_nom'> & {
           clients: { nom: string } | { nom: string }[] | null
@@ -1342,7 +1448,17 @@ export default function Planning() {
         }
       }
     }
-    }, [companyId, planningScope, weekStart, viewMode, monthStart])
+    }, [
+      clearPlanningRecoveryAttempts,
+      companyId,
+      hasRecentPlanningRecoveryAttempt,
+      markPlanningRecoveryAttempt,
+      planningScope,
+      reloadProfil,
+      weekStart,
+      viewMode,
+      monthStart,
+    ])
 
   // ── Hooks extraits (Phase 2 refactorisation) — placés ici car loadAll doit être défini ─
 
@@ -2900,7 +3016,7 @@ export default function Planning() {
 
     const beforeStartISO = toDateTimeFromDate(new Date(nearest.start - durationMs))
     const afterStartISO = toDateTimeFromDate(new Date(nearest.end))
-    const preferredMode = newBlockType === 'hlp' ? 'before' : 'after'
+    const preferredMode: 'before' | 'after' = newBlockType === 'hlp' ? 'before' : 'after'
 
     return {
       ot: nearest.ot,
@@ -7247,289 +7363,59 @@ export default function Planning() {
       )}
 
       {/* -- Add custom block modal ---------------------------------------------- */}
-      {addBlockFor && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[160] p-4" onClick={() => setAddBlockFor(null)}>
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 w-full max-w-xl shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold text-white mb-1">{newBlockType === 'course' ? 'Creer une course' : editingCustomBlockId ? 'Modifier un evenement planning' : 'Ajouter un evenement planning'}</h3>
-            <p className="text-[11px] text-muted mb-3">
-              {newBlockType === 'course'
-                ? 'Creer une course directement depuis la ligne du planning.'
-                : editingCustomBlockId
-                ? 'Ajustez le type, le libelle ou la duree du bloc selectionne.'
-                : 'Ajoutez un HLP, une pause, une maintenance ou un autre bloc directement sur la ligne choisie.'}
-            </p>
-            {/* Mod�les de courses */}
-            {newBlockType === 'course' && courseTemplates.length > 0 && (
-              <div className="mb-3 rounded-xl border border-slate-700 bg-slate-800/50 px-3 py-2.5">
-                <p className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Charger un modele</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {courseTemplates.map(tpl => (
-                    <div key={tpl.id} className="group flex items-center gap-1 rounded-full border border-slate-600 bg-slate-800 px-2.5 py-1">
-                      <button type="button" onClick={() => applyTemplate(tpl)} className="text-[11px] text-slate-200 hover:text-white transition-colors">
-                        {tpl.label}
-                      </button>
-                      <button type="button" onClick={() => void handleDeleteTemplate(tpl.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-rose-400 hover:text-rose-300 text-[10px] leading-none">�</button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <label className="block mb-2">
-              <span className="text-[11px] text-muted">Type</span>
-              <select
-                value={newBlockType}
-                onChange={e => setNewBlockType(e.target.value as PlanningInlineType)}
-                className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-              >
-                {(Object.keys(INLINE_EVENT_LABELS) as PlanningInlineType[]).map(type => (
-                  <option key={type} value={type}>{INLINE_EVENT_LABELS[type]}</option>
-                ))}
-              </select>
-            </label>
-            <input autoFocus value={newBlockLabel} onChange={e => setNewBlockLabel(e.target.value)}
-              onKeyDown={e => { if(e.key==='Enter') void addCustomBlock(); if(e.key==='Escape') setAddBlockFor(null) }}
-              placeholder={newBlockType === 'course' ? 'Libelle de la course...' : `Description ${INLINE_EVENT_LABELS[newBlockType].toLowerCase()}...`}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-indigo-500 mb-3"/>
-            {newBlockType === 'course' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
-                <label className="block">
-                  <span className="text-[11px] text-muted">Client</span>
-                  <select
-                    value={newBlockClientId}
-                    onChange={e => setNewBlockClientId(e.target.value)}
-                    className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-                  >
-                    <option value="">Selectionner</option>
-                    {clients.map(client => <option key={client.id} value={client.id}>{client.nom}</option>)}
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="text-[11px] text-muted">Donneur d ordre</span>
-                  <select
-                    value={newBlockDonneurOrdreId}
-                    onChange={e => setNewBlockDonneurOrdreId(e.target.value)}
-                    className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-                  >
-                    <option value="">Selectionner</option>
-                    {clients.map(client => <option key={client.id} value={client.id}>{client.nom}</option>)}
-                  </select>
-                </label>
-                <label className="block md:col-span-2">
-                  <span className="text-[11px] text-muted">Numero de reference course</span>
-                  <input
-                    value={newBlockReferenceCourse}
-                    onChange={e => setNewBlockReferenceCourse(e.target.value)}
-                    className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-[11px] text-muted">Lieu de chargement</span>
-                  <select
-                    value={newBlockChargementSiteId}
-                    onChange={e => setNewBlockChargementSiteId(e.target.value)}
-                    className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-                  >
-                    <option value="">Selectionner</option>
-                    {logisticSites.map(site => <option key={site.id} value={site.id}>{site.nom}</option>)}
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="text-[11px] text-muted">Lieu de livraison</span>
-                  <select
-                    value={newBlockLivraisonSiteId}
-                    onChange={e => setNewBlockLivraisonSiteId(e.target.value)}
-                    className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-                  >
-                    <option value="">Selectionner</option>
-                    {logisticSites.map(site => <option key={site.id} value={site.id}>{site.nom}</option>)}
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="text-[11px] text-muted">Date chargement</span>
-                  <input
-                    type="date"
-                    value={newBlockDateChargement}
-                    onChange={e => setNewBlockDateChargement(e.target.value)}
-                    className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-[11px] text-muted">Heure chargement</span>
-                  <input
-                    type="time"
-                    step={900}
-                    value={newBlockTimeChargement}
-                    onChange={e => setNewBlockTimeChargement(e.target.value)}
-                    className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-[11px] text-muted">Date livraison</span>
-                  <input
-                    type="date"
-                    value={newBlockDateLivraison}
-                    onChange={e => setNewBlockDateLivraison(e.target.value)}
-                    className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-[11px] text-muted">Heure livraison</span>
-                  <input
-                    type="time"
-                    step={900}
-                    value={newBlockTimeLivraison}
-                    onChange={e => setNewBlockTimeLivraison(e.target.value)}
-                    className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-                  />
-                </label>
-                <label className="block md:col-span-2">
-                  <span className="text-[11px] text-muted">Distance du parcours (km)</span>
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={newBlockDistanceKm}
-                    onChange={e => setNewBlockDistanceKm(e.target.value)}
-                    className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-                  />
-                </label>
-              </div>
-            )}
-            {newBlockType !== 'course' && (
-              <>
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  <label className="block">
-                    <span className="text-[11px] text-muted">Date debut</span>
-                    <input
-                      type="date"
-                      value={newBlockDateChargement}
-                      onChange={e => setNewBlockDateChargement(e.target.value)}
-                      className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-[11px] text-muted">Heure debut</span>
-                    <input
-                      type="time"
-                      step={300}
-                      value={newBlockTimeChargement}
-                      onChange={e => setNewBlockTimeChargement(e.target.value)}
-                      className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-                    />
-                  </label>
-                </div>
-                {nearestPlanningCourseSuggestion && (
-                  <div className="mb-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
-                    <p className="text-[11px] font-semibold text-amber-100">
-                      Course la plus proche : {nearestPlanningCourseSuggestion.ot.reference}
-                    </p>
-                    <p className="mt-1 text-[10px] text-amber-200/80">
-                      {nearestPlanningCourseSuggestion.preferredMode === 'before'
-                        ? 'Ce type de bloc est propose en priorite avant le depart de la course.'
-                        : 'Ce type de bloc est propose en priorite a la fin de la course.'}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setPlanningEventStart(nearestPlanningCourseSuggestion.beforeStartISO)}
-                        className={`rounded-full border px-3 py-1.5 text-[10px] font-semibold hover:bg-slate-800 ${nearestPlanningCourseSuggestion.preferredMode === 'before' ? 'border-amber-300/60 bg-amber-400/20 text-amber-50' : 'border-amber-400/30 bg-slate-900/60 text-amber-100'}`}
-                      >
-                        Coller avant � {nearestPlanningCourseSuggestion.beforeLabel}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPlanningEventStart(nearestPlanningCourseSuggestion.afterStartISO)}
-                        className={`rounded-full border px-3 py-1.5 text-[10px] font-semibold hover:bg-slate-800 ${nearestPlanningCourseSuggestion.preferredMode === 'after' ? 'border-amber-300/60 bg-amber-400/20 text-amber-50' : 'border-amber-400/30 bg-slate-900/60 text-amber-100'}`}
-                      >
-                        Coller apres � {nearestPlanningCourseSuggestion.afterLabel}
-                      </button>
-                    </div>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  <label className="block">
-                    <span className="text-[11px] text-muted">Duree heures</span>
-                    <input
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={newBlockDurationHours}
-                      onChange={e => setPlanningEventDurationAndSync(e.target.value, newBlockDurationMinutes)}
-                      className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-[11px] text-muted">Duree minutes</span>
-                    <input
-                      type="number"
-                      min={0}
-                      max={59}
-                      step={5}
-                      value={newBlockDurationMinutes}
-                      onChange={e => setPlanningEventDurationAndSync(newBlockDurationHours, e.target.value)}
-                      className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-                    />
-                  </label>
-                </div>
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  <label className="block">
-                    <span className="text-[11px] text-muted">Date fin</span>
-                    <input
-                      type="date"
-                      value={newBlockDateLivraison}
-                      onChange={e => setPlanningEventEndAndSync(toDateTimeISO(e.target.value, newBlockTimeLivraison))}
-                      className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-[11px] text-muted">Heure fin</span>
-                    <input
-                      type="time"
-                      step={300}
-                      value={newBlockTimeLivraison}
-                      onChange={e => setPlanningEventEndAndSync(toDateTimeISO(newBlockDateLivraison, e.target.value))}
-                      className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-                    />
-                  </label>
-                </div>
-              </>
-            )}
-            {/* Sauvegarder comme mod�le (courses uniquement) */}
-            {newBlockType === 'course' && (
-              <div className="mb-3">
-                {showSaveTemplate ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      autoFocus
-                      value={saveAsTemplateLabel}
-                      onChange={e => setSaveAsTemplateLabel(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') void handleSaveAsTemplate(); if (e.key === 'Escape') setShowSaveTemplate(false) }}
-                      placeholder="Nom du modele..."
-                      className="flex-1 bg-slate-800 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-                    />
-                    <button type="button" onClick={() => void handleSaveAsTemplate()} disabled={savingTemplate || !saveAsTemplateLabel.trim()} className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs rounded-xl disabled:opacity-60 transition-colors">
-                      {savingTemplate ? '...' : 'Sauvegarder'}
-                    </button>
-                    <button type="button" onClick={() => setShowSaveTemplate(false)} className="px-3 py-2 text-muted hover:text-white text-xs transition-colors">
-                      Annuler
-                    </button>
-                  </div>
-                ) : (
-                  <button type="button" onClick={() => { setSaveAsTemplateLabel(newBlockLabel || ''); setShowSaveTemplate(true) }} className="text-[11px] text-discreet hover:text-emerald-400 transition-colors">
-                    + Sauvegarder comme modele
-                  </button>
-                )}
-              </div>
-            )}
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => { setAddBlockFor(null); setEditingCustomBlockId(null) }} className="px-3 py-2 text-sm text-muted hover:text-white transition-colors">Annuler</button>
-              <button onClick={() => void addCustomBlock()} disabled={creatingInlineEvent} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-60">
-                {creatingInlineEvent ? 'Creation...' : newBlockType === 'course' ? 'Creer la course' : editingCustomBlockId ? 'Mettre a jour' : 'Ajouter'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Suspense fallback={null}>
+        <PlanningAddBlockModal
+          isOpen={Boolean(addBlockFor)}
+          newBlockType={newBlockType}
+          editingCustomBlockId={editingCustomBlockId}
+          creatingInlineEvent={creatingInlineEvent}
+          newBlockLabel={newBlockLabel}
+          newBlockClientId={newBlockClientId}
+          newBlockDonneurOrdreId={newBlockDonneurOrdreId}
+          newBlockReferenceCourse={newBlockReferenceCourse}
+          newBlockChargementSiteId={newBlockChargementSiteId}
+          newBlockLivraisonSiteId={newBlockLivraisonSiteId}
+          newBlockDateChargement={newBlockDateChargement}
+          newBlockTimeChargement={newBlockTimeChargement}
+          newBlockDateLivraison={newBlockDateLivraison}
+          newBlockTimeLivraison={newBlockTimeLivraison}
+          newBlockDistanceKm={newBlockDistanceKm}
+          newBlockDurationHours={newBlockDurationHours}
+          newBlockDurationMinutes={newBlockDurationMinutes}
+          showSaveTemplate={showSaveTemplate}
+          savingTemplate={savingTemplate}
+          saveAsTemplateLabel={saveAsTemplateLabel}
+          courseTemplates={courseTemplates}
+          clients={clients}
+          logisticSites={logisticSites}
+          inlineEventTypes={Object.keys(INLINE_EVENT_LABELS) as PlanningInlineType[]}
+          inlineEventLabels={INLINE_EVENT_LABELS}
+          nearestPlanningCourseSuggestion={nearestPlanningCourseSuggestion}
+          onClose={() => { setAddBlockFor(null); setEditingCustomBlockId(null) }}
+          onSetNewBlockType={setNewBlockType}
+          onSetNewBlockLabel={setNewBlockLabel}
+          onSetNewBlockClientId={setNewBlockClientId}
+          onSetNewBlockDonneurOrdreId={setNewBlockDonneurOrdreId}
+          onSetNewBlockReferenceCourse={setNewBlockReferenceCourse}
+          onSetNewBlockChargementSiteId={setNewBlockChargementSiteId}
+          onSetNewBlockLivraisonSiteId={setNewBlockLivraisonSiteId}
+          onSetNewBlockDateChargement={setNewBlockDateChargement}
+          onSetNewBlockTimeChargement={setNewBlockTimeChargement}
+          onSetNewBlockDateLivraison={setNewBlockDateLivraison}
+          onSetNewBlockTimeLivraison={setNewBlockTimeLivraison}
+          onSetNewBlockDistanceKm={setNewBlockDistanceKm}
+          onSetPlanningEventDurationAndSync={setPlanningEventDurationAndSync}
+          onSetPlanningEventEndAndSync={setPlanningEventEndAndSync}
+          onSetPlanningEventStart={setPlanningEventStart}
+          onSetShowSaveTemplate={setShowSaveTemplate}
+          onSetSaveAsTemplateLabel={setSaveAsTemplateLabel}
+          onAddCustomBlock={() => { void addCustomBlock() }}
+          onApplyTemplate={applyTemplate}
+          onDeleteTemplate={templateId => { void handleDeleteTemplate(templateId) }}
+          onSaveTemplate={() => { void handleSaveAsTemplate() }}
+          toDateTimeISO={toDateTimeISO}
+        />
+      </Suspense>
 
       {/* -- Block detail -------------------------------------------------------- */}
       {selected && editDraft && (
@@ -7967,88 +7853,25 @@ export default function Planning() {
       )}
 
       {conflictPanelRowId && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[160] p-4" onClick={() => setConflictPanelRowId(null)}>
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="p-5 border-b border-slate-800 flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-base font-semibold text-white">Details des conflits</h3>
-                <p className="text-xs text-muted mt-0.5">{conflictRow?.primary ?? 'Ressource'} - {activeRowConflicts.length} chevauchement{activeRowConflicts.length > 1 ? 's' : ''}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                {conflictRow && !conflictRow.isCustom && !conflictRow.isAffretementAsset && activeRowConflicts.length > 0 && isFeatureEnabled('action_resoudre_conflits') && (
-                  <button
-                    type="button"
-                    onClick={() => resolveConflictsForRow(conflictPanelRowId)}
-                    disabled={resolvingRowId === conflictPanelRowId}
-                    className="px-3 py-2 rounded-lg text-xs font-semibold bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-60 transition-colors"
-                  >
-                    {resolvingRowId === conflictPanelRowId ? 'Resolution...' : 'Resoudre automatiquement'}
-                  </button>
-                )}
-                <button onClick={() => setConflictPanelRowId(null)} className="px-3 py-2 text-xs text-slate-300 hover:text-white border border-slate-700 rounded-lg transition-colors">Fermer</button>
-              </div>
-            </div>
-            <div className="p-5 max-h-[65vh] overflow-auto space-y-2">
-              {activeRowConflicts.length === 0 ? (
-                <p className="text-sm text-muted">Aucun conflit detecte sur la periode affichee.</p>
-              ) : activeRowConflicts.map((conflict, idx) => (
-                <div key={`${conflict.first.id}-${conflict.second.id}-${idx}`} className="rounded-xl border border-slate-700/70 bg-slate-800/50 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm text-white font-mono">{conflict.first.reference} / {conflict.second.reference}</p>
-                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-semibold">{formatMinutes(conflict.overlapMinutes)}</span>
-                  </div>
-                  <p className="text-xs text-muted mt-1">
-                    {isoToDate(conflict.first.date_chargement_prevue)} {isoToTime(conflict.first.date_chargement_prevue)} - {isoToDate(conflict.first.date_livraison_prevue)} {isoToTime(conflict.first.date_livraison_prevue)}
-                  </p>
-                  <p className="text-xs text-discreet mt-0.5">
-                    {isoToDate(conflict.second.date_chargement_prevue)} {isoToTime(conflict.second.date_chargement_prevue)} - {isoToDate(conflict.second.date_livraison_prevue)} {isoToTime(conflict.second.date_livraison_prevue)}
-                  </p>
-                  {(() => {
-                    const sameGroupage = sharesSameGroupage(conflict.first, conflict.second)
-                    const frozenGroupage = sameGroupage && (conflict.first.groupage_fige || conflict.second.groupage_fige)
-                    const linkActionKey = `${conflict.first.id}:${conflict.second.id}:link`
-                    const freezeActionKey = `${conflict.first.id}:${conflict.second.id}:freeze`
-                    return (
-                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-[11px] text-muted">
-                          {frozenGroupage
-                            ? 'Lot deja verrouille sur cette paire.'
-                            : sameGroupage
-                            ? 'Lot deliable deja cree. Vous pouvez maintenant le verrouiller.'
-                            : 'Proposer un groupage deliable ou valider un lot verrouille pour cette paire.'}
-                        </p>
-                        <div className="flex flex-wrap items-center gap-2">
-                          {isFeatureEnabled('action_groupage') ? (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => { void applyConflictGroupage(conflict, false) }}
-                                disabled={sameGroupage || conflictActionKey !== null}
-                                className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-emerald-500/35 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50 disabled:hover:bg-emerald-500/10 transition-colors"
-                              >
-                                {conflictActionKey === linkActionKey ? 'Creation...' : sameGroupage ? 'Deja groupees' : 'Proposer groupage'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => { void applyConflictGroupage(conflict, true) }}
-                                disabled={frozenGroupage || conflictActionKey !== null}
-                                className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-indigo-500/35 bg-indigo-500/10 text-indigo-200 hover:bg-indigo-500/20 disabled:opacity-50 disabled:hover:bg-indigo-500/10 transition-colors"
-                              >
-                                {conflictActionKey === freezeActionKey ? 'Validation...' : frozenGroupage ? 'Lot verrouille' : sameGroupage ? 'Verrouiller le lot' : 'Valider et verrouiller'}
-                              </button>
-                            </>
-                          ) : (
-                            <span className="text-[11px] text-discreet">Actions de groupage desactivees</span>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })()}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <Suspense fallback={null}>
+          <PlanningConflictModal
+            isOpen={Boolean(conflictPanelRowId)}
+            rowId={conflictPanelRowId}
+            resourceLabel={conflictRow?.primary ?? 'Ressource'}
+            conflicts={activeRowConflicts}
+            canResolveConflicts={Boolean(conflictRow && !conflictRow.isCustom && !conflictRow.isAffretementAsset && isFeatureEnabled('action_resoudre_conflits'))}
+            canGroupage={isFeatureEnabled('action_groupage')}
+            resolvingRowId={resolvingRowId}
+            conflictActionKey={conflictActionKey}
+            onClose={() => setConflictPanelRowId(null)}
+            onResolveRow={resolveConflictsForRow}
+            onApplyGroupage={(conflict, freezeGroupage) => { void applyConflictGroupage(conflict, freezeGroupage) }}
+            sharesSameGroupage={sharesSameGroupage}
+            formatMinutes={formatMinutes}
+            isoToDate={isoToDate}
+            isoToTime={isoToTime}
+          />
+        </Suspense>
       )}
 
       {/* -- Context menu (clic droit sur un bloc) ------------------------------ */}
