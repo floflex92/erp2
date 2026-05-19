@@ -15,9 +15,12 @@ jobs:
       - name: Ping Netlify site
         run: |
           echo "Ping Netlify: https://nexora-truck.fr"
-          curl -k -fsS --retry 3 --retry-all-errors --retry-delay 10 --max-time 30 "https://nexora-truck.fr" \
-            -H "User-Agent: GitHub-Actions-Keepalive" \
-            && echo "Netlify OK" || (echo "Netlify ping failed"; exit 1)
+          if curl -k -fsS --retry 3 --retry-all-errors --retry-delay 10 --max-time 30 "https://nexora-truck.fr" \
+            -H "User-Agent: GitHub-Actions-Keepalive"; then
+            echo "Netlify OK"
+          else
+            echo "Netlify ping failed, non bloquant pour continuer le keepalive Supabase"
+          fi
 
       - name: Ping Supabase
         env:
