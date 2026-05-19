@@ -1,0 +1,59 @@
+name: Keep Netlify & Supabase Alive
+
+on:
+  schedule:
+    - cron: '0 */3 * * *' # toutes les 3 heures
+    - cron: '30 * * * *'  # à chaque demi-heure pour variation
+  push:
+    branches: [main, master, dev]
+  workflow_dispatch:
+
+env:
+  SITE_URL: https://nexora-truck.fr
+  SUPABASE_URL: https://rnbbxmdughpxovcnhrpz.supabase.co
+
+jobs:
+  ping-services:
+    runs-on: ubuntu-latest
+    name: Ping & Keep-Alive
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: erp2/.env
+          sparse-checkout-cone-mode: false
+
+      - name: Extract Supabase URL from .env
+        id: env-vars
+        run: |
+          if [ -f erp2/.env ]; then
+            SUPABASE_URL=$(grep VITE_SUPABASE_URL erp2/.env | cut -d '=' -f2)
+            echo "supabase_url=${SUPABASE_URL}" >> $GITHUB_OUTPUT
+            echo "Found Supabase URL from .env"
+          else
+            echo "supabase_url=${{ env.SUPABASE_URL }}" >> $GITHUB_OUTPUT
+            echo "Using default Supabase URL"
+          fi
+
+      - name: Ping Netlify site
+        run: |
+          echo "🚀 Pinging Netlify: ${{ env.SITE_URL }}"
+          curl -fsS --max-time 30 "${{ env.SITE_URL }}" \
+            -H "User-Agent: GitHub-Actions-Keepalive" \
+            && echo "✅ Netlify OK" || (echo "❌ Netlify ping failed"; exit 1)
+
+      - name: Ping Supabase
+        run: |
+          SUPABASE_URL="${{ steps.env-vars.outputs.supabase_url }}"
+          echo "🚀 Pinging Supabase: ${SUPABASE_URL}"
+          curl -fsS --max-time 30 "${SUPABASE_URL}" \
+            -H "User-Agent: GitHub-Actions-Keepalive" \
+            && echo "✅ Supabase OK" || (echo "❌ Supabase ping failed"; exit 1)
+
+      - name: Log summary
+        if: always()
+        run: |
+          echo "=== Keep-Alive Summary ==="
+          echo "Timestamp: $(date -u)"
+          echo "Netlify: ${{ env.SITE_URL }}"
+          echo "Supabase: ${{ steps.env-vars.outputs.supabase_url }}"
