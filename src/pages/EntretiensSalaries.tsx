@@ -164,7 +164,7 @@ export default function EntretiensSalaries() {
 
   useEffect(() => {
     void loadBase()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [
     filters.typeId,
     filters.category,

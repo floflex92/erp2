@@ -239,7 +239,7 @@ export default function Chauffeurs() {
       if (affRes.error) throw affRes.error
       if (otRes.error) throw otRes.error
 
-      let conducteurs = (condRes.data ?? []) as Conducteur[]
+      const conducteurs = (condRes.data ?? []) as Conducteur[]
       let vehicules = (vehRes.data ?? []) as Vehicule[]
       let remorques = (remRes.data ?? []) as Remorque[]
 

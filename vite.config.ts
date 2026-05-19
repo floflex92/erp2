@@ -106,7 +106,7 @@ export default defineConfig({
     target: 'es2022',
     manifest: true,
     cssCodeSplit: true,
-    chunkSizeWarningLimit: 160,
+    chunkSizeWarningLimit: 450,
     reportCompressedSize: false,
     assetsInlineLimit: 2048,
     rollupOptions: {

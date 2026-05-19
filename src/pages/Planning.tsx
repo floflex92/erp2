@@ -371,7 +371,7 @@ export default function Planning() {
     const refDate = addDays(weekStart, 6)
     setCeBarsData({})
     expandedCERows.forEach(rowId => loadCERow(rowId, refDate))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [weekStart])
 
   function toggleCERow(rowId: string) {

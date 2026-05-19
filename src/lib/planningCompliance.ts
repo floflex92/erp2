@@ -236,7 +236,7 @@ export class PlanningComplianceService {
 
     // Jours consécutifs
     let consecutifs = 0
-    let cursor = new Date(jusqu_a)
+    const cursor = new Date(jusqu_a)
     const workedDays = new Set(history7j.map((j: { jour: string }) => j.jour))
     workedDays.add(jusqu_a.toISOString().split('T')[0])
 

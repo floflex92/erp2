@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 
-const db = supabase as any          // eslint-disable-line @typescript-eslint/no-explicit-any
+const db = supabase as any
 
 export interface CourseTemplate {
   id: string

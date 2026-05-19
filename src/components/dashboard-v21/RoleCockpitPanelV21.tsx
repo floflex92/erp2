@@ -210,7 +210,7 @@ async function fetchLoose(
   limit = 400,
 ) {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     let query = (looseSupabase.from(table) as any).select(columns).limit(limit)
     if (dateFilter) {
       query = query.gte(dateFilter, QUARTER_AGO_ISO)

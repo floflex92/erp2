@@ -692,7 +692,7 @@ export default function Facturation() {
     if (!selected) { setComptaInfo(null); return }
     if (selected.statut === 'brouillon' || selected.statut === 'annulee') { setComptaInfo(null); return }
     setComptaLoading(true)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const db = supabase as any
     db
       .from('compta_pieces')
@@ -714,7 +714,7 @@ export default function Facturation() {
 
   // ── Chargement scénarios de relance (une fois) ────────────────────────────
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const db = supabase as any
     db.from('relances_scenarios').select('*').eq('actif', true).order('niveau')
       .then(({ data }: { data: RelanceScenario[] | null }) => {
@@ -729,7 +729,7 @@ export default function Facturation() {
   useEffect(() => {
     if (!selected) { setRelancesHistorique([]); return }
     setLoadingRelances(true)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const db = supabase as any
     db.from('relances_historique').select('*').eq('facture_id', selected.id).order('date_envoi', { ascending: false })
       .then(({ data }: { data: RelanceHistorique[] | null }) => {
@@ -742,7 +742,7 @@ export default function Facturation() {
   useEffect(() => {
     if (tab !== 'journal') return
     setLoadingJournal(true)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const db = supabase as any
     db.from('compta_journal_manuel').select('*').order('date', { ascending: false })
       .then(({ data }: { data: (JournalEntry & { created_by?: string })[] | null }) => {
@@ -1099,7 +1099,7 @@ export default function Facturation() {
 
   async function generateEcriture(factureId: string) {
     setGeneratingEcriture(true)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const { error } = await (supabase as any).rpc('compta_generer_ecriture_facture', { p_facture_id: factureId })
     setGeneratingEcriture(false)
     if (error) {
@@ -1195,7 +1195,7 @@ export default function Facturation() {
     if (!selected || !relanceScenarioId) return
     const scenario = relancesScenarios.find(s => s.id === relanceScenarioId)
     if (!scenario) return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const db = supabase as any
     const { error } = await db.from('relances_historique').insert({
       facture_id: selected.id,
@@ -1245,7 +1245,7 @@ export default function Facturation() {
     const debit = parseFloat(journalForm.debit) || 0
     const credit = parseFloat(journalForm.credit) || 0
     if (!journalForm.libelle || !journalForm.compte || (debit === 0 && credit === 0)) return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const db = supabase as any
     const { data: inserted } = await db.from('compta_journal_manuel').insert({
       date: journalForm.date,
@@ -1259,14 +1259,14 @@ export default function Facturation() {
   }
 
   async function deleteJournalEntry(id: string) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     await (supabase as any).from('compta_journal_manuel').delete().eq('id', id)
     setEntries(prev => prev.filter(x => x.id !== id))
   }
 
   async function clearAllJournalEntries() {
     if (!confirm('Effacer toutes les écritures manuelles ?')) return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     await (supabase as any).from('compta_journal_manuel').delete().not('id', 'is', null)
     setEntries([])
   }

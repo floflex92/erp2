@@ -302,7 +302,7 @@ export default function Paie() {
         heures_sup_50: number | null
         jours_travailles: number | null
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const heuresResult = await (supabase as any)
         .from('v_heures_paie_mois')
         .select('heures_travail_total,heures_sup_25,heures_sup_50,jours_travailles')

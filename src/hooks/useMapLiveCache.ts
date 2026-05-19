@@ -61,7 +61,7 @@ export function clearMapLiveCache(): void {
  * Batch API calls avec debounce (max 1 appel par X ms)
  */
 export function createBatchScheduler(batchFn: (ids: string[]) => Promise<void>, delayMs = 3000) {
-  let pending = new Set<string>()
+  const pending = new Set<string>()
   let timer: number | null = null
 
   return {

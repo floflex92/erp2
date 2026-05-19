@@ -149,7 +149,7 @@ export default function PlanningAffreteur() {
 
     // Charger les détails OT depuis Supabase
     const otIds = [...new Set(rawContracts.map(c => c.otId))]
-    let otMap: Record<string, OtDetail> = {}
+    const otMap: Record<string, OtDetail> = {}
 
     if (otIds.length > 0) {
       const { data } = await supabase
@@ -213,7 +213,7 @@ export default function PlanningAffreteur() {
     void loadAll()
     const unsub = subscribeAffretementPortalUpdates(() => { void loadAll() })
     return unsub
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [profil?.id, user?.email])
 
   // ── actions ────────────────────────────────────────────────────────────────

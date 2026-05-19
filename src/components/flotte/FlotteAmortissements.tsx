@@ -311,7 +311,7 @@ export default function FlotteAmortissements({ vehicules, remorques }: FlotteAmo
           kmMensuels: p.kmMensuels ? Number(p.kmMensuels) : 5000,
         }
       })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [allAssets, params])
 
   const summary = useMemo(() => computeFleetDepreciationSummary(inputs), [inputs])

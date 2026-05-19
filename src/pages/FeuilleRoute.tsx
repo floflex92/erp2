@@ -753,7 +753,7 @@ export default function FeuilleRoute() {
 
     const ordersChannel = db
       .channel(`driver-route-orders-${conducteur?.id ?? 'all'}`)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       .on('postgres_changes' as any, {
         event: '*',
         schema: 'public',
@@ -773,7 +773,7 @@ export default function FeuilleRoute() {
 
     const stepsChannel = db
       .channel(`driver-route-steps-${conducteur?.id ?? 'all'}`)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       .on('postgres_changes' as any, {
         event: '*',
         schema: 'public',
@@ -789,7 +789,7 @@ export default function FeuilleRoute() {
 
     const historyChannel = db
       .channel(`driver-route-history-${conducteur?.id ?? 'all'}`)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       .on('postgres_changes' as any, {
         event: '*',
         schema: 'public',

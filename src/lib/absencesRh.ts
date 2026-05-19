@@ -117,7 +117,7 @@ export const STATUTS_ABSENCE_ACTIFS: StatutAbsence[] = [
 
 export async function fetchAbsencesRh(employeId?: string): Promise<AbsenceRh[]> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     let query = (supabase as any).from('absences_rh').select('*').order('date_debut', { ascending: false })
     if (employeId) query = query.eq('employe_id', employeId)
     const { data, error } = await query
@@ -134,7 +134,7 @@ export async function fetchAbsencesValideesPeriode(
   periodeFin: string,
 ): Promise<AbsenceRh[]> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const { data, error } = await (supabase as any)
       .from('absences_rh')
       .select('*')
@@ -162,7 +162,7 @@ export async function fetchAllAbsencesValideesPeriode(
   const result = new Map<string, AbsenceRh[]>()
   if (employeIds.length === 0) return result
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const { data, error } = await (supabase as any)
       .from('absences_rh')
       .select('*')
@@ -186,7 +186,7 @@ export async function fetchAllAbsencesValideesPeriode(
 export async function createAbsenceRh(
   absence: Omit<AbsenceRh, 'id' | 'created_at' | 'updated_at'>,
 ): Promise<AbsenceRh> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const { data, error } = await (supabase as any)
     .from('absences_rh')
     .insert([absence])
@@ -201,7 +201,7 @@ export async function updateAbsenceRh(
   id: string,
   patch: Partial<AbsenceRh>,
 ): Promise<AbsenceRh> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const { data, error } = await (supabase as any)
     .from('absences_rh')
     .update({ ...patch, updated_at: new Date().toISOString() })
@@ -215,7 +215,7 @@ export async function updateAbsenceRh(
 
 export async function deleteAbsenceRh(id: string): Promise<boolean> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const { error } = await (supabase as any).from('absences_rh').delete().eq('id', id)
     return !error
   } catch {
@@ -230,7 +230,7 @@ export async function fetchSoldeAbsences(
   annee: number,
 ): Promise<SoldeAbsences | null> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const { data } = await (supabase as any)
       .from('soldes_absences')
       .select('*')
@@ -247,7 +247,7 @@ export async function upsertSoldeAbsences(
   solde: Omit<SoldeAbsences, 'id'>,
 ): Promise<SoldeAbsences | null> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const { data, error } = await (supabase as any)
       .from('soldes_absences')
       .upsert(solde, { onConflict: 'employe_id,annee' })

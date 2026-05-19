@@ -221,7 +221,7 @@ export default function PlanningConducteur() {
 
       // Véhicules
       const vehiculeIds = [...new Set(otList.map(o => o.vehicule_id).filter(Boolean))]
-      let vehiculeMap: Record<string, string> = {}
+      const vehiculeMap: Record<string, string> = {}
       if (vehiculeIds.length > 0) {
         const { data: vData } = await supabase
           .from('vehicules')
@@ -234,7 +234,7 @@ export default function PlanningConducteur() {
 
       // Étapes (villes chargement + livraison)
       const otIds = otList.map(o => o.id)
-      let stepsMap: Record<string, { chargement: string | null; livraison: string | null }> = {}
+      const stepsMap: Record<string, { chargement: string | null; livraison: string | null }> = {}
       if (otIds.length > 0) {
         const { data: steps } = await supabase
           .from('etapes_mission')
@@ -275,7 +275,7 @@ export default function PlanningConducteur() {
 
   useEffect(() => {
     void load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [profil])
 
   // ── Absences : chargement ─────────────────────────────────────────────────

@@ -678,7 +678,7 @@ function ModalAttestation({
       setLoadingMonthly(false)
     }
     void load()
-  }, [conducteur.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [conducteur.id])
 
   // Données mensuelles calculées depuis les entrées réelles (fallback sur estimation si vide)
   const conduiteTotaleReelle = monthlyEntries

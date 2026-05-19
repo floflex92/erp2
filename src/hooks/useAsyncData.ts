@@ -149,7 +149,7 @@ export function useAsyncData<T>(
         setStatus('error')
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
     [cacheKey, ttl, skip],
   )
 
