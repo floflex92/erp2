@@ -537,61 +537,79 @@ export default function Dashboard() {
   const selectedWidgetDef = roleWidgets.find(widget => widget.id === selectedWidgetIdSafe) ?? null
   const selectedWidgetSize = selectedWidgetDef ? getWidgetSize(selectedWidgetDef.id, selectedWidgetDef.colSpan) : 'half'
 
+  const cockpitHeaderStyle: React.CSSProperties = {
+    background: 'color-mix(in srgb, var(--surface) 88%, var(--surface-soft) 12%)',
+    border: '1px solid var(--border)',
+    boxShadow: '0 1px 1px rgba(15, 23, 42, 0.04), 0 10px 24px rgba(15, 23, 42, 0.05)',
+  }
+
   return (
-    <div className="space-y-6 p-5 md:p-6">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold" style={{ color: 'var(--text-heading)' }}>Cockpit decisionnel</h1>
-          <p className="mt-0.5 text-sm" style={{ color: 'var(--text-secondary)' }}>Vue priorisee {ROLE_LABELS[currentRole] ?? currentRole}</p>
+    <div className="nx-dashboard-page nx-cockpit-minimal space-y-5 p-4 sm:p-5 md:space-y-6 md:p-6">
+      <div className="flex flex-col gap-4 rounded-3xl px-4 py-4 md:px-5" style={cockpitHeaderStyle}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-discreet">NEXORA Operations</p>
+            <h1 className="text-xl font-semibold" style={{ color: 'var(--text-heading)' }}>Cockpit decisionnel</h1>
+            <p className="mt-0.5 text-sm" style={{ color: 'var(--text-secondary)' }}>Vue priorisee {ROLE_LABELS[currentRole] ?? currentRole}</p>
+          </div>
+          <div className="hidden rounded-full border border-line-strong bg-surface px-3 py-1 text-xs font-semibold text-secondary md:inline-flex">
+            Priorites · decisions · execution
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {isCustomizing && hiddenIds.length > 0 && <span className="text-xs text-discreet">{hiddenIds.length} widget(s) retire(s) de l accueil</span>}
-          {isCustomizing && (
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <div>
+            <p className="text-xs text-secondary">Personnalisez vos widgets sans casser la lecture metier principale.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {isCustomizing && hiddenIds.length > 0 && <span className="text-xs text-discreet">{hiddenIds.length} widget(s) retire(s) de l accueil</span>}
+            {isCustomizing && (
+              <button
+                onClick={() => setMenuOpen(v => !v)}
+                className={`nx-btn rounded-xl px-3 py-2 text-xs font-medium ${menuOpen ? 'nx-btn-primary' : ''}`}
+              >
+                Menu personnalisation
+              </button>
+            )}
             <button
-              onClick={() => setMenuOpen(v => !v)}
-              className={`nx-btn rounded-xl px-3 py-2 text-xs font-medium ${menuOpen ? 'nx-btn-primary' : ''}`}
+              onClick={() => {
+                setIsCustomizing(v => {
+                  if (v) {
+                    setMenuOpen(false)
+                    dragSourceRef.current = null
+                    setDraggedWidgetId(null)
+                    setDropTarget(null)
+                    setGalleryDropTarget(null)
+                  }
+                  return !v
+                })
+              }}
+              className={`nx-btn flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium ${
+                isCustomizing
+                  ? 'nx-btn-primary'
+                  : ''
+              }`}
             >
-              Menu personnalisation
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              {isCustomizing ? 'Terminer' : 'Personnaliser'}
             </button>
-          )}
-          <button
-            onClick={() => {
-              setIsCustomizing(v => {
-                if (v) {
-                  setMenuOpen(false)
-                  dragSourceRef.current = null
-                  setDraggedWidgetId(null)
-                  setDropTarget(null)
-                  setGalleryDropTarget(null)
-                }
-                return !v
-              })
-            }}
-            className={`nx-btn flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium ${
-              isCustomizing
-                ? 'nx-btn-primary'
-                : ''
-            }`}
-          >
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-            {isCustomizing ? 'Terminer' : 'Personnaliser'}
-          </button>
+          </div>
         </div>
       </div>
       {isCustomizing && (
         <div className="grid gap-4 lg:grid-cols-3">
-          <div className="nx-card rounded-[26px] px-4 py-4 text-sm lg:col-span-2" style={{ borderColor: 'var(--border)', background: 'linear-gradient(145deg, color-mix(in srgb, var(--surface-soft) 80%, #ffffff 20%), color-mix(in srgb, var(--surface) 88%, #dbeafe 12%))', color: 'var(--text-secondary)' }}>
-            <span className="font-semibold text-[color:var(--primary)]">Mode widgets style iPhone</span>
-            {' '}Ajoutez, retirez, redimensionnez et reordonnez vos widgets avec une galerie visuelle. Le glisser-deposer reste disponible pour l ordre.
+          <div className="nx-card rounded-[20px] px-4 py-4 text-sm lg:col-span-2" style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)' }}>
+            <span className="font-semibold text-[color:var(--text-heading)]">Personnalisation cockpit</span>
+            {' '}Ajoutez, retirez, redimensionnez et reordonnez vos widgets avec une galerie simple et lisible.
           </div>
 
           {menuOpen && (
-            <div className="nx-card rounded-[26px] p-3 lg:col-span-1" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+            <div className="nx-card rounded-[20px] p-3 lg:col-span-1" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
               <div className="mb-3 flex items-center justify-between">
-                <p className="text-sm font-semibold" style={{ color: 'var(--text-heading)' }}>Collection</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--text-heading)' }}>Bibliotheque</p>
                 <span className="text-xs text-discreet">{visibleIds.length}/{orderedIds.length}</span>
               </div>
 
@@ -623,14 +641,14 @@ export default function Dashboard() {
                           disabled={isFirst}
                           className="nx-btn rounded-lg px-2 py-1 text-[11px] disabled:opacity-50"
                         >
-                          Monter
+                          Haut
                         </button>
                         <button
                           onClick={() => updatePrefs(moveWidget(prefs, id, 'down'))}
                           disabled={isLast}
                           className="nx-btn rounded-lg px-2 py-1 text-[11px] disabled:opacity-50"
                         >
-                          Descendre
+                          Bas
                         </button>
                       </div>
                       <div className="mt-2 flex items-center gap-1">
@@ -677,7 +695,7 @@ export default function Dashboard() {
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold text-heading">Mes widgets</p>
-                          <p className="text-xs text-secondary">Maintenez puis glissez pour reordonner comme sur l ecran d accueil Apple.</p>
+                          <p className="text-xs text-secondary">Maintenez puis glissez pour reordonner vos priorites.</p>
                         </div>
                         <span className="rounded-full bg-surface-2 px-3 py-1 text-[11px] font-semibold text-foreground">{visibleIds.length} visibles</span>
                       </div>
@@ -698,11 +716,11 @@ export default function Dashboard() {
                               onDragOver={event => handleGalleryDragOver(id, event)}
                               onDrop={event => handleGalleryDrop(id, event)}
                               onDragEnd={() => handleDragEnd()}
-                              className={`rounded-[24px] border p-3 text-left transition-all ${isSelected ? 'border-blue-300 bg-blue-50 shadow-sm' : 'border-[color:var(--border)] bg-surface'} ${draggedWidgetId === id ? 'opacity-50 scale-[0.98]' : ''} ${isDropTarget ? 'ring-2 ring-[color:var(--primary)] ring-offset-2 shadow-[0_0_0_6px_rgba(37,99,235,0.08)]' : ''}`}
+                              className={`rounded-[24px] border p-3 text-left transition-all ${isSelected ? 'border-[color:var(--primary)] bg-[color:var(--primary-soft)] shadow-sm' : 'border-[color:var(--border)] bg-surface'} ${draggedWidgetId === id ? 'opacity-50 scale-[0.98]' : ''} ${isDropTarget ? 'ring-2 ring-[color:var(--primary)] ring-offset-2' : ''}`}
                             >
                               <div className="mb-3 flex items-center justify-between gap-2">
                                 <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-secondary">{WIDGET_SIZE_LABEL[size]}</span>
-                                <span className="text-[11px] font-semibold text-discreet">Glisser</span>
+                                <span className="text-[11px] font-semibold text-discreet">Deplacer</span>
                               </div>
                               <WidgetPreviewCard widget={def} size={size} tone={widgetTone} />
                             </button>
@@ -710,7 +728,7 @@ export default function Dashboard() {
                         })}
                       </div>
                       <div className="mt-3 rounded-2xl border border-dashed border-line-strong bg-surface-soft/80 px-4 py-3 text-xs text-secondary">
-                        Astuce: glissez un widget sur un autre pour l inserer a sa place. Le halo bleu indique la future position.
+                        Astuce: glissez un widget sur un autre pour l inserer a sa place.
                       </div>
                     </div>
                   )}
@@ -725,7 +743,7 @@ export default function Dashboard() {
                         <button
                           type="button"
                           onClick={() => setWidgetVisibility(selectedWidgetDef.id, false)}
-                          className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white"
+                          className="rounded-full bg-[color:var(--text-heading)] px-4 py-2 text-xs font-semibold text-white"
                         >
                           Retirer de l accueil
                         </button>
@@ -747,7 +765,7 @@ export default function Dashboard() {
                     <div className="mt-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div>
                         <p className="text-sm font-semibold text-heading">Taille du widget</p>
-                        <p className="text-xs text-secondary">Comme sur Apple: choisissez le format avant de revenir au cockpit.</p>
+                        <p className="text-xs text-secondary">Choisissez le format puis revenez au cockpit.</p>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {WIDGET_SIZE_ORDER.map(size => {
@@ -757,7 +775,7 @@ export default function Dashboard() {
                               key={size}
                               type="button"
                               onClick={() => setWidgetSize(selectedWidgetDef.id, size)}
-                              className={`rounded-full px-4 py-2 text-xs font-semibold transition-colors ${isActive ? 'bg-[color:var(--primary)] text-white' : 'bg-surface-2 text-foreground hover:bg-slate-200'}`}
+                              className={`rounded-full px-4 py-2 text-xs font-semibold transition-colors ${isActive ? 'bg-[color:var(--primary)] text-white' : 'bg-surface-2 text-foreground hover:bg-[color:var(--surface-elevated)]'}`}
                             >
                               {WIDGET_SIZE_LABEL[size]}
                             </button>
@@ -814,13 +832,13 @@ export default function Dashboard() {
                       key={widget.id}
                       type="button"
                       onClick={() => setSelectedWidgetId(widget.id)}
-                      className={`flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-left transition-colors ${isSelected ? 'border-blue-300 bg-blue-50' : 'border-[color:var(--border)] bg-[color:var(--surface)] hover:bg-surface-soft'}`}
+                      className={`flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-left transition-colors ${isSelected ? 'border-[color:var(--primary)] bg-[color:var(--primary-soft)]' : 'border-[color:var(--border)] bg-[color:var(--surface)] hover:bg-surface-soft'}`}
                     >
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-heading">{widget.title}</p>
                         <p className="truncate text-xs text-secondary">{widget.subtitle}</p>
                       </div>
-                      <span className={`ml-3 rounded-full px-2.5 py-1 text-[11px] font-semibold ${isVisible ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-2 text-secondary'}`}>
+                      <span className={`ml-3 rounded-full px-2.5 py-1 text-[11px] font-semibold ${isVisible ? 'bg-[color:var(--status-success-bg)] text-[color:var(--status-success-text)]' : 'bg-surface-2 text-secondary'}`}>
                         {isVisible ? 'Ajoute' : 'Masque'}
                       </span>
                     </button>
@@ -849,7 +867,7 @@ export default function Dashboard() {
           </button>
         </div>
       ) : (
-        <div className="grid auto-rows-min grid-cols-3 gap-5">
+        <div className="nx-dashboard-grid grid auto-rows-min grid-cols-3 gap-4 md:gap-5">
           {visibleIds.map((id, idx) => {
             const def = WIDGET_REGISTRY.find(w => w.id === id)
             if (!def) return null
@@ -883,6 +901,7 @@ export default function Dashboard() {
                 onDragEnd={handleDragEnd}
                 isDragging={draggedWidgetId === id}
                 dropPosition={isDropTarget}
+                motionIndex={idx}
               >
                 <Suspense fallback={<div className="h-28 animate-pulse rounded-xl bg-surface-2" aria-hidden="true" />}>
                   <Component />

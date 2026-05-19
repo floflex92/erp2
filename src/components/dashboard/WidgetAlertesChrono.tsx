@@ -13,8 +13,8 @@ interface AlerteRow {
 
 function urgencyColor(days: number | null) {
   if (days === null) return { row: 'bg-surface-soft', badge: 'nx-status-warning' }
-  if (days <= 7) return { row: 'bg-red-50', badge: 'nx-status-error' }
-  if (days <= 30) return { row: 'bg-amber-50', badge: 'nx-status-warning' }
+  if (days <= 7) return { row: 'bg-[color:var(--status-error-bg)]', badge: 'nx-status-error' }
+  if (days <= 30) return { row: 'bg-[color:var(--status-warning-bg)]', badge: 'nx-status-warning' }
   return { row: 'bg-surface-soft', badge: 'nx-status-success' }
 }
 
@@ -86,16 +86,16 @@ export function WidgetAlertesChrono() {
   }
 
   return (
-    <div className="divide-y divide-slate-100">
+    <div className="nx-widget-list">
       {alertes.map((a, i) => {
         const c = urgencyColor(a.days_remaining)
         const conducteurName = a.conducteurs ? [a.conducteurs.prenom, a.conducteurs.nom].filter(Boolean).join(' ') : 'Conducteur inconnu'
         const icon = ALERT_ICONS[a.alert_type ?? ''] ?? '⚠️'
         return (
-          <div key={`${a.id}-${i}`} className={`flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-soft ${c.row}`}>
+          <div key={`${a.id}-${i}`} className={`nx-widget-list-item flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-soft ${c.row}`}>
             <span className="shrink-0 text-lg">{icon}</span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-slate-950">{conducteurName}</p>
+              <p className="truncate text-sm font-medium text-heading">{conducteurName}</p>
               <p className="truncate text-xs text-discreet">{a.label ?? a.alert_type ?? 'Alerte'}</p>
             </div>
             <div className="shrink-0 text-right">

@@ -148,8 +148,9 @@ function RouteFallback() {
 export default function AppErpShell() {
   return (
     <AuthProvider>
-      <Suspense fallback={<RouteFallback />}>
-        <Routes>
+      <div className="nx-erp-minimal">
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
           <Route path="login" element={<Login />} />
           <Route element={<RequireAuth />}>
             <Route path="demo-access" element={<DemoAccess />} />
@@ -222,8 +223,9 @@ export default function AppErpShell() {
           </Route>
           {/* Fallback ERP : redirige vers accueil public */}
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
+          </Routes>
+        </Suspense>
+      </div>
     </AuthProvider>
   )
 }

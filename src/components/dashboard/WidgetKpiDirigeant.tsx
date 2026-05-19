@@ -129,10 +129,7 @@ function PeriodSwitch({ value, onChange }: { value: Period; onChange: (p: Period
     { id: 'month', label: 'Mois' },
   ]
   return (
-    <div
-      className="inline-flex items-center gap-1 rounded-full p-1"
-      style={{ background: 'var(--surface-soft)', border: '1px solid var(--border)' }}
-    >
+    <div className="nx-tab-group">
       {items.map(item => {
         const active = item.id === value
         return (
@@ -140,12 +137,7 @@ function PeriodSwitch({ value, onChange }: { value: Period; onChange: (p: Period
             key={item.id}
             type="button"
             onClick={() => onChange(item.id)}
-            className="rounded-full px-3 py-1 text-xs font-semibold transition"
-            style={
-              active
-                ? { background: 'var(--primary)', color: '#ffffff', boxShadow: '0 2px 8px rgba(14,165,233,0.25)' }
-                : { color: 'var(--text-secondary)' }
-            }
+            className={`nx-tab-button ${active ? 'is-active' : ''}`}
           >
             {item.label}
           </button>
@@ -166,12 +158,12 @@ function Variation({ current, previous, invert = false }: { current: number; pre
   }
   const positive = invert ? pct < 0 : pct > 0
   const flat = Math.abs(pct) < 0.5
-  const color = flat ? 'var(--text-secondary)' : positive ? '#16a34a' : '#dc2626'
+  const color = flat ? 'var(--text-secondary)' : positive ? 'var(--status-success-text)' : 'var(--status-error-text)'
   const bg = flat
-    ? 'rgba(100,116,139,0.12)'
+    ? 'color-mix(in srgb, var(--text-discreet) 16%, transparent)'
     : positive
-      ? 'rgba(22,163,74,0.14)'
-      : 'rgba(220,38,38,0.14)'
+      ? 'var(--status-success-bg)'
+      : 'var(--status-error-bg)'
   const sign = pct > 0 ? '+' : ''
   return (
     <span
@@ -191,19 +183,12 @@ function HeaderKpi({
 }) {
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border p-4 sm:p-5"
+      className="nx-kpi-card rounded-2xl p-4 sm:p-5"
       style={{
-        borderColor: 'var(--border-strong)',
-        background:
-          'linear-gradient(135deg, color-mix(in srgb, var(--surface) 92%, transparent) 0%, color-mix(in srgb, var(--surface-elevated) 88%, transparent) 100%)',
-        boxShadow: '0 8px 22px -16px rgba(15, 23, 42, 0.45)',
+        borderColor: 'color-mix(in srgb, var(--border-strong) 86%, transparent)',
+        borderTop: `2px solid ${accent}`,
       }}
     >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-30"
-        style={{ background: accent, filter: 'blur(20px)' }}
-      />
       <div className="flex items-center justify-between gap-2">
         <p className="text-[10.5px] font-semibold uppercase tracking-[0.16em]" style={{ color: 'var(--text-secondary)' }}>
           {label}
@@ -227,8 +212,8 @@ function SectionTitle({ icon, title, subtitle, right }: { icon: string; title: s
       <div className="flex items-center gap-2.5">
         <span
           aria-hidden
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-sm"
-          style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}
+          className="flex h-7 min-w-7 items-center justify-center rounded-md border px-1.5 text-[10px] font-bold uppercase tracking-[0.1em]"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface-soft)', color: 'var(--text-secondary)' }}
         >
           {icon}
         </span>
@@ -255,10 +240,10 @@ function MiniStat({ label, value, tone = 'default', hint }: {
 }) {
   const colorMap: Record<string, { color: string; bg: string }> = {
     default: { color: 'var(--text-heading)', bg: 'var(--surface-soft)' },
-    success: { color: '#15803d', bg: 'rgba(22,163,74,0.10)' },
-    warning: { color: '#b45309', bg: 'rgba(217,119,6,0.12)' },
-    danger: { color: '#b91c1c', bg: 'rgba(220,38,38,0.12)' },
-    info: { color: '#1d4ed8', bg: 'rgba(37,99,235,0.10)' },
+    success: { color: 'var(--status-success-text)', bg: 'var(--status-success-bg)' },
+    warning: { color: 'var(--status-warning-text)', bg: 'var(--status-warning-bg)' },
+    danger: { color: 'var(--status-error-text)', bg: 'var(--status-error-bg)' },
+    info: { color: 'var(--primary)', bg: 'var(--primary-soft)' },
   }
   const t = colorMap[tone]
   return (
@@ -277,9 +262,9 @@ function AlertStrip({ items }: { items: { tone: 'danger' | 'warning' | 'info'; l
     return (
       <div
         className="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold"
-        style={{ borderColor: 'rgba(22,163,74,0.35)', background: 'rgba(22,163,74,0.10)', color: '#15803d' }}
+        style={{ borderColor: 'color-mix(in srgb, var(--status-success-text) 35%, transparent)', background: 'var(--status-success-bg)', color: 'var(--status-success-text)' }}
       >
-        <span aria-hidden>✓</span> Aucun probleme bloquant detecte
+        <span aria-hidden>OK</span> Aucun probleme bloquant detecte
       </div>
     )
   }
@@ -287,9 +272,21 @@ function AlertStrip({ items }: { items: { tone: 'danger' | 'warning' | 'info'; l
     <div className="flex flex-wrap gap-2">
       {items.map((it, i) => {
         const palette: Record<string, { c: string; b: string; bd: string }> = {
-          danger: { c: '#b91c1c', b: 'rgba(220,38,38,0.12)', bd: 'rgba(220,38,38,0.40)' },
-          warning: { c: '#b45309', b: 'rgba(217,119,6,0.12)', bd: 'rgba(217,119,6,0.40)' },
-          info: { c: '#1d4ed8', b: 'rgba(37,99,235,0.10)', bd: 'rgba(37,99,235,0.35)' },
+          danger: {
+            c: 'var(--status-error-text)',
+            b: 'var(--status-error-bg)',
+            bd: 'color-mix(in srgb, var(--status-error-text) 36%, transparent)',
+          },
+          warning: {
+            c: 'var(--status-warning-text)',
+            b: 'var(--status-warning-bg)',
+            bd: 'color-mix(in srgb, var(--status-warning-text) 36%, transparent)',
+          },
+          info: {
+            c: 'var(--primary)',
+            b: 'var(--primary-soft)',
+            bd: 'color-mix(in srgb, var(--primary) 36%, transparent)',
+          },
         }
         const p = palette[it.tone]
         return (
@@ -298,7 +295,7 @@ function AlertStrip({ items }: { items: { tone: 'danger' | 'warning' | 'info'; l
             className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-semibold"
             style={{ color: p.c, background: p.b, borderColor: p.bd }}
           >
-            <span aria-hidden>{it.tone === 'danger' ? '⚠' : it.tone === 'warning' ? '!' : 'ℹ'}</span>
+            <span aria-hidden>{it.tone === 'danger' ? 'AL' : it.tone === 'warning' ? 'AT' : 'IN'}</span>
             {it.label}
           </span>
         )
@@ -481,16 +478,16 @@ export function WidgetKpiDirigeant() {
 
       <AlertStrip items={alerts} />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <HeaderKpi label={`CA ${periodLabel(d.period)}`} value={fmtEur(d.ca)} hint="Chiffre d'affaires HT" current={d.ca} previous={d.caPrev} accent="#0ea5e9" />
-        <HeaderKpi label="Marge brute" value={`${d.tauxMarge.toFixed(1)}%`} hint={`${fmtEur(d.marge)} net`} current={d.tauxMarge} previous={d.tauxMargePrev} accent="#22c55e" />
-        <HeaderKpi label="Taux de service" value={`${d.tauxService.toFixed(1)}%`} hint={`${d.livraisons}/${Math.max(d.livraisons + d.retards + d.nonLivres, 1)} OT livres`} current={d.tauxService} previous={d.tauxServicePrev} accent="#f59e0b" />
-        <HeaderKpi label="Retards en cours" value={fmtNum(d.retards)} hint={d.retards > 0 ? 'Action requise' : 'Aucun retard'} current={d.retards} previous={0} invert accent={d.retards > 0 ? '#ef4444' : '#22c55e'} />
+      <div className="nx-kpi-grid lg:grid-cols-4">
+        <HeaderKpi label={`CA ${periodLabel(d.period)}`} value={fmtEur(d.ca)} hint="Chiffre d'affaires HT" current={d.ca} previous={d.caPrev} accent="var(--primary)" />
+        <HeaderKpi label="Marge brute" value={`${d.tauxMarge.toFixed(1)}%`} hint={`${fmtEur(d.marge)} net`} current={d.tauxMarge} previous={d.tauxMargePrev} accent="var(--status-success-text)" />
+        <HeaderKpi label="Taux de service" value={`${d.tauxService.toFixed(1)}%`} hint={`${d.livraisons}/${Math.max(d.livraisons + d.retards + d.nonLivres, 1)} OT livres`} current={d.tauxService} previous={d.tauxServicePrev} accent="var(--status-warning-text)" />
+        <HeaderKpi label="Retards en cours" value={fmtNum(d.retards)} hint={d.retards > 0 ? 'Action requise' : 'Aucun retard'} current={d.retards} previous={0} invert accent={d.retards > 0 ? 'var(--status-error-text)' : 'var(--status-success-text)'} />
       </div>
 
       <Block>
         <SectionTitle
-          icon="📈"
+          icon="OP"
           title="Performance operationnelle"
           subtitle="CA et OT — 30 derniers jours"
           right={
@@ -514,7 +511,7 @@ export function WidgetKpiDirigeant() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Block>
-          <SectionTitle icon="🚛" title="Flotte" subtitle="Utilisation et alertes" />
+          <SectionTitle icon="FL" title="Flotte" subtitle="Utilisation et alertes" />
           <Suspense fallback={<div className="h-40 animate-pulse rounded-xl" style={{ background: 'var(--surface-soft)' }} />}>
             <CockpitCharts kind="fleet" donut={[{ label: 'En mission', value: d.vehiculesEnMission }, { label: "A l'arret", value: d.vehiculesArret }]} />
           </Suspense>
@@ -525,7 +522,7 @@ export function WidgetKpiDirigeant() {
         </Block>
 
         <Block>
-          <SectionTitle icon="💼" title="Activite commerciale" subtitle="Clients et dependance" />
+          <SectionTitle icon="CL" title="Activite commerciale" subtitle="Clients et dependance" />
           <div className="grid grid-cols-2 gap-2">
             <MiniStat label="Clients actifs" value={d.clientsActifs} tone="info" />
             <MiniStat label="Nouveaux" value={d.nouveauxClients} tone="success" hint={periodLabel(d.period)} />
@@ -554,7 +551,7 @@ export function WidgetKpiDirigeant() {
         </Block>
 
         <Block>
-          <SectionTitle icon="💰" title="Financier" subtitle="Repartition des charges" />
+          <SectionTitle icon="FI" title="Financier" subtitle="Repartition des charges" />
           <Suspense fallback={<div className="h-40 animate-pulse rounded-xl" style={{ background: 'var(--surface-soft)' }} />}>
             <CockpitCharts kind="finance" donut={d.repartitionCharges} />
           </Suspense>

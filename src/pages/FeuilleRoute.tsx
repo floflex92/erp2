@@ -457,23 +457,22 @@ export default function FeuilleRoute() {
     setError(null)
 
     try {
-      const [conducteursRes, profilsRes, clientsRes, vehiculesRes, ordersRes] = await Promise.all([
-        listUnifiedConducteurs(undefined, { activeOnly: true }),
+      const conducteursRes = await listUnifiedConducteurs(undefined, { activeOnly: true }).catch(() => [] as ConducteurLite[])
+      const [profilsRes, clientsRes, vehiculesRes, ordersRes] = await Promise.all([
         supabase.from('profils').select('id,role,nom,prenom').eq('role', 'conducteur'),
         supabase.from('clients').select('id,nom'),
         supabase.from('vehicules').select('id,immatriculation,marque,modele'),
         supabase.from('ordres_transport').select('*').order('date_chargement_prevue', { ascending: true, nullsFirst: false }),
       ])
 
-      if (profilsRes.error) throw profilsRes.error
-      if (clientsRes.error) throw clientsRes.error
-      if (vehiculesRes.error) throw vehiculesRes.error
+      // Les tables annexes peuvent etre restreintes selon role/tenant (RLS).
+      // On degrade gracieusement au lieu de bloquer toute la page.
       if (ordersRes.error) throw ordersRes.error
 
       const conducteurs = conducteursRes as ConducteurLite[]
-      const profilsConducteur = (profilsRes.data ?? []) as ProfilLite[]
-      const clientRows = (clientsRes.data ?? []) as ClientLite[]
-      const vehicules = (vehiculesRes.data ?? []) as VehiculeLite[]
+      const profilsConducteur = profilsRes.error ? [] : (profilsRes.data ?? []) as ProfilLite[]
+      const clientRows = clientsRes.error ? [] : (clientsRes.data ?? []) as ClientLite[]
+      const vehicules = vehiculesRes.error ? [] : (vehiculesRes.data ?? []) as VehiculeLite[]
       const allOrders = (ordersRes.data ?? []) as OT[]
 
       const profileEmail = normalizeIdentity(profil?.email)
@@ -528,10 +527,8 @@ export default function FeuilleRoute() {
             .order('created_at', { ascending: false }),
         ])
 
-        if (stepsRes.error) throw stepsRes.error
-        if (historyRes.error) throw historyRes.error
-        nextSteps = (stepsRes.data ?? []) as EtapeMission[]
-        nextHistory = (historyRes.data ?? []) as HistoriqueStatut[]
+        if (!stepsRes.error) nextSteps = (stepsRes.data ?? []) as EtapeMission[]
+        if (!historyRes.error) nextHistory = (historyRes.data ?? []) as HistoriqueStatut[]
       }
 
       const groupedSteps: Record<string, EtapeMission[]> = {}

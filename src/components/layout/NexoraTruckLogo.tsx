@@ -35,13 +35,13 @@ export default function NexoraTruckLogo({
   const palette = dark
     ? {
         subtitle: 'rgba(226, 232, 240, 0.78)',
-        truck: '#0EA5E9',
-        logo: '/site/logo/brand/nexora-logo-light.webp',
+        truck: '#60A5FA',
+        logo: '/site/logo/brand/nexora-logo-light.png',
       }
     : {
         subtitle: '#475569',
         truck: '#1F4E8C',
-        logo: '/site/logo/brand/nexora-logo-dark.webp',
+        logo: '/site/logo/brand/nexora-logo-dark.png',
       }
 
   const scale = SIZE_MAP[size]
@@ -50,6 +50,12 @@ export default function NexoraTruckLogo({
     <div className={`flex items-center ${scale.gap} ${className}`.trim()}>
       <img
         src={palette.logo}
+        onError={(e) => {
+          const img = e.currentTarget as HTMLImageElement
+          if (img.src.endsWith('.png')) {
+            img.src = dark ? '/site/logo/brand/nexora-logo-light.webp' : '/site/logo/brand/nexora-logo-dark.webp'
+          }
+        }}
         alt="NEXORA"
         className={`${scale.logo} w-auto object-contain`.trim()}
         loading="eager"

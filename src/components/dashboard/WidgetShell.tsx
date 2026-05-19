@@ -24,6 +24,7 @@ interface Props {
   dropPosition?: 'before' | 'after' | null
   isSelected?: boolean
   onSelect?: () => void
+  motionIndex?: number
 }
 
 export function WidgetShell({
@@ -47,6 +48,7 @@ export function WidgetShell({
   dropPosition = null,
   isSelected = false,
   onSelect,
+  motionIndex = 0,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false)
 
@@ -62,11 +64,12 @@ export function WidgetShell({
     <div
       className={`${colClass} relative nx-card nx-widget-shell flex flex-col overflow-hidden transition-[opacity,transform,box-shadow,border-color] duration-150 ${
         isCustomizing ? 'nx-widget-editing cursor-grab active:cursor-grabbing' : ''
-      } ${isDragging ? 'opacity-55 scale-[0.99]' : ''} ${isSelected ? 'nx-widget-selected' : ''}`}
+      } ${!isCustomizing ? 'nx-widget-appear' : ''} ${isDragging ? 'opacity-55 scale-[0.99]' : ''} ${isSelected ? 'nx-widget-selected' : ''}`}
       style={{
         borderColor: 'var(--border)',
         background: 'var(--surface)',
         boxShadow: dropGlow ? `${dropGlow}, var(--shadow-card)` : 'var(--shadow-card)',
+        animationDelay: !isCustomizing ? `${Math.min(motionIndex * 30, 240)}ms` : undefined,
         viewTransitionName: widgetId ? `widget-${widgetId}` : undefined,
       }}
       data-widget-id={widgetId}
@@ -80,7 +83,7 @@ export function WidgetShell({
       {isCustomizing && (
         <div
           className="flex items-center justify-between gap-3 border-b px-4 py-3"
-          style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--surface-soft) 78%, white 22%)' }}
+          style={{ borderColor: 'var(--border)', background: 'var(--surface-soft)' }}
         >
           <div className="flex items-center gap-2">
             {onHide && (
@@ -90,22 +93,23 @@ export function WidgetShell({
                   event.stopPropagation()
                   onHide()
                 }}
-                className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-white/80 bg-[radial-gradient(circle_at_30%_30%,#ff9d96_0%,#ff6157_58%,#ea4335_100%)] text-white shadow-lg shadow-red-200/80 transition-all hover:scale-105 hover:shadow-xl"
+                className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full border text-foreground transition-colors hover:bg-surface"
+                style={{ borderColor: 'var(--border)' }}
                 title="Retirer le widget"
               >
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
                   <path d="M5 12h14" />
                 </svg>
               </button>
             )}
-            <span className="rounded-full border border-white/80 bg-surface/95 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-discreet shadow-sm backdrop-blur-sm">
-              Glisser
+            <span className="rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-discreet" style={{ borderColor: 'var(--border)' }}>
+              Modifier
             </span>
           </div>
 
           <div className="flex items-center gap-2">
             {(onShrink || onGrow) && (
-              <div className="flex items-center gap-1 rounded-full border border-white/80 bg-surface/96 px-1.5 py-1 shadow-lg shadow-slate-200/80 backdrop-blur-sm">
+              <div className="flex items-center gap-1 rounded-full border bg-surface px-1.5 py-1" style={{ borderColor: 'var(--border)' }}>
                 {onShrink && (
                   <button
                     type="button"
@@ -114,7 +118,7 @@ export function WidgetShell({
                       onShrink()
                     }}
                     disabled={!canShrink}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-foreground transition-all hover:bg-surface-2 hover:shadow-sm disabled:opacity-35"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-foreground transition-all hover:bg-surface-2 disabled:opacity-35"
                     title="Reduire"
                   >
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
@@ -131,7 +135,7 @@ export function WidgetShell({
                       onGrow()
                     }}
                     disabled={!canGrow}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-foreground transition-all hover:bg-surface-2 hover:shadow-sm disabled:opacity-35"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-foreground transition-all hover:bg-surface-2 disabled:opacity-35"
                     title="Agrandir"
                   >
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">

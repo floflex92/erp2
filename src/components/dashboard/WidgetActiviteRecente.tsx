@@ -13,21 +13,21 @@ interface OTRow {
 const STATUT_META: Record<string, { label: string; icon: string; color: string }> = {
   // legacy statut
   brouillon: { label: 'Brouillon cree', icon: '📝', color: 'text-discreet' },
-  confirme: { label: 'Confirme', icon: '✅', color: 'text-blue-700' },
-  en_cours: { label: 'En route', icon: '🚛', color: 'text-blue-700' },
-  livre: { label: 'Livre', icon: '📦', color: 'text-green-700' },
+  confirme: { label: 'Confirme', icon: '✅', color: 'text-[color:var(--primary)]' },
+  en_cours: { label: 'En route', icon: '🚛', color: 'text-[color:var(--primary)]' },
+  livre: { label: 'Livre', icon: '📦', color: 'text-[color:var(--status-success-text)]' },
   facture: { label: 'Facture', icon: '🧾', color: 'text-foreground' },
-  annule: { label: 'Annule', icon: '❌', color: 'text-red-600' },
+  annule: { label: 'Annule', icon: '❌', color: 'text-[color:var(--status-error-text)]' },
   // statut_transport
   en_attente_validation: { label: 'En attente validation', icon: '📝', color: 'text-discreet' },
-  valide: { label: 'Valide', icon: '✅', color: 'text-blue-700' },
-  en_attente_planification: { label: 'A planifier', icon: '📋', color: 'text-indigo-600' },
-  planifie: { label: 'Planifie', icon: '📅', color: 'text-indigo-700' },
-  en_cours_approche_chargement: { label: 'En approche', icon: '🚛', color: 'text-amber-600' },
-  en_chargement: { label: 'En chargement', icon: '🚛', color: 'text-amber-600' },
-  en_transit: { label: 'En transit', icon: '🚛', color: 'text-blue-700' },
-  en_livraison: { label: 'En livraison', icon: '🚚', color: 'text-blue-700' },
-  termine: { label: 'Termine', icon: '📦', color: 'text-green-700' },
+  valide: { label: 'Valide', icon: '✅', color: 'text-[color:var(--primary)]' },
+  en_attente_planification: { label: 'A planifier', icon: '📋', color: 'text-[color:var(--text-secondary)]' },
+  planifie: { label: 'Planifie', icon: '📅', color: 'text-[color:var(--text-secondary)]' },
+  en_cours_approche_chargement: { label: 'En approche', icon: '🚛', color: 'text-[color:var(--status-warning-text)]' },
+  en_chargement: { label: 'En chargement', icon: '🚛', color: 'text-[color:var(--status-warning-text)]' },
+  en_transit: { label: 'En transit', icon: '🚛', color: 'text-[color:var(--primary)]' },
+  en_livraison: { label: 'En livraison', icon: '🚚', color: 'text-[color:var(--primary)]' },
+  termine: { label: 'Termine', icon: '📦', color: 'text-[color:var(--status-success-text)]' },
 }
 
 function timeAgo(iso: string) {
@@ -81,15 +81,15 @@ export function WidgetActiviteRecente() {
   }
 
   return (
-    <div className="divide-y divide-slate-100">
+    <div className="nx-widget-list">
       {rows.map(ot => {
         const meta = STATUT_META[ot.statut_transport ?? ot.statut] ?? { label: ot.statut_transport ?? ot.statut, icon: '•', color: 'text-discreet' }
         return (
-          <div key={ot.id} className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface-soft">
+          <div key={ot.id} className="nx-widget-list-item flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface-soft">
             <span className="shrink-0 text-base">{meta.icon}</span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="font-mono text-sm text-slate-950">{ot.reference}</span>
+                <span className="font-mono text-sm text-heading">{ot.reference}</span>
                 <span className={`text-xs ${meta.color}`}>{meta.label}</span>
               </div>
               <p className="truncate text-xs text-discreet">{ot.clients?.nom ?? '-'}</p>

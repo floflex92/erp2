@@ -154,18 +154,27 @@ export default function Login() {
   }
 
   const inputStyle: React.CSSProperties = {
-    border: '1px solid #DBE2EC',
-    borderRadius: '10px',
-    color: '#1B1B1B',
-    background: '#FFFFFF',
+    border: '1px solid var(--input-border)',
+    borderRadius: '12px',
+    color: 'var(--input-text)',
+    background: 'var(--input-bg)',
+  }
+
+  const panelStyle: React.CSSProperties = {
+    background: 'var(--surface-soft)',
+  }
+
+  const ctaStyle: React.CSSProperties = {
+    background: 'var(--brand-gradient)',
+    borderRadius: '12px',
   }
 
   return (
-    <div className="flex min-h-screen" style={{ background: '#F7F8FA' }}>
+    <div className="nx-login-page flex min-h-screen" style={{ background: 'var(--background)' }}>
       {/* ── Left: Dark immersive panel with truck image ── */}
       <div
         className="relative hidden w-1/2 overflow-hidden lg:block"
-        style={{ background: 'linear-gradient(180deg,#0A1024 0%,#0B132B 55%,#0A1024 100%)' }}
+        style={{ background: 'linear-gradient(180deg,#091A34 0%,#0B1F3A 55%,#08152A 100%)' }}
       >
         {/* Background truck image (darkened) */}
         <img
@@ -184,7 +193,7 @@ export default function Login() {
           className="absolute inset-0"
           style={{
             background:
-              'linear-gradient(90deg, rgba(6,11,24,0.92) 0%, rgba(6,11,24,0.78) 35%, rgba(6,11,24,0.35) 65%, rgba(6,11,24,0.55) 100%)',
+              'linear-gradient(90deg, rgba(7,18,36,0.92) 0%, rgba(8,20,40,0.8) 35%, rgba(8,20,40,0.38) 65%, rgba(7,18,36,0.62) 100%)',
           }}
         />
         {/* Top/bottom vignette */}
@@ -200,8 +209,8 @@ export default function Login() {
         <div className="absolute left-12 top-10 flex items-center gap-6">
           <Link to="/" aria-label="NEXORA accueil" className="inline-flex items-center">
             <img
-              src="/site/logo/brand/nexora-logo-light.webp"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/site/logo/brand/nexora-logo-dark.webp' }}
+              src="/site/logo/brand/nexora-logo-light.png"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/site/logo/brand/nexora-logo-light.webp' }}
               alt="NEXORA"
               className="h-9 w-auto object-contain"
             />
@@ -230,11 +239,11 @@ export default function Login() {
               Pilotez votre exploitation.{' '}
               <span
                 style={{
-                  background: 'linear-gradient(90deg,#38BDF8 0%,#60A5FA 55%,#22D3EE 100%)',
+                  background: 'linear-gradient(90deg,#60A5FA 0%,#3B82F6 55%,#2563EB 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text',
-                  filter: 'drop-shadow(0 2px 12px rgba(34,211,238,0.35))',
+                  filter: 'drop-shadow(0 2px 12px rgba(37,99,235,0.35))',
                 }}
               >
                 En toute simplicité.
@@ -265,11 +274,11 @@ export default function Login() {
                   <div
                     className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg"
                     style={{
-                      background: 'linear-gradient(135deg, rgba(56,189,248,0.22), rgba(34,211,238,0.15))',
-                      border: '1px solid rgba(56,189,248,0.35)',
+                      background: 'linear-gradient(135deg, rgba(59,130,246,0.24), rgba(37,99,235,0.18))',
+                      border: '1px solid rgba(96,165,250,0.35)',
                     }}
                   >
-                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="#7DD3FC" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="#93C5FD" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
                       {icon}
                     </svg>
                   </div>
@@ -294,39 +303,40 @@ export default function Login() {
       </div>
 
       {/* ── Right: Form ── */}
-      <div className="flex w-full flex-col items-center justify-center px-6 py-10 lg:w-1/2" style={{ paddingInline: 'clamp(24px, 5vw, 72px)', background: '#F5F7FA' }}>
-        <div className="w-full max-w-md">
+      <div className="nx-login-form-pane flex w-full flex-col items-center justify-center px-4 py-8 sm:px-6 sm:py-10 lg:w-1/2" style={{ paddingInline: 'clamp(16px, 4vw, 72px)', ...panelStyle }}>
+        <div className="nx-login-form-wrap w-full max-w-md">
           {/* Logo */}
           <Link to="/" className="inline-flex items-center" aria-label="NEXORA accueil">
             <img
-              src="/site/logo/brand/nexora-logo-dark.webp"
+              src="/site/logo/brand/nexora-logo-dark.png"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/site/logo/brand/nexora-logo-dark.webp' }}
               alt="NEXORA"
               className="h-9 w-auto object-contain"
               loading="eager"
               decoding="async"
             />
           </Link>
-          <p className="mt-1 text-sm" style={{ color: '#64748B' }}>Plateforme de gestion transport</p>
+          <p className="mt-1 text-sm" style={{ color: 'var(--text-discreet)' }}>Plateforme de gestion transport</p>
 
           {showDemo ? (
             /* ── Panneau Essai gratuit ──────────────────────────────────────── */
             <>
-              <h1 className="mt-10 text-3xl font-bold" style={{ color: '#0B1F3A' }}>
+              <h1 className="nx-login-title mt-8 text-3xl font-bold" style={{ color: 'var(--text-heading)' }}>
                 Accès démo
               </h1>
-              <p className="mt-2" style={{ color: '#475569', fontSize: '16px' }}>
+              <p className="mt-2" style={{ color: 'var(--text-secondary)', fontSize: '16px' }}>
                 Entrez votre email pour accéder à l'ERP en mode découverte — sans mot de passe.
               </p>
 
               {demoStatus === 'success' ? (
-                <div className="mt-10 rounded-xl px-6 py-8 text-center" style={{ background: '#F0FDF4', border: '1px solid #86EFAC' }}>
-                  <p className="text-base font-semibold" style={{ color: '#166534' }}>Connexion en cours…</p>
-                  <p className="mt-1 text-sm" style={{ color: '#15803D' }}>Vous allez être redirigé vers le tableau de bord.</p>
+                <div className="mt-10 rounded-xl px-6 py-8 text-center" style={{ background: 'var(--status-success-bg)', border: '1px solid color-mix(in srgb, var(--status-success-text) 34%, transparent)' }}>
+                  <p className="text-base font-semibold" style={{ color: 'var(--status-success-text)' }}>Connexion en cours...</p>
+                  <p className="mt-1 text-sm" style={{ color: 'var(--status-success-text)' }}>Vous allez etre redirige vers le tableau de bord.</p>
                 </div>
               ) : (
                 <form onSubmit={handleDemoSubmit} className="mt-10 grid gap-4">
                   <label className="grid gap-1.5">
-                    <span className="text-sm font-medium" style={{ color: '#1B1B1B' }}>Adresse email</span>
+                    <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>Adresse email</span>
                     <input
                       type="email"
                       value={demoEmail}
@@ -335,14 +345,14 @@ export default function Login() {
                       autoComplete="email"
                       autoFocus
                       placeholder="vous@entreprise.fr"
-                      className="w-full px-4 py-3 text-base outline-none transition-colors focus:border-[#1F4E8C]"
+                      className="w-full px-4 py-3 text-base outline-none transition-colors"
                       style={inputStyle}
                       disabled={demoStatus === 'loading'}
                     />
                   </label>
 
                   {demoError && (
-                    <div className="rounded-lg px-4 py-3 text-sm" style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA' }}>
+                    <div className="rounded-lg px-4 py-3 text-sm" style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', border: '1px solid color-mix(in srgb, var(--status-error-text) 28%, transparent)' }}>
                       {demoError}
                     </div>
                   )}
@@ -351,7 +361,7 @@ export default function Login() {
                     type="submit"
                     disabled={demoStatus === 'loading'}
                     className="mt-2 w-full py-3 text-sm font-semibold text-white transition-colors disabled:opacity-50"
-                    style={{ background: 'linear-gradient(135deg, #0B1F3A 0%, #1F4E8C 54%, #0EA5E9 100%)', borderRadius: '10px' }}
+                    style={ctaStyle}
                   >
                     {demoStatus === 'loading' ? 'Accès en cours…' : 'Accéder à la démo'}
                   </button>
@@ -368,8 +378,8 @@ export default function Login() {
                     setDemoStatus('idle')
                     setDemoError(null)
                   }}
-                  className="text-sm transition-colors hover:text-[#1D1D1F]"
-                  style={{ color: '#64748B' }}
+                  className="text-sm transition-colors hover:text-[color:var(--text)]"
+                  style={{ color: 'var(--text-discreet)' }}
                 >
                   ← Retour à la connexion
                 </button>
@@ -378,19 +388,19 @@ export default function Login() {
           ) : (
             /* ── Formulaire de connexion normal ─────────────────────────────── */
             <>
-              <h1 className="mt-10 text-3xl font-bold" style={{ color: '#0B1F3A' }}>
+              <h1 className="nx-login-title mt-8 text-3xl font-bold" style={{ color: 'var(--text-heading)' }}>
                 Connexion
               </h1>
-              <p className="mt-2" style={{ color: '#475569', fontSize: '16px' }}>
+              <p className="mt-2" style={{ color: 'var(--text-secondary)', fontSize: '16px' }}>
                 Accédez à votre espace de gestion NEXORA Truck.
               </p>
 
               {/* Email/Password form */}
               <form onSubmit={handleSubmit} className="mt-8 grid gap-4">
                 <label className="grid gap-1.5">
-                  <span className="text-sm font-medium" style={{ color: '#1B1B1B' }}>Adresse email</span>
+                  <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>Adresse email</span>
                   <div className="relative">
-                    <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2" fill="none" stroke="#94A3B8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2" fill="none" stroke="var(--text-discreet)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <rect x="3" y="5" width="18" height="14" rx="2" />
                       <path d="M3 7l9 6 9-6" />
                     </svg>
@@ -401,16 +411,16 @@ export default function Login() {
                       required
                       autoComplete="email"
                       placeholder="Votre adresse email"
-                      className="w-full pl-10 pr-4 py-3 text-base outline-none transition-colors focus:border-[#1F4E8C]"
+                      className="w-full pl-10 pr-4 py-3 text-base outline-none transition-colors"
                       style={inputStyle}
                     />
                   </div>
                 </label>
 
                 <label className="grid gap-1.5">
-                  <span className="text-sm font-medium" style={{ color: '#1B1B1B' }}>Mot de passe</span>
+                  <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>Mot de passe</span>
                   <div className="relative">
-                    <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2" fill="none" stroke="#94A3B8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2" fill="none" stroke="var(--text-discreet)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <rect x="4" y="10" width="16" height="11" rx="2" />
                       <path d="M8 10V7a4 4 0 118 0v3" />
                     </svg>
@@ -421,7 +431,7 @@ export default function Login() {
                       required
                       autoComplete="current-password"
                       placeholder="Votre mot de passe"
-                      className="w-full pl-10 pr-12 py-3 text-base outline-none transition-colors focus:border-[#1F4E8C]"
+                      className="w-full pl-10 pr-12 py-3 text-base outline-none transition-colors"
                       style={inputStyle}
                     />
                     <button
@@ -431,8 +441,8 @@ export default function Login() {
                         setShowPassword(v => !v)
                       }}
                       aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 transition-colors hover:text-[#1F4E8C]"
-                      style={{ color: '#94A3B8' }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 transition-colors hover:text-[color:var(--primary)]"
+                      style={{ color: 'var(--text-discreet)' }}
                     >
                       {showPassword ? (
                         <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -451,12 +461,13 @@ export default function Login() {
 
                 {/* Remember + forgot */}
                 <div className="flex items-center justify-between">
-                  <label className="inline-flex cursor-pointer items-center gap-2 text-sm" style={{ color: '#475569' }}>
+                  <label className="inline-flex cursor-pointer items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <input
                       type="checkbox"
                       checked={rememberMe}
                       onChange={e => setRememberMe(e.target.checked)}
-                      className="h-4 w-4 rounded border-line-strong accent-[#1F4E8C]"
+                      className="h-4 w-4 rounded border-line-strong"
+                      style={{ accentColor: 'var(--primary)' }}
                     />
                     Se souvenir de moi
                   </label>
@@ -464,7 +475,7 @@ export default function Login() {
                     type="button"
                     onClick={() => { setShowReset(true); setResetEmail(email); setResetStatus('idle'); setResetError(null) }}
                     className="text-sm font-semibold transition-colors hover:underline"
-                    style={{ color: '#1F4E8C' }}
+                    style={{ color: 'var(--primary)' }}
                   >
                     Mot de passe oublié ?
                   </button>
@@ -473,25 +484,25 @@ export default function Login() {
                 {/* ── Modal reset mot de passe ── */}
                 {showReset && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}>
-                    <div className="w-full max-w-sm rounded-2xl p-8 shadow-2xl" style={{ background: '#FFFFFF' }}>
-                      <h2 className="text-xl font-bold" style={{ color: '#0B1F3A' }}>Réinitialiser le mot de passe</h2>
+                    <div className="w-full max-w-sm rounded-2xl border p-8 shadow-2xl" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+                      <h2 className="text-xl font-bold" style={{ color: 'var(--text-heading)' }}>Reinitialiser le mot de passe</h2>
                       {resetStatus === 'sent' ? (
                         <>
-                          <p className="mt-4 text-sm leading-6" style={{ color: '#166534' }}>
-                            Un lien de réinitialisation a été envoyé à <strong>{resetEmail}</strong>. Vérifiez votre boîte mail (y compris les spams).
+                          <p className="mt-4 text-sm leading-6" style={{ color: 'var(--status-success-text)' }}>
+                            Un lien de reinitialisation a ete envoye a <strong>{resetEmail}</strong>. Verifiez votre boite mail (y compris les spams).
                           </p>
                           <button
                             type="button"
                             onClick={() => setShowReset(false)}
                             className="mt-6 w-full rounded-xl py-3 text-sm font-semibold text-white"
-                            style={{ background: 'linear-gradient(135deg,#0B1F3A,#1F4E8C)' }}
+                            style={ctaStyle}
                           >
                             Fermer
                           </button>
                         </>
                       ) : (
                         <form onSubmit={handleResetSubmit} className="mt-5 grid gap-4">
-                          <p className="text-sm leading-6" style={{ color: '#475569' }}>
+                          <p className="text-sm leading-6" style={{ color: 'var(--text-secondary)' }}>
                             Entrez votre adresse email. Vous recevrez un lien pour créer un nouveau mot de passe.
                           </p>
                           <input
@@ -502,11 +513,11 @@ export default function Login() {
                             value={resetEmail}
                             onChange={e => setResetEmail(e.target.value)}
                             className="w-full rounded-xl px-4 py-3 text-base outline-none transition-colors"
-                            style={{ border: '1px solid #DBE2EC', borderRadius: '10px', color: '#1B1B1B', background: '#FFFFFF' }}
+                            style={inputStyle}
                             disabled={resetStatus === 'loading'}
                           />
                           {resetError && (
-                            <p className="rounded-lg px-4 py-3 text-sm" style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA' }}>
+                            <p className="rounded-lg px-4 py-3 text-sm" style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', border: '1px solid color-mix(in srgb, var(--status-error-text) 28%, transparent)' }}>
                               {resetError}
                             </p>
                           )}
@@ -515,7 +526,7 @@ export default function Login() {
                               type="button"
                               onClick={() => setShowReset(false)}
                               className="flex-1 rounded-xl py-3 text-sm font-semibold transition-colors"
-                              style={{ border: '1px solid #E5E7EB', color: '#475569' }}
+                              style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
                             >
                               Annuler
                             </button>
@@ -523,9 +534,9 @@ export default function Login() {
                               type="submit"
                               disabled={resetStatus === 'loading'}
                               className="flex-1 rounded-xl py-3 text-sm font-semibold text-white disabled:opacity-60"
-                              style={{ background: 'linear-gradient(135deg,#0B1F3A,#1F4E8C)' }}
+                              style={ctaStyle}
                             >
-                              {resetStatus === 'loading' ? 'Envoi…' : 'Envoyer le lien'}
+                              {resetStatus === 'loading' ? 'Envoi...' : 'Envoyer le lien'}
                             </button>
                           </div>
                         </form>
@@ -535,7 +546,7 @@ export default function Login() {
                 )}
 
                 {error && (
-                  <div className="rounded-lg px-4 py-3 text-sm" style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA' }}>
+                  <div className="rounded-lg px-4 py-3 text-sm" style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', border: '1px solid color-mix(in srgb, var(--status-error-text) 28%, transparent)' }}>
                     {translateError(error)}
                   </div>
                 )}
@@ -544,7 +555,7 @@ export default function Login() {
                   type="submit"
                   disabled={submitting}
                   className="mt-2 inline-flex w-full items-center justify-center gap-2 py-3 text-sm font-semibold text-white transition-colors disabled:opacity-50"
-                  style={{ background: 'linear-gradient(135deg, #0B1F3A 0%, #1F4E8C 54%, #0EA5E9 100%)', borderRadius: '10px', boxShadow: '0 8px 24px -8px rgba(11,31,58,0.55)' }}
+                  style={{ ...ctaStyle, boxShadow: '0 8px 24px -8px rgba(11,31,58,0.55)' }}
                 >
                   <span>{submitting ? 'Connexion en cours...' : 'Se connecter'}</span>
                   {!submitting && (
@@ -557,7 +568,7 @@ export default function Login() {
 
               {/* Footer links */}
               <div className="mt-8 text-center">
-                <p className="text-sm" style={{ color: '#64748B' }}>
+                <p className="text-sm" style={{ color: 'var(--text-discreet)' }}>
                   Pas encore de compte ?{' '}
                   <button
                     type="button"
@@ -566,7 +577,7 @@ export default function Login() {
                       setShowDemo(true)
                     }}
                     className="font-semibold transition-colors hover:underline"
-                    style={{ color: '#1F4E8C' }}
+                    style={{ color: 'var(--primary)' }}
                   >
                     Essai gratuit
                   </button>
@@ -577,35 +588,35 @@ export default function Login() {
 
           {/* Trust strip */}
           <div
-            className="mt-10 rounded-2xl px-5 py-4"
-            style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 1px 2px rgba(15,23,42,0.04)' }}
+            className="nx-login-trust-strip mt-8 rounded-2xl px-4 py-4 sm:px-5"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)' }}
           >
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
               {([
                 ['Accès sécurisé', 'Vos données sont protégées.', (<><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 118 0v3" /></>)],
                 ['Disponibilité 24/7', 'Accédez à votre activité à tout moment.', (<><path d="M4 14a8 8 0 1016 0A8 8 0 004 14z" /><path d="M12 10v4l2 2" /></>)],
                 ['Support réactif', 'Notre équipe est là pour vous aider.', (<><path d="M4 14v-2a8 8 0 0116 0v2" /><rect x="3" y="14" width="4" height="6" rx="1.5" /><rect x="17" y="14" width="4" height="6" rx="1.5" /></>)],
               ] as const).map(([title, desc, icon]) => (
                 <div key={title} className="flex items-start gap-2.5">
-                  <svg viewBox="0 0 24 24" className="mt-0.5 h-4 w-4 flex-shrink-0" fill="none" stroke="#1F4E8C" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" className="mt-0.5 h-4 w-4 flex-shrink-0" fill="none" stroke="var(--primary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     {icon}
                   </svg>
                   <div>
-                    <p className="text-[11.5px] font-semibold leading-tight" style={{ color: '#0B1F3A' }}>{title}</p>
-                    <p className="mt-0.5 text-[10.5px] leading-[1.45]" style={{ color: '#64748B' }}>{desc}</p>
+                    <p className="text-[11.5px] font-semibold leading-tight" style={{ color: 'var(--text-heading)' }}>{title}</p>
+                    <p className="mt-0.5 text-[10.5px] leading-[1.45]" style={{ color: 'var(--text-discreet)' }}>{desc}</p>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="mt-6 grid gap-2 text-center text-xs" style={{ color: '#64748B' }}>
+          <div className="mt-6 grid gap-2 text-center text-xs" style={{ color: 'var(--text-discreet)' }}>
             <p>NEXORA Truck — Accès sécurisé</p>
             <div className="flex justify-center gap-3">
-              <Link to="/mentions-legales-public" className="underline underline-offset-2 transition-colors hover:text-[#1D1D1F]">
+              <Link to="/mentions-legales-public" className="underline underline-offset-2 transition-colors hover:text-[color:var(--text)]">
                 Mentions légales
               </Link>
-              <Link to="/politique-confidentialite" className="underline underline-offset-2 transition-colors hover:text-[#1D1D1F]">
+              <Link to="/politique-confidentialite" className="underline underline-offset-2 transition-colors hover:text-[color:var(--text)]">
                 Confidentialité
               </Link>
             </div>

@@ -433,35 +433,11 @@ export async function fetchToutesAlertes(): Promise<AlertesResult> {
 }
 
 /**
- * Compte rapide pour le badge sidebar Ops Center.
- * Ne prend en compte que les alertes TRANSPORT opérationnelles critiques :
- * retards en route, retards ops signalés, OTs actifs sans conducteur/véhicule.
- * Les alertes facturation (factures impayées, OTs non facturés) ne sont PAS
- * incluses ici — elles s'affichent dans l'onglet "Alertes auto" uniquement.
+ * Compte pour le badge global Ops Center (sidebar + topbar).
+ * Source de vérité unique : total des "Alertes auto" affiché dans Ops Center.
+ * Cela évite les écarts entre le badge global et le compteur dans la page.
  */
 export async function countAlertesActives(): Promise<number> {
-  const ST_TERMINE_ANNULE = '("termine","annule")'
-
-  const [r1, r2, r3] = await Promise.allSettled([
-    // 1. OTs en route avec date de livraison dépassée
-    supabase.from('ordres_transport').select('id', { count: 'exact', head: true })
-      .in('statut_transport', ['en_cours_approche_chargement', 'en_chargement', 'en_transit', 'en_livraison'])
-      .lt('date_livraison_prevue', new Date().toISOString())
-      .not('date_livraison_prevue', 'is', null),
-    // 2. OTs avec retard opérationnel déclaré
-    supabase.from('ordres_transport').select('id', { count: 'exact', head: true })
-      .in('statut_operationnel', ['retard_mineur', 'retard_majeur'])
-      .not('statut_transport', 'in', ST_TERMINE_ANNULE),
-    // 3. OTs actifs (valide/planifié) sans conducteur ou sans véhicule
-    supabase.from('ordres_transport').select('id', { count: 'exact', head: true })
-      .in('statut_transport', ['valide', 'planifie', 'en_attente_planification'])
-      .or('conducteur_id.is.null,vehicule_id.is.null')
-      .not('statut_transport', 'in', ST_TERMINE_ANNULE),
-  ])
-
-  // Déduplique : un OT peut être dans r1 ET r2, on prend le max par requête
-  const counts = [r1, r2, r3].map(r =>
-    r.status === 'fulfilled' ? (r.value.count ?? 0) : 0
-  )
-  return counts.reduce((a, b) => a + b, 0)
+  const result = await fetchToutesAlertes()
+  return result.total
 }

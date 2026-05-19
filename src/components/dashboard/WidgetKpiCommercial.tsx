@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ST_EN_COURS } from '@/lib/transportCourses'
+import type { CSSProperties } from 'react'
 
 interface KpiData {
   nb_clients: number
@@ -23,17 +24,19 @@ function KpiCard({
   tone: 'blue' | 'green' | 'amber' | 'red' | 'emerald'
 }) {
   const accent = {
-    blue: '#2563EB',
-    green: '#16A34A',
-    emerald: '#16A34A',
-    amber: '#D97706',
-    red: '#DC2626',
+    blue: 'var(--primary)',
+    green: 'var(--status-success-text)',
+    emerald: 'var(--status-success-text)',
+    amber: 'var(--status-warning-text)',
+    red: 'var(--status-error-text)',
   }[tone]
 
+  const accentStyle = { '--kpi-accent': accent } as CSSProperties
+
   return (
-    <div className="nx-kpi-card px-4 py-4">
-      <div className="flex items-center gap-2">
-        <span className="h-2 w-2 rounded-full" style={{ background: accent }} />
+    <div className="nx-kpi-card px-4 py-4" style={accentStyle}>
+      <div className="nx-kpi-row">
+        <span className="nx-kpi-dot" aria-hidden />
         <p className="nx-kpi-label">{label}</p>
       </div>
       <p className="mt-2 nx-kpi-value">{value}</p>
@@ -98,7 +101,7 @@ export function WidgetKpiCommercial() {
   const d = data ?? { nb_clients: 0, ca_mois: 0, nb_ot_en_cours: 0, nb_factures_retard: 0, nb_prospects_actifs: 0, taux_conversion: 0 }
 
   return (
-    <div className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-3">
+    <div className="nx-fadein nx-kpi-grid">
       <KpiCard label="CLIENTS ACTIFS" value={String(d.nb_clients)} sub="Portefeuille" tone="blue" />
       <KpiCard label="CA CE MOIS" value={fmt(d.ca_mois)} sub="Chiffre d'affaires HT" tone="emerald" />
       <KpiCard label="OT EN COURS" value={String(d.nb_ot_en_cours)} sub="Livraisons actives" tone="blue" />

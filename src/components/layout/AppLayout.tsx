@@ -5,6 +5,7 @@ import ImpersonationBanner from './ImpersonationBanner'
 import OnboardingWizard, { isOnboardingDone } from './OnboardingWizard'
 import { canAccess, useAuth } from '@/lib/auth'
 import { useTheme } from '@/lib/theme'
+import { countAlertesActives } from '@/lib/alertesTransport'
 
 const prefetchRouteByPath = (path: string) => {
   void import('@/lib/routePrefetch').then(m => m.prefetchRouteByPath(path))
@@ -143,6 +144,7 @@ export default function AppLayout() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchHighlightIndex, setSearchHighlightIndex] = useState(0)
   const [planningHeaderCollapsed, setPlanningHeaderCollapsed] = useState(false)
+  const [opsAlertesCount, setOpsAlertesCount] = useState(0)
 
   // Onboarding wizard — affiché une seule fois pour admin/dirigeant
   const showOnboarding =
@@ -238,6 +240,32 @@ export default function AppLayout() {
   ).slice(0, 8)
 
   const hasSearchResults = filteredQuickLinks.length > 0
+  const canOpenOpsCenter = canAccess(role, 'ops-center', tenantAllowedPages, enabledModules)
+
+  useEffect(() => {
+    if (!canOpenOpsCenter) {
+      setOpsAlertesCount(0)
+      return
+    }
+
+    let mounted = true
+    async function loadOpsAlertesCount() {
+      try {
+        const n = await countAlertesActives()
+        if (mounted) setOpsAlertesCount(n)
+      } catch {
+        if (mounted) setOpsAlertesCount(0)
+      }
+    }
+
+    void loadOpsAlertesCount()
+    const timer = setInterval(() => void loadOpsAlertesCount(), 5 * 60 * 1000)
+
+    return () => {
+      mounted = false
+      clearInterval(timer)
+    }
+  }, [canOpenOpsCenter])
 
   function openQuickLink(to: string) {
     navigate(to)
@@ -401,19 +429,28 @@ export default function AppLayout() {
                   {effectiveTheme === 'light' ? <MoonIcon /> : <SunIcon />}
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => navigate('/ops-center')}
-                  onMouseEnter={() => prefetchRouteByPath('/ops-center')}
-                  onFocus={() => prefetchRouteByPath('/ops-center')}
-                  className="nx-btn relative flex h-11 w-11 items-center justify-center shadow-sm"
-                  style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-                  aria-label="Notifications"
-                  title="Ouvrir Ops Center"
-                >
-                  <BellIcon />
-                  <span className="absolute right-2 top-2 inline-flex h-2.5 w-2.5 rounded-full" style={{ background: 'var(--warning)' }} />
-                </button>
+                {canOpenOpsCenter && (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/ops-center')}
+                    onMouseEnter={() => prefetchRouteByPath('/ops-center')}
+                    onFocus={() => prefetchRouteByPath('/ops-center')}
+                    className="nx-btn relative flex h-11 w-11 items-center justify-center shadow-sm"
+                    style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+                    aria-label={opsAlertesCount > 0 ? `Notifications Ops Center: ${opsAlertesCount}` : 'Notifications Ops Center: aucune alerte active'}
+                    title="Ouvrir Ops Center"
+                  >
+                    <BellIcon />
+                    {opsAlertesCount > 0 && (
+                      <span
+                        className="absolute -right-1 -top-1 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white"
+                        style={{ background: 'linear-gradient(180deg, #F87171, #DC2626)' }}
+                      >
+                        {opsAlertesCount > 99 ? '99+' : opsAlertesCount}
+                      </span>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
 

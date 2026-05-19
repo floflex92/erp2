@@ -94,6 +94,85 @@ Actions:
 Done criteria:
 - Nouveau user complete un parcours cle en < 10 min
 
+## Axe transversal - Direction artistique (inspiration AKANEA, signature NEXORA)
+
+Objectif:
+- Monter en maturite visuelle B2B (lisibilite, densite utile, sensation de robustesse)
+- Garder une identite NEXORA immediate (couleurs, rythme, ton, details d'interface)
+
+Principe directeur:
+- 70% ergonomie metier universelle (grille claire, hierarchie, densite controlee)
+- 20% inspirations concurrentielles (navigation, structure des ecrans, sobriete)
+- 10% signature NEXORA exclusive (couleur de marque, accents, formes, micro-interactions)
+
+### 7) Charte visuelle cible (v1)
+Objectif:
+- Definir des regles stables pour tous les modules ERP
+
+Actions:
+- Verrouiller les tokens existants comme socle: background/surface/text/border/primary/accent
+- Limiter les variantes composant a 3 niveaux max (default/hover/active)
+- Uniformiser les ombres et rayons (ex: card, panel, modal) sur tous les themes
+- Imposer 1 couleur d'accent operationnelle (pas de dispersion par page)
+- Garder un contraste lisible dans les 3 themes (light/dark/night)
+
+Done criteria:
+- Mini style guide validee avec exemples reel sur 3 ecrans (login, home, dashboard)
+- Aucune derive de palette hors tokens sur les nouveaux composants
+
+### 8) Signature NEXORA visible
+Objectif:
+- Eviter un rendu generic enterprise
+
+Actions:
+- Definir 3 marqueurs de marque obligatoires:
+	1. fond d'application (gradient/page atmosphere)
+	2. traitement des zones de pilotage (cards KPI, bandeaux, highlights)
+	3. style d'icones et badges statut
+- Standardiser la typo d'interface (titres + corps) sans multiplier les familles
+- Formaliser un "tone of UI" (sobre, precis, orientee exploitation transport)
+
+Done criteria:
+- Revue visuelle: un utilisateur interne reconnait NEXORA sans voir le logo
+
+### 9) Plan de deploiement ecran par ecran
+Objectif:
+- Refaire la DA sans casser le delivery fonctionnel
+
+Ordre recommande:
+1. Login (image de marque immediate)
+2. Home cockpit (hierarchie KPI + actions rapides)
+3. Dashboard exploitation (table + filtres + timeline)
+4. Pages de flux metier secondaires
+
+Regle d'execution par ecran:
+1. Audit UI rapide (lisibilite, densite, priorites)
+2. Application charte v1 (tokens + layout + composants)
+3. Validation responsive desktop/mobile
+4. Verification accessibilite (focus, contraste, navigation clavier)
+5. Snapshot visuel avant/apres
+
+Done criteria:
+- 3 ecrans coeur migres sans regression fonctionnelle
+- Checklist UX + A11y validee a chaque migration
+
+### 10) KPIs de succes DA
+Objectif:
+- Mesurer la qualite visuelle autrement que "ressenti"
+
+Mesures:
+- Taux de completion des parcours critiques
+- Temps de prise en main nouveau user
+- Reduction des erreurs de saisie sur formulaires cle
+- Feedback qualite percue (interne + clients pilotes)
+
+Done criteria:
+- Baseline avant refonte + mesure 2 semaines apres migration des 3 ecrans coeur
+
+Livrables de reference:
+- Playbook implementation Login + Cockpit: docs/da-playbook-login-cockpit-v1.md
+- Checklist review visuelle reutilisable: docs/checklist-review-visuelle-da.md
+
 ## Plan demain (suggestion practical)
 1. Mettre en place CI minimale (lint/typecheck/tests/build)
 2. Faire 1 passe perf sur home/login (quick wins)
