@@ -1,0 +1,3 @@
+[submodule "erp2"]
+	path = erp2
+	url = https://github.com/floflex92/erp2.git
