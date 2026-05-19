@@ -226,7 +226,7 @@ function buildSessionRowsFromSessions(sessions: SessionGroup[]): SessionRow[] {
 export default function MarketingFunnelPage() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [period, setPeriod] = useState<PeriodKey>('7d')
-  const now = useMemo(() => Date.now(), [refreshKey])
+  const [now, setNow] = useState(() => Date.now())
   const periodDuration = useMemo(() => getPeriodDurationMs(period), [period])
   const currentPeriodStart = useMemo(() => (periodDuration ? now - periodDuration : null), [now, periodDuration])
   const events = useMemo(() => getAnalyticsDebugEvents(), [refreshKey])
@@ -423,7 +423,10 @@ export default function MarketingFunnelPage() {
             </label>
             <button
               type="button"
-              onClick={() => setRefreshKey(key => key + 1)}
+              onClick={() => {
+                setNow(Date.now())
+                setRefreshKey(key => key + 1)
+              }}
               className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
             >
               Rafraîchir
@@ -448,6 +451,7 @@ export default function MarketingFunnelPage() {
               type="button"
               onClick={() => {
                 __analyticsInternals.clearDebugEvents()
+                setNow(Date.now())
                 setRefreshKey(key => key + 1)
               }}
               className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700"

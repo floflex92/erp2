@@ -258,6 +258,7 @@ export function RoleCockpitPanelV21() {
   const [clientFilter, setClientFilter] = useState('all')
   const [activityFilter, setActivityFilter] = useState('all')
   const [showLegacy, setShowLegacy] = useState(false)
+  const [nowMillis] = useState(() => Date.now())
 
   // Date range picker
   const [customStart, setCustomStart] = useState('')
@@ -474,7 +475,7 @@ export function RoleCockpitPanelV21() {
       .filter(invoice => ['en_retard', 'envoyee'].includes(toString(invoice.statut)))
       .map(invoice => {
         const dueDate = toString(invoice.date_echeance)
-        const daysLate = dueDate ? Math.max(0, Math.floor((Date.now() - new Date(dueDate).getTime()) / 86400000)) : 0
+        const daysLate = dueDate ? Math.max(0, Math.floor((nowMillis - new Date(dueDate).getTime()) / 86400000)) : 0
         return {
           id: toString(invoice.id),
           reference: toString(invoice.numero, 'Facture'),
@@ -691,7 +692,7 @@ export function RoleCockpitPanelV21() {
       ...filtered.supplierInvoices.filter(invoice => {
         const due = toString(invoice.date_echeance)
         if (!due) return false
-        const diff = Math.floor((new Date(due).getTime() - Date.now()) / 86400000)
+        const diff = Math.floor((new Date(due).getTime() - nowMillis) / 86400000)
         return diff >= 0 && diff <= 7
       }).slice(0, 2).map(invoice => ({
         id: `supplier-${toString(invoice.id)}`,
@@ -737,7 +738,7 @@ export function RoleCockpitPanelV21() {
       chargesDonut: chargesDonutData,
       treasuryAlerts,
     }
-  }, [clientNameById, data.driverAlerts, data.drivers, data.fleetAlerts, data.interviews, data.vehicles.length, filtered.financeChargeBreakdown, filtered.financeClientPerf, filtered.financeKpis, filtered.financeLatePayments, filtered.invoices, filtered.margins, filtered.missionCosts, filtered.orders, filtered.supplierInvoices])
+  }, [clientNameById, data.driverAlerts, data.drivers, data.fleetAlerts, data.interviews, data.vehicles.length, filtered.financeChargeBreakdown, filtered.financeClientPerf, filtered.financeKpis, filtered.financeLatePayments, filtered.invoices, filtered.margins, filtered.missionCosts, filtered.orders, filtered.supplierInvoices, nowMillis])
 
   if (showLegacy) {
     return (

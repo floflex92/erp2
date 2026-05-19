@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { OT } from '@/pages/planning/planningTypes'
 
 type Props = {
@@ -12,6 +13,11 @@ type Props = {
 }
 
 export default function PlanningRetardModal({ ot, newDeliveryDate, comment, saving, onClose, onChangeNewDeliveryDate, onChangeComment, onSubmit }: Props) {
+  const [nowMillis] = useState(() => Date.now())
+  const delayHours = ot.date_livraison_prevue
+    ? Math.floor((nowMillis - new Date(ot.date_livraison_prevue).getTime()) / 3600000)
+    : null
+
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[170] p-4" onClick={onClose}>
       <div className="bg-slate-900 border border-red-800/50 rounded-2xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -33,7 +39,7 @@ export default function PlanningRetardModal({ ot, newDeliveryDate, comment, savi
           <div className="rounded-xl bg-red-950/30 border border-red-800/30 p-3 text-xs text-red-300">
             Date de livraison prévue : <span className="font-bold">{ot.date_livraison_prevue?.slice(0, 16).replace('T', ' ') ?? '—'}</span>
             <br/>
-            Retard : <span className="font-bold text-red-200">{ot.date_livraison_prevue ? `+${Math.floor((Date.now() - new Date(ot.date_livraison_prevue).getTime()) / 3600000)}h` : '—'}</span>
+            Retard : <span className="font-bold text-red-200">{delayHours !== null ? `+${delayHours}h` : '—'}</span>
           </div>
 
           <div>

@@ -15,6 +15,11 @@ vi.mock('@/lib/auth', () => ({
   }),
 }))
 
+vi.mock('@/lib/staffDepots', () => ({
+  listActiveDepotAssignments: vi.fn(async () => []),
+  listDepotSites: vi.fn(async () => []),
+}))
+
 import Utilisateurs from './Utilisateurs'
 
 function makeGetPayload(overrides: Record<string, unknown> = {}) {
