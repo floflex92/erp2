@@ -15,7 +15,7 @@ jobs:
       - name: Ping Netlify site
         run: |
           echo "Ping Netlify: https://nexora-truck.fr"
-          curl -fsS --max-time 30 "https://nexora-truck.fr" \
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 10 --max-time 30 "https://nexora-truck.fr" \
             -H "User-Agent: GitHub-Actions-Keepalive" \
             && echo "Netlify OK" || (echo "Netlify ping failed"; exit 1)
 
@@ -25,7 +25,7 @@ jobs:
         run: |
           if [ -z "$SUPABASE_ANON_KEY" ]; then
             echo "Secret VITE_SUPABASE_ANON_KEY absent: ping REST non authentifie"
-            rest_status=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 30 "https://rnbbxmdughpxovcnhrpz.supabase.co/rest/v1/" \
+            rest_status=$(curl -sS --retry 3 --retry-all-errors --retry-delay 10 -o /dev/null -w "%{http_code}" --max-time 30 "https://rnbbxmdughpxovcnhrpz.supabase.co/rest/v1/" \
               -H "User-Agent: GitHub-Actions-Keepalive")
             if [ "$rest_status" != "401" ] && [ "$rest_status" != "200" ]; then
               echo "Supabase REST ping failed avec statut HTTP $rest_status"
@@ -34,7 +34,7 @@ jobs:
             echo "Supabase REST joignable avec statut HTTP $rest_status"
           else
             echo "Ping Supabase REST: https://rnbbxmdughpxovcnhrpz.supabase.co/rest/v1/"
-            curl -fsS --max-time 30 "https://rnbbxmdughpxovcnhrpz.supabase.co/rest/v1/" \
+            curl -fsS --retry 3 --retry-all-errors --retry-delay 10 --max-time 30 "https://rnbbxmdughpxovcnhrpz.supabase.co/rest/v1/" \
               -H "apikey: $SUPABASE_ANON_KEY" \
               -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
               -H "User-Agent: GitHub-Actions-Keepalive" \
@@ -42,7 +42,7 @@ jobs:
           fi
 
           echo "Ping Supabase Storage: https://rnbbxmdughpxovcnhrpz.supabase.co/storage/v1/status"
-          curl -fsS --max-time 30 "https://rnbbxmdughpxovcnhrpz.supabase.co/storage/v1/status" \
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 10 --max-time 30 "https://rnbbxmdughpxovcnhrpz.supabase.co/storage/v1/status" \
             -H "User-Agent: GitHub-Actions-Keepalive" \
             && echo "Supabase Storage OK" || (echo "Supabase Storage ping failed"; exit 1)
 
