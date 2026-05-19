@@ -1,0 +1,65 @@
+update public.sites_logistiques
+set is_primary = false
+where company_id = 1
+  and coalesce(is_primary, false) = true;
+
+insert into public.sites_logistiques (
+  id,
+  nom,
+  adresse,
+  code_postal,
+  ville,
+  pays,
+  entreprise_id,
+  type_site,
+  est_depot_relais,
+  contact_nom,
+  contact_tel,
+  capacite_m3,
+  horaires_ouverture,
+  notes,
+  latitude,
+  longitude,
+  usage_type,
+  company_id,
+  is_primary
+) values (
+  'dd000000-0003-0000-0000-000000000003',
+  'Dépôt principal Marseille',
+  '16 boulevard du Littoral',
+  '13002',
+  'Marseille',
+  'France',
+  '20000000-0000-0000-0000-000000000001',
+  'depot',
+  true,
+  'Base logistique Marseille',
+  '04 91 00 00 00',
+  950,
+  'Lu-Ve 6h-20h / Sa 7h-13h',
+  'Site principal de départ pour les affectations dépôt et la logistique mixte.',
+  43.3047,
+  5.3673,
+  'mixte',
+  1,
+  true
+)
+on conflict (id) do update set
+  nom = excluded.nom,
+  adresse = excluded.adresse,
+  code_postal = excluded.code_postal,
+  ville = excluded.ville,
+  pays = excluded.pays,
+  entreprise_id = excluded.entreprise_id,
+  type_site = excluded.type_site,
+  est_depot_relais = excluded.est_depot_relais,
+  contact_nom = excluded.contact_nom,
+  contact_tel = excluded.contact_tel,
+  capacite_m3 = excluded.capacite_m3,
+  horaires_ouverture = excluded.horaires_ouverture,
+  notes = excluded.notes,
+  latitude = excluded.latitude,
+  longitude = excluded.longitude,
+  usage_type = excluded.usage_type,
+  company_id = excluded.company_id,
+  is_primary = excluded.is_primary;

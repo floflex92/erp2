@@ -1,0 +1,799 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEXORA - Tableau de Tarification</title>
+  <style>
+    :root {
+      --bg: #f2efe8;
+      --ink: #121214;
+      --muted: #4a4e57;
+      --card: #fffdf8;
+      --line: #d8d2c7;
+      --accent: #0c6b58;
+      --accent-soft: #d9f1eb;
+      --highlight: #ffb703;
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 15% 10%, #fff6d8 0%, transparent 35%),
+        radial-gradient(circle at 90% 0%, #d6efe8 0%, transparent 30%),
+        var(--bg);
+      min-height: 100vh;
+    }
+
+    .wrap {
+      width: min(1200px, 94vw);
+      margin: 32px auto 56px;
+    }
+
+    .hero {
+      background: linear-gradient(140deg, #121214 0%, #1d2928 100%);
+      color: #f8f9fb;
+      border-radius: 22px;
+      padding: 26px;
+      box-shadow: 0 20px 40px rgba(18, 18, 20, 0.18);
+    }
+
+    .hero h1 {
+      margin: 0 0 10px;
+      font-size: clamp(1.5rem, 2vw, 2.2rem);
+      letter-spacing: 0.2px;
+    }
+
+    .hero p {
+      margin: 0;
+      color: #d4d9df;
+      line-height: 1.45;
+    }
+
+    .table-card {
+      margin-top: 18px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 14px 30px rgba(35, 39, 44, 0.08);
+    }
+
+    .table-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #f7f3ea;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--accent-soft);
+      color: #094f42;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-weight: 600;
+      font-size: 0.82rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+
+    th {
+      font-weight: 700;
+      color: #1f2328;
+      background: #fffefb;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .pack {
+      font-weight: 700;
+    }
+
+    .price {
+      font-weight: 700;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    .best {
+      display: inline-block;
+      margin-left: 8px;
+      padding: 3px 8px;
+      border-radius: 8px;
+      background: var(--highlight);
+      color: #221f12;
+      font-size: 0.75rem;
+      font-weight: 700;
+      vertical-align: middle;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .chip {
+      border: 1px solid #cfd6e0;
+      background: #f7faff;
+      color: #273548;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 0.8rem;
+      white-space: nowrap;
+    }
+
+    .modules {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+    }
+
+    .module-card {
+      background: #fffdf8;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .module-card h3 {
+      margin: 0 0 4px;
+      font-size: 0.98rem;
+    }
+
+    .module-price {
+      color: var(--accent);
+      font-weight: 700;
+      margin: 0;
+    }
+
+    .notes {
+      margin-top: 16px;
+      background: #fff8eb;
+      border: 1px solid #f0d8a8;
+      border-radius: 12px;
+      padding: 12px;
+      color: #5a4722;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+
+    .extra-grid {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 10px;
+    }
+
+    .extra-card {
+      background: #fffdf8;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .extra-card h3 {
+      margin: 0 0 6px;
+      font-size: 1rem;
+    }
+
+    .extra-card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.4;
+      font-size: 0.9rem;
+    }
+
+    .strategy {
+      margin-top: 16px;
+      background: #eef6ff;
+      border: 1px solid #bdd3f0;
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .strategy h3 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+      color: #1e3b63;
+    }
+
+    .strategy ol {
+      margin: 0;
+      padding-left: 18px;
+      color: #31445f;
+      line-height: 1.45;
+      font-size: 0.92rem;
+    }
+
+    .dossier {
+      margin-top: 18px;
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 10px 20px rgba(35, 39, 44, 0.06);
+    }
+
+    .dossier h2 {
+      margin: 0 0 10px;
+      font-size: 1.18rem;
+    }
+
+    .dossier-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 10px;
+    }
+
+    .dossier-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fcfbf7;
+      padding: 12px;
+    }
+
+    .dossier-card h3 {
+      margin: 0 0 8px;
+      font-size: 0.98rem;
+    }
+
+    .dossier-card ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.42;
+    }
+
+    .dossier-kpi {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 10px;
+      background: #f4f8ff;
+      border: 1px solid #d4e2f5;
+      color: #2c425f;
+      font-size: 0.9rem;
+    }
+
+    .catalog {
+      margin-top: 18px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 10px 20px rgba(35, 39, 44, 0.06);
+    }
+
+    .catalog h2 {
+      margin: 0 0 10px;
+      font-size: 1.18rem;
+    }
+
+    .catalog-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 10px;
+    }
+
+    .catalog-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fcfbf7;
+      padding: 12px;
+    }
+
+    .catalog-card h3 {
+      margin: 0 0 8px;
+      font-size: 0.98rem;
+    }
+
+    .catalog-card p {
+      margin: 0 0 6px;
+      color: #2c425f;
+      font-size: 0.84rem;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      text-transform: uppercase;
+    }
+
+    .status-block {
+      margin-top: 8px;
+      padding: 8px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+    }
+
+    .status-block h4 {
+      margin: 0 0 6px;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .status-inc {
+      background: #ecfaf4;
+      border-color: #bfead3;
+    }
+
+    .status-inc h4 {
+      color: #0c6b58;
+    }
+
+    .status-opt {
+      background: #fff6e9;
+      border-color: #f2d6a7;
+    }
+
+    .status-opt h4 {
+      color: #9a6500;
+    }
+
+    .catalog-card ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.42;
+    }
+
+    @media (max-width: 820px) {
+      .table-card {
+        overflow-x: auto;
+      }
+
+      table {
+        min-width: 780px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <h1>Tableau de Tarification NEXORA</h1>
+      <p>
+        Version de travail pour décider les packs, les quotas inclus et les options IA/API.
+      </p>
+    </section>
+
+    <section class="table-card">
+      <div class="table-head">
+        <span>Base SaaS + modules optionnels + dépassements usage</span>
+        <span class="badge">v3 - benchmark + strategie conversion</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Pack</th>
+            <th>Prix HT / mois</th>
+            <th>Inclus</th>
+            <th>Profils inclus</th>
+            <th>Quota inclus</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="pack">Starter limite</td>
+            <td class="price">390 EUR</td>
+            <td>
+              <div class="chips">
+                <span class="chip">Socle transport</span>
+                <span class="chip">Planning</span>
+                <span class="chip">Missions</span>
+                <span class="chip">Support standard</span>
+              </div>
+            </td>
+            <td>3 utilisateurs mix roles</td>
+            <td>8 vehicules, 10 conducteurs</td>
+          </tr>
+          <tr>
+            <td class="pack">Essentiel</td>
+            <td class="price">590 EUR</td>
+            <td>
+              <div class="chips">
+                <span class="chip">Planning</span>
+                <span class="chip">Missions</span>
+                <span class="chip">Flotte</span>
+                <span class="chip">Docs</span>
+              </div>
+            </td>
+            <td>2 utilisateurs operations</td>
+            <td>10 vehicules, 12 conducteurs</td>
+          </tr>
+          <tr>
+            <td class="pack">Exploitation <span class="best">Le plus vendu</span></td>
+            <td class="price">1290 EUR</td>
+            <td>
+              <div class="chips">
+                <span class="chip">Socle complet</span>
+                <span class="chip">Depots</span>
+                <span class="chip">RH absences</span>
+                <span class="chip">Pilotage</span>
+              </div>
+            </td>
+            <td>10 utilisateurs mix roles</td>
+            <td>25 vehicules, 30 conducteurs</td>
+          </tr>
+          <tr>
+            <td class="pack">Performance</td>
+            <td class="price">2390 EUR</td>
+            <td>
+              <div class="chips">
+                <span class="chip">Tout Exploitation</span>
+                <span class="chip">Analytics avancee</span>
+                <span class="chip">Automatisations</span>
+                <span class="chip">Exports comptables</span>
+              </div>
+            </td>
+            <td>25 utilisateurs mix roles</td>
+            <td>60 vehicules, 80 conducteurs</td>
+          </tr>
+          <tr>
+            <td class="pack">Enterprise</td>
+            <td class="price">A partir de 3900 EUR</td>
+            <td>
+              <div class="chips">
+                <span class="chip">SSO</span>
+                <span class="chip">SLA dedie</span>
+                <span class="chip">Multi-entites</span>
+                <span class="chip">Onboarding premium</span>
+              </div>
+            </td>
+            <td>Sur mesure</td>
+            <td>Sur mesure</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="modules">
+      <article class="module-card">
+        <h3>Option IA Ops</h3>
+        <p class="module-price">+349 EUR / mois</p>
+      </article>
+      <article class="module-card">
+        <h3>Option API & Webhooks</h3>
+        <p class="module-price">+249 EUR / mois</p>
+      </article>
+      <article class="module-card">
+        <h3>Module Comptabilite avancee</h3>
+        <p class="module-price">+199 EUR / mois</p>
+      </article>
+      <article class="module-card">
+        <h3>Module Maintenance atelier</h3>
+        <p class="module-price">+169 EUR / mois</p>
+      </article>
+      <article class="module-card">
+        <h3>Module RH / Paie</h3>
+        <p class="module-price">+229 EUR / mois</p>
+      </article>
+      <article class="module-card">
+        <h3>Portail Client / Affreteur</h3>
+        <p class="module-price">+149 EUR / mois</p>
+      </article>
+    </section>
+
+    <section class="notes">
+      Depassements conseilles: utilisateur operations +29 EUR, back-office +22 EUR, atelier +18 EUR,
+      vehicule actif +12 EUR, conducteur actif +6 EUR. Prix affiches = prix publics.
+    </section>
+
+    <section class="extra-grid">
+      <article class="extra-card">
+        <h3>Installation & Parametrage (one-shot)</h3>
+        <p>
+          Setup Light: 1990 EUR. Setup Standard: 4900 EUR. Setup Enterprise: 9900 EUR+.
+          Inclut cadrage, parametrage initial, imports de base et formation de demarrage.
+        </p>
+      </article>
+      <article class="extra-card">
+        <h3>Tarif Email / personne</h3>
+        <p>
+          +2.50 EUR / personne active / mois (300 emails transactionnels inclus par personne).
+          Au-dela: +0.010 EUR par email supplementaire.
+        </p>
+      </article>
+      <article class="extra-card">
+        <h3>Tarif App Android</h3>
+        <p>
+          Module Android metier: +249 EUR / mois.
+          Publication stores & maintenance mobile: +129 EUR / mois.
+          Build white-label entreprise: 3900 EUR one-shot.
+        </p>
+      </article>
+    </section>
+
+    <section class="strategy">
+      <h3>Strategie commerciale activee (1, 2, 3)</h3>
+      <ol>
+        <li>Prix publics assumes pour ancrer la valeur produit face a la concurrence.</li>
+        <li>Remise lancement: -12% sur engagement 12 mois (periode promo encadree).</li>
+        <li>Offre Starter limitee pour capter les petits comptes sans devaloriser les packs superieurs.</li>
+      </ol>
+    </section>
+
+    <section class="dossier">
+      <h2>Description complete des offres, options et tarifs</h2>
+      <div class="dossier-grid">
+        <article class="dossier-card">
+          <h3>Packs et fonctionnalites</h3>
+          <ul>
+            <li>Starter limite (390 EUR): socle transport, planning, missions, support standard.</li>
+            <li>Essentiel (590 EUR): planning, missions, flotte, documents.</li>
+            <li>Exploitation (1290 EUR): socle complet, depots, RH absences, pilotage.</li>
+            <li>Performance (2390 EUR): tout Exploitation, analytics avancee, automatisations, exports comptables.</li>
+            <li>Enterprise (3900 EUR+): SSO, SLA dedie, multi-entites, onboarding premium.</li>
+          </ul>
+        </article>
+
+        <article class="dossier-card">
+          <h3>Quotas inclus</h3>
+          <ul>
+            <li>Starter: 3 utilisateurs, 8 vehicules, 10 conducteurs.</li>
+            <li>Essentiel: 2 utilisateurs operations, 10 vehicules, 12 conducteurs.</li>
+            <li>Exploitation: 10 utilisateurs, 25 vehicules, 30 conducteurs.</li>
+            <li>Performance: 25 utilisateurs, 60 vehicules, 80 conducteurs.</li>
+            <li>Enterprise: quotas sur mesure.</li>
+          </ul>
+        </article>
+
+        <article class="dossier-card">
+          <h3>Modules optionnels (mensuel)</h3>
+          <ul>
+            <li>IA Ops: +349 EUR.</li>
+            <li>API & Webhooks: +249 EUR.</li>
+            <li>Comptabilite avancee: +199 EUR.</li>
+            <li>Maintenance atelier: +169 EUR.</li>
+            <li>RH / Paie: +229 EUR.</li>
+            <li>Portail Client / Affreteur: +149 EUR.</li>
+          </ul>
+        </article>
+
+        <article class="dossier-card">
+          <h3>Installation et parametrage (one-shot)</h3>
+          <ul>
+            <li>Setup Light: 1990 EUR.</li>
+            <li>Setup Standard: 4900 EUR.</li>
+            <li>Setup Enterprise: 9900 EUR+.</li>
+            <li>Inclut cadrage, parametrage, imports initiaux, formation demarrage.</li>
+          </ul>
+        </article>
+
+        <article class="dossier-card">
+          <h3>Email par personne</h3>
+          <ul>
+            <li>2.50 EUR / personne active / mois.</li>
+            <li>300 emails transactionnels inclus par personne.</li>
+            <li>Depassement: 0.010 EUR par email supplementaire.</li>
+          </ul>
+        </article>
+
+        <article class="dossier-card">
+          <h3>App Android</h3>
+          <ul>
+            <li>Module Android metier: +249 EUR / mois.</li>
+            <li>Publication stores & maintenance mobile: +129 EUR / mois.</li>
+            <li>Build white-label entreprise: 3900 EUR one-shot.</li>
+          </ul>
+        </article>
+
+        <article class="dossier-card">
+          <h3>Depassements usage</h3>
+          <ul>
+            <li>Utilisateur operations: +29 EUR / mois.</li>
+            <li>Utilisateur back-office: +22 EUR / mois.</li>
+            <li>Utilisateur atelier: +18 EUR / mois.</li>
+            <li>Vehicule actif: +12 EUR / mois.</li>
+            <li>Conducteur actif: +6 EUR / mois.</li>
+          </ul>
+        </article>
+
+        <article class="dossier-card">
+          <h3>Conditions commerciales</h3>
+          <ul>
+            <li>Prix publics affiches pour ancrer la valeur.</li>
+            <li>Remise lancement: -12% sur engagement 12 mois.</li>
+            <li>Starter limitee comme porte d'entree acquisition.</li>
+          </ul>
+          <div class="dossier-kpi">
+            Objectif: garder une marge saine tout en conservant un parcours de conversion lisible de Starter vers Exploitation / Performance.
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="catalog">
+      <h2>Catalogue complet des modules ERP (tour complet)</h2>
+      <div class="catalog-grid">
+        <article class="catalog-card">
+          <h3>Operations transport</h3>
+          <div class="status-block status-inc">
+            <h4>Inclus selon pack</h4>
+            <ul>
+              <li>Ops Center et pilotage temps reel.</li>
+              <li>Tableau de bord exploitation et conducteur.</li>
+              <li>Planning, planning affreteur, planning conducteur.</li>
+              <li>OT / Fret, feuille de route, transports.</li>
+              <li>Terrain, carte live, formulaires terrain.</li>
+              <li>War Room, alertes, suivi operationnel.</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="catalog-card">
+          <h3>Flotte et atelier</h3>
+          <div class="status-block status-inc">
+            <h4>Inclus selon pack</h4>
+            <ul>
+              <li>Conducteurs, parc vehicules, remorques, equipements.</li>
+              <li>Carburant et suivi consommation.</li>
+              <li>Conformite transport, tachygraphe, amendes.</li>
+              <li>Entrepots, depots, pilotage centres.</li>
+              <li>Bilan CO2 et suivi performance flotte.</li>
+            </ul>
+          </div>
+          <div class="status-block status-opt">
+            <h4>Option payante</h4>
+            <ul>
+              <li>Module Maintenance atelier: +169 EUR / mois.</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="catalog-card">
+          <h3>Finance et comptabilite</h3>
+          <div class="status-block status-inc">
+            <h4>Inclus selon pack</h4>
+            <ul>
+              <li>Facturation clients et suivi encaissements.</li>
+              <li>Reglements, tresorerie, analyses finance.</li>
+              <li>Frais terrain et frais rapides.</li>
+              <li>Paie et interfaces finance.</li>
+              <li>Comptabilite generale + exports comptables.</li>
+            </ul>
+          </div>
+          <div class="status-block status-opt">
+            <h4>Option payante</h4>
+            <ul>
+              <li>Module Comptabilite avancee: +199 EUR / mois.</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="catalog-card">
+          <h3>RH et organisation</h3>
+          <div class="status-block status-opt">
+            <h4>Option payante</h4>
+            <ul>
+              <li>Ressources humaines unifiees.</li>
+              <li>Absences et suivi administratif RH.</li>
+              <li>Entretiens salaries et suivi parcours.</li>
+              <li>Preparation donnees paie operationnelle.</li>
+              <li>Module RH / Paie: +229 EUR / mois.</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="catalog-card">
+          <h3>CRM et developpement commercial</h3>
+          <div class="status-block status-inc">
+            <h4>Inclus selon pack</h4>
+            <ul>
+              <li>Gestion clients et comptes client DB.</li>
+              <li>Prospection commerciale et pipeline.</li>
+              <li>Demandes clients et collaboration externe.</li>
+            </ul>
+          </div>
+          <div class="status-block status-opt">
+            <h4>Option payante</h4>
+            <ul>
+              <li>Portail Client / Affreteur: +149 EUR / mois.</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="catalog-card">
+          <h3>Communication et collaboration</h3>
+          <div class="status-block status-inc">
+            <h4>Inclus selon pack</h4>
+            <ul>
+              <li>Messagerie interne transport.</li>
+              <li>Mail operationnel integre.</li>
+              <li>Inter-ERP et communication equipe.</li>
+              <li>Coffre documentaire securise.</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="catalog-card">
+          <h3>Data, API et automatisation</h3>
+          <div class="status-block status-opt">
+            <h4>Option payante</h4>
+            <ul>
+              <li>API, webhooks, connecteurs SI.</li>
+              <li>Synchronisations et flux automatises.</li>
+              <li>Optimisation de tournees et pilotage avance.</li>
+              <li>Option API & Webhooks: +249 EUR / mois.</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="catalog-card">
+          <h3>IA metier</h3>
+          <div class="status-block status-opt">
+            <h4>Option payante</h4>
+            <ul>
+              <li>Aide a la priorisation des operations.</li>
+              <li>Detection d'anomalies d'exploitation.</li>
+              <li>Support decisionnel dispatch/pilotage.</li>
+              <li>Option IA Ops: +349 EUR / mois.</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="catalog-card">
+          <h3>Mobile Android</h3>
+          <div class="status-block status-opt">
+            <h4>Option payante</h4>
+            <ul>
+              <li>App Android metier conducteur/terrain.</li>
+              <li>Publication stores et maintenance mobile.</li>
+              <li>White-label entreprise disponible.</li>
+              <li>Android: +249 EUR / mois (+129 EUR maintenance).</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="catalog-card">
+          <h3>Administration, securite, gouvernance</h3>
+          <div class="status-block status-inc">
+            <h4>Inclus selon pack</h4>
+            <ul>
+              <li>Gestion comptes utilisateurs et roles.</li>
+              <li>Parametres tenant et administration plateforme.</li>
+              <li>Mentions legales, cadre conformite.</li>
+            </ul>
+          </div>
+          <div class="status-block status-opt">
+            <h4>Extension enterprise</h4>
+            <ul>
+              <li>SSO, SLA dedie, multi-entites.</li>
+            </ul>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

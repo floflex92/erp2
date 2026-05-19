@@ -1,0 +1,2156 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEXORA Truck — Présentation ERP TMS</title>
+  <style>
+    /* ══════════════════════════════════════════════
+       RESET & BASE
+    ══════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy:   #0d1b2a;
+      --blue:   #1a56db;
+      --cyan:   #06b6d4;
+      --orange: #f59e0b;
+      --green:  #10b981;
+      --red:    #ef4444;
+      --purple: #8b5cf6;
+      --white:  #ffffff;
+      --gray50: #f8fafc;
+      --gray100:#f1f5f9;
+      --gray200:#e2e8f0;
+      --gray400:#94a3b8;
+      --gray600:#475569;
+      --gray800:#1e293b;
+      --font: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    html {
+      height: 100vh;
+      overflow-y: scroll;
+      scroll-behavior: smooth;
+      scroll-snap-type: y mandatory;
+    }
+
+    body {
+      font-family: var(--font);
+      background: #05111e;
+      color: var(--white);
+    }
+
+    /* ══════════════════════════════════════════════
+       SLIDE SYSTEM
+    ══════════════════════════════════════════════ */
+    .slide {
+      width: 100%;
+      min-height: 100vh;
+      margin: 0;
+      scroll-snap-align: start;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 36px 52px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 0 0 1px rgba(255,255,255,.07), 0 12px 48px rgba(0,0,0,.5);
+    }
+
+    .slide-inner {
+      max-width: 1050px;
+      width: 100%;
+      z-index: 2;
+    }
+
+    /* backgrounds thématiques */
+    .bg-navy    { background: var(--navy); }
+    .bg-dark    { background: #111827; }
+    .bg-blue    { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); }
+    .bg-teal    { background: linear-gradient(135deg, #0f172a 0%, #134e4a 100%); }
+    .bg-purple  { background: linear-gradient(135deg, #1e1b4b 0%, #0f0c29 100%); }
+    .bg-orange  { background: linear-gradient(135deg, #1c1008 0%, #3d1f00 100%); }
+    .bg-green   { background: linear-gradient(135deg, #052e16 0%, #0f172a 100%); }
+    .bg-red     { background: linear-gradient(135deg, #1c0a0a 0%, #1e0a2e 100%); }
+
+    /* ══════════════════════════════════════════════
+       TYPOGRAPHY
+    ══════════════════════════════════════════════ */
+    .tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 99px;
+      margin-bottom: 16px;
+    }
+    .tag-blue   { background: rgba(26,86,219,.25); color: #60a5fa; border: 1px solid rgba(26,86,219,.4); }
+    .tag-cyan   { background: rgba(6,182,212,.2);  color: #22d3ee; border: 1px solid rgba(6,182,212,.35); }
+    .tag-orange { background: rgba(245,158,11,.2); color: #fbbf24; border: 1px solid rgba(245,158,11,.35); }
+    .tag-green  { background: rgba(16,185,129,.2); color: #34d399; border: 1px solid rgba(16,185,129,.35); }
+    .tag-purple { background: rgba(139,92,246,.2); color: #c4b5fd; border: 1px solid rgba(139,92,246,.35); }
+    .tag-red    { background: rgba(239,68,68,.2);  color: #fca5a5; border: 1px solid rgba(239,68,68,.35); }
+
+    h1.hero {
+      font-size: clamp(2.4rem, 4.5vw, 4rem);
+      font-weight: 900;
+      line-height: 1.05;
+      letter-spacing: -1px;
+      margin-bottom: 20px;
+    }
+    h2.section-title {
+      font-size: clamp(1.5rem, 3vw, 2.4rem);
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 12px;
+    }
+    .accent-blue   { color: #60a5fa; }
+    .accent-cyan   { color: #22d3ee; }
+    .accent-orange { color: #fbbf24; }
+    .accent-green  { color: #34d399; }
+    .accent-purple { color: #c4b5fd; }
+    .accent-red    { color: #fca5a5; }
+
+    .subtitle {
+      font-size: clamp(.9rem, 1.5vw, 1.1rem);
+      color: var(--gray400);
+      line-height: 1.6;
+      max-width: 700px;
+      margin-bottom: 24px;
+    }
+
+    /* ══════════════════════════════════════════════
+       COMPONENTS
+    ══════════════════════════════════════════════ */
+
+    /* Cards grid */
+    .grid {
+      display: grid;
+      gap: 20px;
+    }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .grid-4 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+
+    .card {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 14px;
+      padding: 20px;
+      transition: transform .2s, background .2s;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      background: rgba(255,255,255,.07);
+    }
+    .card-icon {
+      font-size: 2rem;
+      margin-bottom: 14px;
+    }
+    .card h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .card p {
+      font-size: .9rem;
+      color: var(--gray400);
+      line-height: 1.6;
+    }
+
+    /* Feature list */
+    .feature-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .feature-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: .95rem;
+      color: var(--gray200);
+      line-height: 1.5;
+    }
+    .feature-list li::before {
+      content: "✓";
+      color: var(--green);
+      font-weight: 800;
+      font-size: 1rem;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* Badge statut */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 99px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    .badge-done   { background: rgba(16,185,129,.2); color: #34d399; border: 1px solid rgba(16,185,129,.35); }
+    .badge-wip    { background: rgba(245,158,11,.2); color: #fbbf24; border: 1px solid rgba(245,158,11,.35); }
+    .badge-future { background: rgba(139,92,246,.2); color: #c4b5fd; border: 1px solid rgba(139,92,246,.35); }
+
+    /* Roadmap timeline */
+    .timeline { display: flex; flex-direction: column; gap: 0; }
+    .tl-item {
+      display: grid;
+      grid-template-columns: 120px 20px 1fr;
+      gap: 0 16px;
+      align-items: stretch;
+    }
+    .tl-label {
+      text-align: right;
+      padding-top: 4px;
+      font-size: .8rem;
+      font-weight: 700;
+      color: var(--gray400);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .tl-spine {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .tl-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid;
+      flex-shrink: 0;
+      margin-top: 4px;
+    }
+    .tl-line {
+      flex: 1;
+      width: 2px;
+      background: rgba(255,255,255,.1);
+      min-height: 24px;
+    }
+    .tl-content {
+      padding-bottom: 16px;
+    }
+    .tl-content h4 {
+      font-size: .95rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .tl-content p {
+      font-size: .85rem;
+      color: var(--gray400);
+      line-height: 1.5;
+    }
+    .dot-green  { border-color: #34d399; background: rgba(16,185,129,.3); }
+    .dot-orange { border-color: #fbbf24; background: rgba(245,158,11,.3); }
+    .dot-purple { border-color: #c4b5fd; background: rgba(139,92,246,.3); }
+    .dot-blue   { border-color: #60a5fa; background: rgba(26,86,219,.3); }
+
+    /* Stats */
+    .stats-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      justify-content: center;
+      margin-top: 24px;
+    }
+    .stat {
+      text-align: center;
+      min-width: 130px;
+    }
+    .stat-number {
+      font-size: clamp(1.8rem, 3vw, 3rem);
+      font-weight: 900;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .stat-label {
+      font-size: .8rem;
+      color: var(--gray400);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Quote */
+    .quote {
+      font-size: clamp(1rem, 2vw, 1.5rem);
+      font-style: italic;
+      line-height: 1.6;
+      color: var(--gray200);
+      position: relative;
+      padding-left: 24px;
+      border-left: 4px solid #60a5fa;
+    }
+
+    /* Pill navigation */
+    .nav {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      z-index: 100;
+      background: rgba(13,27,42,.8);
+      backdrop-filter: blur(12px);
+      padding: 8px 16px;
+      border-radius: 99px;
+      border: 1px solid rgba(255,255,255,.1);
+    }
+    .nav a {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.3);
+      display: block;
+      text-decoration: none;
+      transition: background .2s, transform .2s;
+    }
+    .nav a:hover { background: #60a5fa; transform: scale(1.4); }
+
+    /* Corner deco */
+    .deco-circle {
+      position: absolute;
+      border-radius: 50%;
+      opacity: .06;
+      pointer-events: none;
+    }
+
+    /* Two-col layout */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: center;
+    }
+    @media (max-width: 768px) {
+      .two-col { grid-template-columns: 1fr; }
+      .grid-3, .grid-4 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+      .tl-item { grid-template-columns: 80px 20px 1fr; }
+    }
+
+    /* Module table */
+    .module-row {
+      display: grid;
+      grid-template-columns: 36px 1fr auto;
+      gap: 16px;
+      align-items: center;
+      padding: 14px 20px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.06);
+      margin-bottom: 10px;
+      transition: background .15s;
+    }
+    .module-row:hover { background: rgba(255,255,255,.06); }
+    .module-icon { font-size: 1.3rem; }
+    .module-name { font-size: .9rem; font-weight: 600; }
+    .module-desc { font-size: .78rem; color: var(--gray400); margin-top: 2px; }
+
+    /* Vision pillars */
+    .pillar {
+      border-radius: 16px;
+      padding: 22px 20px;
+      border: 1px solid;
+      position: relative;
+      overflow: hidden;
+    }
+    .pillar h3 { font-size: 1.1rem; font-weight: 800; margin-bottom: 10px; }
+    .pillar p  { font-size: .87rem; line-height: 1.65; color: var(--gray300, #d1d5db); }
+    .pillar-blue   { background: rgba(26,86,219,.08); border-color: rgba(26,86,219,.25); }
+    .pillar-cyan   { background: rgba(6,182,212,.08); border-color: rgba(6,182,212,.25); }
+    .pillar-green  { background: rgba(16,185,129,.08); border-color: rgba(16,185,129,.25); }
+    .pillar-orange { background: rgba(245,158,11,.08); border-color: rgba(245,158,11,.25); }
+    .pillar-purple { background: rgba(139,92,246,.08); border-color: rgba(139,92,246,.25); }
+
+    .divider {
+      width: 60px;
+      height: 4px;
+      border-radius: 2px;
+      margin-bottom: 20px;
+    }
+
+    /* ══════════════════════════════════════════════
+       ICÔNES SVG INLINE
+    ══════════════════════════════════════════════ */
+    .ico {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .ico svg { display: block; }
+
+    /* Tailles courantes */
+    .ico-sm  svg { width: 20px; height: 20px; }
+    .ico-md  svg { width: 28px; height: 28px; }
+    .ico-lg  svg { width: 40px; height: 40px; }
+    .ico-xl  svg { width: 56px; height: 56px; }
+
+    /* Nuage de connexions (slide écosystème) */
+    .ecosystem-canvas {
+      position: relative;
+      width: 100%;
+      height: 360px;
+    }
+    .ecosystem-canvas svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ══════════════════════════════════════════════
+       MARQUE SUR CHAQUE SLIDE
+    ══════════════════════════════════════════════ */
+    .slide-brand {
+      position: absolute;
+      top: 14px;
+      left: 28px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      pointer-events: none;
+    }
+    .slide-brand img {
+      height: 22px;
+      width: auto;
+      filter: brightness(0) invert(1);
+      opacity: .65;
+    }
+    .slide-brand-sub {
+      font-size: 8.5px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: rgba(255,255,255,.3);
+      text-transform: uppercase;
+      line-height: 1;
+      padding-top: 1px;
+    }
+    @media print {
+      .slide-brand { display: flex !important; }
+    }
+
+
+
+    /* ══════════════════════════════════════════════
+       SCREENSHOTS & MOCKUPS
+    ══════════════════════════════════════════════ */
+    .screenshot-frame {
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 24px 64px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.1);
+      background: #0d1b2a;
+      position: relative;
+    }
+    .screenshot-frame::before {
+      content: '';
+      display: block;
+      height: 28px;
+      background: rgba(255,255,255,.05);
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .screenshot-frame::after {
+      content: '● ● ●';
+      position: absolute;
+      top: 6px;
+      left: 12px;
+      font-size: 9px;
+      letter-spacing: 4px;
+      color: rgba(255,255,255,.25);
+    }
+    .screenshot-frame img {
+      width: 100%;
+      display: block;
+      object-fit: cover;
+    }
+    .screenshot-label {
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--gray400);
+      margin-top: 10px;
+      text-align: center;
+    }
+    .float-mockup {
+      position: absolute;
+      right: -40px;
+      top: 50%;
+      transform: translateY(-50%) perspective(800px) rotateY(-8deg) rotateX(3deg);
+      width: 55%;
+      opacity: .18;
+      pointer-events: none;
+      z-index: 1;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 40px 120px rgba(0,0,0,.8);
+    }
+    .float-mockup img { width: 100%; display: block; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════
+     NAVIGATION DOTS
+═══════════════════════════════════════════════════════ -->
+<nav class="nav">
+  <a href="#s1" title="Couverture"></a>
+  <a href="#s2" title="Philosophie"></a>
+  <a href="#s3" title="Pour qui"></a>
+  <a href="#s4" title="Chiffres &amp; terrain"></a>
+  <a href="#s5" title="Pourquoi"></a>
+  <a href="#s6" title="Logiciels vieillissants"></a>
+  <a href="#s7" title="Comment"></a>
+  <a href="#s16" title="Écosystème connecté"></a>
+  <a href="#s8" title="Temps gagné"></a>
+  <a href="#s9" title="Interface en vrai"></a>
+  <a href="#s10" title="Fonctionnalités développées"></a>
+  <a href="#s11" title="En cours"></a>
+  <a href="#s12" title="Features futures"></a>
+  <a href="#s13" title="Vision &amp; ambition"></a>
+  <a href="#s14" title="Investisseurs"></a>
+  <a href="#s15" title="Call to action"></a>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════
+     SLIDE 1 — COUVERTURE
+═══════════════════════════════════════════════════════ -->
+<section class="slide bg-navy" id="s1">
+  <!-- Décors -->
+  <div class="deco-circle" style="width:600px;height:600px;background:#1a56db;top:-200px;right:-150px;"></div>
+  <div class="deco-circle" style="width:300px;height:300px;background:#06b6d4;bottom:-80px;left:-80px;"></div>
+
+  <!-- Mockup flottant Planning -->
+  <div class="float-mockup">
+    <img src="capture%20d%20ecran/opera_ggLYypXX04.png" alt="Planning NEXORA Truck" />
+  </div>
+
+  <div class="slide-inner" style="text-align:center;">
+    <div class="tag tag-cyan" style="margin:0 auto 20px;">ERP · TMS · Transport Routier</div>
+
+    <img src="logo/nexora%20logo%201.png" alt="NEXORA Truck" style="height:80px;width:auto;display:block;margin:0 auto 6px;filter:brightness(0) invert(1);" />
+    <div style="font-size:.85rem;font-weight:900;letter-spacing:4px;text-transform:uppercase;color:#22d3ee;margin-bottom:28px;opacity:.9;">TRUCK</div>
+
+    <p class="subtitle" style="margin:0 auto 40px;text-align:center;">
+      L'ERP transport conçu <strong style="color:#fff">par et pour les transporteurs routiers français</strong> —
+      de la course à la comptabilité, du chauffeur au client, du terrain au dirigeant.
+    </p>
+
+    <div class="stats-row">
+      <div class="stat">
+        <div class="stat-number accent-cyan">40+</div>
+        <div class="stat-label">Modules métier</div>
+      </div>
+      <div class="stat">
+        <div class="stat-number accent-blue">100%</div>
+        <div class="stat-label">Français</div>
+      </div>
+      <div class="stat">
+        <div class="stat-number accent-orange">v1.2</div>
+        <div class="stat-label">Version actuelle</div>
+      </div>
+      <div class="stat">
+        <div class="stat-number accent-green">SaaS</div>
+        <div class="stat-label">Multi-tenant</div>
+      </div>
+    </div>
+
+    <p style="margin-top:48px;font-size:.8rem;color:var(--gray400);">
+      React 19 + TypeScript · PostgreSQL (Supabase) · Netlify · API-first
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SLIDE 2 — PHILOSOPHIE
+═══════════════════════════════════════════════════════ -->
+<section class="slide bg-blue" id="s2">
+  <div class="deco-circle" style="width:400px;height:400px;background:#1a56db;top:-100px;right:-100px;"></div>
+
+  <div class="slide-inner">
+    <div class="tag tag-blue">Philosophie</div>
+    <h2 class="section-title">Un ERP <span class="accent-cyan">conçu du terrain</span>,<br/>pas adapté de la compta</h2>
+    <p class="subtitle">
+      La plupart des ERP transport sont des outils généralistes habillés pour le transport.
+      NEXORA Truck part du contraire : le métier du transport d'abord, la gestion ensuite.
+    </p>
+
+    <div class="grid grid-3" style="margin-top:32px;">
+      <div class="card">
+        <div class="card-icon ico ico-lg">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="26" width="32" height="6" rx="2" fill="#60a5fa" opacity=".9"/>
+            <rect x="4" y="18" width="32" height="6" rx="2" fill="#60a5fa" opacity=".65"/>
+            <rect x="4" y="10" width="32" height="6" rx="2" fill="#60a5fa" opacity=".4"/>
+          </svg>
+        </div>
+        <h3>Additif par nature</h3>
+        <p>Chaque module s'ajoute sans casser l'existant. Migration sans rupture, rollback possible, données jamais détruites.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ico ico-lg">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="20" cy="20" r="7" stroke="#22d3ee" stroke-width="2.5" fill="none"/>
+            <line x1="20" y1="4" x2="20" y2="10" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/>
+            <line x1="20" y1="30" x2="20" y2="36" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/>
+            <line x1="4" y1="20" x2="10" y2="20" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/>
+            <line x1="30" y1="20" x2="36" y2="20" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/>
+            <line x1="8.4" y1="8.4" x2="12.5" y2="12.5" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/>
+            <line x1="27.5" y1="27.5" x2="31.6" y2="31.6" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/>
+            <line x1="31.6" y1="8.4" x2="27.5" y2="12.5" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/>
+            <line x1="12.5" y1="27.5" x2="8.4" y2="31.6" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h3>Offline-first</h3>
+        <p>L'ERP fonctionne sans API externe. Les connecteurs enrichissent, ils ne conditionnent pas. Le terrain ne peut pas attendre une réponse réseau.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ico ico-lg">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 6 L24 16 H34 L26 22 L29 33 L20 27 L11 33 L14 22 L6 16 H16 Z" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h3>Coût API maîtrisé</h3>
+        <p>Cache-first, fenêtres de rafraîchissement paramétrables, fallback interne systématique. Zéro surcoût API non contrôlé.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ico ico-lg">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="8" y="14" width="24" height="18" rx="2" stroke="#60a5fa" stroke-width="2" fill="none"/>
+            <path d="M14 14 V11 C14 8.24 16.24 6 19 6 H21 C23.76 6 26 8.24 26 11 V14" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" fill="none"/>
+            <circle cx="20" cy="23" r="2.5" fill="#60a5fa"/>
+          </svg>
+        </div>
+        <h3>Conformité française</h3>
+        <p>PCG, FEC inalterabilité, CE 561/2006, TVA multi-taux, numérotation continue anti-fraude. La loi, pas en option.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ico ico-lg">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="20" cy="20" rx="10" ry="13" stroke="#34d399" stroke-width="2" fill="none"/>
+            <path d="M14 13 Q20 8 26 13" stroke="#34d399" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+            <path d="M14 27 Q20 32 26 27" stroke="#34d399" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+            <line x1="7" y1="20" x2="33" y2="20" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="7" x2="20" y2="33" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h3>IA au service de l'ops</h3>
+        <p>L'intelligence artificielle assiste l'exploitant sans le remplacer. Analyse ETA, détection anomalies, suggestion de placement.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ico ico-lg">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="5" y="10" width="12" height="10" rx="2" stroke="#22d3ee" stroke-width="1.8" fill="none"/>
+            <rect x="23" y="10" width="12" height="10" rx="2" stroke="#22d3ee" stroke-width="1.8" fill="none"/>
+            <rect x="14" y="26" width="12" height="10" rx="2" stroke="#22d3ee" stroke-width="1.8" fill="none"/>
+            <path d="M17 20 L17 23 L20 23" stroke="#22d3ee" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+            <path d="M23 20 L23 23 L20 23" stroke="#22d3ee" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+          </svg>
+        </div>
+        <h3>API-first universel</h3>
+        <p>Chaque provider (tracking, tachy, routage) est mappé vers un modèle objet interne unifié. Le changement de fournisseur ne refactorise rien.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SLIDE 3 — POUR QUI
+═══════════════════════════════════════════════════════ -->
+<section class="slide bg-teal" id="s3">
+  <div class="slide-inner">
+    <div class="tag tag-green">Cibles</div>
+    <h2 class="section-title">Pour <span class="accent-green">qui</span> ?</h2>
+    <p class="subtitle">NEXORA Truck s'adresse à l'ensemble de l'écosystème du transport routier français, de la TPE à l'ETI.</p>
+
+    <div class="grid grid-2" style="margin-top:32px;gap:28px;">
+
+      <div class="pillar pillar-blue">
+        <div class="card-icon ico ico-xl" style="margin-bottom:12px;">
+          <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- camion -->
+            <rect x="4" y="26" width="34" height="16" rx="3" fill="none" stroke="#60a5fa" stroke-width="2"/>
+            <rect x="34" y="30" width="14" height="12" rx="2" fill="none" stroke="#60a5fa" stroke-width="2"/>
+            <circle cx="12" cy="44" r="4" stroke="#60a5fa" stroke-width="2" fill="none"/>
+            <circle cx="40" cy="44" r="4" stroke="#60a5fa" stroke-width="2" fill="none"/>
+            <path d="M38 30 L34 30 L34 38 L48 38" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+            <rect x="8" y="20" width="12" height="8" rx="1" fill="none" stroke="#60a5fa" stroke-width="1.5"/>
+          </svg>
+        </div>
+        <h3 class="accent-blue">Transporteurs routiers</h3>
+        <p>TPE, PME et ETI du transport régional à l'international. Gestion complète de la flotte, des chauffeurs, des courses et de la facturation en un seul outil.</p>
+      </div>
+
+      <div class="pillar pillar-cyan">
+        <div class="card-icon ico ico-xl" style="margin-bottom:12px;">
+          <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- grille planning -->
+            <rect x="8" y="10" width="40" height="36" rx="3" stroke="#22d3ee" stroke-width="2" fill="none"/>
+            <line x1="8" y1="20" x2="48" y2="20" stroke="#22d3ee" stroke-width="1.5"/>
+            <line x1="8" y1="30" x2="48" y2="30" stroke="#22d3ee" stroke-width="1.5"/>
+            <line x1="20" y1="10" x2="20" y2="46" stroke="#22d3ee" stroke-width="1.5" opacity=".5"/>
+            <line x1="32" y1="10" x2="32" y2="46" stroke="#22d3ee" stroke-width="1.5" opacity=".5"/>
+            <rect x="22" y="22" width="18" height="6" rx="2" fill="#22d3ee" opacity=".35"/>
+            <rect x="10" y="32" width="10" height="6" rx="2" fill="#22d3ee" opacity=".35"/>
+          </svg>
+        </div>
+        <h3 class="accent-cyan">Exploitants &amp; dispatchers</h3>
+        <p>Planification drag-and-drop, affectation intelligente, suivi temps réel, gestion des alertes réglementaires CE 561 et tachygraphe.</p>
+      </div>
+
+      <div class="pillar pillar-green">
+        <div class="card-icon ico ico-xl" style="margin-bottom:12px;">
+          <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- boîte colis + flèche -->
+            <rect x="10" y="22" width="28" height="22" rx="2" stroke="#34d399" stroke-width="2" fill="none"/>
+            <path d="M10 28 L38 28" stroke="#34d399" stroke-width="1.5"/>
+            <path d="M24 22 L24 28" stroke="#34d399" stroke-width="1.5"/>
+            <path d="M40 18 L50 18 M46 14 L50 18 L46 22" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+        </div>
+        <h3 class="accent-green">Affréteurs &amp; commissionnaires</h3>
+        <p>Espace affréteur dédié, contrats d'affrètement structurés, suivi des sous-traitants, marge par mission.</p>
+      </div>
+
+      <div class="pillar pillar-orange">
+        <div class="card-icon ico ico-xl" style="margin-bottom:12px;">
+          <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- silhouette utilisateur -->
+            <circle cx="28" cy="18" r="8" stroke="#fbbf24" stroke-width="2" fill="none"/>
+            <path d="M10 46 C10 36 18 30 28 30 C38 30 46 36 46 46" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" fill="none"/>
+          </svg>
+        </div>
+        <h3 class="accent-orange">Clients donneurs d'ordre</h3>
+        <p>Portail client tokenisé : suivi de leurs livraisons en temps réel, accès aux documents, sans compte à créer.</p>
+      </div>
+
+      <div class="pillar pillar-purple">
+        <div class="card-icon ico ico-xl" style="margin-bottom:12px;">
+          <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- graphe barres montant -->
+            <rect x="8" y="32" width="8" height="14" rx="1" fill="#c4b5fd" opacity=".6"/>
+            <rect x="20" y="22" width="8" height="24" rx="1" fill="#c4b5fd" opacity=".8"/>
+            <rect x="32" y="14" width="8" height="32" rx="1" fill="#c4b5fd"/>
+            <line x1="6" y1="46" x2="48" y2="46" stroke="#c4b5fd" stroke-width="1.5"/>
+          </svg>
+        </div>
+        <h3 class="accent-purple">Dirigeants &amp; comptables</h3>
+        <p>Tableau de bord financier, comptabilité générale conforme PCG, analytique par camion/chauffeur/client, FEC exportable.</p>
+      </div>
+
+      <div class="pillar pillar-blue" style="background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.1);">
+        <div class="card-icon ico ico-xl" style="margin-bottom:12px;">
+          <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- volant + casque chauffeur -->
+            <circle cx="28" cy="28" r="18" stroke="#94a3b8" stroke-width="2" fill="none"/>
+            <circle cx="28" cy="28" r="5" stroke="#94a3b8" stroke-width="2" fill="none"/>
+            <line x1="28" y1="10" x2="28" y2="23" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
+            <line x1="15.1" y1="17.5" x2="23.5" y2="24.8" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
+            <line x1="40.9" y1="17.5" x2="32.5" y2="24.8" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h3 style="color:#fff;">Chauffeurs</h3>
+        <p>Session conducteur mobile : feuille de route, statut mission, tchat exploitant, gestion documents RH et tachygraphe.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SLIDE 4 — CHIFFRES & TERRAIN
+═══════════════════════════════════════════════════════ -->
+<section class="slide bg-navy" id="s4">
+  <div class="deco-circle" style="width:500px;height:500px;background:#06b6d4;top:-150px;right:-150px;"></div>
+  <div class="deco-circle" style="width:300px;height:300px;background:#1a56db;bottom:-80px;left:-80px;"></div>
+  <!-- Photo terrain atmosphérique -->
+  <div style="position:absolute;inset:0;z-index:0;background-image:url('capture%20d%20ecran/fonctionnalités.png');background-size:cover;background-position:center;opacity:.07;pointer-events:none;"></div>
+
+  <div class="slide-inner">
+    <div class="tag tag-cyan">Le secteur &amp; le terrain</div>
+    <h2 class="section-title">Ce que <span class="accent-cyan">vivent vraiment</span><br/>les transporteurs chaque jour</h2>
+    <p class="subtitle" style="margin-bottom:32px;">Le transport routier français est un secteur massif, porteur — et pourtant encore mal outillé numériquement.</p>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:36px;">
+      <div style="background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.25);border-radius:14px;padding:20px 16px;text-align:center;">
+        <div style="font-size:2.2rem;font-weight:900;color:#22d3ee;line-height:1;">45 000</div>
+        <div style="font-size:.75rem;color:var(--gray400);margin-top:8px;text-transform:uppercase;letter-spacing:1px;">entreprises de TRM en France</div>
+      </div>
+      <div style="background:rgba(26,86,219,.1);border:1px solid rgba(26,86,219,.25);border-radius:14px;padding:20px 16px;text-align:center;">
+        <div style="font-size:2.2rem;font-weight:900;color:#60a5fa;line-height:1;">90%</div>
+        <div style="font-size:.75rem;color:var(--gray400);margin-top:8px;text-transform:uppercase;letter-spacing:1px;">sont des TPE/PME (&lt; 20 véhicules)</div>
+      </div>
+      <div style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.25);border-radius:14px;padding:20px 16px;text-align:center;">
+        <div style="font-size:2.2rem;font-weight:900;color:#34d399;line-height:1;">650 000</div>
+        <div style="font-size:.75rem;color:var(--gray400);margin-top:8px;text-transform:uppercase;letter-spacing:1px;">emplois chauffeurs + exploitation</div>
+      </div>
+      <div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:14px;padding:20px 16px;text-align:center;">
+        <div style="font-size:2.2rem;font-weight:900;color:#fbbf24;line-height:1;">35 Md€</div>
+        <div style="font-size:.75rem;color:var(--gray400);margin-top:8px;text-transform:uppercase;letter-spacing:1px;">chiffre d'affaires annuel du secteur</div>
+      </div>
+    </div>
+
+    <div class="grid grid-2" style="gap:24px;">
+      <div>
+        <h3 style="font-size:.85rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray400);margin-bottom:16px;">Ce que coûte le manque d'outil adapté</h3>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:center;gap:14px;padding:14px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:12px;">
+            <span style="font-size:1.4rem;font-weight:900;color:#fca5a5;min-width:52px;text-align:center;">2h</span>
+            <div style="font-size:.87rem;color:var(--gray200);line-height:1.5;">perdues chaque jour par chauffeur en saisie manuelle, double saisie et paperasse administrative</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;padding:14px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:12px;">
+            <span style="font-size:1.4rem;font-weight:900;color:#fca5a5;min-width:52px;text-align:center;">1/3</span>
+            <div style="font-size:.87rem;color:var(--gray200);line-height:1.5;">des retards de livraison sont dus à un manque de communication interne et d'info en temps réel</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;padding:14px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:12px;">
+            <span style="font-size:1.4rem;font-weight:900;color:#fca5a5;min-width:52px;text-align:center;">60%</span>
+            <div style="font-size:.87rem;color:var(--gray200);line-height:1.5;">des TPE transport planifient encore sur Excel, tableau blanc ou carnet papier</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;padding:14px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:12px;">
+            <span style="font-size:1.4rem;font-weight:900;color:#fca5a5;min-width:52px;text-align:center;">73%</span>
+            <div style="font-size:.87rem;color:var(--gray200);line-height:1.5;">des dirigeants TPE transport n'ont aucune visibilité temps réel sur leurs courses en cours</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h3 style="font-size:.85rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray400);margin-bottom:16px;">Ce qu'ils disent, mot pour mot</h3>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="padding:16px 20px;background:rgba(255,255,255,.04);border-left:3px solid #22d3ee;border-radius:0 12px 12px 0;">
+            <p style="font-style:italic;font-size:.87rem;color:var(--gray200);line-height:1.6;margin-bottom:8px;">"J'ai trois tableaux Excel, un TMS qui date de 2008, et le carnet papier pour le tachy. Je passe ma matinée à recopier."</p>
+            <span style="font-size:.75rem;color:var(--gray400);">— Gérant, transporteur régional, 8 véhicules</span>
+          </div>
+          <div style="padding:16px 20px;background:rgba(255,255,255,.04);border-left:3px solid #60a5fa;border-radius:0 12px 12px 0;">
+            <p style="font-style:italic;font-size:.87rem;color:var(--gray200);line-height:1.6;margin-bottom:8px;">"Quand un client demande où est son camion, je dois appeler le chauffeur sur son portable. C'est une honte en 2026."</p>
+            <span style="font-size:.75rem;color:var(--gray400);">— Exploitante, société de messagerie, 15 camions</span>
+          </div>
+          <div style="padding:16px 20px;background:rgba(255,255,255,.04);border-left:3px solid #fbbf24;border-radius:0 12px 12px 0;">
+            <p style="font-style:italic;font-size:.87rem;color:var(--gray200);line-height:1.6;margin-bottom:8px;">"On a eu une mise en demeure DREAL parce que les temps de conduite n'étaient pas agrégés. Notre logiciel ne le faisait pas."</p>
+            <span style="font-size:.75rem;color:var(--gray400);">— Directeur d'exploitation, groupe transport, 40 véhicules</span>
+          </div>
+          <div style="padding:16px 20px;background:rgba(255,255,255,.04);border-left:3px solid #c4b5fd;border-radius:0 12px 12px 0;">
+            <p style="font-style:italic;font-size:.87rem;color:var(--gray200);line-height:1.6;margin-bottom:8px;">"Notre comptable fait les écritures à la main depuis les factures PDF. On perd deux jours par mois juste pour fermer."</p>
+            <span style="font-size:.75rem;color:var(--gray400);">— Comptable, PME transport frigorifique</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SLIDE 5 — POURQUOI
+═══════════════════════════════════════════════════════ -->
+<section class="slide bg-dark" id="s5">
+  <div class="deco-circle" style="width:500px;height:500px;background:#f59e0b;bottom:-150px;right:-150px;"></div>
+
+  <div class="slide-inner two-col">
+    <div>
+      <div class="tag tag-orange">Pourquoi</div>
+      <h2 class="section-title">Le <span class="accent-orange">vide</span> que nous comblons</h2>
+      <p class="subtitle">Les transporteurs français accumulent des outils spécialisés qui ne communiquent pas entre eux. NEXORA Truck en est le cœur connecteur.</p>
+
+      <blockquote class="quote">
+        "On a des outils pour tout — le GPS, le tachy, la facturation, la paye — mais ils ne se parlent pas. On ressaisit tout à la main."
+      </blockquote>
+    </div>
+
+    <div>
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+          <span class="ico ico-md">
+            <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4 20 L12 20 L16 8 L20 16 L24 12" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+              <circle cx="4" cy="20" r="2" fill="#fbbf24"/>
+            </svg>
+          </span>
+          <h3>Coût des solutions spécialisées</h3>
+        </div>
+        <p>Les TMS du marché demandent des licences annuelles prohibitives inaccessibles aux TPE/PME qui font 90% du transport français.</p>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+          <span class="ico ico-md">
+            <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="3" y="3" width="9" height="9" rx="1.5" stroke="#fbbf24" stroke-width="1.8" fill="none"/>
+              <rect x="16" y="3" width="9" height="9" rx="1.5" stroke="#fbbf24" stroke-width="1.8" fill="none"/>
+              <rect x="3" y="16" width="9" height="9" rx="1.5" stroke="#fbbf24" stroke-width="1.8" fill="none"/>
+              <rect x="16" y="16" width="9" height="9" rx="1.5" stroke="#fbbf24" stroke-width="1.8" fill="none"/>
+              <line x1="12" y1="7.5" x2="16" y2="7.5" stroke="#fbbf24" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="2 2"/>
+              <line x1="7.5" y1="12" x2="7.5" y2="16" stroke="#fbbf24" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="2 2"/>
+            </svg>
+          </span>
+          <h3>Cloisonnement des données</h3>
+        </div>
+        <p>GPS, tachy, comptabilité, portail client : chaque outil est une silo. Résultat : 5 abonnements, 5 ressaisies manuelles, 5 sources de vérité contradictoires.</p>
+      </div>
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+          <span class="ico ico-md">
+            <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M14 4 L18 12 H26 L19 17 L22 26 L14 21 L6 26 L9 17 L2 12 H10 Z" stroke="#fbbf24" stroke-width="1.8" stroke-linejoin="round" fill="none"/>
+            </svg>
+          </span>
+          <h3>Conformité réglementaire ignorée</h3>
+        </div>
+        <p>CE 561/2006, tachygraphe, FEC, inalterabilité des écritures : des contraintes critiques absentes des outils généralistes non pensés pour le transport.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SLIDE 6 — LOGICIELS VIEILLISSANTS
+═══════════════════════════════════════════════════════ -->
+<section class="slide bg-dark" id="s6">
+  <div class="deco-circle" style="width:500px;height:500px;background:#ef4444;top:-180px;left:-150px;"></div>
+
+  <div class="slide-inner">
+    <div class="tag tag-red">Le marché existant</div>
+    <h2 class="section-title">Des logiciels <span class="accent-red">vieillissants</span><br/>qui peinent à s'intégrer</h2>
+    <p class="subtitle" style="margin-bottom:36px;">
+      Les transporteurs continuent d'utiliser leurs outils spécialisés — c'est leur choix. Mais ces outils ne se parlent pas entre eux.
+      NEXORA Truck ne les remplace pas : il les connecte, les modernise et en devient le hub central.
+    </p>
+
+    <div class="grid grid-2" style="gap:24px;margin-bottom:32px;">
+
+      <div class="card" style="border-color:rgba(239,68,68,.25);">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+          <span class="ico ico-md" style="flex-shrink:0;">
+            <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="4" y="4" width="20" height="20" rx="2" stroke="#fca5a5" stroke-width="2" fill="none"/>
+              <rect x="7" y="7" width="14" height="10" rx="1" fill="#fca5a5" opacity=".2"/>
+              <line x1="7" y1="20" x2="21" y2="20" stroke="#fca5a5" stroke-width="1.5" stroke-linecap="round"/>
+              <circle cx="14" cy="23" r="1.5" fill="#fca5a5"/>
+            </svg>
+          </span>
+          <h3>Interfaces client-lourd Windows</h3>
+        </div>
+        <p style="margin-bottom:14px;">La majorité des TMS du marché sont des applications desktop installées, incompatibles avec le travail à distance, l'accès mobile chauffeur et les architectures cloud modernes.</p>
+        <ul class="feature-list" style="--check-color:#fca5a5;">
+          <li style="--before-color:#ef4444;">Mises à jour manuelles poste par poste</li>
+          <li>Incompatibilité avec les appareils mobiles terrain</li>
+          <li>Accès distant complexe (VPN, sessions RDP)</li>
+          <li>Coûts d'infrastructure serveur on-premise élevés</li>
+        </ul>
+      </div>
+
+      <div class="card" style="border-color:rgba(239,68,68,.25);">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+          <span class="ico ico-md" style="flex-shrink:0;">
+            <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="4" y="4" width="20" height="20" rx="2" stroke="#fca5a5" stroke-width="2" fill="none"/>
+              <path d="M4 10 L24 10" stroke="#fca5a5" stroke-width="1.5"/>
+              <circle cx="14" cy="18" r="3" stroke="#fca5a5" stroke-width="1.5" fill="none"/>
+              <line x1="14" y1="15" x2="14" y2="10" stroke="#fca5a5" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <h3>Bases de données fermées</h3>
+        </div>
+        <p style="margin-bottom:14px;">Les données sont enfermées dans des formats propriétaires. Exporter une liste de courses vers un autre outil nécessite des développements spécifiques coûteux ou des exports CSV manuels fragiles.</p>
+        <ul class="feature-list">
+          <li>Pas d'API standard accessible</li>
+          <li>Exports limités à quelques formats figés</li>
+          <li>Migration vers un autre outil = projet de 6 à 18 mois</li>
+          <li>Dépendance totale à l'éditeur pour toute évolution</li>
+        </ul>
+      </div>
+
+      <div class="card" style="border-color:rgba(239,68,68,.25);">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+          <span class="ico ico-md" style="flex-shrink:0;">
+            <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="14" cy="14" r="10" stroke="#fca5a5" stroke-width="2" fill="none"/>
+              <polyline points="10,8 14,8 14,14 18,14" stroke="#fca5a5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            </svg>
+          </span>
+          <h3>Cycles de mise à jour lents</h3>
+        </div>
+        <p style="margin-bottom:14px;">Les éditeurs historiques opèrent avec des cycles de release annuels ou biannuels. Une réglementation qui change (ex: tachygraphe intelligent, e-CMR) se traduit par des mois d'attente avant la mise en conformité.</p>
+        <ul class="feature-list">
+          <li>Réglementations appliquées avec 6 à 12 mois de retard</li>
+          <li>Correctifs urgents facturés en maintenance spécifique</li>
+          <li>Roadmap produit imposée, non co-construite</li>
+        </ul>
+      </div>
+
+      <div class="card" style="border-color:rgba(239,68,68,.25);">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+          <span class="ico ico-md" style="flex-shrink:0;">
+            <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="10" cy="14" r="5" stroke="#fca5a5" stroke-width="2" fill="none"/>
+              <path d="M6 11 L10 14 L14 11" stroke="#fca5a5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+              <line x1="15" y1="14" x2="23" y2="14" stroke="#fca5a5" stroke-width="2" stroke-linecap="round"/>
+              <path d="M19 10 L23 14 L19 18" stroke="#fca5a5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            </svg>
+          </span>
+          <h3>Modèles économiques opaques</h3>
+        </div>
+        <p style="margin-bottom:14px;">Licences perpétuelles + maintenance annuelle, ou abonnements avec des modules additionnels facturés séparément. Le coût réel d'un TMS historique dépasse souvent le devis initial de 30 à 60%.</p>
+        <ul class="feature-list">
+          <li>Module tracking facturé à part</li>
+          <li>Portail client = option payante supplémentaire</li>
+          <li>Formation initiale et migration à la charge du client</li>
+          <li>Hausse annuelle des tarifs sans valeur ajoutée visible</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <!-- Comparatif -->
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:24px;">
+      <h3 style="font-size:.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray400);margin-bottom:20px;">Comparatif rapide</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;">
+        <div style="padding:0 16px 0 0;">
+          <div style="font-size:.8rem;font-weight:700;color:var(--gray400);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Critère</div>
+          <div style="font-size:.85rem;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);">Accès mobile</div>
+          <div style="font-size:.85rem;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);">Mises à jour</div>
+          <div style="font-size:.85rem;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);">API ouverte</div>
+          <div style="font-size:.85rem;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);">Conformité réglementaire</div>
+          <div style="font-size:.85rem;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);">Comptabilité intégrée</div>
+          <div style="font-size:.85rem;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);">IA & automatisation</div>
+        </div>
+        <div style="padding:0 16px;border-left:1px solid rgba(255,255,255,.06);">
+          <div style="font-size:.8rem;font-weight:700;color:#fca5a5;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">TMS historiques</div>
+          <div style="font-size:.85rem;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);color:#fca5a5;">❌ Rarement natif</div>
+          <div style="font-size:.85rem;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);color:#fca5a5;">❌ Cycle annuel</div>
+          <div style="font-size:.85rem;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);color:#fca5a5;">❌ Propriétaire</div>
+          <div style="font-size:.85rem;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);color:#fbbf24;">⚠️ Partielle</div>
+          <div style="font-size:.85rem;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);color:#fca5a5;">❌ Module séparé</div>
+          <div style="font-size:.85rem;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);color:#fca5a5;">❌ Absente ou anecdotique</div>
+        </div>
+        <div style="padding:0 0 0 16px;border-left:1px solid rgba(255,255,255,.06);">
+          <div style="font-size:.8rem;font-weight:700;color:#34d399;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">NEXORA Truck</div>
+          <div style="font-size:.85rem;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);color:#34d399;">✓ Web natif + PWA</div>
+          <div style="font-size:.85rem;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);color:#34d399;">✓ Continu & sans interruption</div>
+          <div style="font-size:.85rem;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);color:#34d399;">✓ API-first standard</div>
+          <div style="font-size:.85rem;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);color:#34d399;">✓ PCG + CE 561 natifs</div>
+          <div style="font-size:.85rem;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);color:#34d399;">✓ Incluse dans le socle</div>
+          <div style="font-size:.85rem;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);color:#34d399;">✓ Moteur interne + OpenAI opt.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SLIDE 7 — COMMENT (STACK + ARCHITECTURE)
+═══════════════════════════════════════════════════════ -->
+<section class="slide bg-navy" id="s7">
+  <div class="slide-inner">
+    <div class="tag tag-cyan">Architecture</div>
+    <h2 class="section-title">Comment <span class="accent-cyan">ça fonctionne</span> ?</h2>
+    <p class="subtitle">Un stack moderne, maîtrisé, orienté performance et conformité.</p>
+
+    <div class="grid grid-4">
+      <div class="card">
+        <div class="card-icon ico ico-lg">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- atome React -->
+            <circle cx="20" cy="20" r="3" fill="#22d3ee"/>
+            <ellipse cx="20" cy="20" rx="16" ry="6" stroke="#22d3ee" stroke-width="1.5" fill="none"/>
+            <ellipse cx="20" cy="20" rx="16" ry="6" stroke="#22d3ee" stroke-width="1.5" fill="none" transform="rotate(60,20,20)"/>
+            <ellipse cx="20" cy="20" rx="16" ry="6" stroke="#22d3ee" stroke-width="1.5" fill="none" transform="rotate(-60,20,20)"/>
+          </svg>
+        </div>
+        <h3>Frontend</h3>
+        <p>React 19 + TypeScript<br/>Vite · 100% français<br/>SPA multi-pages</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ico ico-lg">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- cylindre base de données -->
+            <ellipse cx="20" cy="10" rx="14" ry="4" stroke="#60a5fa" stroke-width="1.8" fill="none"/>
+            <ellipse cx="20" cy="30" rx="14" ry="4" stroke="#60a5fa" stroke-width="1.8" fill="none"/>
+            <line x1="6" y1="10" x2="6" y2="30" stroke="#60a5fa" stroke-width="1.8"/>
+            <line x1="34" y1="10" x2="34" y2="30" stroke="#60a5fa" stroke-width="1.8"/>
+            <ellipse cx="20" cy="20" rx="14" ry="4" stroke="#60a5fa" stroke-width="1" fill="none" opacity=".4"/>
+          </svg>
+        </div>
+        <h3>Base de données</h3>
+        <p>PostgreSQL via Supabase<br/>RLS par rôle/tenant<br/>Migrations versionnées</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ico ico-lg">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- éclair serverless -->
+            <path d="M24 4 L14 22 H22 L16 36 L30 16 H21 Z" stroke="#fbbf24" stroke-width="2" stroke-linejoin="round" fill="none"/>
+          </svg>
+        </div>
+        <h3>Serverless API</h3>
+        <p>Netlify Functions<br/>Node.js edge<br/>Cache HTTP maîtrisé</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ico ico-lg">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- circuit IA -->
+            <rect x="12" y="12" width="16" height="16" rx="2" stroke="#34d399" stroke-width="2" fill="none"/>
+            <line x1="16" y1="12" x2="16" y2="8" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="12" x2="20" y2="8" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="24" y1="12" x2="24" y2="8" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="16" y1="28" x2="16" y2="32" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="28" x2="20" y2="32" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="24" y1="28" x2="24" y2="32" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="12" y1="16" x2="8" y2="16" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="12" y1="24" x2="8" y2="24" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="28" y1="16" x2="32" y2="16" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="28" y1="24" x2="32" y2="24" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h3>IA intégrée</h3>
+        <p>Moteur interne d'abord<br/>OpenAI optionnel<br/>Fallback garanti</p>
+      </div>
+    </div>
+
+    <div style="margin-top:40px;">
+      <h3 style="font-size:1rem;font-weight:700;margin-bottom:20px;color:var(--gray400);text-transform:uppercase;letter-spacing:1px;">Principes d'architecture</h3>
+      <div class="grid grid-3">
+        <div style="display:flex;gap:14px;align-items:flex-start;">
+          <div style="width:3px;height:100%;background:#60a5fa;border-radius:2px;flex-shrink:0;min-height:60px;"></div>
+          <div>
+            <div style="font-weight:700;margin-bottom:4px;">Multi-tenant natif</div>
+            <div style="font-size:.85rem;color:var(--gray400);">Chaque entreprise est isolée. RLS Postgres enforce l'isolation au niveau base de données, pas seulement applicatif.</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:14px;align-items:flex-start;">
+          <div style="width:3px;height:100%;background:#22d3ee;border-radius:2px;flex-shrink:0;min-height:60px;"></div>
+          <div>
+            <div style="font-weight:700;margin-bottom:4px;">Provider-agnostique</div>
+            <div style="font-size:.85rem;color:var(--gray400);">GPS, tachy, routage : tout fournisseur est mappé vers un modèle objet interne unifié (VehiclePosition, DriverStatus, EtaPrediction…)</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:14px;align-items:flex-start;">
+          <div style="width:3px;height:100%;background:#34d399;border-radius:2px;flex-shrink:0;min-height:60px;"></div>
+          <div>
+            <div style="font-weight:700;margin-bottom:4px;">Inalterabilité légale</div>
+            <div style="font-size:.85rem;color:var(--gray400);">Écritures comptables append-only, checksum SHA-256, contre-écritures obligatoires. FEC exportable à tout moment.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SLIDE 16 — ÉCOSYSTÈME CONNECTÉ
+═══════════════════════════════════════════════════════ -->
+<section class="slide bg-navy" id="s16">
+  <div class="deco-circle" style="width:600px;height:600px;background:#1a56db;top:-200px;left:-200px;"></div>
+
+  <div class="slide-inner" style="position:relative;">
+    <div class="tag tag-blue">Vue système</div>
+    <h2 class="section-title" style="margin-bottom:8px;">NEXORA Truck — <span class="accent-blue">le cœur connecteur</span></h2>
+    <p class="subtitle" style="margin-bottom:24px;">Vos outils existants continuent de fonctionner. NEXORA les connecte, les synchronise et devient le hub central de votre activité.</p>
+
+    <div class="ecosystem-canvas">
+      <svg viewBox="0 0 1000 495" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;">
+
+        <!-- ── MAILLAGE INTER-MODULES (tous les noeuds internes communiquent entre eux) ── -->
+        <!-- Exploitant(340,100) ↔ autres -->
+        <line x1="340" y1="100" x2="500" y2="70"  stroke="rgba(96,165,250,.13)" stroke-width="1"/>
+        <line x1="340" y1="100" x2="660" y2="100" stroke="rgba(96,165,250,.10)" stroke-width="1"/>
+        <line x1="340" y1="100" x2="720" y2="240" stroke="rgba(96,165,250,.08)" stroke-width="1"/>
+        <line x1="340" y1="100" x2="660" y2="380" stroke="rgba(96,165,250,.07)" stroke-width="1"/>
+        <line x1="340" y1="100" x2="500" y2="410" stroke="rgba(96,165,250,.08)" stroke-width="1"/>
+        <line x1="340" y1="100" x2="340" y2="380" stroke="rgba(96,165,250,.15)" stroke-width="1.2"/>
+        <line x1="340" y1="100" x2="280" y2="240" stroke="rgba(96,165,250,.14)" stroke-width="1.2"/>
+        <!-- Dirigeant(500,70) ↔ autres -->
+        <line x1="500" y1="70"  x2="660" y2="100" stroke="rgba(96,165,250,.13)" stroke-width="1"/>
+        <line x1="500" y1="70"  x2="720" y2="240" stroke="rgba(96,165,250,.11)" stroke-width="1"/>
+        <line x1="500" y1="70"  x2="660" y2="380" stroke="rgba(96,165,250,.07)" stroke-width="1"/>
+        <line x1="500" y1="70"  x2="500" y2="410" stroke="rgba(96,165,250,.10)" stroke-width="1"/>
+        <line x1="500" y1="70"  x2="340" y2="380" stroke="rgba(96,165,250,.08)" stroke-width="1"/>
+        <line x1="500" y1="70"  x2="280" y2="240" stroke="rgba(96,165,250,.10)" stroke-width="1"/>
+        <!-- Affréteur(660,100) ↔ autres -->
+        <line x1="660" y1="100" x2="720" y2="240" stroke="rgba(96,165,250,.14)" stroke-width="1.2"/>
+        <line x1="660" y1="100" x2="660" y2="380" stroke="rgba(96,165,250,.15)" stroke-width="1.2"/>
+        <line x1="660" y1="100" x2="500" y2="410" stroke="rgba(96,165,250,.08)" stroke-width="1"/>
+        <line x1="660" y1="100" x2="340" y2="380" stroke="rgba(96,165,250,.07)" stroke-width="1"/>
+        <line x1="660" y1="100" x2="280" y2="240" stroke="rgba(96,165,250,.07)" stroke-width="1"/>
+        <!-- Comptable(720,240) ↔ autres -->
+        <line x1="720" y1="240" x2="660" y2="380" stroke="rgba(96,165,250,.14)" stroke-width="1.2"/>
+        <line x1="720" y1="240" x2="500" y2="410" stroke="rgba(96,165,250,.11)" stroke-width="1"/>
+        <line x1="720" y1="240" x2="340" y2="380" stroke="rgba(96,165,250,.08)" stroke-width="1"/>
+        <line x1="720" y1="240" x2="280" y2="240" stroke="rgba(96,165,250,.09)" stroke-width="1"/>
+        <!-- Client(660,380) ↔ autres -->
+        <line x1="660" y1="380" x2="500" y2="410" stroke="rgba(96,165,250,.13)" stroke-width="1"/>
+        <line x1="660" y1="380" x2="340" y2="380" stroke="rgba(96,165,250,.10)" stroke-width="1"/>
+        <line x1="660" y1="380" x2="280" y2="240" stroke="rgba(96,165,250,.07)" stroke-width="1"/>
+        <!-- RH(500,410) ↔ autres -->
+        <line x1="500" y1="410" x2="340" y2="380" stroke="rgba(96,165,250,.15)" stroke-width="1.2"/>
+        <line x1="500" y1="410" x2="280" y2="240" stroke="rgba(96,165,250,.09)" stroke-width="1"/>
+        <!-- Chauffeur(340,380) ↔ Atelier(280,240) -->
+        <line x1="340" y1="380" x2="280" y2="240" stroke="rgba(96,165,250,.15)" stroke-width="1.2"/>
+
+        <!-- ── RAYONS CENTRE → MODULES (hub) ── -->
+        <line x1="500" y1="240" x2="340" y2="100" stroke="rgba(96,165,250,.30)" stroke-width="1.5" stroke-dasharray="5 5"/>
+        <line x1="500" y1="240" x2="500" y2="70"  stroke="rgba(96,165,250,.30)" stroke-width="1.5" stroke-dasharray="5 5"/>
+        <line x1="500" y1="240" x2="660" y2="100" stroke="rgba(96,165,250,.30)" stroke-width="1.5" stroke-dasharray="5 5"/>
+        <line x1="500" y1="240" x2="720" y2="240" stroke="rgba(96,165,250,.30)" stroke-width="1.5" stroke-dasharray="5 5"/>
+        <line x1="500" y1="240" x2="660" y2="380" stroke="rgba(96,165,250,.30)" stroke-width="1.5" stroke-dasharray="5 5"/>
+        <line x1="500" y1="240" x2="500" y2="410" stroke="rgba(96,165,250,.30)" stroke-width="1.5" stroke-dasharray="5 5"/>
+        <line x1="500" y1="240" x2="340" y2="380" stroke="rgba(96,165,250,.30)" stroke-width="1.5" stroke-dasharray="5 5"/>
+        <line x1="500" y1="240" x2="280" y2="240" stroke="rgba(96,165,250,.30)" stroke-width="1.5" stroke-dasharray="5 5"/>
+
+        <!-- ── CENTRE → OUTILS EXTERNES ── -->
+        <line x1="500" y1="240" x2="178" y2="80"  stroke="rgba(34,211,238,.18)" stroke-width="1.2"/>
+        <line x1="500" y1="240" x2="100" y2="180" stroke="rgba(34,211,238,.18)" stroke-width="1.2"/>
+        <line x1="500" y1="240" x2="120" y2="320" stroke="rgba(34,211,238,.18)" stroke-width="1.2"/>
+        <line x1="500" y1="240" x2="220" y2="430" stroke="rgba(34,211,238,.18)" stroke-width="1.2"/>
+        <line x1="500" y1="240" x2="780" y2="430" stroke="rgba(34,211,238,.18)" stroke-width="1.2"/>
+        <line x1="500" y1="240" x2="880" y2="320" stroke="rgba(34,211,238,.18)" stroke-width="1.2"/>
+        <line x1="500" y1="240" x2="900" y2="180" stroke="rgba(34,211,238,.18)" stroke-width="1.2"/>
+        <line x1="500" y1="240" x2="822" y2="80"  stroke="rgba(34,211,238,.18)" stroke-width="1.2"/>
+
+        <!-- NOEUD CENTRAL — NEXORA TRUCK -->
+        <circle cx="500" cy="240" r="58" fill="rgba(26,86,219,.4)" stroke="#60a5fa" stroke-width="2.5"/>
+        <circle cx="500" cy="240" r="46" fill="rgba(26,86,219,.2)" stroke="#60a5fa" stroke-width="1" opacity=".5"/>
+        <text x="500" y="232" text-anchor="middle" fill="white" font-size="15" font-weight="800" font-family="system-ui,sans-serif">NEXORA</text>
+        <text x="500" y="252" text-anchor="middle" fill="#22d3ee" font-size="13" font-weight="700" font-family="system-ui,sans-serif">TRUCK</text>
+        <text x="500" y="268" text-anchor="middle" fill="rgba(255,255,255,.5)" font-size="9" font-family="system-ui,sans-serif">Hub central</text>
+
+        <!-- NOEUDS MÉTIERS INTERNES (anneau intermédiaire, rayon ~170, couleur bleue) -->
+        <!-- Exploitant — 315° -->
+        <circle cx="340" cy="100" r="36" fill="rgba(26,86,219,.3)" stroke="#60a5fa" stroke-width="1.8"/>
+        <text x="340" y="96" text-anchor="middle" fill="#93c5fd" font-size="9.5" font-weight="700" font-family="system-ui,sans-serif">Exploitant</text>
+        <text x="340" y="110" text-anchor="middle" fill="rgba(255,255,255,.6)" font-size="8" font-family="system-ui,sans-serif">Planning · OT</text>
+
+        <!-- Dirigeant — 0° -->
+        <circle cx="500" cy="70" r="36" fill="rgba(26,86,219,.3)" stroke="#60a5fa" stroke-width="1.8"/>
+        <text x="500" y="66" text-anchor="middle" fill="#93c5fd" font-size="9.5" font-weight="700" font-family="system-ui,sans-serif">Dirigeant</text>
+        <text x="500" y="80" text-anchor="middle" fill="rgba(255,255,255,.6)" font-size="8" font-family="system-ui,sans-serif">Dashboard · KPIs</text>
+
+        <!-- Affréteur — 45° -->
+        <circle cx="660" cy="100" r="36" fill="rgba(26,86,219,.3)" stroke="#60a5fa" stroke-width="1.8"/>
+        <text x="660" y="96" text-anchor="middle" fill="#93c5fd" font-size="9.5" font-weight="700" font-family="system-ui,sans-serif">Affréteur</text>
+        <text x="660" y="110" text-anchor="middle" fill="rgba(255,255,255,.6)" font-size="8" font-family="system-ui,sans-serif">Contrats · Marges</text>
+
+        <!-- Comptable — 90° -->
+        <circle cx="720" cy="240" r="36" fill="rgba(26,86,219,.3)" stroke="#60a5fa" stroke-width="1.8"/>
+        <text x="720" y="236" text-anchor="middle" fill="#93c5fd" font-size="9.5" font-weight="700" font-family="system-ui,sans-serif">Comptable</text>
+        <text x="720" y="250" text-anchor="middle" fill="rgba(255,255,255,.6)" font-size="8" font-family="system-ui,sans-serif">PCG · FEC · TVA</text>
+
+        <!-- Client — 135° -->
+        <circle cx="660" cy="380" r="36" fill="rgba(26,86,219,.3)" stroke="#60a5fa" stroke-width="1.8"/>
+        <text x="660" y="376" text-anchor="middle" fill="#93c5fd" font-size="9.5" font-weight="700" font-family="system-ui,sans-serif">Client</text>
+        <text x="660" y="390" text-anchor="middle" fill="rgba(255,255,255,.6)" font-size="8" font-family="system-ui,sans-serif">Portail · Tracking</text>
+
+        <!-- RH / Paie — 180° -->
+        <circle cx="500" cy="410" r="36" fill="rgba(26,86,219,.3)" stroke="#60a5fa" stroke-width="1.8"/>
+        <text x="500" y="406" text-anchor="middle" fill="#93c5fd" font-size="9.5" font-weight="700" font-family="system-ui,sans-serif">RH · Paie</text>
+        <text x="500" y="420" text-anchor="middle" fill="rgba(255,255,255,.6)" font-size="8" font-family="system-ui,sans-serif">Chauffeurs · Docs</text>
+
+        <!-- Chauffeur — 225° -->
+        <circle cx="340" cy="380" r="36" fill="rgba(26,86,219,.3)" stroke="#60a5fa" stroke-width="1.8"/>
+        <text x="340" y="376" text-anchor="middle" fill="#93c5fd" font-size="9.5" font-weight="700" font-family="system-ui,sans-serif">Chauffeur</text>
+        <text x="340" y="390" text-anchor="middle" fill="rgba(255,255,255,.6)" font-size="8" font-family="system-ui,sans-serif">Mission · Tachy</text>
+
+        <!-- Atelier — 270° -->
+        <circle cx="280" cy="240" r="36" fill="rgba(26,86,219,.3)" stroke="#60a5fa" stroke-width="1.8"/>
+        <text x="280" y="236" text-anchor="middle" fill="#93c5fd" font-size="9.5" font-weight="700" font-family="system-ui,sans-serif">Atelier</text>
+        <text x="280" y="250" text-anchor="middle" fill="rgba(255,255,255,.6)" font-size="8" font-family="system-ui,sans-serif">Flotte · Maintenance</text>
+
+        <!-- NOEUDS OUTILS EXTERNES (anneau extérieur, couleur cyan) -->
+        <!-- GPS / Télématique — ~330° -->
+        <circle cx="178" cy="80" r="26" fill="rgba(6,182,212,.15)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="178" y="76" text-anchor="middle" fill="#67e8f9" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif">GPS</text>
+        <text x="178" y="88" text-anchor="middle" fill="rgba(255,255,255,.5)" font-size="7.5" font-family="system-ui,sans-serif">Samsara·Webfleet</text>
+
+        <!-- Tachygraphe dig. — ~300° -->
+        <circle cx="100" cy="180" r="26" fill="rgba(6,182,212,.15)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="100" y="176" text-anchor="middle" fill="#67e8f9" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif">Tachy</text>
+        <text x="100" y="188" text-anchor="middle" fill="rgba(255,255,255,.5)" font-size="7.5" font-family="system-ui,sans-serif">CE 561 · DTCO</text>
+
+        <!-- Bourse fret — ~260° -->
+        <circle cx="120" cy="320" r="26" fill="rgba(6,182,212,.15)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="120" y="316" text-anchor="middle" fill="#67e8f9" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif">Bourse fret</text>
+        <text x="120" y="328" text-anchor="middle" fill="rgba(255,255,255,.5)" font-size="7.5" font-family="system-ui,sans-serif">Teleroute·TimoCom</text>
+
+        <!-- Email entrant — ~220° -->
+        <circle cx="220" cy="430" r="26" fill="rgba(6,182,212,.15)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="220" y="426" text-anchor="middle" fill="#67e8f9" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif">Email</text>
+        <text x="220" y="438" text-anchor="middle" fill="rgba(255,255,255,.5)" font-size="7.5" font-family="system-ui,sans-serif">Parsing auto</text>
+
+        <!-- Inter-ERP — ~140° -->
+        <circle cx="780" cy="430" r="26" fill="rgba(6,182,212,.15)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="780" y="426" text-anchor="middle" fill="#67e8f9" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif">Inter-ERP</text>
+        <text x="780" y="438" text-anchor="middle" fill="rgba(255,255,255,.5)" font-size="7.5" font-family="system-ui,sans-serif">API · Webhook</text>
+
+        <!-- OCR / Compta ext — ~100° -->
+        <circle cx="880" cy="320" r="26" fill="rgba(6,182,212,.15)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="880" y="316" text-anchor="middle" fill="#67e8f9" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif">OCR</text>
+        <text x="880" y="328" text-anchor="middle" fill="rgba(255,255,255,.5)" font-size="7.5" font-family="system-ui,sans-serif">Factures PDF</text>
+
+        <!-- Logiciel paye — ~60° -->
+        <circle cx="900" cy="180" r="26" fill="rgba(6,182,212,.15)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="900" y="176" text-anchor="middle" fill="#67e8f9" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif">Paie ext.</text>
+        <text x="900" y="188" text-anchor="middle" fill="rgba(255,255,255,.5)" font-size="7.5" font-family="system-ui,sans-serif">Silae · Cegid</text>
+
+        <!-- App mobile chauffeur — ~30° -->
+        <circle cx="822" cy="80" r="26" fill="rgba(6,182,212,.15)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="822" y="76" text-anchor="middle" fill="#67e8f9" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif">App mobile</text>
+        <text x="822" y="88" text-anchor="middle" fill="rgba(255,255,255,.5)" font-size="7.5" font-family="system-ui,sans-serif">PWA chauffeur</text>
+
+        <!-- Légende -->
+        <circle cx="30" cy="448" r="7" fill="rgba(26,86,219,.4)" stroke="#60a5fa" stroke-width="1.2"/>
+        <text x="42" y="452" fill="rgba(255,255,255,.7)" font-size="9" font-family="system-ui,sans-serif">Modules &amp; utilisateurs internes</text>
+        <line x1="23" y1="463" x2="37" y2="463" stroke="rgba(96,165,250,.5)" stroke-width="1.5"/>
+        <text x="42" y="467" fill="rgba(255,255,255,.7)" font-size="9" font-family="system-ui,sans-serif">Communication inter-modules (données partagées en temps réel)</text>
+        <circle cx="30" cy="478" r="7" fill="rgba(6,182,212,.15)" stroke="#22d3ee" stroke-width="1.2"/>
+        <text x="42" y="482" fill="rgba(255,255,255,.7)" font-size="9" font-family="system-ui,sans-serif">Outils externes connectés via NEXORA</text>
+
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SLIDE 8 — TEMPS GAGNÉ & LIBÉRATION MENTALE
+═══════════════════════════════════════════════════════ -->
+<section class="slide bg-teal" id="s8">
+  <div class="deco-circle" style="width:500px;height:500px;background:#06b6d4;top:-150px;right:-150px;"></div>
+  <div class="deco-circle" style="width:300px;height:300px;background:#10b981;bottom:-100px;left:-100px;"></div>
+
+  <div class="slide-inner">
+    <div class="tag tag-green">Impact réel</div>
+    <h2 class="section-title"><span class="accent-green">Temps récupéré.</span><br/>Tête libérée. Décisions éclairées.</h2>
+    <p class="subtitle" style="margin-bottom:36px;">NEXORA Truck ne promet pas la performance — il supprime les frictions qui l'empêchent.</p>
+
+    <!-- Tableau Avant / Après -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-bottom:36px;">
+
+      <div style="border-radius:16px;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2);padding:24px;">
+        <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#fca5a5;margin-bottom:16px;">Avant NEXORA Truck</div>
+        <div style="display:flex;flex-direction:column;gap:13px;">
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <span style="color:#fca5a5;font-size:1rem;flex-shrink:0;margin-top:2px;">✗</span>
+            <div style="font-size:.87rem;color:var(--gray200);line-height:1.5;"><strong>Appeler le chauffeur</strong> pour savoir où il est — toutes les heures si le client insiste</div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <span style="color:#fca5a5;font-size:1rem;flex-shrink:0;margin-top:2px;">✗</span>
+            <div style="font-size:.87rem;color:var(--gray200);line-height:1.5;"><strong>Jongler entre 4 outils</strong> : Excel planification, TMS livraisons, compta manuelle, portail GPS séparé</div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <span style="color:#fca5a5;font-size:1rem;flex-shrink:0;margin-top:2px;">✗</span>
+            <div style="font-size:.87rem;color:var(--gray200);line-height:1.5;"><strong>Clôture mensuelle en 2 jours</strong> : recopier les factures PDF en écritures comptables manuelles</div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <span style="color:#fca5a5;font-size:1rem;flex-shrink:0;margin-top:2px;">✗</span>
+            <div style="font-size:.87rem;color:var(--gray200);line-height:1.5;"><strong>Découvrir le retard client</strong> via un appel entrant en colère, pas par une alerte interne</div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <span style="color:#fca5a5;font-size:1rem;flex-shrink:0;margin-top:2px;">✗</span>
+            <div style="font-size:.87rem;color:var(--gray200);line-height:1.5;"><strong>Impossible de calculer la marge</strong> d'une tournée sans passer 30 min sur Excel</div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <span style="color:#fca5a5;font-size:1rem;flex-shrink:0;margin-top:2px;">✗</span>
+            <div style="font-size:.87rem;color:var(--gray200);line-height:1.5;"><strong>Vérification tachygraphe manuelle</strong> : télécharger, lire, croiser dossier par dossier</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="border-radius:16px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);padding:24px;">
+        <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#34d399;margin-bottom:16px;">Avec NEXORA Truck</div>
+        <div style="display:flex;flex-direction:column;gap:13px;">
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <span style="color:#34d399;font-size:1rem;flex-shrink:0;margin-top:2px;">✓</span>
+            <div style="font-size:.87rem;color:var(--gray200);line-height:1.5;"><strong>Localisation instantanée</strong> sur map live + ETA prédictif — le client voit lui-même sur son portail</div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <span style="color:#34d399;font-size:1rem;flex-shrink:0;margin-top:2px;">✓</span>
+            <div style="font-size:.87rem;color:var(--gray200);line-height:1.5;"><strong>Un seul outil</strong> : planning, courses, facturation, tachygraphe, analytique, portail client, tchat</div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <span style="color:#34d399;font-size:1rem;flex-shrink:0;margin-top:2px;">✓</span>
+            <div style="font-size:.87rem;color:var(--gray200);line-height:1.5;"><strong>Clôture en quelques heures</strong> : les écritures sont générées automatiquement depuis les factures validées</div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <span style="color:#34d399;font-size:1rem;flex-shrink:0;margin-top:2px;">✓</span>
+            <div style="font-size:.87rem;color:var(--gray200);line-height:1.5;"><strong>Alerte war room proactive</strong> : retard détecté, classé par priorité, notification client en un clic</div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <span style="color:#34d399;font-size:1rem;flex-shrink:0;margin-top:2px;">✓</span>
+            <div style="font-size:.87rem;color:var(--gray200);line-height:1.5;"><strong>Marge visible en temps réel</strong> : coût/km, marge/tournée, analytique par chauffeur et par client</div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <span style="color:#34d399;font-size:1rem;flex-shrink:0;margin-top:2px;">✓</span>
+            <div style="font-size:.87rem;color:var(--gray200);line-height:1.5;"><strong>Contrôle CE 561 automatique</strong> : infractions détectées, alertes générées, conformité DREAL continue</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Chiffres clé + citation -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr) 2fr;gap:16px;align-items:stretch;">
+      <div style="background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.25);border-radius:14px;padding:18px 12px;text-align:center;">
+        <div style="font-size:2rem;font-weight:900;color:#22d3ee;line-height:1;">2h</div>
+        <div style="font-size:.72rem;color:var(--gray400);margin-top:8px;text-transform:uppercase;letter-spacing:1px;">récupérées/j par chauffeur en saisie</div>
+      </div>
+      <div style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.25);border-radius:14px;padding:18px 12px;text-align:center;">
+        <div style="font-size:2rem;font-weight:900;color:#34d399;line-height:1;">−30%</div>
+        <div style="font-size:.72rem;color:var(--gray400);margin-top:8px;text-transform:uppercase;letter-spacing:1px;">de retards non anticipés</div>
+      </div>
+      <div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:14px;padding:18px 12px;text-align:center;">
+        <div style="font-size:2rem;font-weight:900;color:#fbbf24;line-height:1;">0</div>
+        <div style="font-size:.72rem;color:var(--gray400);margin-top:8px;text-transform:uppercase;letter-spacing:1px;">appel pour localiser un camion</div>
+      </div>
+      <div style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.25);border-radius:14px;padding:18px 12px;text-align:center;">
+        <div style="font-size:2rem;font-weight:900;color:#c4b5fd;line-height:1;">×10</div>
+        <div style="font-size:.72rem;color:var(--gray400);margin-top:8px;text-transform:uppercase;letter-spacing:1px;">plus rapide à la clôture comptable</div>
+      </div>
+      <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:18px 20px;display:flex;align-items:center;">
+        <div>
+          <div style="font-style:italic;font-size:.88rem;color:var(--gray200);line-height:1.6;margin-bottom:8px;">"La nuit, je dormais mal parce que je savais pas si les courses du lendemain étaient bien calées. Maintenant j'ouvre le planning depuis mon canapé."</div>
+          <div style="font-size:.72rem;color:var(--gray400);">— Exploitant, PME transport, 18 véhicules</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SLIDE 9 — L'INTERFACE EN VRAI
+═══════════════════════════════════════════════════════ -->
+<section class="slide bg-dark" id="s9">
+  <div class="deco-circle" style="width:400px;height:400px;background:#06b6d4;bottom:-100px;right:-100px;"></div>
+
+  <div class="slide-inner">
+    <div class="tag tag-cyan">Interface réelle</div>
+    <h2 class="section-title">L'ERP <span class="accent-cyan">tel qu'il tourne</span><br/>aujourd'hui en production</h2>
+    <p class="subtitle" style="margin-bottom:32px;">Captures d'écran réelles de NEXORA Truck v1.2 — ce que voit chaque utilisateur au quotidien.</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+
+      <div>
+        <div class="screenshot-frame" style="height:240px;">
+          <img src="capture%20d%20ecran/opera_iU8DH9oT2A.png" alt="Dashboard dirigeant" style="height:212px;object-fit:cover;object-position:top;" />
+        </div>
+        <div class="screenshot-label">Dashboard dirigeant — CA, missions, retards en temps réel</div>
+      </div>
+
+      <div>
+        <div class="screenshot-frame" style="height:240px;">
+          <img src="capture%20d%20ecran/opera_ggLYypXX04.png" alt="Planning transport" style="height:212px;object-fit:cover;object-position:top;" />
+        </div>
+        <div class="screenshot-label">Planning — 89 OTs, 22 conducteurs, drag-and-drop</div>
+      </div>
+
+      <div>
+        <div class="screenshot-frame" style="height:240px;">
+          <img src="capture%20d%20ecran/opera_0Slx6fpLxA.png" alt="Map live tracking" style="height:212px;object-fit:cover;object-position:top;" />
+        </div>
+        <div class="screenshot-label">Map live — tracking GPS &amp; file dispatch temps réel</div>
+      </div>
+
+      <div>
+        <div class="screenshot-frame" style="height:240px;">
+          <img src="capture%20d%20ecran/opera_SHDeagPKaK.png" alt="Chronotachygraphe infractions" style="height:212px;object-fit:cover;object-position:top;" />
+        </div>
+        <div class="screenshot-label">Tachygraphe — infractions CE 561, alertes par conducteur</div>
+      </div>
+
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <div>
+        <div class="screenshot-frame" style="height:200px;">
+          <img src="capture%20d%20ecran/opera_nkFf8Tz2ET.png" alt="Planning groupage lots déliables" style="height:172px;object-fit:cover;object-position:top;" />
+        </div>
+        <div class="screenshot-label">Groupage — lots figés/déliables, urgences, conflits</div>
+      </div>
+      <div>
+        <div class="screenshot-frame" style="height:200px;">
+          <img src="capture%20d%20ecran/opera_Rt76Aj7iOz.png" alt="Conducteurs RH" style="height:172px;object-fit:cover;object-position:top;" />
+        </div>
+        <div class="screenshot-label">Conducteurs — permis, FCO, tachy, missions actives</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SLIDE 9 — FONCTIONNALITÉS DÉVELOPPÉES
+═══════════════════════════════════════════════════════ -->
+<section class="slide bg-green" id="s10">
+  <div class="slide-inner">
+    <div class="tag tag-green">Disponible maintenant</div>
+    <h2 class="section-title">Modules <span class="accent-green">développés</span></h2>
+    <p class="subtitle" style="margin-bottom:28px;">L'ensemble de ces modules est opérationnel en production (v1.2).</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+
+      <!-- Colonne 1 -->
+      <div>
+        <div class="module-row">
+          <span class="module-icon ico ico-sm"><svg viewBox="0 0 20 20" fill="none"><rect x="2" y="8" width="16" height="3" rx="1" fill="#34d399" opacity=".8"/><rect x="2" y="13" width="8" height="3" rx="1" fill="#34d399" opacity=".5"/><rect x="4" y="5" width="3" height="3" rx=".5" fill="#34d399"/><rect x="9" y="5" width="3" height="3" rx=".5" fill="#34d399" opacity=".6"/></svg></span>
+          <div>
+            <div class="module-name">Planning transport</div>
+            <div class="module-desc">Drag-and-drop, conflits horaires, affectation chauffeur/véhicule</div>
+          </div>
+          <span class="badge badge-done">✓ Live</span>
+        </div>
+        <div class="module-row">
+          <span class="module-icon ico ico-sm"><svg viewBox="0 0 20 20" fill="none"><rect x="3" y="7" width="14" height="10" rx="1.5" stroke="#34d399" stroke-width="1.5" fill="none"/><path d="M7 7 V5 C7 4.4 7.4 4 8 4 H12 C12.6 4 13 4.4 13 5 V7" stroke="#34d399" stroke-width="1.5" stroke-linecap="round" fill="none"/><line x1="7" y1="11" x2="13" y2="11" stroke="#34d399" stroke-width="1.2"/></svg></span>
+          <div>
+            <div class="module-name">Courses &amp; ordres de transport</div>
+            <div class="module-desc">Lifecycle complet, statuts réglementaires, étapes mission</div>
+          </div>
+          <span class="badge badge-done">✓ Live</span>
+        </div>
+        <div class="module-row">
+          <span class="module-icon ico ico-sm"><svg viewBox="0 0 20 20" fill="none"><rect x="2" y="9" width="13" height="7" rx="1.5" stroke="#34d399" stroke-width="1.5" fill="none"/><rect x="12" y="11" width="6" height="5" rx="1" stroke="#34d399" stroke-width="1.5" fill="none"/><circle cx="5" cy="17" r="1.5" stroke="#34d399" stroke-width="1.2" fill="none"/><circle cx="14" cy="17" r="1.5" stroke="#34d399" stroke-width="1.2" fill="none"/><rect x="4" y="6" width="5" height="4" rx=".5" stroke="#34d399" stroke-width="1.2" fill="none"/></svg></span>
+          <div>
+            <div class="module-name">Flotte véhicules &amp; remorques</div>
+            <div class="module-desc">Documents, maintenance, amortissements, indisponibilités</div>
+          </div>
+          <span class="badge badge-done">✓ Live</span>
+        </div>
+        <div class="module-row">
+          <span class="module-icon ico ico-sm"><svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7" r="3" stroke="#34d399" stroke-width="1.5" fill="none"/><path d="M4 17 C4 13.7 6.7 11 10 11 C13.3 11 16 13.7 16 17" stroke="#34d399" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></span>
+          <div>
+            <div class="module-name">Chauffeurs &amp; RH transport</div>
+            <div class="module-desc">Contrats, documents, tachygraphe, infractions CE 561</div>
+          </div>
+          <span class="badge badge-done">✓ Live</span>
+        </div>
+        <div class="module-row">
+          <span class="module-icon ico ico-sm"><svg viewBox="0 0 20 20" fill="none"><rect x="3" y="3" width="14" height="14" rx="1.5" stroke="#34d399" stroke-width="1.5" fill="none"/><line x1="3" y1="7" x2="17" y2="7" stroke="#34d399" stroke-width="1.2"/><line x1="7" y1="11" x2="13" y2="11" stroke="#34d399" stroke-width="1.2"/><line x1="7" y1="14" x2="11" y2="14" stroke="#34d399" stroke-width="1.2"/></svg></span>
+          <div>
+            <div class="module-name">Facturation client</div>
+            <div class="module-desc">Numérotation continue, TVA multi-taux, génération PDF</div>
+          </div>
+          <span class="badge badge-done">✓ Live</span>
+        </div>
+        <div class="module-row">
+          <span class="module-icon ico ico-sm"><svg viewBox="0 0 20 20" fill="none"><rect x="4" y="5" width="12" height="12" rx="1.5" stroke="#34d399" stroke-width="1.5" fill="none"/><path d="M7 5 V3.5 C7 2.7 7.7 2 8.5 2 H11.5 C12.3 2 13 2.7 13 3.5 V5" stroke="#34d399" stroke-width="1.2" stroke-linecap="round" fill="none"/><line x1="7" y1="10" x2="13" y2="10" stroke="#34d399" stroke-width="1.2"/><line x1="7" y1="13" x2="10" y2="13" stroke="#34d399" stroke-width="1.2"/></svg></span>
+          <div>
+            <div class="module-name">Affrètement &amp; sous-traitance</div>
+            <div class="module-desc">Onboarding affréteur, contrats, marge par mission</div>
+          </div>
+          <span class="badge badge-done">✓ Live</span>
+        </div>
+        <div class="module-row">
+          <span class="module-icon ico ico-sm"><svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="6" r="3" stroke="#34d399" stroke-width="1.5" fill="none"/><path d="M4 16 C4 13 6.7 11 10 11 C13.3 11 16 13 16 16" stroke="#34d399" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M14 9 L16 11 M16 9 L14 11" stroke="#34d399" stroke-width="1.3" stroke-linecap="round"/></svg></span>
+          <div>
+            <div class="module-name">Portail client</div>
+            <div class="module-desc">Accès tokenisé, suivi livraisons, documents partagés</div>
+          </div>
+          <span class="badge badge-done">✓ Live</span>
+        </div>
+        <div class="module-row">
+          <span class="module-icon ico ico-sm"><svg viewBox="0 0 20 20" fill="none"><rect x="2" y="12" width="3" height="6" rx=".5" fill="#34d399" opacity=".5"/><rect x="7" y="8" width="3" height="10" rx=".5" fill="#34d399" opacity=".7"/><rect x="12" y="4" width="3" height="14" rx=".5" fill="#34d399"/><line x1="1" y1="18" x2="18" y2="18" stroke="#34d399" stroke-width="1.2"/></svg></span>
+          <div>
+            <div class="module-name">Dashboard &amp; analytics</div>
+            <div class="module-desc">KPIs dirigeant, suivi en temps réel, war room ops</div>
+          </div>
+          <span class="badge badge-done">✓ Live</span>
+        </div>
+      </div>
+
+      <!-- Colonne 2 -->
+      <div>
+        <div class="module-row">
+          <span class="module-icon ico ico-sm"><svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" stroke="#34d399" stroke-width="1.5" fill="none"/><line x1="10" y1="2" x2="10" y2="5.5" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/><line x1="10" y1="14.5" x2="10" y2="18" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="10" x2="5.5" y2="10" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/><line x1="14.5" y1="10" x2="18" y2="10" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+          <div>
+            <div class="module-name">Tracking GPS &amp; ETA</div>
+            <div class="module-desc">Positions temps réel, prédiction ETA, mode dégradé interne</div>
+          </div>
+          <span class="badge badge-done">✓ Live</span>
+        </div>
+        <div class="module-row">
+          <span class="module-icon ico ico-sm"><svg viewBox="0 0 20 20" fill="none"><path d="M3 5 H17 C17.6 5 18 5.4 18 6 V13 C18 13.6 17.6 14 17 14 H11 L8 17 V14 H3 C2.4 14 2 13.6 2 13 V6 C2 5.4 2.4 5 3 5Z" stroke="#34d399" stroke-width="1.5" fill="none"/><line x1="6" y1="9" x2="14" y2="9" stroke="#34d399" stroke-width="1.2" stroke-linecap="round"/></svg></span>
+          <div>
+            <div class="module-name">Tchat ops ↔ chauffeurs</div>
+            <div class="module-desc">Canal interne exploitant/conducteur, messages temps réel</div>
+          </div>
+          <span class="badge badge-done">✓ Live</span>
+        </div>
+        <div class="module-row">
+          <span class="module-icon ico ico-sm"><svg viewBox="0 0 20 20" fill="none"><rect x="5" y="5" width="10" height="10" rx="1" stroke="#34d399" stroke-width="1.5" fill="none"/><line x1="5" y1="8" x2="2" y2="8" stroke="#34d399" stroke-width="1.2" stroke-linecap="round"/><line x1="5" y1="12" x2="2" y2="12" stroke="#34d399" stroke-width="1.2" stroke-linecap="round"/><line x1="15" y1="8" x2="18" y2="8" stroke="#34d399" stroke-width="1.2" stroke-linecap="round"/><line x1="15" y1="12" x2="18" y2="12" stroke="#34d399" stroke-width="1.2" stroke-linecap="round"/><line x1="8" y1="5" x2="8" y2="2" stroke="#34d399" stroke-width="1.2" stroke-linecap="round"/><line x1="12" y1="5" x2="12" y2="2" stroke="#34d399" stroke-width="1.2" stroke-linecap="round"/><line x1="8" y1="15" x2="8" y2="18" stroke="#34d399" stroke-width="1.2" stroke-linecap="round"/><line x1="12" y1="15" x2="12" y2="18" stroke="#34d399" stroke-width="1.2" stroke-linecap="round"/></svg></span>
+          <div>
+            <div class="module-name">Assistant IA</div>
+            <div class="module-desc">Analyse ETA, explication retards, assistant ops (fallback interne)</div>
+          </div>
+          <span class="badge badge-done">✓ Live</span>
+        </div>
+        <div class="module-row">
+          <span class="module-icon ico ico-sm"><svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="#34d399" stroke-width="1.5" fill="none"/><polyline points="7,6 10,6 10,10 12,10" stroke="#34d399" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></span>
+          <div>
+            <div class="module-name">Tachygraphe numérique</div>
+            <div class="module-desc">Saisie activités, contrôle CE 561, infractions tracées</div>
+          </div>
+          <span class="badge badge-done">✓ Live</span>
+        </div>
+        <div class="module-row">
+          <span class="module-icon ico ico-sm"><svg viewBox="0 0 20 20" fill="none"><rect x="3" y="8" width="14" height="10" rx="1.5" stroke="#34d399" stroke-width="1.5" fill="none"/><path d="M7 8 V5 C7 3.3 8.3 2 10 2 C11.7 2 13 3.3 13 5 V8" stroke="#34d399" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></span>
+          <div>
+            <div class="module-name">Entrepôts &amp; sites logistiques</div>
+            <div class="module-desc">Gestion multi-dépôts, horaires, temps de manutention</div>
+          </div>
+          <span class="badge badge-done">✓ Live</span>
+        </div>
+        <div class="module-row">
+          <span class="module-icon ico ico-sm"><svg viewBox="0 0 20 20" fill="none"><path d="M3 5 H17 C17.6 5 18 5.4 18 6 V15 C18 15.6 17.6 16 17 16 H3 C2.4 16 2 15.6 2 15 V6 C2 5.4 2.4 5 3 5Z" stroke="#34d399" stroke-width="1.5" fill="none"/><path d="M2 8 L10 12 L18 8" stroke="#34d399" stroke-width="1.2" stroke-linecap="round"/></svg></span>
+          <div>
+            <div class="module-name">Gestion mail intégrée</div>
+            <div class="module-desc">Emails liés aux courses, historique communication client</div>
+          </div>
+          <span class="badge badge-done">✓ Live</span>
+        </div>
+        <div class="module-row">
+          <span class="module-icon ico ico-sm"><svg viewBox="0 0 20 20" fill="none"><rect x="3" y="3" width="14" height="14" rx="1.5" stroke="#34d399" stroke-width="1.5" fill="none"/><line x1="6" y1="8" x2="14" y2="8" stroke="#34d399" stroke-width="1.2" stroke-linecap="round"/><line x1="6" y1="12" x2="10" y2="12" stroke="#34d399" stroke-width="1.2" stroke-linecap="round"/><circle cx="13" cy="12" r="1.5" stroke="#34d399" stroke-width="1.2" fill="none"/></svg></span>
+          <div>
+            <div class="module-name">Tâches &amp; suivi interne</div>
+            <div class="module-desc">Gestion de tâches par rôle, priorités, dates d'échéance</div>
+          </div>
+          <span class="badge badge-done">✓ Live</span>
+        </div>
+        <div class="module-row">
+          <span class="module-icon ico ico-sm"><svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="#34d399" stroke-width="1.5" fill="none"/><line x1="10" y1="6" x2="10" y2="14" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/><line x1="6" y1="10" x2="14" y2="10" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+          <div>
+            <div class="module-name">Super Admin &amp; multi-tenant</div>
+            <div class="module-desc">Gestion clients ERP, utilisateurs, modules par tenant</div>
+          </div>
+          <span class="badge badge-done">✓ Live</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SLIDE 10 — EN COURS DE DÉVELOPPEMENT
+═══════════════════════════════════════════════════════ -->
+<section class="slide bg-orange" id="s11">
+  <div class="slide-inner">
+    <div class="tag tag-orange">En cours — Sprint actuel</div>
+    <h2 class="section-title">Ce qui se <span class="accent-orange">construit maintenant</span></h2>
+    <p class="subtitle" style="margin-bottom:32px;">Développements actifs sur le sprint en cours (avril 2026).</p>
+
+    <div class="grid grid-2" style="gap:20px;">
+
+      <div class="card" style="border-color:rgba(245,158,11,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
+          <div class="ico ico-lg"><svg viewBox="0 0 40 40" fill="none"><rect x="5" y="8" width="30" height="26" rx="3" stroke="#fbbf24" stroke-width="2" fill="none"/><line x1="5" y1="15" x2="35" y2="15" stroke="#fbbf24" stroke-width="1.5"/><line x1="11" y1="22" x2="29" y2="22" stroke="#fbbf24" stroke-width="1.5" opacity=".7"/><line x1="11" y1="27" x2="23" y2="27" stroke="#fbbf24" stroke-width="1.5" opacity=".5"/></svg></div>
+          <span class="badge badge-wip">En cours</span>
+        </div>
+        <h3>Comptabilité générale</h3>
+        <p style="margin-bottom:14px;">Module comptable complet conforme PCG français : plan comptable, journaux, écritures en partie double, balance, grand livre, intégration factures → écritures.</p>
+        <ul class="feature-list">
+          <li>Écritures en partie double (débit = crédit enforced)</li>
+          <li>Journaux AC / VT / BQ / CA / OD</li>
+          <li>Balance générale + grand livre</li>
+          <li>Intégration automatique factures → ecritures</li>
+        </ul>
+      </div>
+
+      <div class="card" style="border-color:rgba(245,158,11,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
+          <div style="font-size:1.8rem;">📋</div>
+          <span class="badge badge-wip">En cours</span>
+        </div>
+        <h3>TVA & conformité déclarative</h3>
+        <p style="margin-bottom:14px;">Moteur TVA multi-taux (0%, 2.1%, 5.5%, 8.5%, 10%, 20%) avec gestion régimes, calcul par période, pré-remplissage CA3/CA12.</p>
+        <ul class="feature-list">
+          <li>TVA collectée / déductible par période</li>
+          <li>Multi-taux + régimes (national, intra, export)</li>
+          <li>Export pré-rempli CA3 / CA12</li>
+        </ul>
+      </div>
+
+      <div class="card" style="border-color:rgba(245,158,11,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
+          <div style="font-size:1.8rem;">🔒</div>
+          <span class="badge badge-wip">En cours</span>
+        </div>
+        <h3>FEC & inalterabilité légale</h3>
+        <p style="margin-bottom:14px;">Export FEC par exercice, checksum SHA-256 par écriture, statut append-only, corrections uniquement via contre-écriture.</p>
+        <ul class="feature-list">
+          <li>Export FEC complet sur période</li>
+          <li>Checksum SHA-256 stocké par écriture</li>
+          <li>Blocage update/delete sur écritures validées</li>
+        </ul>
+      </div>
+
+      <div class="card" style="border-color:rgba(245,158,11,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
+          <div class="ico ico-lg"><svg viewBox="0 0 40 40" fill="none"><rect x="5" y="22" width="7" height="13" rx="1" fill="#fbbf24" opacity=".5"/><rect x="16" y="14" width="7" height="21" rx="1" fill="#fbbf24" opacity=".7"/><rect x="27" y="8" width="7" height="27" rx="1" fill="#fbbf24"/><line x1="3" y1="35" x2="37" y2="35" stroke="#fbbf24" stroke-width="1.5"/></svg></div>
+          <span class="badge badge-wip">En cours</span>
+        </div>
+        <h3>Analytique transport avancée</h3>
+        <p style="margin-bottom:14px;">Axes analytiques obligatoires par camion, chauffeur, tournée, client, mission. Marge nette par mission, coût/km par véhicule.</p>
+        <ul class="feature-list">
+          <li>5 axes analytiques natifs transport</li>
+          <li>Marge mission = vente − sous-traitance − coûts directs</li>
+          <li>Coût/km par camion consolidé</li>
+        </ul>
+      </div>
+
+      <div class="card" style="border-color:rgba(245,158,11,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
+          <div class="ico ico-lg"><svg viewBox="0 0 40 40" fill="none"><line x1="8" y1="20" x2="19" y2="20" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/><line x1="21" y1="20" x2="32" y2="20" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/><polyline points="15,14 8,20 15,26" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><polyline points="25,14 32,20 25,26" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="20" cy="20" r="3" fill="#fbbf24" opacity=".4"/></svg></div>
+          <span class="badge badge-wip">En cours</span>
+        </div>
+        <h3>Rapprochement bancaire</h3>
+        <p style="margin-bottom:14px;">Import relevés CSV (puis CAMT.053), proposition de lettrage automatique, validation manuelle ligne par ligne, écarts identifiés.</p>
+        <ul class="feature-list">
+          <li>Import CSV robuste (déduplication par hash)</li>
+          <li>Lettrage auto proposé (montant + date + référence)</li>
+          <li>Validation manuelle ligne à ligne</li>
+        </ul>
+      </div>
+
+      <div class="card" style="border-color:rgba(245,158,11,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
+          <div class="ico ico-lg"><svg viewBox="0 0 40 40" fill="none"><path d="M20 8 C28.8 8 36 15.2 36 24" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M20 40 C11.2 40 4 32.8 4 24" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" fill="none" opacity=".6"/><polyline points="30,4 36,10 30,16" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><polyline points="10,32 4,38 10,44" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity=".6"/></svg></div>
+          <span class="badge badge-wip">En cours</span>
+        </div>
+        <h3>Migration statuts transport</h3>
+        <p style="margin-bottom:14px;">Unification progressive vers <code>statut_transport</code> comme lifecycle canonique. Migration par vague, rollback simple, zéro rupture.</p>
+        <ul class="feature-list">
+          <li>Lifecycle réglementaire unifié sur tous les écrans</li>
+          <li>Mapping legacy conservé jusqu'à finalisation</li>
+          <li>Tests de non-régression par vague</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SLIDE 11 — FEATURES FUTURES
+═══════════════════════════════════════════════════════ -->
+<section class="slide bg-purple" id="s12">
+  <div class="deco-circle" style="width:400px;height:400px;background:#8b5cf6;top:-100px;left:-100px;"></div>
+
+  <div class="slide-inner">
+    <div class="tag tag-purple">Roadmap — Prochains sprints</div>
+    <h2 class="section-title">Features <span class="accent-purple">en préparation</span></h2>
+    <p class="subtitle" style="margin-bottom:32px;">Modules conçus, spécifiés, tables préparées — implémentation planifiée.</p>
+
+    <div class="grid grid-3" style="gap:16px;">
+
+      <div class="card" style="border-color:rgba(139,92,246,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <span class="ico ico-md"><svg viewBox="0 0 28 28" fill="none"><rect x="2" y="5" width="24" height="18" rx="2" stroke="#c4b5fd" stroke-width="1.5" fill="none"/><path d="M2 9 L14 17 L26 9" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></span>
+          <span class="badge badge-future">Spécifié</span>
+        </div>
+        <h3>Parsing email intelligent</h3>
+        <p>Détection automatique des demandes de transport dans les emails entrants. Extraction structurée (chargeur, adresses, dates) + score de confiance par champ. Popup de validation obligatoire avant création de course.</p>
+      </div>
+
+      <div class="card" style="border-color:rgba(139,92,246,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <span class="ico ico-md"><svg viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="11" stroke="#c4b5fd" stroke-width="1.5" fill="none"/><ellipse cx="14" cy="14" rx="5.5" ry="11" stroke="#c4b5fd" stroke-width="1.2" fill="none"/><line x1="3" y1="14" x2="25" y2="14" stroke="#c4b5fd" stroke-width="1.2"/><line x1="5" y1="9" x2="23" y2="9" stroke="#c4b5fd" stroke-width="1" opacity=".6"/><line x1="5" y1="19" x2="23" y2="19" stroke="#c4b5fd" stroke-width="1" opacity=".6"/></svg></span>
+          <span class="badge badge-future">Spécifié</span>
+        </div>
+        <h3>Bourse de fret intégrée</h3>
+        <p>Connecteurs providers via <code>erp_v11_providers</code>. Synchronisation opportunités externes → <code>ordres_transport</code>. Quotas, retries, logs API, mode dégradé intégré.</p>
+      </div>
+
+      <div class="card" style="border-color:rgba(139,92,246,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+          <span class="ico ico-md"><svg viewBox="0 0 28 28" fill="none"><path d="M11 17 L8 20 C5.8 22.2 5.8 25.8 8 28 C10.2 30.2 13.8 30.2 16 28 L19 25" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M17 11 L20 8 C22.2 5.8 22.2 2.2 20 0 C17.8 -2.2 14.2 -2.2 12 0 L9 3" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round" fill="none"/><line x1="10" y1="18" x2="18" y2="10" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+          <span class="badge badge-future">Spécifié</span>
+        </div>
+        <h3>Inter-ERP (échanges multi-systèmes)</h3>
+        <p>Contrat d'échange autour de <code>reference_transport</code> (idempotent). Webhook sortant signé HMAC. Table de corrélation externe pour relier les ordres entre systèmes différents.</p>
+      </div>
+
+      <div class="card" style="border-color:rgba(139,92,246,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <span class="ico ico-md"><svg viewBox="0 0 28 28" fill="none"><rect x="4" y="4" width="20" height="20" rx="2" stroke="#c4b5fd" stroke-width="1.5" fill="none"/><path d="M4 10 L10 10 M18 10 L24 10" stroke="#c4b5fd" stroke-width="1.2" stroke-linecap="round"/><path d="M4 18 L10 18 M18 18 L24 18" stroke="#c4b5fd" stroke-width="1.2" stroke-linecap="round"/><circle cx="14" cy="14" r="3" stroke="#c4b5fd" stroke-width="1.5" fill="none"/><line x1="16.5" y1="16.5" x2="20" y2="20" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+          <span class="badge badge-future">Backlog</span>
+        </div>
+        <h3>OCR fournisseurs</h3>
+        <p>Extraction automatique des champs clefs (date, montant, TVA, fournisseur) sur facture PDF. Proposition d'écriture d'achat avec validation comptable.</p>
+      </div>
+
+      <div class="card" style="border-color:rgba(139,92,246,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <span class="ico ico-md"><svg viewBox="0 0 28 28" fill="none"><path d="M14 3 C9 3 6 7 6 11 L6 17 L4 20 L24 20 L22 17 L22 11 C22 7 19 3 14 3Z" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M11 20 C11 21.7 12.3 23 14 23 C15.7 23 17 21.7 17 20" stroke="#c4b5fd" stroke-width="1.3" fill="none"/></svg></span>
+          <span class="badge badge-future">Backlog</span>
+        </div>
+        <h3>Relances impayés automatiques</h3>
+        <p>Scénarios de relance paramétrables multicanal (email, SMS). Historique des relances tracé, statut risque client calculé automatiquement.</p>
+      </div>
+
+      <div class="card" style="border-color:rgba(139,92,246,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <span class="ico ico-md"><svg viewBox="0 0 28 28" fill="none"><rect x="3" y="3" width="22" height="22" rx="2" stroke="#c4b5fd" stroke-width="1.5" fill="none"/><line x1="3" y1="11" x2="25" y2="11" stroke="#c4b5fd" stroke-width="1.2"/><line x1="3" y1="17" x2="25" y2="17" stroke="#c4b5fd" stroke-width="1.2"/><line x1="11" y1="3" x2="11" y2="25" stroke="#c4b5fd" stroke-width="1.2"/><line x1="17" y1="3" x2="17" y2="25" stroke="#c4b5fd" stroke-width="1.2"/></svg></span>
+          <span class="badge badge-future">Backlog</span>
+        </div>
+        <h3>Planning affréteur dédié</h3>
+        <p>Vue planning dédiée à l'affréteur avec ses propres ressources et contrats. Optimisation des tournées affrétées, groupage multi-courses figeable/déliable.</p>
+      </div>
+
+      <div class="card" style="border-color:rgba(139,92,246,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <span class="ico ico-md"><svg viewBox="0 0 28 28" fill="none"><path d="M4 14 L14 4 L24 4 L24 14 L14 24Z" stroke="#c4b5fd" stroke-width="1.5" stroke-linejoin="round" fill="none"/><circle cx="19" cy="9" r="2" fill="#c4b5fd" opacity=".7"/></svg></span>
+          <span class="badge badge-future">Backlog</span>
+        </div>
+        <h3>Groupage multi-courses</h3>
+        <p>Regroupement de courses indépendantes en tournée figée. Déliaison sans perte de données, courses autonomes après séparation.</p>
+      </div>
+
+      <div class="card" style="border-color:rgba(139,92,246,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <span class="ico ico-md"><svg viewBox="0 0 28 28" fill="none"><path d="M4 16 L10 10 L14 13 L18 10 L24 16" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M10 10 L14 14" stroke="#c4b5fd" stroke-width="1.3" stroke-linecap="round" fill="none"/><path d="M8 18 C6 16 6 12 10 10" stroke="#c4b5fd" stroke-width="1.3" stroke-linecap="round" fill="none" opacity=".6"/><path d="M20 18 C22 16 22 12 18 10" stroke="#c4b5fd" stroke-width="1.3" stroke-linecap="round" fill="none" opacity=".6"/></svg></span>
+          <span class="badge badge-future">Backlog</span>
+        </div>
+        <h3>Rapprochement bancaire intelligent</h3>
+        <p>Scoring de match avancé (ML léger). Seuil d'auto-validation configurable par type de mouvement. Apprentissage des règles de l'entreprise.</p>
+      </div>
+
+      <div class="card" style="border-color:rgba(139,92,246,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <span class="ico ico-md"><svg viewBox="0 0 28 28" fill="none"><rect x="8" y="2" width="12" height="24" rx="3" stroke="#c4b5fd" stroke-width="1.5" fill="none"/><line x1="12" y1="22" x2="16" y2="22" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+          <span class="badge badge-future">Backlog</span>
+        </div>
+        <h3>App mobile chauffeur native</h3>
+        <p>Application PWA offline-first pour les chauffeurs : session, feuille de route, documents, tchat, signature électronique de livraison.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SLIDE 12 — VISION 2027+
+═══════════════════════════════════════════════════════ -->
+<section class="slide bg-red" id="s13">
+  <div class="deco-circle" style="width:600px;height:600px;background:#8b5cf6;bottom:-200px;right:-200px;"></div>
+
+  <div class="slide-inner">
+    <div class="tag tag-red">Vision &amp; ambition long terme</div>
+    <h2 class="section-title">L'ERP transport de <span class="accent-red">demain</span></h2>
+    <p class="subtitle" style="margin-bottom:36px;">Où NEXORA Truck va aller — sans calendrier gravé dans le marbre, avec des convictions claires.</p>
+
+    <div class="timeline">
+
+      <div class="tl-item">
+        <div class="tl-label">Phase 1</div>
+        <div class="tl-spine">
+          <div class="tl-dot dot-orange"></div>
+          <div class="tl-line"></div>
+        </div>
+        <div class="tl-content">
+          <h4 class="accent-orange">Comptabilité & conformité complète</h4>
+          <p>Module comptable PCG, FEC inalterabilité, TVA déclarative, rapprochement bancaire. L'ERP devient autonome fiscalement — en cours d'implémentation active.</p>
+        </div>
+      </div>
+
+      <div class="tl-item">
+        <div class="tl-label">Phase 2</div>
+        <div class="tl-spine">
+          <div class="tl-dot dot-purple"></div>
+          <div class="tl-line"></div>
+        </div>
+        <div class="tl-content">
+          <h4 class="accent-purple">Réseau inter-ERP</h4>
+          <p>Premier protocole d'échange standardisé entre systèmes TMS/ERP. Les transporteurs partagent les références transport via webhook HMAC sécurisé. Fin des emails de confirmation manuels entre partenaires.</p>
+        </div>
+      </div>
+
+      <div class="tl-item">
+        <div class="tl-label">Phase 3</div>
+        <div class="tl-spine">
+          <div class="tl-dot dot-blue"></div>
+          <div class="tl-line"></div>
+        </div>
+        <div class="tl-content">
+          <h4 class="accent-blue">IA de placement & optimisation</h4>
+          <p>Suggestion automatique d'affectation chauffeur/véhicule selon disponibilités, compétences ADR, CE 561, coût carburant et historique. L'exploitant valide ou ajuste, l'IA prépare.</p>
+        </div>
+      </div>
+
+      <div class="tl-item">
+        <div class="tl-label">Phase 4</div>
+        <div class="tl-spine">
+          <div class="tl-dot dot-green"></div>
+          <div class="tl-line"></div>
+        </div>
+        <div class="tl-content">
+          <h4 class="accent-green">ERP transport prédictif</h4>
+          <p>Prédiction de charge, anticipation des tensions de capacité, suggestion de sous-traitance préventive. Le dirigeant voit à J+15 avec un intervalle de confiance quantifié.</p>
+        </div>
+      </div>
+
+      <div class="tl-item">
+        <div class="tl-label">Phase 5</div>
+        <div class="tl-spine">
+          <div class="tl-dot dot-orange"></div>
+          <div class="tl-line"></div>
+        </div>
+        <div class="tl-content">
+          <h4 class="accent-orange">Marketplace transport &amp; écosystème ouvert</h4>
+          <p>Modules tiers certifiés, connecteurs sectoriels, API publique documentée. NEXORA Truck devient une plateforme sur laquelle d'autres éditeurs construisent leurs spécialités métier.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="margin-top:40px;padding:28px;background:rgba(255,255,255,.04);border-radius:16px;border:1px solid rgba(255,255,255,.08);">
+      <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px;color:var(--gray400);">Trois convictions fondamentales pour le transport de demain</h3>
+      <div class="grid grid-3" style="gap:16px;">
+        <div>
+          <div class="ico ico-md" style="margin-bottom:8px;"><svg viewBox="0 0 28 28" fill="none"><path d="M14 24 L14 12" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"/><path d="M14 16 C14 10 8 7 4 9 C6 13 10 16 14 16Z" fill="#60a5fa" opacity=".4" stroke="#60a5fa" stroke-width="1.2"/><path d="M14 12 C14 6 20 3 24 5 C22 9 18 12 14 12Z" fill="#60a5fa" opacity=".6" stroke="#60a5fa" stroke-width="1.2"/></svg></div>
+          <div style="font-weight:700;margin-bottom:6px;font-size:.9rem;">Transport décarboné</div>
+          <div style="font-size:.82rem;color:var(--gray400);line-height:1.6;">Suivi des émissions CO₂ par course, bilan carbone par client, intégration véhicules électriques/hydrogène dans la planification. La traçabilité carbone devient un avantage commercial.</div>
+        </div>
+        <div>
+          <div class="ico ico-md" style="margin-bottom:8px;"><svg viewBox="0 0 28 28" fill="none"><rect x="5" y="8" width="18" height="14" rx="2" stroke="#60a5fa" stroke-width="1.5" fill="none"/><circle cx="10" cy="15" r="2" fill="#60a5fa" opacity=".7"/><circle cx="18" cy="15" r="2" fill="#60a5fa" opacity=".7"/><line x1="10" y1="8" x2="10" y2="5" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"/><line x1="18" y1="8" x2="18" y2="5" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"/><circle cx="14" cy="5" r="1.5" fill="#60a5fa" opacity=".5"/></svg></div>
+          <div style="font-weight:700;margin-bottom:6px;font-size:.9rem;">IA explicable</div>
+          <div style="font-size:.82rem;color:var(--gray400);line-height:1.6;">L'IA ne remplace pas l'exploitant. Elle explique ses suggestions, montre les données utilisées, permet le désaccord. Confiance = transparence + maîtrise humaine finale.</div>
+        </div>
+        <div>
+          <div class="ico ico-md" style="margin-bottom:8px;"><svg viewBox="0 0 28 28" fill="none"><rect x="3" y="10" width="8" height="8" rx="2" stroke="#60a5fa" stroke-width="1.5" fill="none"/><rect x="17" y="10" width="8" height="8" rx="2" stroke="#60a5fa" stroke-width="1.5" fill="none"/><line x1="11" y1="14" x2="17" y2="14" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          <div style="font-weight:700;margin-bottom:6px;font-size:.9rem;">Interopérabilité totale</div>
+          <div style="font-size:.82rem;color:var(--gray400);line-height:1.6;">Un transporteur doit pouvoir travailler avec n'importe quel chargeur, affréteur ou sous-traitant sans friction de SI. NEXORA Truck construit les ponts.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SLIDE 14 — OPPORTUNITÉ INVESTISSEURS
+═══════════════════════════════════════════════════════ -->
+<section class="slide bg-dark" id="s14">
+  <div class="deco-circle" style="width:500px;height:500px;background:#8b5cf6;top:-150px;right:-150px;"></div>
+  <div class="deco-circle" style="width:350px;height:350px;background:#1a56db;bottom:-100px;left:-100px;"></div>
+
+  <div class="slide-inner">
+    <div class="tag tag-purple">Pour les investisseurs</div>
+    <h2 class="section-title">Un marché de <span class="accent-purple">45 000 entreprises</span>,<br/>encore sous-équipé numériquement</h2>
+    <p class="subtitle" style="margin-bottom:32px;">NEXORA Truck adresse un secteur massif, fragmenté, et mal servi par l'offre logicielle actuelle.</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:32px;">
+
+      <!-- Colonne gauche : marché & traction -->
+      <div style="display:flex;flex-direction:column;gap:20px;">
+
+        <div style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.25);border-radius:16px;padding:22px;">
+          <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#c4b5fd;margin-bottom:14px;">Marché adressable (France)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div style="text-align:center;padding:10px;">
+              <div style="font-size:1.8rem;font-weight:900;color:#c4b5fd;line-height:1;">45 000</div>
+              <div style="font-size:.72rem;color:var(--gray400);margin-top:4px;">entreprises de TRM cibles</div>
+            </div>
+            <div style="text-align:center;padding:10px;">
+              <div style="font-size:1.8rem;font-weight:900;color:#c4b5fd;line-height:1;">90%</div>
+              <div style="font-size:.72rem;color:var(--gray400);margin-top:4px;">sont des TPE/PME sous-équipées</div>
+            </div>
+            <div style="text-align:center;padding:10px;">
+              <div style="font-size:1.8rem;font-weight:900;color:#a78bfa;line-height:1;">~200€</div>
+              <div style="font-size:.72rem;color:var(--gray400);margin-top:4px;">ARPU mensuel cible PME</div>
+            </div>
+            <div style="text-align:center;padding:10px;">
+              <div style="font-size:1.8rem;font-weight:900;color:#a78bfa;line-height:1;">108M€</div>
+              <div style="font-size:.72rem;color:var(--gray400);margin-top:4px;">ARR potentiel en France seule</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:16px;padding:22px;">
+          <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#34d399;margin-bottom:14px;">Traction actuelle — honnêtement</div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;gap:10px;align-items:center;">
+              <span style="color:#34d399;font-weight:700;">✓</span>
+              <div style="font-size:.87rem;color:var(--gray200);">v1.2 en production — 40+ modules opérationnels</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <span style="color:#34d399;font-weight:700;">✓</span>
+              <div style="font-size:.87rem;color:var(--gray200);">Architecture multi-tenant validée (PostgreSQL RLS)</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <span style="color:#34d399;font-weight:700;">✓</span>
+              <div style="font-size:.87rem;color:var(--gray200);">Stack cloud-native prête à scaler (Netlify + Supabase)</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <span style="color:#34d399;font-weight:700;">✓</span>
+              <div style="font-size:.87rem;color:var(--gray200);">Conformité réglementaire (CE 561, PCG, FEC) native</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <span style="color:#fbbf24;font-weight:700;">→</span>
+              <div style="font-size:.87rem;color:var(--gray400);">Phase commerciale non encore active — produit en finalisation</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Colonne droite : avantages concurrentiels -->
+      <div style="display:flex;flex-direction:column;gap:20px;">
+
+        <div style="background:rgba(26,86,219,.1);border:1px solid rgba(26,86,219,.25);border-radius:16px;padding:22px;">
+          <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#60a5fa;margin-bottom:14px;">Avantages concurrentiels durables</div>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;gap:12px;align-items:flex-start;">
+              <div class="ico ico-md" style="flex-shrink:0;"><svg viewBox="0 0 28 28" fill="none"><line x1="14" y1="22" x2="14" y2="10" stroke="#60a5fa" stroke-width="2" stroke-linecap="round"/><circle cx="14" cy="9" r="4" stroke="#60a5fa" stroke-width="1.5" fill="none"/><line x1="8" y1="22" x2="20" y2="22" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"/><line x1="11" y1="25" x2="17" y2="25" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+              <div>
+                <div style="font-size:.87rem;font-weight:700;margin-bottom:3px;">Conformité native, pas en option</div>
+                <div style="font-size:.8rem;color:var(--gray400);line-height:1.5;">CE 561, PCG, FEC inalterabilité SHA-256, TVA multi-taux — intégrés en profondeur, pas patchés après coup. Barrière réglementaire élevée pour les entrants.</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-start;">
+              <div class="ico ico-md" style="flex-shrink:0;"><svg viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="10" stroke="#60a5fa" stroke-width="1.5" fill="none"/><path d="M14 8 L14 20" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"/><path d="M10 11 C10 9.3 11.8 8 14 8 C16.2 8 18 9.3 18 11 C18 12.7 16 13.5 14 14 C12 14.5 10 15.3 10 17 C10 18.7 11.8 20 14 20 C16.2 20 18 18.7 18 17" stroke="#60a5fa" stroke-width="1.3" stroke-linecap="round" fill="none"/></svg></div>
+              <div>
+                <div style="font-size:.87rem;font-weight:700;margin-bottom:3px;">Pricing accessible aux TPE</div>
+                <div style="font-size:.8rem;color:var(--gray400);line-height:1.5;">Les concurrents (TMS historiques) ciblent les ETI à 5k€+/an. NEXORA vise le segment TPE/PME délaissé avec un SaaS à coût prévisible.</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-start;">
+              <div class="ico ico-md" style="flex-shrink:0;"><svg viewBox="0 0 28 28" fill="none"><path d="M4 4 H13 V9 C13 10.1 14 11 15 10 L17 8.5 C18 7.5 19 8.4 19 9.5 V13 H24 V24 H19 V19 C19 17.9 18 17 17 18 L15 19.5 C14 20.5 13 19.6 13 18.5 V15 H4Z" stroke="#60a5fa" stroke-width="1.5" stroke-linejoin="round" fill="none"/></svg></div>
+              <div>
+                <div style="font-size:.87rem;font-weight:700;margin-bottom:3px;">Couverture fonctionnelle totale</div>
+                <div style="font-size:.8rem;color:var(--gray400);line-height:1.5;">Un seul abonnement connecte et unifie 4 à 6 outils (TMS + GPS + compta + portail client + tachy + communication). La valeur vient de la connexion, pas du remplacement.</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-start;">
+              <div class="ico ico-md" style="flex-shrink:0;"><svg viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="11" stroke="#60a5fa" stroke-width="1.5" fill="none"/><ellipse cx="14" cy="14" rx="5.5" ry="11" stroke="#60a5fa" stroke-width="1.2" fill="none"/><line x1="3" y1="14" x2="25" y2="14" stroke="#60a5fa" stroke-width="1.2"/><line x1="5" y1="9" x2="23" y2="9" stroke="#60a5fa" stroke-width="1" opacity=".6"/><line x1="5" y1="19" x2="23" y2="19" stroke="#60a5fa" stroke-width="1" opacity=".6"/></svg></div>
+              <div>
+                <div style="font-size:.87rem;font-weight:700;margin-bottom:3px;">Effet réseau inter-ERP</div>
+                <div style="font-size:.8rem;color:var(--gray400);line-height:1.5;">Le protocole inter-ERP crée un verrouillage réseau : plus il y a d'entités connectées, plus la valeur augmente pour chaque participant.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:16px;padding:20px;">
+          <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#fbbf24;margin-bottom:12px;">Modèle économique cible</div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:.85rem;">
+              <div style="color:var(--gray200);">SaaS mensuel / annuel par tenant</div>
+              <div style="font-weight:700;color:#fbbf24;">Récurrent</div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:.85rem;">
+              <div style="color:var(--gray200);">Onboarding accompagné (forfait)</div>
+              <div style="font-weight:700;color:#fbbf24;">Setup</div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:.85rem;">
+              <div style="color:var(--gray200);">Modules complémentaires (IA, inter-ERP, OCR…)</div>
+              <div style="font-weight:700;color:#fbbf24;">Upsell</div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:.85rem;">
+              <div style="color:var(--gray200);">API tier / connecteurs partenaires</div>
+              <div style="font-weight:700;color:#fbbf24;">Marketplace</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div style="background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);border-radius:14px;padding:20px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px;">
+      <div style="font-style:italic;font-size:.92rem;color:var(--gray200);line-height:1.6;max-width:600px;">
+        "Le marché TMS français est fragmenté entre des acteurs coûteux pour les grandes entreprises et un vide total pour les TPE/PME. NEXORA Truck est construit exactement pour combler ce vide."
+      </div>
+      <div style="text-align:center;flex-shrink:0;">
+        <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--gray400);margin-bottom:8px;">Contact</div>
+        <div style="font-weight:700;font-size:.95rem;color:#c4b5fd;">nexora-truck.fr</div>
+        <div style="font-size:.8rem;color:var(--gray400);margin-top:4px;">contact@nexora-truck.fr</div>
+        <div style="font-size:.8rem;color:var(--gray400);margin-top:2px;">07 82 71 17 05 · Marseille</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SLIDE 15 — CALL TO ACTION / CONCLUSION
+═══════════════════════════════════════════════════════ -->
+<section class="slide bg-navy" id="s15">
+  <div class="deco-circle" style="width:700px;height:700px;background:#1a56db;top:-250px;right:-250px;"></div>
+  <div class="deco-circle" style="width:400px;height:400px;background:#06b6d4;bottom:-150px;left:-150px;"></div>
+
+  <div class="slide-inner" style="text-align:center;">
+    <div class="tag tag-cyan" style="margin:0 auto 20px;">En résumé</div>
+
+    <h2 class="section-title" style="margin-bottom:20px;">
+      NEXORA Truck est <span class="accent-cyan">l'ERP transport</span><br/>
+      que les transporteurs méritent
+    </h2>
+
+    <p class="subtitle" style="margin:0 auto 48px;text-align:center;">
+      Un outil construit du terrain vers la direction, capable de gérer toute la chaîne de valeur du transport routier — sans licence prohibitive, sans fragmentation d'outils, sans compromis sur la conformité réglementaire.
+    </p>
+
+    <div class="grid grid-3" style="margin-bottom:48px;text-align:left;">
+      <div class="card" style="border-color:rgba(96,165,250,.3);">
+        <div class="card-icon ico ico-lg"><svg viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="16" stroke="#60a5fa" stroke-width="1.5" fill="none"/><circle cx="20" cy="20" r="10" stroke="#60a5fa" stroke-width="1.5" fill="none" opacity=".7"/><circle cx="20" cy="20" r="4" fill="#60a5fa" opacity=".8"/></svg></div>
+        <h3>Ce qu'on résout</h3>
+        <p>La fragmentation des outils, le coût des licences, la non-conformité réglementaire et l'absence de vision temps réel des opérations.</p>
+      </div>
+      <div class="card" style="border-color:rgba(34,211,238,.3);">
+        <div class="card-icon ico ico-lg"><svg viewBox="0 0 40 40" fill="none"><line x1="5" y1="35" x2="35" y2="35" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/><line x1="20" y1="35" x2="20" y2="10" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/><line x1="10" y1="10" x2="30" y2="10" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/><line x1="10" y1="10" x2="10" y2="18" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/><line x1="30" y1="10" x2="30" y2="18" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/><rect x="15" y="25" width="10" height="10" rx="1" stroke="#22d3ee" stroke-width="1.5" fill="none"/></svg></div>
+        <h3>Comment on le fait</h3>
+        <p>Stack moderne (React + PostgreSQL + Serverless), architecture additive, offline-first, provider-agnostique, conforme PCG et CE 561.</p>
+      </div>
+      <div class="card" style="border-color:rgba(52,211,153,.3);">
+        <div class="card-icon ico ico-lg"><svg viewBox="0 0 40 40" fill="none"><path d="M20 8 C20 8 28 12 30 22 L26 26 C24 20 20 18 20 18 C20 18 16 20 14 26 L10 22 C12 12 20 8 20 8Z" stroke="#34d399" stroke-width="1.5" stroke-linejoin="round" fill="none"/><path d="M12 26 L8 30 L10 32 L14 28" stroke="#34d399" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity=".7"/><circle cx="26" cy="14" r="2.5" fill="#34d399" opacity=".6"/></svg></div>
+        <h3>Où on va</h3>
+        <p>Inter-ERP standardisé, IA prédictive, marketplace ouverte, bilan carbone intégré. Un hub numérique pour l'écosystème transport français.</p>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;justify-content:center;margin-bottom:48px;">
+      <div style="background:rgba(26,86,219,.2);border:1px solid rgba(26,86,219,.4);padding:12px 24px;border-radius:12px;">
+        <div style="font-size:.75rem;text-transform:uppercase;letter-spacing:1px;color:var(--gray400);margin-bottom:4px;">Stack</div>
+        <div style="font-weight:700;">React 19 · TypeScript · Vite</div>
+      </div>
+      <div style="background:rgba(6,182,212,.15);border:1px solid rgba(6,182,212,.3);padding:12px 24px;border-radius:12px;">
+        <div style="font-size:.75rem;text-transform:uppercase;letter-spacing:1px;color:var(--gray400);margin-bottom:4px;">Base de données</div>
+        <div style="font-weight:700;">PostgreSQL · Supabase · RLS</div>
+      </div>
+      <div style="background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);padding:12px 24px;border-radius:12px;">
+        <div style="font-size:.75rem;text-transform:uppercase;letter-spacing:1px;color:var(--gray400);margin-bottom:4px;">Déploiement</div>
+        <div style="font-weight:700;">Netlify Edge · Serverless</div>
+      </div>
+      <div style="background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.3);padding:12px 24px;border-radius:12px;">
+        <div style="font-size:.75rem;text-transform:uppercase;letter-spacing:1px;color:var(--gray400);margin-bottom:4px;">Version</div>
+        <div style="font-weight:700;">v1.2 · Avril 2026</div>
+      </div>
+    </div>
+
+    <p style="font-size:.8rem;color:var(--gray400);margin-bottom:28px;">
+      NEXORA TRUCK — ERP TMS Transport Routier · Fait en France · 100% français
+    </p>
+
+    <!-- Bloc contact final -->
+    <div style="display:flex;align-items:center;justify-content:center;gap:40px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px 36px;flex-wrap:wrap;">
+      <img src="logo/nexora%20logo%201.png" alt="NEXORA Truck" style="height:36px;width:auto;filter:brightness(0) invert(1);opacity:.9;flex-shrink:0;" />
+      <div style="height:36px;width:1px;background:rgba(255,255,255,.1);flex-shrink:0;"></div>
+      <div style="display:flex;flex-direction:column;gap:5px;">
+        <a href="https://nexora-truck.fr" style="color:#22d3ee;font-weight:700;font-size:.92rem;text-decoration:none;">nexora-truck.fr</a>
+        <div style="font-size:.82rem;color:var(--gray400);">contact@nexora-truck.fr · 07 82 71 17 05 · Marseille, France</div>
+      </div>
+      <div style="height:36px;width:1px;background:rgba(255,255,255,.1);flex-shrink:0;"></div>
+      <div style="display:flex;gap:16px;align-items:center;">
+        <a href="https://www.linkedin.com/company/nexora-truck" style="color:rgba(255,255,255,.6);font-size:.8rem;font-weight:600;text-decoration:none;display:flex;align-items:center;gap:5px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="#60a5fa"><path d="M20 3H4C3.4 3 3 3.4 3 4v16c0 .6.4 1 1 1h16c.6 0 1-.4 1-1V4c0-.6-.4-1-1-1zM8 19H5v-9h3v9zM6.5 8.3C5.5 8.3 4.7 7.5 4.7 6.5S5.5 4.7 6.5 4.7s1.8.8 1.8 1.8-.8 1.8-1.8 1.8zM19 19h-3v-4.7c0-1.1 0-2.6-1.6-2.6S12.7 13 12.7 14.2V19H10v-9h2.8v1.2h.1c.4-.8 1.4-1.6 2.8-1.6 3 0 3.5 2 3.5 4.5V19z"/></svg>
+          LinkedIn
+        </a>
+        <a href="https://twitter.com/nexoratruck" style="color:rgba(255,255,255,.6);font-size:.8rem;font-weight:600;text-decoration:none;display:flex;align-items:center;gap:5px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(255,255,255,.6)"><path d="M18.2 2h3.1l-6.8 7.8L22.5 22h-6.3L11 14.9 5.2 22H2.1l7.3-8.3L2 2h6.5l4.8 6.2L18.2 2zm-1.1 18h1.7L6.8 3.7H5L17.1 20z"/></svg>
+          X
+        </a>
+      </div>
+    </div>
+
+</body>
+</html>

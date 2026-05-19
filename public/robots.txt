@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /login
+Disallow: /connexion-erp
+Disallow: /demo-access
+Disallow: /session-picker
+Disallow: /super-admin
+Disallow: /admin
+Disallow: /.netlify/
+
+Sitemap: https://nexora-truck.fr/sitemap.xml

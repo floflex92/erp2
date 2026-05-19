@@ -1,0 +1,21 @@
+#!/bin/sh
+
+# Block pushes to Netlify remotes by default.
+# Temporary override (manual): ALLOW_NETLIFY_PUSH=1 git push ...
+
+remote_name="$1"
+remote_url="$2"
+
+if [ "$ALLOW_NETLIFY_PUSH" = "1" ]; then
+  exit 0
+fi
+
+case "$remote_name $remote_url" in
+  *netlify*|*app.netlify.com*)
+    echo "Push blocked: Netlify push is disabled by repository policy."
+    echo "Use an explicit user approval and ALLOW_NETLIFY_PUSH=1 only when required."
+    exit 1
+    ;;
+esac
+
+exit 0

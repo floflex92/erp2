@@ -1,13 +1,378 @@
 [build]
-  base    = "erp2"
   command = "npm run build"
-  publish = "erp2/dist"
+  publish = "dist"
 
 [dev]
-  framework  = "#custom"
-  command    = "npm run dev:vite"
+  framework = "#custom"
+  command = "npm run dev:vite"
   targetPort = 5173
-  port       = 8888
+  port = 8888
+
+[build.environment]
+  NODE_VERSION = "20"
+  VITE_APP_VERSION = "1.15.22"
+  # Ollama n'est pas accessible depuis Netlify en production (service local).
+  # Ces valeurs servent de fallback non-fonctionnel ; la fonctionnalité IA
+  # locale est désactivée en production (cf. OllamaError dans le composant).
+  VITE_OLLAMA_HOST = "http://localhost:11434"
+  VITE_OLLAMA_MODEL = "mistral"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(self), payment=()"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://nexora-truck.fr https://rnbbxmdughpxovcnhrpz.supabase.co https://images.unsplash.com https://lh3.googleusercontent.com; connect-src 'self' https://rnbbxmdughpxovcnhrpz.supabase.co wss://rnbbxmdughpxovcnhrpz.supabase.co https://api.anthropic.com https://www.google-analytics.com https://www.googletagmanager.com https://accounts.google.com; font-src 'self' https://fonts.gstatic.com; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self';"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/site/screenshots/*"
+  [headers.values]
+    Cache-Control = "public, max-age=2592000"
+
+[[headers]]
+  for = "/site/photos/*"
+  [headers.values]
+    Cache-Control = "public, max-age=2592000"
+
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "https://nexora-truck.fr"
+    Access-Control-Allow-Methods = "GET, POST, PATCH, DELETE, OPTIONS"
+    Access-Control-Allow-Headers = "Authorization, Content-Type, X-Tenant-Key"
+
+[[headers]]
+  for = "/connexion-erp"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/connexion-erp/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/login"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/login/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/demo-access"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/session-picker"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/super-admin"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/tenant-admin"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/dashboard"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[redirects]]
+  from = "/erp"
+  to = "/erp-transport"
+  status = 301
+
+[[redirects]]
+  from = "/roi"
+  to = "/avantages-roi"
+  status = 301
+
+[[redirects]]
+  from = "/produit"
+  to = "/plateforme-erp-transport"
+  status = 301
+
+[[redirects]]
+  from = "/demo"
+  to = "/demonstration"
+  status = 301
+
+[[redirects]]
+  from = "/gestion-flotte"
+  to = "/logiciel-gestion-flotte-camion"
+  status = 301
+
+[[redirects]]
+  from = "/nexora"
+  to = "/"
+  status = 301
+
+[[redirects]]
+  from = "/nexora-truck"
+  to = "/"
+  status = 301
+
+[[redirects]]
+  from = "/connexion-erp"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/connexion-erp/"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/login"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/demo-access"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/session-picker"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/super-admin"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/tenant-admin"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/dashboard"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/tasks"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/chauffeurs"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/vehicules"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/remorques"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/equipements"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/maintenance"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/transports"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/entrepots"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/clients"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/facturation"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/reglements"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/tresorerie"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/analytique-transport"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/bilan-co2"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/comptabilite"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/paie"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/frais"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/prospection"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/tachygraphe"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/amendes"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/map-live"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/feuille-route"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/planning"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/espace-client"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/compte-client-db"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/espace-affreteur"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/demandes-clients"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/utilisateurs"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/rh"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/entretiens-salaries"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/parametres"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/communication"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/inter-erp"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/tchat"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/mail"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/coffre"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/mentions-legales"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/ops-center"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/dashboard-conducteur"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/planning-conducteur"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/frais-rapide"
+  to = "/index.html"
+  status = 200
 
 [[redirects]]
   from = "/*"

@@ -1,7 +1,67 @@
 {
-  "name": "erp2-workspace",
+  "name": "nexora-truck",
   "private": true,
+  "version": "1.15.22",
+  "type": "module",
   "scripts": {
-    "dev": "cd erp2 && npm run dev"
+    "dev": "netlify dev",
+    "dev:vite": "vite",
+    "serv:dev": "netlify dev",
+    "dev:full": "npm run serv:dev",
+    "prebuild": "npm run test:critical",
+    "typecheck": "tsc -b --pretty false",
+    "lint:src": "eslint src",
+    "build": "node scripts/generate-sitemap.mjs && tsc -b && vite build && vite build --ssr src/site/entry-server.tsx --outDir dist-ssr && npm run seo:prerender",
+    "seo:prerender": "node scripts/prerender-seo-routes.mjs",
+    "postbuild": "npm run indexnow:submit",
+    "indexnow:submit": "node scripts/submit-indexnow.mjs",
+    "test": "vitest run",
+    "test:critical": "vitest run src/pages/planning src/lib/driverStatus.test.ts src/lib/depotSites.test.ts src/lib/transportDecisionEngine.test.ts",
+    "test:watch": "vitest",
+    "lint": "npm run lint:src",
+    "preview": "vite preview",
+    "security:db": "npx supabase migration list",
+    "gen:types": "npx supabase gen types typescript --linked --schema public | node -e \"let d='';process.stdin.setEncoding('utf8');process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>require('fs').writeFileSync('src/lib/database.types.ts',d,'utf8'));\""
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.82.0",
+    "@supabase/supabase-js": "^2.100.1",
+    "@types/leaflet": "^1.9.21",
+    "jspdf": "^4.2.1",
+    "leaflet": "^1.9.4",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^7.13.2",
+    "recharts": "^3.8.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@tailwindcss/vite": "^4.2.2",
+    "@testing-library/jest-dom": "^5.16.5",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.4.3",
+    "@types/node": "^24.12.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.1",
+    "exceljs": "^4.4.0",
+    "globals": "^17.4.0",
+    "jsdom": "^29.0.1",
+    "lighthouse": "^12.8.2",
+    "sharp": "^0.34.5",
+    "tailwindcss": "^4.2.2",
+    "to-ico": "^1.1.5",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.57.0",
+    "vite": "^8.0.1",
+    "vitest": "^0.34.0"
+  },
+  "vitest": {
+    "test": {
+      "environment": "jsdom"
+    }
   }
 }

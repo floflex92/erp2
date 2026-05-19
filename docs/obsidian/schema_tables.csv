@@ -1,0 +1,617 @@
+table_name,primary_key,field_name,field_type,nullable,required,default_value,is_foreign_key,foreign_table,foreign_column,source
+adresses,id,actif,boolean,false,true,,false,,,types
+adresses,id,adresse,string | null,true,false,,false,,,types
+adresses,id,client_id,string | null,true,false,,true,clients,id,types
+adresses,id,code_postal,string | null,true,false,,false,,,types
+adresses,id,contact_nom,string | null,true,false,,false,,,types
+adresses,id,contact_tel,string | null,true,false,,false,,,types
+adresses,id,created_at,string,false,true,,false,,,types
+adresses,id,horaires,string | null,true,false,,false,,,types
+adresses,id,id,string,false,true,,false,,,types
+adresses,id,instructions,string | null,true,false,,false,,,types
+adresses,id,latitude,number | null,true,false,,false,,,types
+adresses,id,longitude,number | null,true,false,,false,,,types
+adresses,id,nom_lieu,string,false,true,,false,,,types
+adresses,id,pays,string | null,true,false,,false,,,types
+adresses,id,type_lieu,string | null,true,false,,false,,,types
+adresses,id,updated_at,string,false,true,,false,,,types
+adresses,id,ville,string,false,true,,false,,,types
+affectations,id,id,string,false,true,,false,,,types
+affectations,id,conducteur_id,string,false,true,,true,conducteurs,id,types
+affectations,id,vehicule_id,string | null,true,false,,true,vehicules,id,types
+affectations,id,remorque_id,string | null,true,false,,true,remorques,id,types
+affectations,id,type_affectation,string,false,true,,false,,,types
+affectations,id,date_debut,string | null,true,false,,false,,,types
+affectations,id,date_fin,string | null,true,false,,false,,,types
+affectations,id,actif,boolean,false,true,,false,,,types
+affectations,id,notes,string | null,true,false,,false,,,types
+affectations,id,created_at,string,false,true,,false,,,types
+affectations,id,updated_at,string,false,true,,false,,,types
+affretement_contract_equipments,"contract_id, equipment_id",contract_id,uuid,false,true,,true,affretement_contracts,id,migration
+affretement_contract_equipments,"contract_id, equipment_id",equipment_id,uuid,false,true,,true,affreteur_equipments,id,migration
+affretement_contract_equipments,"contract_id, equipment_id",created_at,timestamptz,false,true,now(),false,,,migration
+affretement_contract_history,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+affretement_contract_history,id,contract_id,uuid,false,true,,true,affretement_contracts,id,migration
+affretement_contract_history,id,event_at,timestamptz,false,true,now(),false,,,migration
+affretement_contract_history,id,actor_role,text,false,true,,false,,,migration
+affretement_contract_history,id,actor_name,text,false,true,,false,,,migration
+affretement_contract_history,id,message,text,false,true,,false,,,migration
+affretement_contract_history,id,created_by,uuid,true,false,,false,,,migration
+affretement_contract_history,id,created_at,timestamptz,false,true,now(),false,,,migration
+affretement_contract_updates,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+affretement_contract_updates,id,contract_id,uuid,false,true,,true,affretement_contracts,id,migration
+affretement_contract_updates,id,status_key,text,false,true,,false,,,migration
+affretement_contract_updates,id,event_at,timestamptz,false,true,now(),false,,,migration
+affretement_contract_updates,id,note,text,true,false,,false,,,migration
+affretement_contract_updates,id,gps_lat,"numeric(10,7)",true,false,,false,,,migration
+affretement_contract_updates,id,gps_lng,"numeric(10,7)",true,false,,false,,,migration
+affretement_contract_updates,id,created_by,uuid,true,false,,false,,,migration
+affretement_contract_updates,id,created_at,timestamptz,false,true,now(),false,,,migration
+affretement_contracts,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+affretement_contracts,id,ot_id,uuid,false,true,,true,ordres_transport,id,migration
+affretement_contracts,id,onboarding_id,uuid,false,true,,true,affreteur_onboardings,id,migration
+affretement_contracts,id,status,text,false,true,'propose',false,,,migration
+affretement_contracts,id,proposed_at,timestamptz,false,true,now(),false,,,migration
+affretement_contracts,id,decided_at,timestamptz,true,false,,false,,,migration
+affretement_contracts,id,updated_at,timestamptz,false,true,now(),false,,,migration
+affretement_contracts,id,proposed_by_role,text,false,true,,false,,,migration
+affretement_contracts,id,proposed_by_name,text,false,true,,false,,,migration
+affretement_contracts,id,exploitation_note,text,true,false,,false,,,migration
+affretement_contracts,id,affreteur_note,text,true,false,,false,,,migration
+affretement_contracts,id,assigned_driver_id,uuid,true,false,,true,affreteur_drivers,id,migration
+affretement_contracts,id,assigned_vehicle_id,uuid,true,false,,true,affreteur_vehicles,id,migration
+affretement_contracts,id,created_at,timestamptz,false,true,now(),false,,,migration
+affreteur_drivers,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+affreteur_drivers,id,onboarding_id,uuid,false,true,,true,affreteur_onboardings,id,migration
+affreteur_drivers,id,full_name,text,false,true,,false,,,migration
+affreteur_drivers,id,email,text,false,true,,false,,,migration
+affreteur_drivers,id,phone,text,true,false,,false,,,migration
+affreteur_drivers,id,license_number,text,true,false,,false,,,migration
+affreteur_drivers,id,active,boolean,false,true,true,false,,,migration
+affreteur_drivers,id,created_at,timestamptz,false,true,now(),false,,,migration
+affreteur_drivers,id,updated_at,timestamptz,false,true,now(),false,,,migration
+affreteur_employees,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+affreteur_employees,id,onboarding_id,uuid,false,true,,true,affreteur_onboardings,id,migration
+affreteur_employees,id,full_name,text,false,true,,false,,,migration
+affreteur_employees,id,email,text,false,true,,false,,,migration
+affreteur_employees,id,role,text,false,true,,false,,,migration
+affreteur_employees,id,permissions,text[],false,true,'{}'::text[],false,,,migration
+affreteur_employees,id,active,boolean,false,true,true,false,,,migration
+affreteur_employees,id,created_at,timestamptz,false,true,now(),false,,,migration
+affreteur_employees,id,updated_at,timestamptz,false,true,now(),false,,,migration
+affreteur_equipments,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+affreteur_equipments,id,onboarding_id,uuid,false,true,,true,affreteur_onboardings,id,migration
+affreteur_equipments,id,label,text,false,true,,false,,,migration
+affreteur_equipments,id,kind,text,false,true,,false,,,migration
+affreteur_equipments,id,serial_number,text,true,false,,false,,,migration
+affreteur_equipments,id,active,boolean,false,true,true,false,,,migration
+affreteur_equipments,id,created_at,timestamptz,false,true,now(),false,,,migration
+affreteur_equipments,id,updated_at,timestamptz,false,true,now(),false,,,migration
+affreteur_onboarding_history,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+affreteur_onboarding_history,id,onboarding_id,uuid,false,true,,true,affreteur_onboardings,id,migration
+affreteur_onboarding_history,id,event_at,timestamptz,false,true,now(),false,,,migration
+affreteur_onboarding_history,id,actor_role,text,false,true,,false,,,migration
+affreteur_onboarding_history,id,actor_name,text,false,true,,false,,,migration
+affreteur_onboarding_history,id,message,text,false,true,,false,,,migration
+affreteur_onboarding_history,id,created_by,uuid,true,false,,false,,,migration
+affreteur_onboarding_history,id,created_at,timestamptz,false,true,now(),false,,,migration
+affreteur_onboardings,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+affreteur_onboardings,id,owner_profile_id,uuid,true,false,,true,profils,id,migration
+affreteur_onboardings,id,submitted_at,timestamptz,false,true,now(),false,,,migration
+affreteur_onboardings,id,updated_at,timestamptz,false,true,now(),false,,,migration
+affreteur_onboardings,id,company_name,text,false,true,,false,,,migration
+affreteur_onboardings,id,siret,text,false,true,,false,,,migration
+affreteur_onboardings,id,vat_number,text,true,false,,false,,,migration
+affreteur_onboardings,id,contact_email,text,false,true,,false,,,migration
+affreteur_onboardings,id,contact_phone,text,true,false,,false,,,migration
+affreteur_onboardings,id,billing_address,text,false,true,,false,,,migration
+affreteur_onboardings,id,operation_address,text,true,false,,false,,,migration
+affreteur_onboardings,id,notes,text,true,false,,false,,,migration
+affreteur_onboardings,id,commercial_review,text,false,true,'en_attente',false,,,migration
+affreteur_onboardings,id,comptable_review,text,false,true,'en_attente',false,,,migration
+affreteur_onboardings,id,status,text,false,true,'en_verification_commerciale',false,,,migration
+affreteur_onboardings,id,rejection_reason,text,true,false,,false,,,migration
+affreteur_onboardings,id,created_at,timestamptz,false,true,now(),false,,,migration
+affreteur_vehicles,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+affreteur_vehicles,id,onboarding_id,uuid,false,true,,true,affreteur_onboardings,id,migration
+affreteur_vehicles,id,plate,text,false,true,,false,,,migration
+affreteur_vehicles,id,brand,text,true,false,,false,,,migration
+affreteur_vehicles,id,model,text,true,false,,false,,,migration
+affreteur_vehicles,id,capacity_kg,"numeric(12,2)",true,false,,false,,,migration
+affreteur_vehicles,id,active,boolean,false,true,true,false,,,migration
+affreteur_vehicles,id,created_at,timestamptz,false,true,now(),false,,,migration
+affreteur_vehicles,id,updated_at,timestamptz,false,true,now(),false,,,migration
+clients,id,actif,boolean,false,true,,false,,,types
+clients,id,adresse,string | null,true,false,,false,,,types
+clients,id,adresse_facturation,string | null,true,false,,false,,,types
+clients,id,banque,string | null,true,false,,false,,,types
+clients,id,bic,string | null,true,false,,false,,,types
+clients,id,code_postal,string | null,true,false,,false,,,types
+clients,id,code_postal_facturation,string | null,true,false,,false,,,types
+clients,id,code_client,string | null,true,false,,false,,,types
+clients,id,contact_facturation_email,string | null,true,false,,false,,,types
+clients,id,contact_facturation_nom,string | null,true,false,,false,,,types
+clients,id,contact_facturation_telephone,string | null,true,false,,false,,,types
+clients,id,conditions_paiement,number | null,true,false,,false,,,types
+clients,id,created_at,string,false,true,,false,,,types
+clients,id,email,string | null,true,false,,false,,,types
+clients,id,encours_max,number | null,true,false,,false,,,types
+clients,id,id,string,false,true,,false,,,types
+clients,id,iban,string | null,true,false,,false,,,types
+clients,id,jour_echeance,number | null,true,false,,false,,,types
+clients,id,mode_paiement_defaut,string | null,true,false,,false,,,types
+clients,id,nom,string,false,true,,false,,,types
+clients,id,notes,string | null,true,false,,false,,,types
+clients,id,pays,string | null,true,false,,false,,,types
+clients,id,pays_facturation,string | null,true,false,,false,,,types
+clients,id,siret,string | null,true,false,,false,,,types
+clients,id,site_web,string | null,true,false,,false,,,types
+clients,id,taux_tva_defaut,number | null,true,false,,false,,,types
+clients,id,telephone,string | null,true,false,,false,,,types
+clients,id,titulaire_compte,string | null,true,false,,false,,,types
+clients,id,type_echeance,string | null,true,false,,false,,,types
+clients,id,tva_intra,string | null,true,false,,false,,,types
+clients,id,type_client,string,false,true,,false,,,types
+clients,id,updated_at,string,false,true,,false,,,types
+clients,id,ville,string | null,true,false,,false,,,types
+clients,id,ville_facturation,string | null,true,false,,false,,,types
+conducteur_documents,id,archived_at,string | null,true,false,,false,,,types
+conducteur_documents,id,category,string,false,true,,false,,,types
+conducteur_documents,id,conducteur_id,string,false,true,,true,conducteurs,id,types
+conducteur_documents,id,created_at,string,false,true,,false,,,types
+conducteur_documents,id,expires_at,string | null,true,false,,false,,,types
+conducteur_documents,id,file_name,string,false,true,,false,,,types
+conducteur_documents,id,id,string,false,true,,false,,,types
+conducteur_documents,id,is_mandatory,boolean,false,true,,false,,,types
+conducteur_documents,id,issued_at,string | null,true,false,,false,,,types
+conducteur_documents,id,mime_type,string,false,true,,false,,,types
+conducteur_documents,id,notes,string | null,true,false,,false,,,types
+conducteur_documents,id,storage_bucket,string,false,true,,false,,,types
+conducteur_documents,id,storage_path,string,false,true,,false,,,types
+conducteur_documents,id,title,string,false,true,,false,,,types
+conducteur_documents,id,updated_at,string,false,true,,false,,,types
+conducteur_documents,id,uploaded_by,string | null,true,false,,false,,,types
+conducteur_evenements_rh,id,conducteur_id,string,false,true,,true,conducteurs,id,types
+conducteur_evenements_rh,id,created_at,string,false,true,,false,,,types
+conducteur_evenements_rh,id,created_by,string | null,true,false,,false,,,types
+conducteur_evenements_rh,id,description,string | null,true,false,,false,,,types
+conducteur_evenements_rh,id,document_id,string | null,true,false,,true,conducteur_documents,id,types
+conducteur_evenements_rh,id,end_date,string | null,true,false,,false,,,types
+conducteur_evenements_rh,id,event_type,string,false,true,,false,,,types
+conducteur_evenements_rh,id,id,string,false,true,,false,,,types
+conducteur_evenements_rh,id,reminder_at,string | null,true,false,,false,,,types
+conducteur_evenements_rh,id,severity,string,false,true,,false,,,types
+conducteur_evenements_rh,id,start_date,string,false,true,,false,,,types
+conducteur_evenements_rh,id,title,string,false,true,,false,,,types
+conducteur_evenements_rh,id,updated_at,string,false,true,,false,,,types
+conducteurs,id,adresse,string | null,true,false,,false,,,types
+conducteurs,id,carte_tachy_expiration,string | null,true,false,,false,,,types
+conducteurs,id,carte_tachy_numero,string | null,true,false,,false,,,types
+conducteurs,id,contact_urgence_nom,string | null,true,false,,false,,,types
+conducteurs,id,contact_urgence_telephone,string | null,true,false,,false,,,types
+conducteurs,id,created_at,string,false,true,,false,,,types
+conducteurs,id,date_entree,string | null,true,false,,false,,,types
+conducteurs,id,date_naissance,string | null,true,false,,false,,,types
+conducteurs,id,date_sortie,string | null,true,false,,false,,,types
+conducteurs,id,email,string | null,true,false,,false,,,types
+conducteurs,id,fco_date,string | null,true,false,,false,,,types
+conducteurs,id,fco_expiration,string | null,true,false,,false,,,types
+conducteurs,id,fimo_date,string | null,true,false,,false,,,types
+conducteurs,id,id,string,false,true,,false,,,types
+conducteurs,id,matricule,string | null,true,false,,false,,,types
+conducteurs,id,motif_sortie,string | null,true,false,,false,,,types
+conducteurs,id,nom,string,false,true,,false,,,types
+conducteurs,id,notes,string | null,true,false,,false,,,types
+conducteurs,id,numero_permis,string | null,true,false,,false,,,types
+conducteurs,id,permis_categories,string[] | null,true,false,,false,,,types
+conducteurs,id,permis_expiration,string | null,true,false,,false,,,types
+conducteurs,id,preferences,string | null,true,false,,false,,,types
+conducteurs,id,prenom,string,false,true,,false,,,types
+conducteurs,id,poste,string | null,true,false,,false,,,types
+conducteurs,id,recyclage_date,string | null,true,false,,false,,,types
+conducteurs,id,recyclage_expiration,string | null,true,false,,false,,,types
+conducteurs,id,statut,string,false,true,,false,,,types
+conducteurs,id,telephone,string | null,true,false,,false,,,types
+conducteurs,id,type_contrat,string | null,true,false,,false,,,types
+conducteurs,id,updated_at,string,false,true,,false,,,types
+conducteurs,id,visite_medicale_date,string | null,true,false,,false,,,types
+conducteurs,id,visite_medicale_expiration,string | null,true,false,,false,,,types
+config_entreprise,cle,cle,text,true,false,,false,,,migration
+config_entreprise,cle,valeur,jsonb,true,false,,false,,,migration
+contacts,id,client_id,string,false,true,,true,clients,id,types
+contacts,id,created_at,string,false,true,,false,,,types
+contacts,id,email,string | null,true,false,,false,,,types
+contacts,id,id,string,false,true,,false,,,types
+contacts,id,nom,string,false,true,,false,,,types
+contacts,id,poste,string | null,true,false,,false,,,types
+contacts,id,prenom,string | null,true,false,,false,,,types
+contacts,id,principal,boolean | null,true,false,,false,,,types
+contacts,id,telephone,string | null,true,false,,false,,,types
+couts_mission,id,created_at,string,false,true,,false,,,types
+couts_mission,id,date_cout,string | null,true,false,,false,,,types
+couts_mission,id,fournisseur,string | null,true,false,,false,,,types
+couts_mission,id,id,string,false,true,,false,,,types
+couts_mission,id,libelle,string | null,true,false,,false,,,types
+couts_mission,id,montant_ht,number,false,true,,false,,,types
+couts_mission,id,notes,string | null,true,false,,false,,,types
+couts_mission,id,ot_id,string,false,true,,true,ordres_transport,id,types
+couts_mission,id,reference_piece,string | null,true,false,,false,,,types
+couts_mission,id,taux_tva,number | null,true,false,,false,,,types
+couts_mission,id,type_cout,string,false,true,,false,,,types
+documents,id,created_at,string,false,true,,false,,,types
+documents,id,id,string,false,true,,false,,,types
+documents,id,nom_fichier,string,false,true,,false,,,types
+documents,id,ot_id,string | null,true,false,,true,ordres_transport,id,types
+documents,id,taille_bytes,number | null,true,false,,false,,,types
+documents,id,type_document,string,false,true,,false,,,types
+documents,id,uploaded_by,string | null,true,false,,false,,,types
+documents,id,url_stockage,string | null,true,false,,false,,,types
+entretiens,id,cout_ht,number | null,true,false,,false,,,types
+entretiens,id,created_at,string,false,true,,false,,,types
+entretiens,id,date_entretien,string,false,true,,false,,,types
+entretiens,id,description,string | null,true,false,,false,,,types
+entretiens,id,id,string,false,true,,false,,,types
+entretiens,id,km_au_moment,number | null,true,false,,false,,,types
+entretiens,id,prestataire,string | null,true,false,,false,,,types
+entretiens,id,type_entretien,string,false,true,,false,,,types
+entretiens,id,vehicule_id,string,false,true,,true,vehicules,id,types
+erp_v11_ai_logs,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+erp_v11_ai_logs,id,tenant_key,text,false,true,'default',false,,,migration
+erp_v11_ai_logs,id,module_key,text,false,true,'ai',false,,,migration
+erp_v11_ai_logs,id,context_type,text,false,true,,false,,,migration
+erp_v11_ai_logs,id,context_id,text,true,false,,false,,,migration
+erp_v11_ai_logs,id,prompt_hash,text,true,false,,false,,,migration
+erp_v11_ai_logs,id,model,text,true,false,,false,,,migration
+erp_v11_ai_logs,id,tokens_in,integer,true,false,,false,,,migration
+erp_v11_ai_logs,id,tokens_out,integer,true,false,,false,,,migration
+erp_v11_ai_logs,id,cost_estimate,"numeric(12,6)",true,false,,false,,,migration
+erp_v11_ai_logs,id,request_payload,jsonb,true,false,,false,,,migration
+erp_v11_ai_logs,id,response_payload,jsonb,true,false,,false,,,migration
+erp_v11_ai_logs,id,created_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_api_logs,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+erp_v11_api_logs,id,tenant_key,text,false,true,'default',false,,,migration
+erp_v11_api_logs,id,module_key,text,false,true,,false,,,migration
+erp_v11_api_logs,id,provider_key,text,true,false,,false,,,migration
+erp_v11_api_logs,id,request_fingerprint,text,true,false,,false,,,migration
+erp_v11_api_logs,id,status,text,false,true,,false,,,migration
+erp_v11_api_logs,id,http_status,integer,true,false,,false,,,migration
+erp_v11_api_logs,id,latency_ms,integer,true,false,,false,,,migration
+erp_v11_api_logs,id,request_payload,jsonb,true,false,,false,,,migration
+erp_v11_api_logs,id,response_payload,jsonb,true,false,,false,,,migration
+erp_v11_api_logs,id,error_message,text,true,false,,false,,,migration
+erp_v11_api_logs,id,created_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_api_mappings,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+erp_v11_api_mappings,id,tenant_key,text,false,true,'default',false,,,migration
+erp_v11_api_mappings,id,provider_key,text,false,true,,false,,,migration
+erp_v11_api_mappings,id,object_name,text,false,true,,false,,,migration
+erp_v11_api_mappings,id,direction,text,false,true,'inbound',false,,,migration
+erp_v11_api_mappings,id,mapping_version,integer,false,true,1,false,,,migration
+erp_v11_api_mappings,id,is_active,boolean,false,true,true,false,,,migration
+erp_v11_api_mappings,id,rules,jsonb,false,true,'{}'::jsonb,false,,,migration
+erp_v11_api_mappings,id,created_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_api_mappings,id,updated_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_cache,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+erp_v11_cache,id,tenant_key,text,false,true,'default',false,,,migration
+erp_v11_cache,id,cache_key,text,false,true,,false,,,migration
+erp_v11_cache,id,scope,text,false,true,,false,,,migration
+erp_v11_cache,id,payload,jsonb,false,true,'{}'::jsonb,false,,,migration
+erp_v11_cache,id,payload_hash,text,true,false,,false,,,migration
+erp_v11_cache,id,source,text,false,true,'internal',false,,,migration
+erp_v11_cache,id,stale_after,timestamptz,true,false,,false,,,migration
+erp_v11_cache,id,expires_at,timestamptz,true,false,,false,,,migration
+erp_v11_cache,id,created_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_cache,id,updated_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_chat_messages,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+erp_v11_chat_messages,id,tenant_key,text,false,true,'default',false,,,migration
+erp_v11_chat_messages,id,channel_key,text,false,true,,false,,,migration
+erp_v11_chat_messages,id,sender_type,text,false,true,,false,,,migration
+erp_v11_chat_messages,id,sender_id,uuid,true,false,,false,,,migration
+erp_v11_chat_messages,id,recipient_type,text,true,false,,false,,,migration
+erp_v11_chat_messages,id,recipient_id,uuid,true,false,,false,,,migration
+erp_v11_chat_messages,id,ot_id,uuid,true,false,,true,ordres_transport,id,migration
+erp_v11_chat_messages,id,message,text,false,true,,false,,,migration
+erp_v11_chat_messages,id,attachments,jsonb,false,true,'[]'::jsonb,false,,,migration
+erp_v11_chat_messages,id,delivered_at,timestamptz,true,false,,false,,,migration
+erp_v11_chat_messages,id,read_at,timestamptz,true,false,,false,,,migration
+erp_v11_chat_messages,id,created_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_client_portal_access,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+erp_v11_client_portal_access,id,tenant_key,text,false,true,'default',false,,,migration
+erp_v11_client_portal_access,id,client_id,uuid,false,true,,true,clients,id,migration
+erp_v11_client_portal_access,id,ot_id,uuid,false,true,,true,ordres_transport,id,migration
+erp_v11_client_portal_access,id,access_token,text,false,true,,false,,,migration
+erp_v11_client_portal_access,id,expires_at,timestamptz,false,true,,false,,,migration
+erp_v11_client_portal_access,id,enabled,boolean,false,true,true,false,,,migration
+erp_v11_client_portal_access,id,created_by,uuid,true,false,,false,,,migration
+erp_v11_client_portal_access,id,created_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_client_portal_access,id,updated_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_driver_activity,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+erp_v11_driver_activity,id,tenant_key,text,false,true,'default',false,,,migration
+erp_v11_driver_activity,id,conducteur_id,uuid,false,true,,true,conducteurs,id,migration
+erp_v11_driver_activity,id,vehicule_id,uuid,true,false,,true,vehicules,id,migration
+erp_v11_driver_activity,id,ot_id,uuid,true,false,,true,ordres_transport,id,migration
+erp_v11_driver_activity,id,activity_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_driver_activity,id,driver_status,text,false,true,'unknown',false,,,migration
+erp_v11_driver_activity,id,driving_minutes_remaining,integer,true,false,,false,,,migration
+erp_v11_driver_activity,id,break_minutes_remaining,integer,true,false,,false,,,migration
+erp_v11_driver_activity,id,daily_drive_minutes,integer,true,false,,false,,,migration
+erp_v11_driver_activity,id,weekly_drive_minutes,integer,true,false,,false,,,migration
+erp_v11_driver_activity,id,source,text,false,true,'internal',false,,,migration
+erp_v11_driver_activity,id,raw_payload,jsonb,true,false,,false,,,migration
+erp_v11_driver_activity,id,created_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_driver_sessions,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+erp_v11_driver_sessions,id,tenant_key,text,false,true,'default',false,,,migration
+erp_v11_driver_sessions,id,conducteur_id,uuid,false,true,,true,conducteurs,id,migration
+erp_v11_driver_sessions,id,session_token,text,false,true,,false,,,migration
+erp_v11_driver_sessions,id,status,text,false,true,'active',false,,,migration
+erp_v11_driver_sessions,id,started_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_driver_sessions,id,ended_at,timestamptz,true,false,,false,,,migration
+erp_v11_driver_sessions,id,last_seen_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_driver_sessions,id,device_info,jsonb,true,false,,false,,,migration
+erp_v11_driver_sessions,id,created_by,uuid,true,false,,false,,,migration
+erp_v11_driver_sessions,id,created_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_driver_sessions,id,updated_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_eta_predictions,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+erp_v11_eta_predictions,id,tenant_key,text,false,true,'default',false,,,migration
+erp_v11_eta_predictions,id,ot_id,uuid,false,true,,true,ordres_transport,id,migration
+erp_v11_eta_predictions,id,vehicle_id,uuid,true,false,,true,vehicules,id,migration
+erp_v11_eta_predictions,id,prediction_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_eta_predictions,id,eta_at,timestamptz,false,true,,false,,,migration
+erp_v11_eta_predictions,id,confidence,"numeric(5,2)",false,true,0.5,false,,,migration
+erp_v11_eta_predictions,id,delay_minutes,integer,false,true,0,false,,,migration
+erp_v11_eta_predictions,id,method,text,false,true,'internal',false,,,migration
+erp_v11_eta_predictions,id,traffic_factor,"numeric(6,3)",true,false,,false,,,migration
+erp_v11_eta_predictions,id,break_factor,"numeric(6,3)",true,false,,false,,,migration
+erp_v11_eta_predictions,id,source_provider,text,true,false,,false,,,migration
+erp_v11_eta_predictions,id,details,jsonb,false,true,'{}'::jsonb,false,,,migration
+erp_v11_eta_predictions,id,created_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_modules,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+erp_v11_modules,id,tenant_key,text,false,true,'default',false,,,migration
+erp_v11_modules,id,module_key,text,false,true,,false,,,migration
+erp_v11_modules,id,enabled,boolean,false,true,true,false,,,migration
+erp_v11_modules,id,mode,text,false,true,'hybrid',false,,,migration
+erp_v11_modules,id,refresh_interval_sec,integer,false,true,60,false,,,migration
+erp_v11_modules,id,fallback_strategy,text,false,true,'internal_recompute',false,,,migration
+erp_v11_modules,id,config,jsonb,false,true,'{}'::jsonb,false,,,migration
+erp_v11_modules,id,updated_by,uuid,true,false,,false,,,migration
+erp_v11_modules,id,created_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_modules,id,updated_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_providers,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+erp_v11_providers,id,tenant_key,text,false,true,'default',false,,,migration
+erp_v11_providers,id,provider_key,text,false,true,,false,,,migration
+erp_v11_providers,id,provider_type,text,false,true,,false,,,migration
+erp_v11_providers,id,enabled,boolean,false,true,true,false,,,migration
+erp_v11_providers,id,priority,integer,false,true,100,false,,,migration
+erp_v11_providers,id,base_url,text,true,false,,false,,,migration
+erp_v11_providers,id,auth_type,text,false,true,'none',false,,,migration
+erp_v11_providers,id,api_key_ref,text,true,false,,false,,,migration
+erp_v11_providers,id,capabilities,text[],false,true,'{}'::text[],false,,,migration
+erp_v11_providers,id,rate_limit_per_minute,integer,false,true,60,false,,,migration
+erp_v11_providers,id,cache_ttl_sec,integer,false,true,120,false,,,migration
+erp_v11_providers,id,timeout_ms,integer,false,true,5000,false,,,migration
+erp_v11_providers,id,mapping_profile,text,false,true,'default',false,,,migration
+erp_v11_providers,id,config,jsonb,false,true,'{}'::jsonb,false,,,migration
+erp_v11_providers,id,created_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_providers,id,updated_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_tenants,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+erp_v11_tenants,id,tenant_key,text,false,true,,false,,,migration
+erp_v11_tenants,id,display_name,text,false,true,,false,,,migration
+erp_v11_tenants,id,is_active,boolean,false,true,true,false,,,migration
+erp_v11_tenants,id,created_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_tenants,id,updated_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_vehicle_positions,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+erp_v11_vehicle_positions,id,tenant_key,text,false,true,'default',false,,,migration
+erp_v11_vehicle_positions,id,vehicle_id,uuid,false,true,,true,vehicules,id,migration
+erp_v11_vehicle_positions,id,provider_key,text,true,false,,false,,,migration
+erp_v11_vehicle_positions,id,position_at,timestamptz,false,true,now(),false,,,migration
+erp_v11_vehicle_positions,id,latitude,"numeric(10,7)",false,true,,false,,,migration
+erp_v11_vehicle_positions,id,longitude,"numeric(10,7)",false,true,,false,,,migration
+erp_v11_vehicle_positions,id,heading_deg,"numeric(6,2)",true,false,,false,,,migration
+erp_v11_vehicle_positions,id,speed_kmh,"numeric(8,2)",true,false,,false,,,migration
+erp_v11_vehicle_positions,id,accuracy_m,"numeric(8,2)",true,false,,false,,,migration
+erp_v11_vehicle_positions,id,source,text,false,true,'internal',false,,,migration
+erp_v11_vehicle_positions,id,raw_payload,jsonb,true,false,,false,,,migration
+erp_v11_vehicle_positions,id,created_at,timestamptz,false,true,now(),false,,,migration
+etapes_mission,id,adresse_id,string | null,true,false,,true,adresses,id,types
+etapes_mission,id,adresse_libre,string | null,true,false,,false,,,types
+etapes_mission,id,code_postal,string | null,true,false,,false,,,types
+etapes_mission,id,contact_nom,string | null,true,false,,false,,,types
+etapes_mission,id,contact_tel,string | null,true,false,,false,,,types
+etapes_mission,id,created_at,string,false,true,,false,,,types
+etapes_mission,id,date_prevue,string | null,true,false,,false,,,types
+etapes_mission,id,date_reelle,string | null,true,false,,false,,,types
+etapes_mission,id,id,string,false,true,,false,,,types
+etapes_mission,id,instructions,string | null,true,false,,false,,,types
+etapes_mission,id,nombre_colis,number | null,true,false,,false,,,types
+etapes_mission,id,notes,string | null,true,false,,false,,,types
+etapes_mission,id,ordre,number,false,true,,false,,,types
+etapes_mission,id,ot_id,string,false,true,,true,ordres_transport,id,types
+etapes_mission,id,pays,string | null,true,false,,false,,,types
+etapes_mission,id,poids_kg,number | null,true,false,,false,,,types
+etapes_mission,id,reference_marchandise,string | null,true,false,,false,,,types
+etapes_mission,id,statut,string,false,true,,false,,,types
+etapes_mission,id,type_etape,string,false,true,,false,,,types
+etapes_mission,id,updated_at,string,false,true,,false,,,types
+etapes_mission,id,ville,string | null,true,false,,false,,,types
+factures,id,client_id,string,false,true,,true,clients,id,types
+factures,id,created_at,string,false,true,,false,,,types
+factures,id,date_echeance,string | null,true,false,,false,,,types
+factures,id,date_emission,string,false,true,,false,,,types
+factures,id,date_paiement,string | null,true,false,,false,,,types
+factures,id,id,string,false,true,,false,,,types
+factures,id,mode_paiement,string | null,true,false,,false,,,types
+factures,id,montant_ht,number,false,true,,false,,,types
+factures,id,montant_ttc,number | null,true,false,,false,,,types
+factures,id,montant_tva,number | null,true,false,,false,,,types
+factures,id,notes,string | null,true,false,,false,,,types
+factures,id,numero,string,false,true,,false,,,types
+factures,id,ot_id,string | null,true,false,,true,ordres_transport,id,types
+factures,id,statut,string,false,true,,false,,,types
+factures,id,taux_tva,number,false,true,,false,,,types
+factures,id,updated_at,string,false,true,,false,,,types
+flotte_documents,id,archived_at,string | null,true,false,,false,,,types
+flotte_documents,id,category,string,false,true,,false,,,types
+flotte_documents,id,created_at,string,false,true,,false,,,types
+flotte_documents,id,expires_at,string | null,true,false,,false,,,types
+flotte_documents,id,file_name,string,false,true,,false,,,types
+flotte_documents,id,id,string,false,true,,false,,,types
+flotte_documents,id,issued_at,string | null,true,false,,false,,,types
+flotte_documents,id,mime_type,string,false,true,,false,,,types
+flotte_documents,id,notes,string | null,true,false,,false,,,types
+flotte_documents,id,remorque_id,string | null,true,false,,true,remorques,id,types
+flotte_documents,id,storage_bucket,string,false,true,,false,,,types
+flotte_documents,id,storage_path,string,false,true,,false,,,types
+flotte_documents,id,title,string,false,true,,false,,,types
+flotte_documents,id,updated_at,string,false,true,,false,,,types
+flotte_documents,id,uploaded_by,string | null,true,false,,false,,,types
+flotte_documents,id,vehicule_id,string | null,true,false,,true,vehicules,id,types
+flotte_documents,id,(vehicule_id,is,false,true,,false,,,migration
+flotte_entretiens,id,covered_by_contract,boolean,false,true,,false,,,types
+flotte_entretiens,id,cout_ht,number,false,true,,false,,,types
+flotte_entretiens,id,cout_ttc,number | null,true,false,,false,,,types
+flotte_entretiens,id,created_at,string,false,true,,false,,,types
+flotte_entretiens,id,created_by,string | null,true,false,,false,,,types
+flotte_entretiens,id,garage,string | null,true,false,,false,,,types
+flotte_entretiens,id,id,string,false,true,,false,,,types
+flotte_entretiens,id,invoice_document_id,string | null,true,false,,true,flotte_documents,id,types
+flotte_entretiens,id,km_compteur,number | null,true,false,,false,,,types
+flotte_entretiens,id,maintenance_type,string,false,true,,false,,,types
+flotte_entretiens,id,next_due_date,string | null,true,false,,false,,,types
+flotte_entretiens,id,next_due_km,number | null,true,false,,false,,,types
+flotte_entretiens,id,notes,string | null,true,false,,false,,,types
+flotte_entretiens,id,prestataire,string | null,true,false,,false,,,types
+flotte_entretiens,id,remorque_id,string | null,true,false,,true,remorques,id,types
+flotte_entretiens,id,service_date,string,false,true,,false,,,types
+flotte_entretiens,id,updated_at,string,false,true,,false,,,types
+flotte_entretiens,id,vehicule_id,string | null,true,false,,true,vehicules,id,types
+flotte_entretiens,id,(vehicule_id,is,false,true,,false,,,migration
+historique_statuts,id,commentaire,string | null,true,false,,false,,,types
+historique_statuts,id,created_at,string,false,true,,false,,,types
+historique_statuts,id,created_by,string | null,true,false,,false,,,types
+historique_statuts,id,id,string,false,true,,false,,,types
+historique_statuts,id,ot_id,string,false,true,,true,ordres_transport,id,types
+historique_statuts,id,statut_ancien,string | null,true,false,,false,,,types
+historique_statuts,id,statut_nouveau,string,false,true,,false,,,types
+ordres_transport,id,client_id,string,false,true,,true,clients,id,types
+ordres_transport,id,conducteur_id,string | null,true,false,,true,conducteurs,id,types
+ordres_transport,id,created_at,string,false,true,,false,,,types
+ordres_transport,id,date_chargement_prevue,string | null,true,false,,false,,,types
+ordres_transport,id,date_livraison_prevue,string | null,true,false,,false,,,types
+ordres_transport,id,date_livraison_reelle,string | null,true,false,,false,,,types
+ordres_transport,id,distance_km,number | null,true,false,,false,,,types
+ordres_transport,id,facturation_id,string | null,true,false,,true,factures,id,types
+ordres_transport,id,id,string,false,true,,false,,,types
+ordres_transport,id,instructions,string | null,true,false,,false,,,types
+ordres_transport,id,nature_marchandise,string | null,true,false,,false,,,types
+ordres_transport,id,nombre_colis,number | null,true,false,,false,,,types
+ordres_transport,id,notes_internes,string | null,true,false,,false,,,types
+ordres_transport,id,numero_bl,string | null,true,false,,false,,,types
+ordres_transport,id,numero_cmr,string | null,true,false,,false,,,types
+ordres_transport,id,poids_kg,number | null,true,false,,false,,,types
+ordres_transport,id,prix_ht,number | null,true,false,,false,,,types
+ordres_transport,id,reference,string,false,true,,false,,,types
+ordres_transport,id,remorque_id,string | null,true,false,,true,remorques,id,types
+ordres_transport,id,statut,string,false,true,,false,,,types
+ordres_transport,id,statut_operationnel,string | null,true,false,,false,,,types
+ordres_transport,id,taux_tva,number | null,true,false,,false,,,types
+ordres_transport,id,temperature_requise,string | null,true,false,,false,,,types
+ordres_transport,id,type_transport,string,false,true,,false,,,types
+ordres_transport,id,updated_at,string,false,true,,false,,,types
+ordres_transport,id,vehicule_id,string | null,true,false,,true,vehicules,id,types
+ordres_transport,id,volume_m3,number | null,true,false,,false,,,types
+profils,id,id,string,false,true,,false,,,types
+profils,id,user_id,string,false,true,,false,,,types
+profils,id,role,string,false,true,,false,,,types
+profils,id,nom,string | null,true,false,,false,,,types
+profils,id,prenom,string | null,true,false,,false,,,types
+profils,id,created_at,string,false,true,,false,,,types
+profils,id,updated_at,string,false,true,,false,,,types
+prospects,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+prospects,id,nom_entreprise,text,false,true,,false,,,migration
+prospects,id,statut,text,false,true,'lead',false,,,migration
+prospects,id,montant_mensuel_estime,"numeric(12,2)",true,false,,false,,,migration
+prospects,id,commercial_nom,text,true,false,,false,,,migration
+prospects,id,secteur,text,true,false,,false,,,migration
+prospects,id,type_transport,text,true,false,,false,,,migration
+prospects,id,created_at,timestamptz,false,true,now(),false,,,migration
+prospects,id,updated_at,timestamptz,false,true,now(),false,,,migration
+rapports_conducteurs,id,id,uuid,true,false,gen_random_uuid(),false,,,migration
+rapports_conducteurs,id,conducteur_id,uuid,false,true,,true,conducteurs,id,migration
+rapports_conducteurs,id,type,text,false,true,,false,,,migration
+rapports_conducteurs,id,periode_debut,date,false,true,,false,,,migration
+rapports_conducteurs,id,periode_fin,date,false,true,,false,,,migration
+rapports_conducteurs,id,periode_label,text,false,true,,false,,,migration
+rapports_conducteurs,id,contenu,jsonb,false,true,'{}'::jsonb,false,,,migration
+rapports_conducteurs,id,statut,text,false,true,'genere',false,,,migration
+rapports_conducteurs,id,envoye_at,timestamptz,true,false,,false,,,migration
+rapports_conducteurs,id,created_at,timestamptz,false,true,now(),false,,,migration
+remorques,id,assurance_expiration,string | null,true,false,,false,,,types
+remorques,id,charge_utile_kg,number | null,true,false,,false,,,types
+remorques,id,contrat_entretien,boolean,false,true,,false,,,types
+remorques,id,created_at,string,false,true,,false,,,types
+remorques,id,ct_expiration,string | null,true,false,,false,,,types
+remorques,id,cout_achat_ht,number | null,true,false,,false,,,types
+remorques,id,date_achat,string | null,true,false,,false,,,types
+remorques,id,date_mise_en_circulation,string | null,true,false,,false,,,types
+remorques,id,garage_entretien,string | null,true,false,,false,,,types
+remorques,id,garantie_expiration,string | null,true,false,,false,,,types
+remorques,id,id,string,false,true,,false,,,types
+remorques,id,immatriculation,string,false,true,,false,,,types
+remorques,id,longueur_m,number | null,true,false,,false,,,types
+remorques,id,marque,string | null,true,false,,false,,,types
+remorques,id,notes,string | null,true,false,,false,,,types
+remorques,id,numero_carte_grise,string | null,true,false,,false,,,types
+remorques,id,preferences,string | null,true,false,,false,,,types
+remorques,id,prestataire_entretien,string | null,true,false,,false,,,types
+remorques,id,statut,string,false,true,,false,,,types
+remorques,id,type_remorque,string,false,true,,false,,,types
+remorques,id,type_propriete,string | null,true,false,,false,,,types
+remorques,id,updated_at,string,false,true,,false,,,types
+remorques,id,vin,string | null,true,false,,false,,,types
+tachygraphe_entrees,id,conducteur_id,string,false,true,,true,conducteurs,id,types
+tachygraphe_entrees,id,created_at,string,false,true,,false,,,types
+tachygraphe_entrees,id,date_debut,string,false,true,,false,,,types
+tachygraphe_entrees,id,date_fin,string | null,true,false,,false,,,types
+tachygraphe_entrees,id,duree_minutes,number | null,true,false,,false,,,types
+tachygraphe_entrees,id,id,string,false,true,,false,,,types
+tachygraphe_entrees,id,notes,string | null,true,false,,false,,,types
+tachygraphe_entrees,id,ot_id,string | null,true,false,,true,ordres_transport,id,types
+tachygraphe_entrees,id,source,string | null,true,false,,false,,,types
+tachygraphe_entrees,id,type_activite,string,false,true,,false,,,types
+tachygraphe_entrees,id,vehicule_id,string | null,true,false,,true,vehicules,id,types
+vehicule_releves_km,id,created_at,string,false,true,,false,,,types
+vehicule_releves_km,id,created_by,string | null,true,false,,false,,,types
+vehicule_releves_km,id,id,string,false,true,,false,,,types
+vehicule_releves_km,id,km_compteur,number,false,true,,false,,,types
+vehicule_releves_km,id,notes,string | null,true,false,,false,,,types
+vehicule_releves_km,id,reading_date,string,false,true,,false,,,types
+vehicule_releves_km,id,source,string | null,true,false,,false,,,types
+vehicule_releves_km,id,updated_at,string,false,true,,false,,,types
+vehicule_releves_km,id,vehicule_id,string,false,true,,true,vehicules,id,types
+vehicules,id,annee,number | null,true,false,,false,,,types
+vehicules,id,assurance_expiration,string | null,true,false,,false,,,types
+vehicules,id,contrat_entretien,boolean,false,true,,false,,,types
+vehicules,id,created_at,string,false,true,,false,,,types
+vehicules,id,ct_expiration,string | null,true,false,,false,,,types
+vehicules,id,cout_achat_ht,number | null,true,false,,false,,,types
+vehicules,id,date_achat,string | null,true,false,,false,,,types
+vehicules,id,date_mise_en_circulation,string | null,true,false,,false,,,types
+vehicules,id,garage_entretien,string | null,true,false,,false,,,types
+vehicules,id,garantie_expiration,string | null,true,false,,false,,,types
+vehicules,id,id,string,false,true,,false,,,types
+vehicules,id,immatriculation,string,false,true,,false,,,types
+vehicules,id,km_actuel,number | null,true,false,,false,,,types
+vehicules,id,marque,string | null,true,false,,false,,,types
+vehicules,id,modele,string | null,true,false,,false,,,types
+vehicules,id,notes,string | null,true,false,,false,,,types
+vehicules,id,numero_carte_grise,string | null,true,false,,false,,,types
+vehicules,id,preferences,string | null,true,false,,false,,,types
+vehicules,id,prestataire_entretien,string | null,true,false,,false,,,types
+vehicules,id,ptac_kg,number | null,true,false,,false,,,types
+vehicules,id,statut,string,false,true,,false,,,types
+vehicules,id,tachy_etalonnage_prochain,string | null,true,false,,false,,,types
+vehicules,id,tachy_serie,string | null,true,false,,false,,,types
+vehicules,id,type_vehicule,string,false,true,,false,,,types
+vehicules,id,type_propriete,string | null,true,false,,false,,,types
+vehicules,id,updated_at,string,false,true,,false,,,types
+vehicules,id,vignette_expiration,string | null,true,false,,false,,,types
+vehicules,id,vin,string | null,true,false,,false,,,types

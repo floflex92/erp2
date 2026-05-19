@@ -1,0 +1,15 @@
+severity,category,object,detail,recommendation
+critique,integrite_schema,schema_foundation,Migrations fondatrices du noyau legacy absentes dans le repo (uniquement migrations additives visibles).,Ajouter une migration baseline complete et reproductible.
+critique,multi_tenant,erp_v11_*,tenant_key sans FK vers erp_v11_tenants dans la plupart des tables v1.1.,Ajouter FK tenant_key + index associes sur toutes les tables v1.1.
+critique,synchronisation_types,src/lib/database.types.ts,Les tables erp_v11_* et affretement_* ne sont pas presentes dans les types generes.,Regenerer database.types.ts depuis la DB et supprimer les patchs manuels.
+critique,architecture_donnees,companySettings + affretementPortal,Donnees metier stockees en localStorage cote client.,Basculer ces donnees dans Supabase avec RLS et audit trails.
+important,normalisation,documents*,"Trois modeles documents paralleles (documents, conducteur_documents, flotte_documents).",Unifier en un modele canonique + table de liaison polymorphe.
+important,normalisation,entretiens + flotte_entretiens,Double modele maintenance.,Converger vers une table maintenance_events unique.
+important,integrite_metier,factures / ordres_transport,Lien de facturation double (factures.ot_id et ordres_transport.facturation_id).,Conserver un seul sens relationnel avec contrainte d unicite explicite.
+important,naming,vehicule_id vs vehicle_id,Convention de nommage mixte FR/EN dans les memes domaines.,Standardiser naming (FR ou EN) sur tables/colonnes/APIs.
+important,normalisation_1nf,permis_categories/capabilities/permissions,Colonnes multi-valeurs en array text[].,Externaliser en tables de liaison normalisees.
+important,audit_fields,contacts/documents/entretiens/couts_mission,updated_at absent sur plusieurs tables legacy.,Ajouter updated_at + trigger standard.
+important,securite,prospects/config_entreprise/rapports_conducteurs,Migration de creation sans bloc RLS/policies explicites.,Activer RLS et policies role-based coherentes.
+mineur,qualite_metier,notes/preferences,"Colonnes fourre-tout nombreuses, semantique faible.",Remplacer par sous-entites ciblees quand le besoin est recurrent.
+mineur,performance,jsonb_payloads,Usage JSONB large sans strategie d indexation GIN documentee.,"Indexer seulement les paths requetes, sinon conserver brut archive."
+mineur,coherence,config_entreprise,Modele cle/valeur jsonb flexible mais peu typable.,Creer une table settings typable pour les cles stables.
