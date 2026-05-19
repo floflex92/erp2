@@ -2,8 +2,7 @@ name: Keep Netlify & Supabase Alive
 
 on:
   schedule:
-    - cron: '0 */3 * * *' # toutes les 3 heures
-    - cron: '30 * * * *'  # à chaque demi-heure pour variation
+    - cron: '0 6 */3 * *' # tous les 3 jours a 06:00 UTC
   push:
     branches: [main, master, dev]
   workflow_dispatch:
@@ -15,17 +14,37 @@ jobs:
     steps:
       - name: Ping Netlify site
         run: |
-          echo "🚀 Pinging Netlify: https://nexora-truck.fr"
+          echo "Ping Netlify: https://nexora-truck.fr"
           curl -fsS --max-time 30 "https://nexora-truck.fr" \
             -H "User-Agent: GitHub-Actions-Keepalive" \
-            && echo "✅ Netlify OK" || (echo "❌ Netlify ping failed"; exit 1)
+            && echo "Netlify OK" || (echo "Netlify ping failed"; exit 1)
 
       - name: Ping Supabase
+        env:
+          SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: |
-          echo "🚀 Pinging Supabase: https://rnbbxmdughpxovcnhrpz.supabase.co"
-          curl -fsS --max-time 30 "https://rnbbxmdughpxovcnhrpz.supabase.co" \
+          if [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "Secret VITE_SUPABASE_ANON_KEY absent: ping REST non authentifie"
+            rest_status=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 30 "https://rnbbxmdughpxovcnhrpz.supabase.co/rest/v1/" \
+              -H "User-Agent: GitHub-Actions-Keepalive")
+            if [ "$rest_status" != "401" ] && [ "$rest_status" != "200" ]; then
+              echo "Supabase REST ping failed avec statut HTTP $rest_status"
+              exit 1
+            fi
+            echo "Supabase REST joignable avec statut HTTP $rest_status"
+          else
+            echo "Ping Supabase REST: https://rnbbxmdughpxovcnhrpz.supabase.co/rest/v1/"
+            curl -fsS --max-time 30 "https://rnbbxmdughpxovcnhrpz.supabase.co/rest/v1/" \
+              -H "apikey: $SUPABASE_ANON_KEY" \
+              -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+              -H "User-Agent: GitHub-Actions-Keepalive" \
+              && echo "Supabase REST OK" || (echo "Supabase REST ping failed"; exit 1)
+          fi
+
+          echo "Ping Supabase Storage: https://rnbbxmdughpxovcnhrpz.supabase.co/storage/v1/status"
+          curl -fsS --max-time 30 "https://rnbbxmdughpxovcnhrpz.supabase.co/storage/v1/status" \
             -H "User-Agent: GitHub-Actions-Keepalive" \
-            && echo "✅ Supabase OK" || (echo "❌ Supabase ping failed"; exit 1)
+            && echo "Supabase Storage OK" || (echo "Supabase Storage ping failed"; exit 1)
 
       - name: Log summary
         if: always()
@@ -33,4 +52,5 @@ jobs:
           echo "=== Keep-Alive Summary ==="
           echo "Timestamp: $(date -u)"
           echo "Netlify: https://nexora-truck.fr"
-          echo "Supabase: https://rnbbxmdughpxovcnhrpz.supabase.co"
+          echo "Supabase REST: https://rnbbxmdughpxovcnhrpz.supabase.co/rest/v1/"
+          echo "Supabase Storage: https://rnbbxmdughpxovcnhrpz.supabase.co/storage/v1/status"
